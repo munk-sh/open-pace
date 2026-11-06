@@ -6,3 +6,5 @@
 .munk/work-set/
 .munk/work-set-planning/
 .munk/uploads/
+.build/
+.swiftpm/
