@@ -9,7 +9,7 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - `ios/Config/Version.xcconfig`：由 `scripts/sync-ios-version.sh` 从根 `VERSION` 派生 `MARKETING_VERSION`；`project.yml` 以 `configFiles` 引用，版本不在规格或源码中写死。
 - `ios/PurePace/`：SwiftUI 占位页（App 名 `PurePace` + 一句 tagline + Run/History/Log/Settings 四个空 Tab），无业务逻辑、无内置样例数据、无网络请求。
 - `ios/PurePaceTests/`：XCTest 用例，对占位页文案/结构做断言；`ios/PurePaceUITests/`：XCUITest 用例，启动 App 后断言 `PurePace` 文案与四个 Tab 可访问。
-- `scripts/build-ios.sh`、`scripts/test-ios.sh`：先同步版本、再 `xcodegen generate`、最后真实 `xcodebuild build` / `xcodebuild test`（iPhone 16 / iOS 18.6，无签名）；`scripts/check-ios-shell.sh` 承载结构断言。
+- `scripts/build-ios.sh`、`scripts/test-ios.sh`：先由根 `VERSION` 同步 `Config/Version.xcconfig`，工程缺失且有 xcodegen 时从 spec 生成，再对 iPhone 16 / iOS 18.6 执行真实 `xcodebuild build` / `xcodebuild test`（无签名）；工程不可用时输出 `blocked:` 并降级真实 `swift build|test --package-path ios/Core`，绝不伪造成功行。`scripts/check-ios-shell.sh` 承载本域结构断言，`scripts/check-ios-scripts.sh` 承载脚本契约断言。
 - 门禁：`.munk/code-gates.json` 新增 `lint-ios-shell` / `build-ios` / `test-ios`（均为单一 argv，指向上述脚本）；既有 `lint` / `lint-baseline` / `lint-ios-core` / `build-ios-core` / `test-ios-core` / `test` 语义不变。
 
 ## 验收
@@ -40,10 +40,12 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - 版本派生：`MARKETING_VERSION` 只能来自根 `VERSION`（经 `scripts/sync-ios-version.sh` → `ios/Config/Version.xcconfig`），`project.yml`、源码与脚本均不得写死当前版本字面值；`CURRENT_PROJECT_VERSION` 用常量构建号。
 - 依赖/分层：App target 可选择以本地路径依赖 `ios/Core`（不复制源码），但不得向其添加业务 API；`ios/PurePace/` 不放样例数据，示例数据只允许出现在测试代码中。
 - 门禁形态：`command` 保持单一 argv，多步流程封装进 `scripts/` 下 bash 脚本（`set -euo pipefail`、幂等、支持 `--help`、以仓库根为路径基准）；构建/测试产物由忽略规则覆盖，不入库。
+- destination 钉住 iPhone 16 且必须带 `OS=18.6`（或等价 UDID）：只写 `name=iPhone 16` 会被解析成 `latest` 运行时（本机为 iOS 26.3.1，无 iPhone 16 机型）而构建失败；工程缺失时脚本走 `blocked:` + SwiftPM 降级分支，不得让门禁因此失败。
+- 门禁共存：本域 `lint-ios-shell` 与脚本契约门 `lint-ios-scripts` 必须同时通过；后者对 destination 的断言按「iPhone 16 + 可选 OS/UDID」校验，不得放宽为任意机型。
 - 证据口径：只报真实命令输出摘要与用例数，不写「CI 通过」「真机已验证」；本地门通过不替代远端 run。
 
 ## 最近交付证明
 
 - workItemId: wi_ws_ce605c342b221168（2026-11-07，pass）
-- 交付：`ios/project.yml`（三 target + 共享 scheme，iOS 17.0 / Swift 6.2 / 零依赖 / 不签名）、由 XcodeGen 生成入库的 `ios/PurePace.xcodeproj`、`ios/Config/Version.xcconfig` 版本派生链路、SwiftUI 四 Tab 占位页与 XCTest/XCUITest 用例；`scripts/sync-ios-version.sh`、`build-ios.sh`、`test-ios.sh`、`check-ios-shell.sh`；`.munk/code-gates.json` 新增 `lint-ios-shell` / `build-ios` / `test-ios`，既有门语义未改。
-- 验证：本机 xcodegen 2.46.0 可用，主路径达成——`xcodegen generate` 重复执行工程零 diff、`xcodebuild build` 产出 `PurePace.app`（BUILD SUCCEEDED）、`xcodebuild test` 在 iPhone 16 / iOS 18.6 上 `PurePaceTests` 4 例与 `PurePaceUITests` 1 例全部通过（TEST SUCCEEDED）、`scripts/check-ios-shell.sh` 7 项断言 0 失败；`code_gates` 9 门全绿（含 `swift test --package-path ios/Core` 与 `scripts/check-baseline.sh`）。
+- 交付：`ios/project.yml`（三 target + 共享 scheme，iOS 17.0 / Swift 6.2 / 零依赖 / 不签名）、由 XcodeGen 生成入库的 `ios/PurePace.xcodeproj`、`ios/Config/Version.xcconfig` 版本派生链路、SwiftUI 四 Tab 占位页与 XCTest/XCUITest 用例；`scripts/sync-ios-version.sh`、`build-ios.sh`、`test-ios.sh`、`check-ios-shell.sh`；`.munk/code-gates.json` 新增 `lint-ios-shell` 门，与既有 `lint-ios-scripts` / `build-ios` / `test-ios` 合并为共存门集合。
+- 验证：本机 xcodegen 2.46.0 可用，主路径达成——`xcodegen generate` 重复执行工程零 diff、`xcodebuild build` 产出 `PurePace.app`（BUILD SUCCEEDED）、`xcodebuild test` 在 iPhone 16 / iOS 18.6 上 `PurePaceTests` 4 例与 `PurePaceUITests` 1 例全部通过（TEST SUCCEEDED）、`scripts/check-ios-shell.sh` 7 项断言 0 失败、`scripts/check-ios-scripts.sh` 11 项断言 0 失败（destination 断言按实际需要允许显式 `OS=18.6`，避免 `latest` 解析到无 iPhone 16 的运行时）。

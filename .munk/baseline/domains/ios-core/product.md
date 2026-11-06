@@ -24,13 +24,13 @@
 - ac-semver-compare-and-render: 逐段比较语义正确（`1.2.3 < 1.2.10`、`1.10.0 > 1.9.9`、相等版本比较为相等）；`description` 输出与解析输入一致的 `x.y.z`，可往返。
 - ac-build-metadata-validation: `BuildMetadata` 以空/纯空白显示名或非法版本字符串初始化时失败（返回 nil 或抛错，二选一由测试锁定）；合法输入初始化后字段与输入一致且不可变。
 - ac-code-gates-ios-core: `.munk/code-gates.json` 含 `build-ios-core` 与 `test-ios-core`，command 为单一 argv（无 `&&` / `|` / `;` / 重定向 / `echo` / `true`）；既有 `test` 门仍执行 `scripts/check-baseline.sh`，且改动后 `bash scripts/check-baseline.sh` 仍全部 PASS。
-- ac-no-xcodegen-artifacts: 不新增 `ios/project.yml`、`ios/PurePace.xcodeproj`、`project.pbxproj`、`ios/PurePace/` 或 `scripts/build-ios.sh` / `scripts/test-ios.sh`。
+- ac-no-xcodegen-artifacts: 不新增 `ios/project.yml`、`ios/PurePace.xcodeproj`、`project.pbxproj`、`ios/PurePace/` App 源码；iOS 构建/测试脚本入口归 `repo-baseline` 域，本域不复制一份。
 - ac-build-artifacts-ignored: `swift build` / `swift test` 之后 `git status --porcelain` 不出现 `ios/Core/.build/`、`ios/Core/.swiftpm/` 等派生产物。
 
 ## 非目标
 
 - 不创建 XcodeGen 工程真源 `ios/project.yml`、`.xcodeproj` 或任何 `project.pbxproj`；不安装 xcodegen。
-- 不创建 App target、占位页、Tab 结构、app 侧 XCTest/XCUITest target，不写 `scripts/build-ios.sh` / `scripts/test-ios.sh`。
+- 不创建 App target、占位页、Tab 结构、app 侧 XCTest/XCUITest target；iOS 构建/测试脚本入口由 `repo-baseline` 域提供（无工程时降级调用本域的 `swift build|test`）。
 - 不实现任何跑步业务：定位、计时、音频/TTS、GPX/TCX 解析、schema/持久化、导出、地图、历史。
 - 不安装第三方 Swift 包或 SwiftLint 等工具链依赖；不改 `VERSION` / `README.md` / `AGENTS.md` / `scripts/version.sh` / `scripts/check-baseline.sh` 的既有断言语义。
 - 不做视觉设计、不做真机/签名、不推远端、不碰 CI workflow。

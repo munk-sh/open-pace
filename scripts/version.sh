@@ -5,10 +5,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-用法: scripts/version.sh [--help]
+用法: scripts/version.sh [--tools] [--help]
 
-读取仓库根 VERSION 文件并输出其内容（x.y.z，无 v 前缀）。
+无参数：读取仓库根 VERSION 文件并输出其内容（x.y.z，无 v 前缀）。
 这是仓库内获取版本号的唯一入口；脚本不接受版本号参数，也不缓存结果。
+
+--tools：在无参契约之外，追加输出根 VERSION 与 Xcode / Swift / JDK / Gradle 版本摘要。
+工具缺失时该行显式标注「未就绪」，不报错、不伪造版本。
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -20,12 +23,16 @@ usage() {
 EOF
 }
 
+mode="bare"
 case "${1:-}" in
   -h|--help)
     usage
     exit 0
     ;;
   "")
+    ;;
+  --tools)
+    mode="tools"
     ;;
   *)
     echo "version: 未知参数 '$1'（使用 --help 查看用法）" >&2
@@ -60,4 +67,42 @@ if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 1
 fi
 
-printf '%s\n' "$version"
+if [ "$mode" = "bare" ]; then
+  printf '%s\n' "$version"
+  exit 0
+fi
+
+# --tools：只输出真实可取得的工具版本；缺失时显式「未就绪」，不伪造版本。
+xcode_line="$(xcodebuild -version 2>/dev/null | sed -n 's/^Xcode \([0-9][0-9.]*\).*/\1/p' | head -n 1 || true)"
+if [ -z "$xcode_line" ]; then
+  xcode_line="未就绪（xcodebuild 不可用）"
+fi
+
+swift_version="$(swift --version 2>/dev/null | sed -n 's/.*Apple Swift version \([0-9][0-9.]*\).*/\1/p' | head -n 1 || true)"
+if [ -z "$swift_version" ]; then
+  swift_line="未就绪（swift 不可用）"
+else
+  swift_line="Apple Swift version $swift_version"
+fi
+
+jdk_line="$(java -version 2>&1 | sed -n '1s/[[:space:]]*$//p' || true)"
+if [ -z "$jdk_line" ]; then
+  jdk_line="未就绪（java 不可用）"
+fi
+
+gradle_line=""
+if [ -x android/gradlew ]; then
+  gradle_version="$(android/gradlew -p android --version 2>/dev/null | sed -n 's/^Gradle \([0-9][0-9.]*\)$/\1/p' | head -n 1 || true)"
+  if [ -n "$gradle_version" ]; then
+    gradle_line="$gradle_version"
+  fi
+fi
+if [ -z "$gradle_line" ]; then
+  gradle_line="未就绪（缺少 android/gradlew）"
+fi
+
+printf 'VERSION: %s\n' "$version"
+printf 'Xcode: %s\n' "$xcode_line"
+printf 'Swift: %s\n' "$swift_line"
+printf 'JDK: %s\n' "$jdk_line"
+printf 'Gradle: %s\n' "$gradle_line"
