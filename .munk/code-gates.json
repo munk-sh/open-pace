@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS/Android 的 build/test 门由各自骨架子项追加，不得写占位门。",
+  "gates": [
+    {
+      "id": "lint",
+      "cwd": ".",
+      "command": "bash -n scripts/version.sh"
+    },
+    {
+      "id": "lint-baseline",
+      "cwd": ".",
+      "command": "bash -n scripts/check-baseline.sh"
+    },
+    {
+      "id": "test",
+      "cwd": ".",
+      "command": "bash scripts/check-baseline.sh"
+    }
+  ]
+}
