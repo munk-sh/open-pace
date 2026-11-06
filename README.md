@@ -23,7 +23,10 @@
 
 ```bash
 bash scripts/version.sh
+bash scripts/version.sh --tools
 ```
+
+`--tools` 在版本号之外追加 Xcode / Swift / JDK / Gradle 版本摘要；工具缺失时该行显式标注「未就绪」，不伪造版本。
 
 ## 构建与测试入口
 
@@ -32,10 +35,12 @@ bash scripts/version.sh
 | 用途 | 入口 | 状态 |
 |---|---|---|
 | 读取版本号 | `bash scripts/version.sh` | 已就绪 |
+| 读取版本号与工具链摘要 | `bash scripts/version.sh --tools` | 已就绪（缺失工具显式标注未就绪） |
 | 仓库基线结构断言 | `bash scripts/check-baseline.sh` | 已就绪 |
-| iOS 构建 | `bash scripts/build-ios.sh` | 由 iOS 骨架子项补齐 |
-| iOS 测试 | `bash scripts/test-ios.sh` | 由 iOS 骨架子项补齐 |
+| iOS 脚本契约断言 | `bash scripts/check-ios-scripts.sh` | 已就绪 |
+| iOS 构建 | `bash scripts/build-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift build` |
+| iOS 测试 | `bash scripts/test-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift test` |
 | Android 构建 | `bash scripts/build-android.sh` | 由 Android 骨架子项补齐 |
 | Android 测试 | `bash scripts/test-android.sh` | 由 Android 骨架子项补齐 |
 
-门禁定义在 [`.munk/code-gates.json`](./.munk/code-gates.json)：目前只有 `lint`（shell 语法检查）与 `test`（真实执行 `scripts/check-baseline.sh`）；iOS/Android 的 build/test 门由各自骨架子项追加。
+门禁定义在 [`.munk/code-gates.json`](./.munk/code-gates.json)：含 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 真实执行 `scripts/check-baseline.sh`，iOS build/test 在工程不可用时显式 `blocked:` 并降级到 `ios/Core` 的 SwiftPM 命令。
