@@ -30,10 +30,10 @@
 - ac-version-tools-idempotent: 连续两次 `bash scripts/version.sh --tools` 输出逐字节相同（不含时间戳、随机数、与路径相关的变量）。
 - ac-ios-scripts-help: `bash scripts/build-ios.sh --help`、`bash scripts/test-ios.sh --help`、`bash scripts/check-ios-scripts.sh --help` 均退出 0，stdout 含「用法」；三者对未知参数均退出 2。
 - ac-ios-scripts-bash-strict: 三个 iOS 脚本 `bash -n` 退出 0，shebang 为 `#!/usr/bin/env bash`，正文含 `set -euo pipefail`。
-- ac-build-ios-xcodebuild-path: `scripts/build-ios.sh` 源码含 `xcodebuild build`、`-scheme`、`-destination 'platform=iOS Simulator,name=iPhone 16'`（引号形式可等价），分支判定基于 `ios/PurePace.xcodeproj` 是否存在；分支 A 成功时日志含 `BUILD SUCCEEDED` 与存在的 `*.app` 路径。
+- ac-build-ios-xcodebuild-path: `scripts/build-ios.sh` 源码含 `xcodebuild build`、`-scheme`、iPhone 16 destination（引号形式可等价，允许显式 `OS=18.6` 或 UDID 以消除 latest 歧义），分支判定基于 `ios/PurePace.xcodeproj` 是否存在；分支 A 成功时日志含 `BUILD SUCCEEDED` 与存在的 `*.app` 路径。
 - ac-build-ios-blocked-fallback: 无 `ios/PurePace.xcodeproj` 且无 `xcodegen` 时 `bash scripts/build-ios.sh` 退出 0，输出含 `blocked:` 并指明缺失原因（含 `xcodegen`），同时含降级 `swift build --package-path ios/Core` 的真实执行标记与 `Build complete`；输出中不出现 `BUILD SUCCEEDED`。
 - ac-test-ios-blocked-fallback: 同环境下 `bash scripts/test-ios.sh` 退出 0，输出含 `blocked:` 标注与真实 `swift test --package-path ios/Core` 结果，匹配 `Executed [0-9]+ tests?` 且失败数为 0、执行用例数 ≥ 1。
-- ac-test-ios-xcodebuild-path: `scripts/test-ios.sh` 源码含 `xcodebuild test`、`-scheme` 与同一 iPhone 16 destination 字面量；无 `ios/PurePace.xcodeproj` 时不调用 xcodebuild。
+- ac-test-ios-xcodebuild-path: `scripts/test-ios.sh` 源码含 `xcodebuild test`、`-scheme` 与同一 iPhone 16 destination（同样允许显式 `OS` / UDID）；无 `ios/PurePace.xcodeproj` 时不调用 xcodebuild。
 - ac-ios-scripts-idempotent: 连续两次执行 `build-ios.sh` 与 `test-ios.sh` 均退出 0；执行后 `git status --porcelain` 不出现新增未忽略产物（xcodebuild 派生数据与 Swift 构建产物均落在忽略路径）。
 - ac-check-ios-scripts-detects-drift: 人为改动可检测点（删除某脚本 `--help` 分支，或把 destination 改成非法机型）后 `bash scripts/check-ios-scripts.sh` 非零退出并指出具体失败项；恢复后退出 0。
 - ac-code-gates-ios-scripts: `.munk/code-gates.json` 合法 JSON 且 `version=1`，含 `lint-ios-scripts` / `build-ios` / `test-ios` 三门，command 均为单一 argv（无 `&&`、`||`、`|`、`;`、重定向、反引号、`echo`、`true`）；既有六条门 id 与 command 语义不变，`test` 门仍为 `bash scripts/check-baseline.sh`。
@@ -58,7 +58,7 @@
 - skill 安装口径：只用 `npx skills find` / `npx skills add <owner/repo@skill>` 装到仓库内 `.agents/skills/`，禁止 `-g` / `--global`，禁止以 `git clone`、`curl | sh` 为主路径；装不上如实写明并让断言反映真实结果，不得放宽为「有任意 skill 即可」。
 - 文档口径：`AGENTS.md` 保持薄，只写事实与约定；`scripts/test-android.sh` 仍只能标注为「由 Android 骨架项补齐」的目标入口，不得声称已存在；iOS 三脚本状态按真实执行结果描述（含 `blocked:` 降级说明）。
 - 门禁口径：`code-gates.json` 按 `.munk/code-gates.example.json` 结构生成且不改 example；禁止占位/空转门（`echo`、`true`）；门 command 必须单一 argv，多步断言放进 `scripts/*.sh`。
-- iOS 脚本口径：退出码 0 = 成功或显式降级成功（输出必含 `blocked:` 原因）、1 = 工程存在但真实构建/测试失败、2 = 参数非法；降级不得吞掉 `swift build` / `swift test` 的非零退出码；分支只由 `ios/PurePace.xcodeproj` 存在性（或 `project.yml` + xcodegen 可生成）判定，空壳工程落地后不得再改脚本或门禁；scheme 固定 `PurePace`，destination 固定 `platform=iOS Simulator,name=iPhone 16`；脚本以 `BASH_SOURCE` 推导仓库根，不依赖调用者 cwd。
+- iOS 脚本口径：退出码 0 = 成功或显式降级成功（输出必含 `blocked:` 原因）、1 = 工程存在但真实构建/测试失败、2 = 参数非法；降级不得吞掉 `swift build` / `swift test` 的非零退出码；分支只由 `ios/PurePace.xcodeproj` 存在性（或 `project.yml` + xcodegen 可生成）判定；scheme 固定 `PurePace`，destination 钉住 iPhone 16，需带 `OS=18.6`（或等价 UDID）以免 `latest` 解析到无 iPhone 16 的运行时；脚本以 `BASH_SOURCE` 推导仓库根，不依赖调用者 cwd。
 - 证据口径：回执只报真实命令 stdout 摘要（门 id → 退出码 → 关键行）与 `swift test` 的 `Executed N tests` 数字；blocked 项逐条列出原因；严禁以本地绿替代远端 CI run。
 - 红线：不修改 Host 托管文件（`goal.md`、`handoff.md`、`now.md`、`product.json`、`close-proposal.json`）；不自建远端；不写「CI 通过 / 真机已验证」等不实表述；不嵌套第二个 `.git`。
 

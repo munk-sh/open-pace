@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# iOS 构建入口：app 工程可用时走 xcodebuild，缺失时显式 blocked 并降级到 ios/Core 的 SwiftPM 构建。
-# 分支只由 ios/PurePace.xcodeproj 是否存在（或 project.yml + 本机 xcodegen 可生成）决定，
-# 后续 iOS 空壳工程落地后无需修改本脚本或门禁定义即可自动切到 xcodebuild。
+# iOS 构建入口：先由根 VERSION 同步 xcconfig，工程可用时走 xcodegen + xcodebuild 真构建，
+# 缺失时显式 blocked 并降级到 ios/Core 的 SwiftPM 构建。
+# 分支只由 ios/PurePace.xcodeproj 是否存在（或 project.yml + 本机 xcodegen 可生成）决定。
 set -euo pipefail
 
 usage() {
@@ -9,9 +9,10 @@ usage() {
 用法: scripts/build-ios.sh [--help]
 
 构建 iOS 侧产物，按工程可用性自动选择分支：
-  - 分支 A（工程可用）：ios/PurePace.xcodeproj 存在，或 ios/project.yml 存在且本机有
-    xcodegen 可生成时，执行
-    xcodebuild build -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16'，
+  - 分支 A（工程可用）：先执行 scripts/sync-ios-version.sh 由根 VERSION 生成
+    ios/Config/Version.xcconfig；ios/PurePace.xcodeproj 存在，或 ios/project.yml
+    存在且本机有 xcodegen 可从 spec 生成工程时，执行
+    xcodebuild build -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6'，
     派生数据写入 .build/ios，并在成功时打印真实 .app 产物路径。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift build --package-path ios/Core，并以该命令退出码为准；
@@ -55,14 +56,19 @@ project_path="$ios_dir/PurePace.xcodeproj"
 spec_path="$ios_dir/project.yml"
 derived_data=".build/ios"
 scheme="PurePace"
-destination="platform=iOS Simulator,name=iPhone 16"
+destination="platform=iOS Simulator,name=iPhone 16,OS=18.6"
+
+# 版本派生：MARKETING_VERSION 只能来自根 VERSION（写 ios/Config/Version.xcconfig）。
+if [ -f scripts/sync-ios-version.sh ]; then
+  bash scripts/sync-ios-version.sh
+fi
 
 build_with_xcodebuild() {
   echo "info: xcodebuild build -scheme $scheme -destination '$destination'（派生数据 $derived_data）"
   xcodebuild build \
     -project "$project_path" \
     -scheme "$scheme" \
-    -destination 'platform=iOS Simulator,name=iPhone 16' \
+    -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
     -derivedDataPath "$derived_data" \
     CODE_SIGNING_ALLOWED=NO
 

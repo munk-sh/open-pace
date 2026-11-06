@@ -11,8 +11,8 @@ usage() {
 对 iOS 构建/测试/版本脚本做结构与契约断言并打印逐条结果：
   - 四个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
   - build-ios.sh / test-ios.sh / check-ios-scripts.sh 的 --help 退出 0 且含「用法」，未知参数退出 2
-  - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination 与 swift build 降级分支
-  - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination 与 swift test 降级分支
+  - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
+  - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - 脚本与 README.md 不出现根 VERSION 字面值，不出现不实验收措辞
@@ -126,16 +126,17 @@ problems=""
 if [ ! -f scripts/build-ios.sh ]; then
   problems="$problems 缺少 scripts/build-ios.sh;"
 else
-  destination="platform=iOS Simulator,name=iPhone 16"
   for needle in \
     "xcodebuild build" \
     "-scheme" \
-    "-destination '$destination'" \
     "ios/PurePace.xcodeproj" \
     "swift build --package-path ios/Core" \
     "blocked:"; do
     grep -Fq -- "$needle" scripts/build-ios.sh || problems="$problems 缺少 '$needle';"
   done
+  # destination 必须钉住 iPhone 16；允许显式 OS 版本或 UDID 以消除 latest 歧义。
+  grep -Eq -- "-destination ['\"]platform=iOS Simulator,name=iPhone 16(,OS=[0-9.]+|,id=[0-9A-Fa-f-]+)?['\"]" scripts/build-ios.sh \
+    || problems="$problems 缺少 iPhone 16 destination;"
 fi
 if [ -z "$problems" ]; then
   pass "ac-build-ios-xcodebuild-path"
@@ -148,16 +149,17 @@ problems=""
 if [ ! -f scripts/test-ios.sh ]; then
   problems="$problems 缺少 scripts/test-ios.sh;"
 else
-  destination="platform=iOS Simulator,name=iPhone 16"
   for needle in \
     "xcodebuild test" \
     "-scheme" \
-    "-destination '$destination'" \
     "ios/PurePace.xcodeproj" \
     "swift test --package-path ios/Core" \
     "blocked:"; do
     grep -Fq -- "$needle" scripts/test-ios.sh || problems="$problems 缺少 '$needle';"
   done
+  # destination 必须钉住 iPhone 16；允许显式 OS 版本或 UDID 以消除 latest 歧义。
+  grep -Eq -- "-destination ['\"]platform=iOS Simulator,name=iPhone 16(,OS=[0-9.]+|,id=[0-9A-Fa-f-]+)?['\"]" scripts/test-ios.sh \
+    || problems="$problems 缺少 iPhone 16 destination;"
 fi
 if [ -z "$problems" ]; then
   pass "ac-test-ios-xcodebuild-path"
