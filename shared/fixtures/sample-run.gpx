@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PurePace synthetic fixture: coordinates and vitals are invented, not a real user trace. -->
+<gpx version="1.1" creator="PurePace synthetic fixture"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+  <metadata>
+    <name>PurePace synthetic run</name>
+    <desc>Synthetic 4-point run fixture (3 minutes, ~691 m).</desc>
+    <time>2026-01-01T08:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>synthetic run</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="31.230400" lon="121.473700">
+        <ele>12.0</ele>
+        <time>2026-01-01T08:00:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>112</gpxtpx:hr>
+            <gpxtpx:cad>82</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="31.232200" lon="121.474900">
+        <ele>12.5</ele>
+        <time>2026-01-01T08:01:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>128</gpxtpx:hr>
+            <gpxtpx:cad>84</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="31.234000" lon="121.476100">
+        <ele>13.2</ele>
+        <time>2026-01-01T08:02:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>141</gpxtpx:hr>
+            <gpxtpx:cad>86</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="31.235800" lon="121.477300">
+        <ele>13.8</ele>
+        <time>2026-01-01T08:03:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>147</gpxtpx:hr>
+            <gpxtpx:cad>85</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
