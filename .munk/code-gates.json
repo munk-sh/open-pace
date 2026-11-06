@@ -51,6 +51,11 @@
       "id": "test",
       "cwd": ".",
       "command": "bash scripts/check-baseline.sh"
+    },
+    {
+      "id": "check-shared",
+      "cwd": ".",
+      "command": "bash scripts/check-shared.sh"
     }
   ]
 }
