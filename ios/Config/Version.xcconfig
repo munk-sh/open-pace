@@ -1,0 +1,2 @@
+// 由 scripts/sync-ios-version.sh 从仓库根 VERSION 生成；请勿手改。
+MARKETING_VERSION = 0.1.0

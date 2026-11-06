@@ -1,0 +1,89 @@
+# PurePace iOS 工程唯一真源（XcodeGen）。
+# 生成物：ios/PurePace.xcodeproj —— 禁止手写 project.pbxproj。
+# 版本号来自根 VERSION：由 scripts/sync-ios-version.sh 生成 Config/Version.xcconfig，
+# 本文件与 App 源码都不出现版本字面值。
+name: PurePace
+
+options:
+  minimumXcodeGenVersion: "2.46.0"
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Config/Version.xcconfig
+  Release: Config/Version.xcconfig
+
+settings:
+  base:
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.2"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    GENERATE_INFOPLIST_FILE: YES
+    CODE_SIGNING_ALLOWED: NO
+    PUREPACE_BUNDLE_ID: com.chaxiu.purepace
+    PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID)
+
+targets:
+  PurePace:
+    type: application
+    platform: iOS
+    sources:
+      - path: PurePace
+    settings:
+      base:
+        PRODUCT_NAME: PurePace
+        INFOPLIST_KEY_CFBundleDisplayName: PurePace
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+
+  PurePaceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PurePaceTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID).tests
+    dependencies:
+      - target: PurePace
+
+  PurePaceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PurePaceUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID).uitests
+        TEST_TARGET_NAME: PurePace
+    dependencies:
+      - target: PurePace
+
+schemes:
+  PurePace:
+    build:
+      targets:
+        PurePace: all
+        PurePaceTests: [test]
+        PurePaceUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: PurePaceTests
+        - name: PurePaceUITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
