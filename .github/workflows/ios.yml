@@ -1,0 +1,110 @@
+name: ios
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: ios
+    runs-on: macos-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install
+        run: |
+          set -euo pipefail
+
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            echo "install: 安装 xcodegen"
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+          runtime_ready() {
+            xcrun simctl list runtimes | grep -Eq '^iOS 18\.6( |$)'
+          }
+
+          if ! runtime_ready; then
+            echo "install: 下载 iOS 18.6 模拟器运行时"
+            if ! xcodebuild -downloadPlatform iOS -buildVersion 18.6; then
+              echo "install: 直接下载失败，改用 sudo 重试"
+              sudo xcodebuild -downloadPlatform iOS -buildVersion 18.6
+            fi
+          fi
+
+          for _ in $(seq 1 120); do
+            if runtime_ready; then
+              break
+            fi
+            sleep 5
+          done
+
+          if ! runtime_ready; then
+            echo "install: 未能获得 iOS 18.6 模拟器运行时，无法满足 destination 契约" >&2
+            exit 1
+          fi
+
+          device_ready() {
+            xcrun simctl list devices available 'iOS 18.6' 2>/dev/null | grep -Eq '^[[:space:]]+iPhone 16 \('
+          }
+
+          if ! device_ready; then
+            echo "install: 创建 iPhone 16 (iOS 18.6) 模拟器"
+            runtime_id="$(xcrun simctl list runtimes | awk '/^iOS 18\.6 /{print $NF; exit}')"
+            xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "$runtime_id"
+          fi
+
+          for _ in $(seq 1 60); do
+            if device_ready; then
+              break
+            fi
+            sleep 2
+          done
+
+          device_ready
+
+      - name: lint
+        run: |
+          bash scripts/check-baseline.sh
+          bash scripts/check-ios-core.sh
+          bash scripts/check-ios-scripts.sh
+          bash scripts/check-ios-shell.sh
+
+      - name: test
+        run: |
+          set -euo pipefail
+          if output="$(bash scripts/test-ios.sh 2>&1)"; then
+            step_rc=0
+          else
+            step_rc=$?
+          fi
+          printf '%s\n' "$output"
+          case "$output" in
+            *blocked:*)
+              echo "test: scripts/test-ios.sh 走了 blocked: 降级分支，CI 判失败" >&2
+              exit 1
+              ;;
+          esac
+          exit "$step_rc"
+
+      - name: build
+        run: |
+          set -euo pipefail
+          if output="$(bash scripts/build-ios.sh 2>&1)"; then
+            step_rc=0
+          else
+            step_rc=$?
+          fi
+          printf '%s\n' "$output"
+          case "$output" in
+            *blocked:*)
+              echo "build: scripts/build-ios.sh 走了 blocked: 降级分支，CI 判失败" >&2
+              exit 1
+              ;;
+          esac
+          exit "$step_rc"
