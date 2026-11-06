@@ -1,0 +1,16 @@
+{
+  "app_name": "PurePace",
+  "tagline": "Pure running. Your data stays yours.",
+  "tab_run": "Run",
+  "tab_history": "History",
+  "tab_log": "Food",
+  "tab_settings": "Settings",
+  "run_start": "Start",
+  "run_pause": "Pause",
+  "run_resume": "Resume",
+  "run_finish": "Finish",
+  "history_empty": "No runs yet.",
+  "food_scan": "Scan barcode",
+  "food_manual_entry": "Enter manually",
+  "settings_export": "Export GPX / TCX"
+}

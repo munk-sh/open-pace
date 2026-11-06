@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PurePace synthetic fixture: coordinates and vitals are invented, not a real user trace. -->
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+  <Activities>
+    <Activity Sport="Running">
+      <Id>2026-01-01T08:00:00Z</Id>
+      <Lap StartTime="2026-01-01T08:00:00Z">
+        <TotalTimeSeconds>180.0</TotalTimeSeconds>
+        <DistanceMeters>691.2</DistanceMeters>
+        <Calories>0</Calories>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-01T08:00:00Z</Time>
+            <Position>
+              <LatitudeDegrees>31.230400</LatitudeDegrees>
+              <LongitudeDegrees>121.473700</LongitudeDegrees>
+            </Position>
+            <AltitudeMeters>12.0</AltitudeMeters>
+            <HeartRateBpm>
+              <Value>112</Value>
+            </HeartRateBpm>
+            <Cadence>82</Cadence>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T08:01:00Z</Time>
+            <Position>
+              <LatitudeDegrees>31.232200</LatitudeDegrees>
+              <LongitudeDegrees>121.474900</LongitudeDegrees>
+            </Position>
+            <AltitudeMeters>12.5</AltitudeMeters>
+            <HeartRateBpm>
+              <Value>128</Value>
+            </HeartRateBpm>
+            <Cadence>84</Cadence>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T08:02:00Z</Time>
+            <Position>
+              <LatitudeDegrees>31.234000</LatitudeDegrees>
+              <LongitudeDegrees>121.476100</LongitudeDegrees>
+            </Position>
+            <AltitudeMeters>13.2</AltitudeMeters>
+            <HeartRateBpm>
+              <Value>141</Value>
+            </HeartRateBpm>
+            <Cadence>86</Cadence>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T08:03:00Z</Time>
+            <Position>
+              <LatitudeDegrees>31.235800</LatitudeDegrees>
+              <LongitudeDegrees>121.477300</LongitudeDegrees>
+            </Position>
+            <AltitudeMeters>13.8</AltitudeMeters>
+            <HeartRateBpm>
+              <Value>147</Value>
+            </HeartRateBpm>
+            <Cadence>85</Cadence>
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>
