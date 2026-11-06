@@ -1,0 +1,94 @@
+name: android
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install-jdk
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: install-sdk
+        uses: android-actions/setup-android@v3
+
+      - name: install
+        run: |
+          set -euo pipefail
+
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+          java_version="$(java -version 2>&1 | awk -F '"' '/version/ {print $2; exit}')"
+          java_major="${java_version%%.*}"
+          if [ "$java_major" != "21" ]; then
+            echo "install: 需要 JDK 21，实际 java 版本 '$java_version'" >&2
+            exit 1
+          fi
+
+          if [ -z "${ANDROID_HOME:-}" ] || [ ! -d "$ANDROID_HOME" ]; then
+            echo "install: ANDROID_HOME 未设置或目录不存在（ANDROID_HOME=${ANDROID_HOME:-<unset>}）" >&2
+            exit 1
+          fi
+
+          for package_dir in "platforms/android-36" "build-tools/36.0.0"; do
+            if [ ! -d "$ANDROID_HOME/$package_dir" ]; then
+              echo "install: 缺少 SDK 目录 $ANDROID_HOME/$package_dir" >&2
+              exit 1
+            fi
+          done
+
+          echo "install: JDK $java_version，ANDROID_HOME=$ANDROID_HOME"
+
+      - name: lint
+        run: |
+          set -euo pipefail
+          bash scripts/check-baseline.sh
+          bash scripts/check-android.sh
+
+      - name: test
+        run: |
+          set -euo pipefail
+          if output="$(bash scripts/test-android.sh 2>&1)"; then
+            step_rc=0
+          else
+            step_rc=$?
+          fi
+          printf '%s\n' "$output"
+          case "$output" in
+            *blocked:*)
+              echo "test: scripts/test-android.sh 走了 blocked: 降级分支，CI 判失败" >&2
+              exit 1
+              ;;
+          esac
+          exit "$step_rc"
+
+      - name: build
+        run: |
+          set -euo pipefail
+          if output="$(bash scripts/build-android.sh 2>&1)"; then
+            step_rc=0
+          else
+            step_rc=$?
+          fi
+          printf '%s\n' "$output"
+          case "$output" in
+            *blocked:*)
+              echo "build: scripts/build-android.sh 走了 blocked: 降级分支，CI 判失败" >&2
+              exit 1
+              ;;
+          esac
+          exit "$step_rc"
