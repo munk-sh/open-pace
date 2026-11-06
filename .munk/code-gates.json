@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS/Android 的 build/test 门由各自骨架子项追加，不得写占位门。",
+  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS 侧另有 ios/Core SwiftPM 包的真实 build/test 门与结构断言门（零第三方依赖、无业务实现、无写死版本）。",
   "gates": [
     {
       "id": "lint",
@@ -11,6 +11,21 @@
       "id": "lint-baseline",
       "cwd": ".",
       "command": "bash -n scripts/check-baseline.sh"
+    },
+    {
+      "id": "lint-ios-core",
+      "cwd": ".",
+      "command": "bash scripts/check-ios-core.sh"
+    },
+    {
+      "id": "build-ios-core",
+      "cwd": ".",
+      "command": "swift build --package-path ios/Core"
+    },
+    {
+      "id": "test-ios-core",
+      "cwd": ".",
+      "command": "swift test --package-path ios/Core"
     },
     {
       "id": "test",
