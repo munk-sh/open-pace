@@ -18,5 +18,9 @@ final class SendableContractTests: XCTestCase {
         requireSendable(AudioCategoryOption.self)
         requireSendable(AudioSessionSettings.self)
         requireSendable(RunCoreError.self)
+        requireSendable(RunMetrics.self)
+        requireSendable(RunMetricsUpdate.self)
+        requireSendable(RunMetricsEngine.self)
+        requireSendable(GeoDistance.self)
     }
 }
