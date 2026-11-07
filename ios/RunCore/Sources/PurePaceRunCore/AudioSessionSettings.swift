@@ -12,12 +12,13 @@ public enum AudioMode: String, CaseIterable, Sendable {
     case spokenAudio
 }
 
-/// 音频会话选项（纯数据镜像）。
+/// 音频会话选项（纯数据镜像）。既有 case 的 rawValue 与顺序不变，新 case 追加在末尾。
 public enum AudioCategoryOption: String, CaseIterable, Sendable {
     case mixWithOthers
     case duckOthers
     case interruptSpokenAudioAndMixWithOthers
     case allowBluetoothA2DP
+    case notifyOthersOnDeactivation
 }
 
 /// 音频会话配置契约。只承载数据，不激活会话、不读回状态。
@@ -38,4 +39,13 @@ public struct AudioSessionSettings: Hashable, Sendable {
         self.options = options
         self.deactivationOptions = deactivationOptions
     }
+
+    /// 冻结的公告音频配置：`.playback` + `.spokenAudio`，激活时 duck 且允许混音，
+    /// 停用时通知其它音频会话恢复。只是纯数据契约，不激活或不读回真实会话。
+    public static let defaultAnnouncement = AudioSessionSettings(
+        category: .playback,
+        mode: .spokenAudio,
+        options: [.duckOthers, .mixWithOthers],
+        deactivationOptions: [.notifyOthersOnDeactivation]
+    )
 }

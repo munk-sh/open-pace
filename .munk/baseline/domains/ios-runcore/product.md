@@ -11,8 +11,11 @@
   - `RunDistance`（`meters`）、`RunPace`（`secondsPerKilometer`，并可由距离+时长派生）。
   - `RunSample`（经纬度/海拔/时间戳/心率/步频）、`RunSplit`（`index` + 距离 + 时长，派生 `pace`）。
   - `AnnouncementTrigger`、`AnnouncementCommand`（触发源 / 分段序号 / 距离 / 配速 / 已用时长）。
-  - `AudioCategory` / `AudioMode` / `AudioCategoryOption` 与 `AudioSessionSettings`：纯数据镜像，**不 import AVFoundation**。
+  - `AudioCategory` / `AudioMode` / `AudioCategoryOption` 与 `AudioSessionSettings`：纯数据镜像，**不 import AVFoundation**；`AudioCategoryOption` 含 `notifyOthersOnDeactivation`（追加在末尾，既有 case rawValue/顺序不变），`AudioSessionSettings.defaultAnnouncement` 冻结公告配置。
   - `RunCoreError`（`Error, Equatable, Sendable`，`CustomStringConvertible`）。
+- 播报调度与音频会话契约（纯逻辑，全 `struct`/`enum` + `mutating`，无 `Date()` 时钟源）：
+  - `AnnouncementScheduler`：唯一输入口 `mutating func tick(_ update: RunMetricsUpdate, state: RunSessionState) -> [AnnouncementCommand]`；公里边界按 `newlyCompletedSplits` 一次且仅一次播报，内部 `lastAnnouncedSplitIndex` 去抖，`ready`/`paused` 恒空，`finished` 只补 1 条收尾（已完成公里数为 0 则无），`paused→running` 对未播公里最多补播 1 条 `.resumedAfterPause`。
+  - `AudioSessionCoordinator` + `AudioSessionState` / `AudioSessionAction`：不 `import AVFoundation`，只产出动作值供波 2 App target 执行；激活幂等、`deactivate()` 携带 `.notifyOthersOnDeactivation`、interruption `began`/`ended(shouldResume:)` 状态机冻结。
 - 会话与持久化（同包内，`struct` 全 `Sendable`）：
   - `RunSessionMachine`（持有 `state: RunSessionState`）：`init(state:)`、`canTransition(to:)`、`mutating transition(to:) throws`、语义化 `start()/pause()/resume()/finish()`，以及 `init(restoring:)`；非法迁移抛 `RunCoreError.invalidStateTransition(from:to:)` 且状态不变。
   - `RunCheckpoint`（手写 `Codable`）：`formatVersion`（唯一合法 1）/`state`/`completedDistance`/`elapsed`/`splits`/`recordedAt`，`init?` 校验有限非负 `elapsed`、`splits` 索引从 1 连续、时间非 `distantPast`/`distantFuture`、`ready` 时零距离零分段。
@@ -71,9 +74,25 @@
 - ac-runcore-layer-only: 新增代码只落 `ios/RunCore/Sources/PurePaceRunCore/` 与 `ios/RunCore/Tests/PurePaceRunCoreTests/`；`Sources/**` 的 `import` 仍仅 `Foundation`，不出现平台符号、`shared/fixtures`/夹具令牌与根 `VERSION` 字面值。
 - ac-no-frozen-contract-break: `RunSessionState`/`RunDistance`/`RunPace`/`RunSample`/`RunSplit`/`Announcement*`/`AudioSessionSettings`/`RunCoreError` 的既有公开字段、初始化签名与既有 17 个用例语义不变；不为既有类型新增 `Codable`（`RunCheckpoint` 自行编码原始字段）。
 - ac-swift-test-green: 仓库根 `swift test --package-path ios/RunCore` 退出码 0、失败数 0 且新用例真实执行（用例数 > 17）；`bash scripts/check-ios-run-core.sh`、`bash scripts/check-baseline.sh` 全 `[PASS]`；`.munk/code-gates.json` 既有门（含 `lint-ios-run-core`/`build-ios-run-core`/`test-ios-run-core`）id 与 command 不变。
+- ac-announcement-exactly-once-per-km: 连续 tick 覆盖第 1..N 个整公里时，每个 `splitIndex` 恰好产生 1 条 `trigger == .kilometerCompleted` 命令；全程命令序列中任何 `splitIndex` 都不重复出现，且序号严格递增。
+- ac-announcement-duplicate-tick-debounced: 用完全相同的 `RunMetricsUpdate`（含非空 `newlyCompletedSplits`）连续 tick 两次，第二次返回空数组；重复 10 次仍只有首次那批命令，`completedKilometers` 不变时不再产出。
+- ac-announcement-paused-suppressed: 状态 `.paused` 时 tick 恒返回空数组（即使携带 `newlyCompletedSplits`）；`.ready` 同样恒空。
+- ac-announcement-finished-stops: 进入 `.finished` 时最多产出 1 条 `trigger == .finished` 命令（`splitIndex == 已完成公里数`、`elapsed == metrics.elapsed`），已完成公里数为 0 则不产出；此后任意 tick 恒空且不再出现 `.kilometerCompleted`。
+- ac-announcement-resume-catch-up-once: `paused → running` 后首次 tick 对「已完成但未播报」的公里最多产出 1 条 `.resumedAfterPause`（`splitIndex` 为未播报的最大公里序号）；同一恢复期再次 tick 返回空；第二次恢复若无新未播公里亦返回空；不得逐条补播（总数 ≤ 1）。
+- ac-announcement-command-fields: 所有产出命令均满足 `splitIndex >= 1`、`elapsed` 有限非负、`distance.meters == splitIndex * 1000 ± 1e-9`、`pace` 与该分段 `RunSplit.pace` 一致、`elapsed` 单调不减；未满 1 公里时全程无命令。
+- ac-audiosession-settings-values: 默认公告配置断言 `category == .playback`、`mode == .spokenAudio`、`options == Set([.duckOthers, .mixWithOthers])`（恰好两项）、`deactivationOptions == Set([.notifyOthersOnDeactivation])`（恰好一项）。
+- ac-audiosession-deactivate-option: `deactivate()` 返回动作携带 `.notifyOthersOnDeactivation`（动作值断言）；`.active` 停用后状态 `.inactive`，`.inactive` 再次停用返回 `.none` 且状态不变。
+- ac-audiosession-interruption-lifecycle: `.active` 收到 `interruptionBegan` → `.interrupted` 且不产生激活动作；`ended(shouldResume: true)` → `.active` 且动作等于按默认公告配置重新激活；`ended(shouldResume: false)` → `.inactive` 且动作 `.none`；重复 `began` 幂等且不重复激活；非 `.interrupted` 时 `ended` 返回 `.none` 且状态不变。
+- ac-audiosession-activation-idempotent: `.inactive → activate()` 产出 1 次激活动作且状态 `.active`；`.active` 再次 `activate()` 返回 `.none`，状态仍 `.active`。
+- ac-runcore-purity-preserved: `ios/RunCore/Sources/**` 仍只 `import Foundation`，不出现 `AVFoundation|AVAudioSession|AVSpeechSynthesizer|CoreLocation|UIKit|SwiftUI|Timer` 等平台符号，不新增 `class`/`actor`/全局可变状态/`@unchecked`，新增公开类型显式 `Sendable`，包依赖仍为空。
+- ac-announcement-audio-existing-contracts-unchanged: `RunSessionState`/`RunMetrics`/`RunSplit`/`RunMetricsEngine` 的既有公开签名、枚举 `allCases` 顺序与 rawValue、5 条合法迁移、阈值常量均不变；既有 34+10 个 RunCore 用例继续通过（因新增 `notifyOthersOnDeactivation` 仅允许把 `AudioCategoryOption.allCases.count` 断言由 4 改为 5 并断言包含关系，不得删除既有用例）；不新增 `AnnouncementTrigger` case，不放宽 `AnnouncementCommand` 校验。
+- ac-gates-green: 仓库根 `bash scripts/check-ios-run-core.sh`、`swift build --package-path ios/RunCore`、`swift test --package-path ios/RunCore` 全部退出码 0 且无失败用例；`.munk/code-gates.json` 19 个既有 `id`/command 不变（不减少、不新增门）。
+- ac-evidence-wording: 交付结论只允许写「配置与调度契约通过」；音乐是否只降不暂停、TTS 与音乐实听、锁屏后台连续定位一律记 `pending: 待人现场`，全文不得出现「已验证」「实听通过」「真机通过」。
+
 ## 非目标
 
-- 不实现每公里播报调度与去重、AudioSession 协调器与读回、GPX 1.1 导出、App target 音频适配器、CoreLocation 接入、模拟器 Harness 与 `verify-ios-sim-runtime.sh`；不跑 `xcrun simctl` / `xcodebuild`。度量引擎只做计时/距离账本（锚点幂等，不做状态辩论），checkpoint 只存盘与会话恢复（不做距离重算、不产生新分段），跨进程 terminate→relaunch 编排归波 2。
+- 不在本域实现真实发声/音频路由：`AVSpeechSynthesizer`/TTS 播放、`AVAudioSession` 真实激活与读回、音量与 duck 实测归波 2 App target 适配子项；`AnnouncementScheduler`/`AudioSessionCoordinator` 只到动作值与纯逻辑契约；不做跨进程播报状态持久化（`checkpoint` 不新增「已播公里」），不把中断与播报队列耦合。
+- 不做 GPX 1.1 导出、App target 音频适配器、CoreLocation 接入、模拟器 Harness 与 `verify-ios-sim-runtime.sh`；不跑 `xcrun simctl` / `xcodebuild`。度量引擎只做计时/距离账本（锚点幂等，不做状态辩论），checkpoint 只存盘与会话恢复（不做距离重算、不产生新分段），跨进程 terminate→relaunch 编排归波 2。
 - 不写采样流 JSONL 解析器、不在 RunCore 内读夹具文件、不做精度过滤/首点漂移剔除（适配器侧职责）。
 - 不新增可执行 target（`PurePaceGpxTool` 归后续子项）；不建 App target、不接 CoreLocation/AVFoundation、不建 UI 页面。
 - 不做 XcodeGen 接入（本地包进 `.xcodeproj` 留给后续子项，届时需放宽 `check-ios-shell.sh` 仅对本地包）。
@@ -100,9 +119,11 @@
 - checkpoint 红线：文件即真源，`RunCheckpointStore` 是唯一落盘点，外面不得再包内存缓存层；`FileHandle` 追加 + 每行 `\n`，只用 `Foundation`（`FileManager`/`Data`/`FileHandle`/`JSONEncoder`/`JSONDecoder`/`URL`），不引入 `OutputStream`/SQLite/`UserDefaults`；尾行丢弃、非尾行抛错、IO 不可读不得伪装成空结果。
 - 恢复语义红线：`.running`/`.paused` 一律恢复为 `.paused`，禁止进程重启后静默冒充 running；`.ready`/`.finished` 原样恢复；恢复不改写 checkpoint 数据。
 - 测试隔离：临时目录用 `FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)`，每用例独立目录并 `defer` 清理；仍用 XCTest（禁 `import Testing`），测试数值全部合成，不出现夹具令牌与根 `VERSION` 字面值。
+- 调度器契约：内部 `lastAnnouncedSplitIndex`（或等价有序状态）负责去抖与幂等，禁止依赖调用方去重，禁止用时间间隔判定（无时钟源、不用 `Date()`）；时间统一取 `metrics.elapsed`；分段边界只认 `newlyCompletedSplits`，不复刻分段判定，`distance`/`pace` 取 `RunSplit`。
+- 音频契约：`AudioSessionCoordinator` 不 `import AVFoundation`，只返回 `AudioSessionAction` 值（激活配置/停用选项/`.none`）；`notifyOthersOnDeactivation` 以 `AudioCategoryOption` 新 case 表示，既有 case rawValue 不改；两条路（新 case vs 独立枚举）只取其一。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_acb54fb5fa309301（2026-11-07，pass，`track-metrics-splits`；同 tip 已并 `wi_ws_93a3efc9df0e98eb`）
-- 交付：`ios/RunCore/Sources/PurePaceRunCore/` 新增 `GeoDistance.swift`（Haversine 纯函数 + 半径常量 `6_371_000.0`）、`RunMetrics.swift`（快照与 `RunMetricsUpdate`）、`RunMetricsEngine.swift`（`ingest(_:) -> RunMetricsUpdate` 单一输入口 + 四个幂等锚点；分段、滑动窗口当前配速、暂停冻结、时间倒退丢弃）；`Tests/PurePaceRunCoreTests/RunMetricsEngineTests.swift` 新增 10 个 XCTest（首点无度量、半径常量与 691.16 m 口径、1% 距离误差、2 s/km 平均与当前配速、分段 ≤1 采样点边界与累计一致性、重复点零增量、时间倒退丢弃、暂停排除、锚点幂等）。同域既有交付：`RunSessionMachine`（5 条合法迁移 + `init(restoring:)`）、`RunCheckpoint`、`RunCheckpointStore`（JSONL 真实文件追加、尾行丢弃 / 非尾行抛 `corruptedCheckpoint`），RunCore 用例总数 34 + 新增 10。
+- workItemId: wi_ws_e21a5bd66cd74c34（2026-11-07，pass，`announcement-audio-contract`；checkpoint `cp-tts-audio-contract` 关闭，`cp-stage2-exit` 仅取代码层证据）
+- 交付：`ios/RunCore/Sources/PurePaceRunCore/` 新增 `AnnouncementScheduler.swift`（`mutating tick(_:state:)`，公里一次且仅一次、重复 tick 去抖、`ready`/`paused` 抑制、`finished` 单条收尾、`paused→running` 最多补播 1 条）、`AudioSessionCoordinator.swift`（`AudioSessionState`/`AudioSessionAction`，激活幂等、停用携带 `.notifyOthersOnDeactivation`、interruption 状态机）；`AudioSessionSettings.swift` 追加 `AudioCategoryOption.notifyOthersOnDeactivation` 与 `defaultAnnouncement`（`.playback` / `.spokenAudio` / 激活 `{duckOthers, mixWithOthers}` / 停用 `{notifyOthersOnDeactivation}`）；测试新增 `AnnouncementSchedulerTests.swift`、`AudioSessionCoordinatorTests.swift`，仅把 `AudioCategoryOption.allCases.count` 断言由 4 改 5。配置与调度契约通过；音乐是否只降不暂停、TTS 与音乐实听、锁屏后台连续定位 `pending: 待人现场`。
 - 验证：`code_gates` 全绿——`lint-ios-run-core` 结构扫描 PASS、`build-ios-run-core` / `test-ios-run-core` 真实 `swift build` / `swift test` 无失败；未改 `.munk/code-gates.json`（19 门 id/command 不变）、未改 `scripts/**`、未触碰 `ios/PurePace/**` / `project.yml` / `.xcodeproj` / `shared/` / `android/` / CI / `VERSION`。
