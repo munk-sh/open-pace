@@ -44,12 +44,14 @@ final class AnnouncementAndAudioTests: XCTestCase {
     }
 
     func testAudioEnumCases() {
-        XCTAssertEqual(AudioCategoryOption.allCases.count, 4)
+        XCTAssertEqual(AudioCategoryOption.allCases.count, 5)
         XCTAssertTrue(AudioCategoryOption.allCases.contains(.mixWithOthers))
         XCTAssertTrue(AudioCategoryOption.allCases.contains(.duckOthers))
         XCTAssertTrue(AudioCategoryOption.allCases.contains(.interruptSpokenAudioAndMixWithOthers))
         XCTAssertTrue(AudioCategoryOption.allCases.contains(.allowBluetoothA2DP))
+        XCTAssertTrue(AudioCategoryOption.allCases.contains(.notifyOthersOnDeactivation))
         XCTAssertEqual(AudioCategoryOption.duckOthers.rawValue, "duckOthers")
+        XCTAssertEqual(AudioCategoryOption.notifyOthersOnDeactivation.rawValue, "notifyOthersOnDeactivation")
 
         XCTAssertTrue(AudioCategory.allCases.contains(.playback))
         XCTAssertTrue(AudioCategory.allCases.contains(.playAndRecord))
