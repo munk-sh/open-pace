@@ -11,13 +11,14 @@ usage() {
 对 PurePace iOS 空壳工程做结构断言并打印逐条结果：
   - ios/project.yml 存在，xcodegen 连续两次生成结果一致
   - project.pbxproj 仅存在于 ios/PurePace.xcodeproj
-  - iOS 17.0 / Swift 6.2 / 无第三方依赖 / MARKETING_VERSION 来自 VERSION
+  - iOS 17.0 / Swift 6.2 / 仅本地 path package RunCore / MARKETING_VERSION 来自 VERSION
   - 三个 target 与占位页（PurePace、tagline、Run/History/Log/Settings）
   - XCTest 与 XCUITest 源码落点
   - scripts/build-ios.sh、scripts/test-ios.sh 真实执行 xcodebuild
 
 选项:
-  -h, --help   显示本帮助并退出 0
+  -h, --help    显示本帮助并退出 0
+  --self-test   只跑本地包断言的负向自检（正例 + 远程 url/path 反例）
 
 退出码:
   0  全部断言通过
@@ -26,10 +27,14 @@ usage() {
 EOF
 }
 
+self_test=0
 case "${1:-}" in
   -h|--help)
     usage
     exit 0
+    ;;
+  --self-test)
+    self_test=1
     ;;
   "")
     ;;
@@ -62,6 +67,73 @@ fail() {
   printf '[FAIL] %s: %s\n' "$1" "$2"
 }
 
+# 只允许本地 path package 且路径限于 RunCore；远程/第三方仍判失败。
+# 输出为空字符串表示通过，否则返回问题描述。
+validate_packages() {
+  local spec_file="$1"
+  local problems=""
+
+  if grep -Fq '.package(' "$spec_file" 2>/dev/null; then
+    problems="$problems project.yml 使用 .package( 远程 URL 依赖;"
+  fi
+  if grep -Eq 'https://|url:' "$spec_file" 2>/dev/null; then
+    problems="$problems project.yml 声明了远程 SwiftPM 依赖;"
+  fi
+
+  if ! grep -Fq 'packages:' "$spec_file" 2>/dev/null; then
+    problems="$problems project.yml 未声明本地 path package;"
+  else
+    local block
+    block="$(awk '/^packages:/{flag=1;next} flag && /^[^[:space:]#]/{flag=0} flag' "$spec_file")"
+    if [ -z "$block" ]; then
+      problems="$problems packages 段为空;"
+    fi
+    printf '%s\n' "$block" | grep -Fq 'path: RunCore' \
+      || problems="$problems packages 未声明 path: RunCore;"
+    local unauthorized
+    unauthorized="$(printf '%s\n' "$block" | grep -Ev '^[[:space:]]*(#.*)?$|^[[:space:]]*[A-Za-z0-9_.-]+:[[:space:]]*$|^[[:space:]]*path:[[:space:]]*RunCore[[:space:]]*$' || true)"
+    [ -z "$unauthorized" ] \
+      || problems="$problems packages 含非本地/非 RunCore 条目: $(printf '%s' "$unauthorized" | tr '\n' ' ');"
+  fi
+
+  printf '%s' "$problems"
+}
+
+run_self_test() {
+  local tmp_dir
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-ios-shell.XXXXXX")"
+  trap "rm -rf '$tmp_dir'" EXIT
+
+  printf 'name: T\npackages:\n  PurePaceRunCore:\n    path: RunCore\n' > "$tmp_dir/good.yml"
+  printf 'name: T\npackages:\n  EvilPackage:\n    url: https://example.com/evil.git\n' > "$tmp_dir/remote-url.yml"
+  printf 'name: T\npackages:\n  EvilPackage:\n    path: ../evil\n' > "$tmp_dir/remote-path.yml"
+
+  local failed=0
+  if [ -n "$(validate_packages "$tmp_dir/good.yml")" ]; then
+    echo "[FAIL] self-test: 合法的本地 RunCore 包被判失败" >&2
+    failed=1
+  fi
+  if [ -z "$(validate_packages "$tmp_dir/remote-url.yml")" ]; then
+    echo "[FAIL] self-test: url 远程包反例未被判失败" >&2
+    failed=1
+  fi
+  if [ -z "$(validate_packages "$tmp_dir/remote-path.yml")" ]; then
+    echo "[FAIL] self-test: 非 RunCore 的 path 包反例未被判失败" >&2
+    failed=1
+  fi
+
+  if [ "$failed" -ne 0 ]; then
+    exit 1
+  fi
+  printf '[PASS] self-test (本地 path package 正/负反例)\n'
+  printf '\n1 项断言，0 项失败\nself-test OK\n'
+}
+
+if [ "$self_test" -eq 1 ]; then
+  run_self_test
+  exit 0
+fi
+
 version_value="$(bash scripts/version.sh 2>/dev/null || true)"
 spec="ios/project.yml"
 xcodeproj="ios/PurePace.xcodeproj"
@@ -91,6 +163,13 @@ else
       [ "$first_sum" = "$second_sum" ] || problems="$problems 连续两次生成结果不一致（工程不可重复生成）;"
     fi
     [ -f "$pbxproj" ] || problems="$problems 生成后缺少 project.pbxproj;"
+    if [ -f "$pbxproj" ]; then
+      grep -Fq 'XCLocalSwiftPackageReference' "$pbxproj" \
+        || problems="$problems 生成工程缺少本地包引用;"
+      if grep -Eq 'XCRemoteSwiftPackageReference|https://' "$pbxproj"; then
+        problems="$problems 生成工程含远程 package 引用;"
+      fi
+    fi
   fi
   if [ -z "$problems" ]; then
     pass "ac-xcodegen-single-source (xcodegen $(xcodegen --version 2>/dev/null | tail -1))"
@@ -131,9 +210,8 @@ else
   if grep -Eq '[0-9]+\.[0-9]+\.[0-9]+' ios/PurePace/*.swift 2>/dev/null; then
     problems="$problems App 源码写死了版本字面值;"
   fi
-  if grep -Fq 'packages:' "$spec" || grep -Fq '.package(' "$spec"; then
-    problems="$problems 声明了 SwiftPM/第三方依赖;"
-  fi
+  package_problems="$(validate_packages "$spec")"
+  [ -z "$package_problems" ] || problems="$problems $package_problems"
   if [ -z "$problems" ]; then
     pass "ac-build-settings (iOS 17.0 / Swift 6.2 / MARKETING_VERSION 来自 VERSION)"
   else
@@ -149,15 +227,24 @@ else
   for needle in 'PurePace:' 'PurePaceTests:' 'PurePaceUITests:' 'type: application' 'type: bundle.unit-test' 'type: bundle.ui-testing'; do
     grep -Fq -- "$needle" "$spec" || problems="$problems 缺少 '$needle';"
   done
-  app_imports="$(grep -hE '^import [A-Za-z0-9_]+' ios/PurePace/*.swift 2>/dev/null | awk '{print $2}' | sort -u || true)"
+  app_imports="$(grep -rhE --include='*.swift' '^import [A-Za-z0-9_]+' ios/PurePace 2>/dev/null | awk '{print $2}' | sort -u || true)"
   for module in $app_imports; do
     case "$module" in
-      SwiftUI|Foundation) ;;
+      SwiftUI|Foundation|AVFoundation|PurePaceRunCore) ;;
       *) problems="$problems App 含非允许 import '$module';" ;;
     esac
   done
-  if grep -Eq 'CoreLocation|AVFoundation|HealthKit|MapKit|CoreMotion|UserNotifications' ios/PurePace/*.swift 2>/dev/null; then
-    problems="$problems App 源码引用了业务相关框架;"
+  # AVFoundation 只允许出现在音频适配器文件；首屏/占位页不得引入。
+  av_import_files="$(grep -rlE --include='*.swift' '^import AVFoundation' ios/PurePace 2>/dev/null || true)"
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in
+      ios/PurePace/Audio/*.swift) ;;
+      *) problems="$problems AVFoundation 只允许出现在 ios/PurePace/Audio/: $file;" ;;
+    esac
+  done <<< "$av_import_files"
+  if grep -rEq --include='*.swift' 'CoreLocation|HealthKit|MapKit|CoreMotion|UserNotifications|URLSession' ios/PurePace 2>/dev/null; then
+    problems="$problems App 源码引用了非允许的业务/网络框架;"
   fi
   if [ -z "$problems" ]; then
     pass "ac-app-targets-and-frameworks (3 targets / 仅系统框架)"
@@ -178,7 +265,9 @@ if [ -z "$problems" ]; then
   for tab in Run History Log Settings; do
     grep -Fq "\"$tab\"" ios/PurePace/PlaceholderCopy.swift || problems="$problems 缺少 Tab '$tab';"
   done
-  if grep -Eq 'URLSession|CoreLocation|AVFoundation|HealthKit' ios/PurePace/*.swift 2>/dev/null; then
+  # 显式文件清单：不靠非递归 glob 漏掉子目录（Audio/ 下的适配器不受占位页断言约束）。
+  placeholder_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/PlaceholderCopy.swift ios/PurePace/PlaceholderScreen.swift"
+  if grep -Eq 'URLSession|CoreLocation|AVFoundation|HealthKit' $placeholder_sources 2>/dev/null; then
     problems="$problems 占位页含业务逻辑/网络请求;"
   fi
 fi
