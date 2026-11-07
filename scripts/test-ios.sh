@@ -15,6 +15,8 @@ usage() {
     派生数据写入 .build/ios，scheme 同时运行 PurePaceTests（XCTest）与 PurePaceUITests（XCUITest）。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
+  - 两个分支都会追加执行 swift test --package-path ios/RunCore（跑步域纯逻辑包）；
+    ios/RunCore 缺失时打印 blocked: 并继续，RunCore 测试失败时脚本非零退出。
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -71,8 +73,25 @@ test_with_xcodebuild() {
     CODE_SIGNING_ALLOWED=NO
 }
 
+# RunCore 是纯逻辑 SwiftPM 包，两个分支都真实执行；包缺失时显式 blocked 不伪造成功。
+test_with_run_core() {
+  if [ ! -d ios/RunCore ]; then
+    echo "blocked: 缺 ios/RunCore，跳过 RunCore 的 swift test"
+    return 0
+  fi
+  echo "info: 执行 swift test --package-path ios/RunCore"
+  if swift test --package-path ios/RunCore; then
+    echo "info: RunCore SwiftPM 测试完成"
+  else
+    status=$?
+    echo "test-ios: RunCore 的 swift test 失败（退出码 ${status}）" >&2
+    return "$status"
+  fi
+}
+
 if [ -d "$project_path" ]; then
   test_with_xcodebuild
+  test_with_run_core
   exit 0
 fi
 
@@ -80,6 +99,7 @@ if [ -f "$spec_path" ] && command -v xcodegen >/dev/null 2>&1; then
   echo "info: 缺 ${project_path}，使用 xcodegen 从 $spec_path 生成工程"
   xcodegen generate --spec "$spec_path" --project "$ios_dir"
   test_with_xcodebuild
+  test_with_run_core
   exit 0
 fi
 
@@ -102,3 +122,5 @@ else
   echo "test-ios: 降级 swift test 失败（退出码 ${status}）" >&2
   exit "$status"
 fi
+
+test_with_run_core
