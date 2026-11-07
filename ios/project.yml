@@ -40,12 +40,22 @@ targets:
     platform: iOS
     sources:
       - path: PurePace
+    # 基础 Info.plist 只承载 Xcode 生成器不支持的数组键（UIBackgroundModes）；
+    # 其余键仍走 INFOPLIST_KEY_* 与 GENERATE_INFOPLIST_FILE 合并生成。
+    info:
+      path: PurePace/Info.plist
+      properties:
+        UIBackgroundModes:
+          - location
     settings:
       base:
         PRODUCT_NAME: PurePace
         INFOPLIST_KEY_CFBundleDisplayName: PurePace
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        # 定位用途说明与后台定位模式仅为配置声明；真机后台行为不在代码层承诺范围内。
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "PurePace 在跑步过程中使用定位来记录路线、距离与配速。"
+        INFOPLIST_KEY_UIBackgroundModes: location
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - package: PurePaceRunCore

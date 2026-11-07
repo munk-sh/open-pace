@@ -13,12 +13,15 @@ usage() {
   - project.pbxproj 仅存在于 ios/PurePace.xcodeproj
   - iOS 17.0 / Swift 6.2 / 仅本地 path package RunCore / MARKETING_VERSION 来自 VERSION
   - 三个 target 与占位页（PurePace、tagline、Run/History/Log/Settings）
+  - App import 允许表（CoreLocation 仅限 ios/PurePace/Harness/）
+  - project.yml 定位用途说明与后台定位模式声明非空
+  - Harness 文件清单与占位页显式文件清单
   - XCTest 与 XCUITest 源码落点
   - scripts/build-ios.sh、scripts/test-ios.sh 真实执行 xcodebuild
 
 选项:
   -h, --help    显示本帮助并退出 0
-  --self-test   只跑本地包断言的负向自检（正例 + 远程 url/path 反例）
+  --self-test   只跑本地包/import/定位配置/Harness 清单断言的正负反例自检
 
 退出码:
   0  全部断言通过
@@ -99,6 +102,110 @@ validate_packages() {
   printf '%s' "$problems"
 }
 
+# App 源码 import 允许表：CoreLocation 只许出现在 Harness/，AVFoundation 只许出现在 Audio/。
+# 输出为空字符串表示通过，否则返回问题描述。
+validate_app_imports() {
+  local app_dir="$1"
+  local problems=""
+
+  local app_imports
+  app_imports="$(grep -rhE --include='*.swift' '^import [A-Za-z0-9_]+' "$app_dir" 2>/dev/null | awk '{print $2}' | sort -u || true)"
+  local module
+  for module in $app_imports; do
+    case "$module" in
+      SwiftUI|Foundation|AVFoundation|CoreLocation|PurePaceRunCore) ;;
+      *) problems="$problems App 含非允许 import '$module';" ;;
+    esac
+  done
+
+  local file
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in
+      "$app_dir"/Audio/*.swift) ;;
+      *) problems="$problems AVFoundation 只允许出现在 ios/PurePace/Audio/: $file;" ;;
+    esac
+  done <<< "$(grep -rlE --include='*.swift' '^import AVFoundation' "$app_dir" 2>/dev/null || true)"
+
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in
+      "$app_dir"/Harness/*.swift) ;;
+      *) problems="$problems CoreLocation 只允许出现在 ios/PurePace/Harness/: $file;" ;;
+    esac
+  done <<< "$(grep -rlE --include='*.swift' 'CoreLocation' "$app_dir" 2>/dev/null || true)"
+
+  if grep -rEq --include='*.swift' 'HealthKit|MapKit|CoreMotion|UserNotifications|URLSession' "$app_dir" 2>/dev/null; then
+    problems="$problems App 源码引用了非允许的业务/网络框架;"
+  fi
+
+  printf '%s' "$problems"
+}
+
+# project.yml 定位配置：用途说明非空 + 后台定位模式声明。
+validate_location_config() {
+  local spec_file="$1"
+  local problems=""
+
+  local usage_line
+  usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  if [ -z "$usage_line" ]; then
+    problems="$problems project.yml 缺少 INFOPLIST_KEY_NSLocationWhenInUseUsageDescription;"
+  else
+    local usage_value
+    usage_value="$(printf '%s' "${usage_line#*:}" | tr -d "[:space:]\"'")"
+    if [ -z "$usage_value" ]; then
+      problems="$problems INFOPLIST_KEY_NSLocationWhenInUseUsageDescription 为空;"
+    fi
+  fi
+
+  local background_line
+  background_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UIBackgroundModes:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  if [ -z "$background_line" ]; then
+    problems="$problems project.yml 缺少 INFOPLIST_KEY_UIBackgroundModes;"
+  elif ! printf '%s' "$background_line" | grep -Fq 'location'; then
+    problems="$problems INFOPLIST_KEY_UIBackgroundModes 未声明 location;"
+  fi
+
+  # INFOPLIST_KEY_UIBackgroundModes 不被 Xcode 的 plist 生成器支持（数组键），
+  # 真正进产物的 UIBackgroundModes 必须由 spec 同目录下 xcodegen 生成的 Info.plist 承载。
+  local plist_file
+  plist_file="$(dirname "$spec_file")/PurePace/Info.plist"
+  if [ ! -s "$plist_file" ]; then
+    problems="$problems 缺少 $(dirname "$spec_file")/PurePace/Info.plist（UIBackgroundModes 必需）;"
+  elif ! grep -Fq 'UIBackgroundModes' "$plist_file" || ! grep -Fq 'location' "$plist_file"; then
+    problems="$problems $plist_file 未声明 UIBackgroundModes location;"
+  fi
+
+  printf '%s' "$problems"
+}
+
+# Harness 文件清单与「无内置样例/夹具数据」静态断言。
+validate_harness_manifest() {
+  local root="$1"
+  local problems=""
+  local rel
+
+  for rel in \
+    "ios/PurePace/Harness/HarnessArguments.swift" \
+    "ios/PurePace/Harness/HarnessStreamParser.swift" \
+    "ios/PurePace/Harness/HarnessStatus.swift" \
+    "ios/PurePace/Harness/HarnessCore.swift" \
+    "ios/PurePace/Harness/HarnessRunner.swift" \
+    "ios/PurePace/Harness/HarnessLocationSource.swift" \
+    "ios/PurePace/Harness/HarnessRootView.swift"; do
+    if [ ! -s "$root/$rel" ]; then
+      problems="$problems 缺少或为空 $rel;"
+    fi
+  done
+
+  if grep -rEq --include='*.swift' 'shared/fixtures|\.gpx|\.tcx' "$root/ios/PurePace/Harness" 2>/dev/null; then
+    problems="$problems Harness 源码引用了夹具/样例数据;"
+  fi
+
+  printf '%s' "$problems"
+}
+
 run_self_test() {
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-ios-shell.XXXXXX")"
@@ -108,25 +215,100 @@ run_self_test() {
   printf 'name: T\npackages:\n  EvilPackage:\n    url: https://example.com/evil.git\n' > "$tmp_dir/remote-url.yml"
   printf 'name: T\npackages:\n  EvilPackage:\n    path: ../evil\n' > "$tmp_dir/remote-path.yml"
 
-  local failed=0
-  if [ -n "$(validate_packages "$tmp_dir/good.yml")" ]; then
-    echo "[FAIL] self-test: 合法的本地 RunCore 包被判失败" >&2
-    failed=1
-  fi
-  if [ -z "$(validate_packages "$tmp_dir/remote-url.yml")" ]; then
-    echo "[FAIL] self-test: url 远程包反例未被判失败" >&2
-    failed=1
-  fi
-  if [ -z "$(validate_packages "$tmp_dir/remote-path.yml")" ]; then
-    echo "[FAIL] self-test: 非 RunCore 的 path 包反例未被判失败" >&2
-    failed=1
-  fi
+  local checks=0
+  local failures=0
+  check_ok() {
+    checks=$((checks + 1))
+    if [ -n "$2" ]; then
+      echo "[FAIL] self-test: $1（正例被判失败: $2）" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  check_fail() {
+    checks=$((checks + 1))
+    if [ -z "$2" ]; then
+      echo "[FAIL] self-test: $1（反例未被判失败）" >&2
+      failures=$((failures + 1))
+    fi
+  }
 
-  if [ "$failed" -ne 0 ]; then
+  check_ok "本地 path package 正例" "$(validate_packages "$tmp_dir/good.yml")"
+  check_fail "url 远程包反例" "$(validate_packages "$tmp_dir/remote-url.yml")"
+  check_fail "非 RunCore path 包反例" "$(validate_packages "$tmp_dir/remote-path.yml")"
+
+  # import 作用域正负反例
+  mkdir -p "$tmp_dir/app/Harness" "$tmp_dir/app/Audio"
+  printf 'import SwiftUI\n' > "$tmp_dir/app/PurePaceApp.swift"
+  printf 'import CoreLocation\nimport Foundation\n' > "$tmp_dir/app/Harness/LocationSource.swift"
+  printf 'import AVFoundation\n' > "$tmp_dir/app/Audio/AudioSessionAdapter.swift"
+  check_ok "App import 允许表正例" "$(validate_app_imports "$tmp_dir/app")"
+
+  mkdir -p "$tmp_dir/app-bad-corelocation"
+  printf 'import CoreLocation\n' > "$tmp_dir/app-bad-corelocation/ContentView.swift"
+  check_fail "CoreLocation 越界反例" "$(validate_app_imports "$tmp_dir/app-bad-corelocation")"
+
+  mkdir -p "$tmp_dir/app-bad-framework/Harness"
+  printf 'import MapKit\n' > "$tmp_dir/app-bad-framework/Harness/Map.swift"
+  check_fail "禁用业务框架反例" "$(validate_app_imports "$tmp_dir/app-bad-framework")"
+
+  mkdir -p "$tmp_dir/app-bad-av"
+  printf 'import AVFoundation\n' > "$tmp_dir/app-bad-av/Other.swift"
+  check_fail "AVFoundation 越界反例" "$(validate_app_imports "$tmp_dir/app-bad-av")"
+
+  mkdir -p "$tmp_dir/app-bad-unknown"
+  printf 'import UIKit\n' > "$tmp_dir/app-bad-unknown/Other.swift"
+  check_fail "未知 import 反例" "$(validate_app_imports "$tmp_dir/app-bad-unknown")"
+
+  # project.yml 定位配置正负反例
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-good.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n' > "$tmp_dir/location-no-background.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-usage.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: audio\n' > "$tmp_dir/location-no-mode.yml"
+  mkdir -p "$tmp_dir/PurePace"
+  printf '<dict><key>UIBackgroundModes</key><array><string>location</string></array></dict>\n' > "$tmp_dir/PurePace/Info.plist"
+  check_ok "定位配置正例" "$(validate_location_config "$tmp_dir/location-good.yml")"
+  check_fail "缺后台定位模式反例" "$(validate_location_config "$tmp_dir/location-no-background.yml")"
+  check_fail "用途说明为空反例" "$(validate_location_config "$tmp_dir/location-empty-usage.yml")"
+  check_fail "后台模式非 location 反例" "$(validate_location_config "$tmp_dir/location-no-mode.yml")"
+
+  # 承载 UIBackgroundModes 的基础 Info.plist 正负反例
+  mkdir -p "$tmp_dir/location-no-plist"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-no-plist/project.yml"
+  check_fail "缺基础 Info.plist 反例" "$(validate_location_config "$tmp_dir/location-no-plist/project.yml")"
+
+  mkdir -p "$tmp_dir/location-bad-plist/PurePace"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-bad-plist/project.yml"
+  printf '<dict><key>UIBackgroundModes</key><array><string>audio</string></array></dict>\n' > "$tmp_dir/location-bad-plist/PurePace/Info.plist"
+  check_fail "基础 Info.plist 非 location 反例" "$(validate_location_config "$tmp_dir/location-bad-plist/project.yml")"
+
+  # Harness 文件清单正负反例
+  local harness_rel
+  for harness_rel in \
+    HarnessArguments.swift HarnessStreamParser.swift HarnessStatus.swift HarnessCore.swift \
+    HarnessRunner.swift HarnessLocationSource.swift HarnessRootView.swift; do
+    mkdir -p "$tmp_dir/manifest-good/ios/PurePace/Harness"
+    printf 'import Foundation\n' > "$tmp_dir/manifest-good/ios/PurePace/Harness/$harness_rel"
+  done
+  check_ok "Harness 清单正例" "$(validate_harness_manifest "$tmp_dir/manifest-good")"
+
+  mkdir -p "$tmp_dir/manifest-bad/ios/PurePace/Harness"
+  printf 'import Foundation\n' > "$tmp_dir/manifest-bad/ios/PurePace/Harness/HarnessArguments.swift"
+  check_fail "Harness 清单缺文件反例" "$(validate_harness_manifest "$tmp_dir/manifest-bad")"
+
+  mkdir -p "$tmp_dir/manifest-fixture/ios/PurePace/Harness"
+  for harness_rel in \
+    HarnessArguments.swift HarnessStreamParser.swift HarnessStatus.swift HarnessCore.swift \
+    HarnessRunner.swift HarnessLocationSource.swift HarnessRootView.swift; do
+    printf 'import Foundation\n' > "$tmp_dir/manifest-fixture/ios/PurePace/Harness/$harness_rel"
+  done
+  printf 'let fixture = "shared/fixtures/sample-run.gpx"\n' > "$tmp_dir/manifest-fixture/ios/PurePace/Harness/HarnessArguments.swift"
+  check_fail "Harness 引用夹具反例" "$(validate_harness_manifest "$tmp_dir/manifest-fixture")"
+
+  if [ "$failures" -ne 0 ]; then
     exit 1
   fi
-  printf '[PASS] self-test (本地 path package 正/负反例)\n'
-  printf '\n1 项断言，0 项失败\nself-test OK\n'
+  printf '[PASS] self-test (包/import/定位配置/Harness 清单正负反例)\n'
+  printf '\n%d 项断言，0 项失败\nself-test OK\n' "$checks"
 }
 
 if [ "$self_test" -eq 1 ]; then
@@ -227,30 +409,33 @@ else
   for needle in 'PurePace:' 'PurePaceTests:' 'PurePaceUITests:' 'type: application' 'type: bundle.unit-test' 'type: bundle.ui-testing'; do
     grep -Fq -- "$needle" "$spec" || problems="$problems 缺少 '$needle';"
   done
-  app_imports="$(grep -rhE --include='*.swift' '^import [A-Za-z0-9_]+' ios/PurePace 2>/dev/null | awk '{print $2}' | sort -u || true)"
-  for module in $app_imports; do
-    case "$module" in
-      SwiftUI|Foundation|AVFoundation|PurePaceRunCore) ;;
-      *) problems="$problems App 含非允许 import '$module';" ;;
-    esac
-  done
-  # AVFoundation 只允许出现在音频适配器文件；首屏/占位页不得引入。
-  av_import_files="$(grep -rlE --include='*.swift' '^import AVFoundation' ios/PurePace 2>/dev/null || true)"
-  while IFS= read -r file; do
-    [ -z "$file" ] && continue
-    case "$file" in
-      ios/PurePace/Audio/*.swift) ;;
-      *) problems="$problems AVFoundation 只允许出现在 ios/PurePace/Audio/: $file;" ;;
-    esac
-  done <<< "$av_import_files"
-  if grep -rEq --include='*.swift' 'CoreLocation|HealthKit|MapKit|CoreMotion|UserNotifications|URLSession' ios/PurePace 2>/dev/null; then
-    problems="$problems App 源码引用了非允许的业务/网络框架;"
-  fi
+  import_problems="$(validate_app_imports ios/PurePace)"
+  [ -z "$import_problems" ] || problems="$problems $import_problems"
   if [ -z "$problems" ]; then
-    pass "ac-app-targets-and-frameworks (3 targets / 仅系统框架)"
+    pass "ac-app-targets-and-frameworks (3 targets / import 允许表含 Harness 作用域)"
   else
     fail "ac-app-targets-and-frameworks" "$problems"
   fi
+fi
+
+# ------------------------------------------------ 定位配置声明
+if [ ! -f "$spec" ]; then
+  fail "ac-corelocation-config-declared" "缺少 $spec"
+else
+  location_problems="$(validate_location_config "$spec")"
+  if [ -z "$location_problems" ]; then
+    pass "ac-corelocation-config-declared (用途说明非空 + 后台模式 location)"
+  else
+    fail "ac-corelocation-config-declared" "$location_problems"
+  fi
+fi
+
+# ------------------------------------------------ Harness 文件清单
+harness_problems="$(validate_harness_manifest ".")"
+if [ -z "$harness_problems" ]; then
+  pass "ac-harness-manifest (Harness 文件清单 + 无夹具数据)"
+else
+  fail "ac-harness-manifest" "$harness_problems"
 fi
 
 # ------------------------------------------------ 占位页内容
