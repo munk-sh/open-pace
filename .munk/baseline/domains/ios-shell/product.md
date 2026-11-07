@@ -29,7 +29,7 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - 不做任何跑步业务实现：定位、计时、音频/TTS/节拍、地图、历史列表、导出、相机扫码、GPX/TCX 解析与持久化。
 - 不做视觉设计、设计 token、多语言框架、账号/云/社交，不引入跨端框架。
 - 不做真机签名、provision profile、TestFlight 与分发凭据；只做模拟器构建与测试。
-- 不做 Android 骨架、`shared/` 夹具与 schema、CI workflow 与远端 run 验证。
+- 不做 Android 骨架、`shared/` 夹具与 schema；iOS CI workflow 与远端 run 验证已由 `ci` 域承接，不在本域扩展。
 - 不重构既有 `ios/Core` 包、不向其新增业务 API；不改写 `scripts/check-baseline.sh` / `scripts/check-ios-core.sh` 既有断言；不修改 Host 托管文件（`goal.md`、`handoff.md`、`now.md`、`product.json`、`close-proposal.json`）。
 
 ## 实现约束

@@ -28,6 +28,11 @@
       "command": "bash scripts/check-ios-shell.sh"
     },
     {
+      "id": "lint-ios-workflow",
+      "cwd": ".",
+      "command": "bash scripts/check-ios-workflow.sh"
+    },
+    {
       "id": "lint-android",
       "cwd": ".",
       "command": "bash scripts/check-android.sh"
