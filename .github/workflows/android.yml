@@ -24,6 +24,10 @@ jobs:
 
       - name: install-sdk
         uses: android-actions/setup-android@v3
+        with:
+          # 默认 packages 含已从 SDK 仓库移除的 legacy `tools` 包，会让 sdkmanager 非零退出；
+          # 平台与 build-tools 一律由下方 install 步显式安装并校验。
+          packages: platform-tools
 
       - name: install
         run: |
