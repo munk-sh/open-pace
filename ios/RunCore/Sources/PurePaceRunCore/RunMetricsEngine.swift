@@ -37,6 +37,50 @@ public struct RunMetricsEngine: Sendable {
 
     public init() {}
 
+    /// 由 checkpoint 恢复累计账本、已完成分段与时间/位置锚点。
+    ///
+    /// 与 `RunSessionMachine(restoring:)` 一致：`running`/`paused` 一律恢复为暂停态，
+    /// 必须显式 `resume(at:)` 才能继续累计；`finished` 恢复为已结束；`ready` 恢复为未开始。
+    public init(restoring checkpoint: RunCheckpoint) {
+        accumulatedMeters = checkpoint.completedDistance.meters
+        activeElapsed = checkpoint.elapsed
+        completedSplits = checkpoint.splits
+        // 分段计时基准由已完成分段的 `duration` 累加还原。
+        lastSplitElapsed = checkpoint.splits.reduce(0) { $0 + $1.duration }
+
+        switch checkpoint.state {
+        case .ready:
+            break
+        case .running, .paused:
+            isStarted = true
+            isPaused = true
+        case .finished:
+            isStarted = true
+            isFinished = true
+        }
+
+        if let anchor = checkpoint.lastSample {
+            hasAnySample = true
+            lastTimestamp = anchor.timestamp
+            lastLatitude = anchor.latitude
+            lastLongitude = anchor.longitude
+        }
+    }
+
+    // MARK: - 最后采样点
+
+    /// 最后一次被接受的采样点；未接受任何样本或恢复自无锚点的旧 checkpoint 时为 `nil`。
+    public var lastAcceptedSample: RunSampleAnchor? {
+        guard hasAnySample, let lastTimestamp, let lastLatitude, let lastLongitude else {
+            return nil
+        }
+        return RunSampleAnchor(
+            latitude: lastLatitude,
+            longitude: lastLongitude,
+            timestamp: lastTimestamp
+        )
+    }
+
     // MARK: - 快照
 
     public var metrics: RunMetrics {
@@ -96,6 +140,8 @@ public struct RunMetricsEngine: Sendable {
         // 首个被接受的样本只建立锚点：距离与活跃时长保持 0。
         if !hasAnySample {
             hasAnySample = true
+            // 锚点已由该样本建立，无需再为暂停/恢复单独做一次位置重锚。
+            needsPositionAnchor = false
             lastTimestamp = sample.timestamp
             lastLatitude = sample.latitude
             lastLongitude = sample.longitude

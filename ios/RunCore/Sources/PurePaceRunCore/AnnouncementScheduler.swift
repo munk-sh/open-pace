@@ -21,8 +21,9 @@ public struct AnnouncementScheduler: Equatable, Sendable {
     private var lastState: RunSessionState?
     private var didAnnounceFinish: Bool
 
-    public init() {
-        self.lastAnnouncedSplitIndex = 0
+    /// 由已播公里序号恢复；缺省 `0` 等价于全新调度器，负值按 `0` 处理。
+    public init(announcedSplitIndex: Int = 0) {
+        self.lastAnnouncedSplitIndex = max(0, announcedSplitIndex)
         self.lastState = nil
         self.didAnnounceFinish = false
     }
