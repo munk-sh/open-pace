@@ -45,7 +45,7 @@
 
 - 不创建 iOS 应用工程（`ios/project.yml`、`.xcodeproj`、SwiftUI 空壳）与 `ios/Core` SwiftPM 包。
 - 不创建 Android 工程、Gradle wrapper、Compose 占位页。
-- 不创建 `shared/` 夹具与 `schema.sql`、`.github/workflows/*`，也不创建 Android 脚本 `scripts/build-android.sh` / `test-android.sh`。
+- 不创建 `shared/` 夹具与 `schema.sql`，也不创建 Android 脚本 `scripts/build-android.sh` / `test-android.sh`；iOS workflow 已由 `ci` 域落地，不在本域扩展。
 - 不创建 `ios/project.yml`、`ios/PurePace.xcodeproj`、`project.pbxproj`、`ios/PurePace/` App 源码与 XCTest/XCUITest target；不安装 `xcodegen`。iOS 构建/测试脚本只按工程存在性分支，不代建工程。
 - 不做任何业务功能（跑步页、计时、播报、历史、导出）、不做视觉设计、不申请真实定位权限。
 - 不做真机签名 / TestFlight / 分发凭据；不新建或修改 git remote；不声称任何 CI 执行或通过。
