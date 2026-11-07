@@ -51,9 +51,11 @@ PurePace 远端持续集成域：以 `.github/workflows/ios.yml` 为唯一 iOS �
 - 门禁口径：`command` 必须是单一 argv（无 `&&`、`|`、`;`、重定向、反引号），多步逻辑封装进 `scripts/check-ios-workflow.sh`；新增门不得替换或放宽既有门。
 - 推送口径：一次分支推送即触发 workflow；推送后按 `gh run list` 轮询取 run id，取不到即记 `pending: 待 remote 验证`，不为等 run 反复推空提交。
 - 证据口径：只报真实命令输出摘要、run id 与 conclusion；CI 红按失败处理，不以本地绿替代远端 run。
+- shell 可移植性（远端实测教训）：macOS runner 的 bash 3.2 在部分 locale（本机复现为 `LANG=zh_CN.UTF-8`）下，`$var` 紧跟全角字符（如 `（` `，` `）`）会把多字节字节并入变量名，报 `unbound variable`。本仓脚本里的参数展开一律写 `${var}`；本地 UTF-8 默认 locale 不报错，只有远端 run 才会暴露，新增脚本须按此写。
 
 ## 最近交付证明
 
 - workItemId: wi_ws_300fc5167ee91b37（2026-11-07，pass）
-- 交付：`.github/workflows/ios.yml`（macos-latest 单 job，install 装 xcodegen 并备齐 iOS 18.6 运行时与 iPhone 16 模拟器，lint 逐条复用四个本地结构门，test/build 复用 `scripts/test-ios.sh` / `build-ios.sh` 且对 `blocked:` 判失败）；`scripts/check-ios-workflow.sh` 结构断言（含四种人为破坏自测）；`.munk/code-gates.json` 新增单一 argv 门 `lint-ios-workflow`，既有 10 条门语义不变。
-- 验证：`bash scripts/check-ios-workflow.sh` 退出 0，10 条 AC 断言与 4 条破坏自测全部 PASS；本机 `code_gates` 全绿；远端 run 待本次 Delivery 推分支后取得——`pending: 待 remote 验证`。
+- 交付：`.github/workflows/ios.yml`（macos-latest 单 job，install 装 xcodegen 并备齐 iOS 18.6 运行时与 iPhone 16 模拟器，lint 逐条复用四个本地结构门，test/build 复用 `scripts/test-ios.sh` / `build-ios.sh` 且对 `blocked:` 判失败）；`scripts/check-ios-workflow.sh` 结构断言（含四种人为破坏自测）；`.munk/code-gates.json` 新增单一 argv 门 `lint-ios-workflow`（与同期 `lint-android` 并存），既有 10 条门语义不变。
+- 验证：`bash scripts/check-ios-workflow.sh` 退出 0，10 条 AC 断言与 4 条破坏自测全部 PASS；`check-baseline.sh` / `check-ios-scripts.sh` 退出 0；`bash scripts/test-ios.sh` 本机 xcodebuild 真跑 `** TEST SUCCEEDED **`。
+- 远端 run：首次 run 42323298568（main@0ecc569）install/lint 通过、`test` 步失败于 `scripts/test-ios.sh:65 unbound variable`——bash 3.2 把 `$derived_data` 后紧跟的全角 `）` 并入变量名；已把 `build-ios.sh` / `test-ios.sh` 的 14 处参数展开改为 `${var}`（本机 `LANG=zh_CN.UTF-8` 复现并验证修复）。修复后重新推送的绿色 run 见本条之后的下一次交付（推送前为 `pending: 待 remote 验证`）。
