@@ -12,6 +12,7 @@
 - `scripts/build-ios.sh` / `scripts/test-ios.sh`：按 `ios/PurePace.xcodeproj`（或 `ios/project.yml` + 本机 `xcodegen`）可用性自动分支。工程可用走 `xcodebuild build|test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16'`（派生数据落 `.build/ios`）；不可用输出 `blocked:` 原因并降级真实执行 `swift build|test --package-path ios/Core`，以该命令退出码为准。
 - `scripts/check-ios-scripts.sh`：上述三脚本的静态契约断言（`bash -n`、`set -euo pipefail`、`--help` 退出 0、未知参数退出 2、无版本字面值、无伪造成功行、含 xcodebuild/destination 契约字面量）。
 - `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加。
+- `scripts/check-shell-expansion.sh` + `check-shell-expansion` 门：变量展开卫生静态门，扫描 `scripts/**/*.sh`、`android/**` 的 shell 文件（含无扩展名 `android/gradlew`）与 `.github/workflows/*.yml|*.yaml` 的非注释行，禁止裸 `$var` 紧跟非 ASCII 字节；本域持有该门的范围/豁免/退出码契约，跨域脚本（Android、shared、CI 侧）只做 `${var}` 包裹，不改入口语义与退出码。
 
 ## 验收
 
@@ -40,6 +41,19 @@
 - ac-code-gates-all-green: 本机逐条执行 `.munk/code-gates.json` 全部门（含新增三门）均退出 0，且 `bash scripts/check-baseline.sh` 仍全部 PASS。
 - ac-no-version-literal: 新增/修改的 `scripts/*.sh` 与 `README.md` 均不出现根 `VERSION` 当前字面值；版本一律经 `scripts/version.sh` 取得。
 - ac-no-fake-evidence: 脚本、门禁与 README 输出/文案不出现「CI 通过」「真机已验证」；工程缺失时不得输出 `BUILD SUCCEEDED` 或伪造的 XCTest 通过行。
+- ac-scan-zero-hits: 对上述扫描范围的非注释行，`$标识符` 紧跟非 ASCII 字节的展开命中数为 0；`grep` 与门脚本两种口径结果一致。
+- ac-shell-expansion-wrap-only: 全部命中改为 `${var}` 形式且变量名/语义不变（纯加花括号，除 workflow 该行允许的必要引号修正）；`android/gradlew` 逐字节未改，其注释内命中仍存在并被豁免。
+- ac-gate-registered: `.munk/code-gates.json` 含 `id` 为 `check-shell-expansion`、`cwd` 为 `.`、`command` 恰为 `bash scripts/check-shell-expansion.sh` 的门；JSON 可解析且 `version=1`、门 id 唯一、门集合只增不减。
+- ac-prior-gates-unchanged: 既有门的 `id` 与 `command` 逐字未变；新增门一律 append-only，不删除、不重排、不改写（`description` 可追加说明）。
+- ac-gate-clean-run: `bash scripts/check-shell-expansion.sh` 在真实仓库退出 0 并逐条 `[PASS]`。
+- ac-gate-self-test-positive: 内置自检构造含 `${var}中文` 的样本，判定为通过（不误报）。
+- ac-gate-self-test-negative: 内置自检构造含 `$var中文` 的样本，判定为命中并使门非零退出（证明断言非恒真）。
+- ac-gate-comment-exempt: 内置自检构造 `# $var中文` 注释行样本，判定为豁免（不命中）。
+- ac-gate-help-and-args: `--help` 退出 0 且输出含「用法」；未知参数退出 2 且不执行扫描。
+- ac-gate-no-bypass: 门脚本不新增 `set -e` 之外的静默放行分支；扫描器（python3/perl）均缺失时显式 fail 并非零退出，不用 `true`/空转冒充通过。
+- ac-workflow-expansion-only: `.github/workflows/android.yml` 的卫生改动仅限 echo 行的变量包裹（必要引号亦仅此一行），`bash scripts/check-android-workflow.sh` 仍退出 0。
+- ac-regression-green: 既有 `check-*` 结构门（baseline / android / android-workflow / ios-core / ios-scripts / ios-shell / ios-workflow / ios-run-core）全部退出 0。
+- ac-script-contract-preserved: 被修脚本的 `--help` 退出 0 且含「用法」、未知参数退出 2、`blocked:` 降级与退出码语义不变。
 
 ## 非目标
 
@@ -61,9 +75,13 @@
 - iOS 脚本口径：退出码 0 = 成功或显式降级成功（输出必含 `blocked:` 原因）、1 = 工程存在但真实构建/测试失败、2 = 参数非法；降级不得吞掉 `swift build` / `swift test` 的非零退出码；分支只由 `ios/PurePace.xcodeproj` 存在性（或 `project.yml` + xcodegen 可生成）判定；scheme 固定 `PurePace`，destination 钉住 iPhone 16，需带 `OS=18.6`（或等价 UDID）以免 `latest` 解析到无 iPhone 16 的运行时；脚本以 `BASH_SOURCE` 推导仓库根，不依赖调用者 cwd。
 - 证据口径：回执只报真实命令 stdout 摘要（门 id → 退出码 → 关键行）与 `swift test` 的 `Executed N tests` 数字；blocked 项逐条列出原因；严禁以本地绿替代远端 CI run。
 - 红线：不修改 Host 托管文件（`goal.md`、`handoff.md`、`now.md`、`product.json`、`close-proposal.json`）；不自建远端；不写「CI 通过 / 真机已验证」等不实表述；不嵌套第二个 `.git`。
+- 展开卫生口径：非 ASCII 判定用字节级比较（`LC_ALL=C`，字节 ≥ 0x80），不依赖当前 locale 的字符分类；扫描器只用 python3 或 perl（不假定 GNU `grep -P` 可用），二者都缺失即 fail。注释行（行首允许前导空白 `#`）整行豁免，`android/gradlew` 属 Gradle wrapper 生成物且命中在注释，**禁止编辑**。
+- 门自身会被自己扫描：`check-shell-expansion.sh` 源码不得出现裸 `$var` + 非 ASCII 的字面组合（正则用 `[^ -~]` 一类 ASCII 取反类表达）；自检样本必须落在 `mktemp -d` 临时目录，不在仓库内落地 `.sh` 夹具。
+- 新脚本仍受 `check-baseline.sh` 约束：不得写死根 `VERSION` 字面值，遵循 `#!/usr/bin/env bash` + `set -euo pipefail` + `--help`/未知参数退出 2 的既有脚本契约。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_83a62c6534df30c6（2026-11-07，pass）
-- 交付：`scripts/version.sh --tools`（VERSION / Xcode / Swift / JDK / Gradle 摘要，缺失显式「未就绪」）；`scripts/build-ios.sh` / `scripts/test-ios.sh`（工程可用走 `xcodebuild` + iPhone 16 destination，缺失输出 `blocked:` 并降级 `swift build|test --package-path ios/Core`）；`scripts/check-ios-scripts.sh` 静态契约断言；`.munk/code-gates.json` 新增 `lint-ios-scripts` / `build-ios` / `test-ios`，既有六门不变；`README.md` 更新 scripts 表与门禁说明。
-- 验证：`code_gates` 全部通过（含真实 `swift build` / `swift test` 与 `check-baseline.sh`）；本机无 `ios/PurePace.xcodeproj` 与 `xcodegen`，iOS 两门真实走 `blocked:` 降级分支，未输出 `BUILD SUCCEEDED`；未新增工程文件、未推远端。
+- workItemId: wi_ws_b4d31c0d5d6290f0（2026-11-07，pass）
+- 交付：新增 `scripts/check-shell-expansion.sh`（字节级扫描 + 注释豁免 + `mktemp -d` 三组自检 + `--help`/未知参数 2），`.munk/code-gates.json` append-only 追加第 21 个门 `check-shell-expansion`（`bash scripts/check-shell-expansion.sh`，`cwd=.`）；把 15 处裸 `$var`+非 ASCII 展开改为 `${var}`（`scripts/test-android.sh`、`check-ios-scripts.sh`、`build-android.sh`、`check-shared.sh`、`check-android.sh` 与 `.github/workflows/android.yml` 的 echo 行），`android/gradlew` 逐字节未改。
+- 验证：`bash scripts/check-shell-expansion.sh` 退出 0（7 项断言全 PASS：扫描器可用、范围非空且覆盖 `android/gradlew`、真实仓库零命中、正/反/注释三组自检）；`code_gates` 全绿含既有 `check-*` 结构门；既有 20 个门 id/command 逐字未变。
+- 风险标注：`.github/workflows/android.yml` 为该次唯一 CI 触碰点（L58 一处 echo 变量包裹），CI 未在本 WorkSet 内远端复跑，不得声称 CI 已通过。

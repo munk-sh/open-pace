@@ -101,6 +101,11 @@
       "id": "check-gpx-export",
       "cwd": ".",
       "command": "bash scripts/check-gpx-export.sh"
+    },
+    {
+      "id": "check-shell-expansion",
+      "cwd": ".",
+      "command": "bash scripts/check-shell-expansion.sh"
     }
   ]
 }
