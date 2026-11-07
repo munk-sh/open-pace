@@ -1,5 +1,35 @@
 import Foundation
 
+/// 跨进程恢复用的最后采样锚点：只保留恢复所需的时间与位置。
+public struct RunSampleAnchor: Equatable, Sendable {
+    public let latitude: Double
+    public let longitude: Double
+    public let timestamp: Date
+
+    /// 构造锚点；坐标越界或时间为 `distantPast`/`distantFuture` 时返回 `nil`。
+    public init?(latitude: Double, longitude: Double, timestamp: Date) {
+        guard latitude.isFinite, latitude >= -90, latitude <= 90 else {
+            return nil
+        }
+        guard longitude.isFinite, longitude >= -180, longitude <= 180 else {
+            return nil
+        }
+        guard timestamp != Date.distantPast, timestamp != Date.distantFuture else {
+            return nil
+        }
+        self.latitude = latitude
+        self.longitude = longitude
+        self.timestamp = timestamp
+    }
+
+    /// 由已通过校验的采样点提取锚点。
+    public init(sample: RunSample) {
+        self.latitude = sample.latitude
+        self.longitude = sample.longitude
+        self.timestamp = sample.timestamp
+    }
+}
+
 /// 会话 checkpoint 值类型。字段全部为原始值，可安全写入 JSONL 持久化文件。
 public struct RunCheckpoint: Equatable, Sendable, Codable {
     /// 当前唯一的合法格式版本。
@@ -11,6 +41,10 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
     public let elapsed: TimeInterval
     public let splits: [RunSplit]
     public let recordedAt: Date
+    /// 最后一次被接受的采样点；旧格式或尚未接受采样时为 `nil`。
+    public let lastSample: RunSampleAnchor?
+    /// 已播报过的最大公里序号；旧格式或尚未播报时为 `nil`。
+    public let announcedSplitIndex: Int?
 
     /// 构造 checkpoint；任一约束不满足返回 `nil`。
     public init?(
@@ -19,7 +53,9 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
         completedDistance: RunDistance,
         elapsed: TimeInterval,
         splits: [RunSplit],
-        recordedAt: Date
+        recordedAt: Date,
+        lastSample: RunSampleAnchor? = nil,
+        announcedSplitIndex: Int? = nil
     ) {
         guard formatVersion == RunCheckpoint.currentFormatVersion else {
             return nil
@@ -33,8 +69,13 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
         guard RunCheckpoint.hasContiguousSplitIndices(splits) else {
             return nil
         }
+        if let announcedSplitIndex {
+            guard announcedSplitIndex >= 0, announcedSplitIndex <= splits.count else {
+                return nil
+            }
+        }
         if state == .ready {
-            guard completedDistance.meters == 0, splits.isEmpty else {
+            guard completedDistance.meters == 0, splits.isEmpty, lastSample == nil else {
                 return nil
             }
         }
@@ -44,6 +85,8 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
         self.elapsed = elapsed
         self.splits = splits
         self.recordedAt = recordedAt
+        self.lastSample = lastSample
+        self.announcedSplitIndex = announcedSplitIndex
     }
 
     /// 分段序号必须从 1 开始、步长 1 连续。
@@ -67,12 +110,20 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
         case elapsed
         case splits
         case recordedAt
+        case lastSample
+        case announcedSplitIndex
     }
 
     private struct SplitPayload: Codable {
         let index: Int
         let distance: Double
         let duration: TimeInterval
+    }
+
+    private struct SamplePayload: Codable {
+        let latitude: Double
+        let longitude: Double
+        let timestamp: TimeInterval
     }
 
     public init(from decoder: Decoder) throws {
@@ -119,13 +170,31 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
             splits.append(split)
         }
         let recordedAt = Date(timeIntervalSince1970: try container.decode(Double.self, forKey: .recordedAt))
+        var lastSample: RunSampleAnchor?
+        if let payload = try container.decodeIfPresent(SamplePayload.self, forKey: .lastSample) {
+            guard let anchor = RunSampleAnchor(
+                latitude: payload.latitude,
+                longitude: payload.longitude,
+                timestamp: Date(timeIntervalSince1970: payload.timestamp)
+            ) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .lastSample,
+                    in: container,
+                    debugDescription: "非法最后采样点"
+                )
+            }
+            lastSample = anchor
+        }
+        let announcedSplitIndex = try container.decodeIfPresent(Int.self, forKey: .announcedSplitIndex)
         guard let checkpoint = RunCheckpoint(
             formatVersion: formatVersion,
             state: state,
             completedDistance: completedDistance,
             elapsed: elapsed,
             splits: splits,
-            recordedAt: recordedAt
+            recordedAt: recordedAt,
+            lastSample: lastSample,
+            announcedSplitIndex: announcedSplitIndex
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .elapsed,
@@ -147,5 +216,18 @@ public struct RunCheckpoint: Equatable, Sendable, Codable {
         }
         try container.encode(payloads, forKey: .splits)
         try container.encode(recordedAt.timeIntervalSince1970, forKey: .recordedAt)
+        if let lastSample {
+            try container.encode(
+                SamplePayload(
+                    latitude: lastSample.latitude,
+                    longitude: lastSample.longitude,
+                    timestamp: lastSample.timestamp.timeIntervalSince1970
+                ),
+                forKey: .lastSample
+            )
+        }
+        if let announcedSplitIndex {
+            try container.encode(announcedSplitIndex, forKey: .announcedSplitIndex)
+        }
     }
 }
