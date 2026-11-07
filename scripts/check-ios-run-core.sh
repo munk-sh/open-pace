@@ -12,7 +12,8 @@ usage() {
 
 对 ios/RunCore SwiftPM package 做结构断言并打印逐条结果：
   - Package.swift / Sources/PurePaceRunCore / Tests/PurePaceRunCoreTests 布局齐全
-  - tools-version 6.0、包名 PurePaceRunCore、同时声明 iOS 17 与 macOS 14、无 executable target
+  - tools-version 6.0、包名 PurePaceRunCore、同时声明 iOS 17 与 macOS 14、
+    只允许 PurePaceGpxTool 一个 executable target
   - 零第三方依赖（无 package 依赖声明；dump-package 的 dependencies 为空）
   - Sources 只 import Foundation
   - Sources 不含 CoreLocation/AVFoundation/AVAudioSession/SwiftUI/UIKit/URLSession/Timer 等
@@ -96,7 +97,7 @@ check_layout() {
 }
 
 check_package_shape() {
-  local dir="$1" problems="" needle
+  local dir="$1" problems="" needle="" executable_count=""
   if [ ! -f "$dir/Package.swift" ]; then
     printf '%s\n' " 缺少 Package.swift"
     return 1
@@ -111,7 +112,13 @@ check_package_shape() {
     grep -Fq -- "${needle}" "$dir/Package.swift" || problems="${problems} 缺少 '${needle}';"
   done
   if grep -Fq -- ".executableTarget" "$dir/Package.swift"; then
-    problems="${problems} 出现 executable target;"
+    if ! grep -Fq -- '.executableTarget(name: "PurePaceGpxTool"' "$dir/Package.swift"; then
+      problems="${problems} 出现非 PurePaceGpxTool 的 executable target;"
+    fi
+    executable_count="$(grep -Fc -- ".executableTarget" "$dir/Package.swift" || true)"
+    if [ "${executable_count}" -gt 1 ]; then
+      problems="${problems} executable target 多于一个;"
+    fi
   fi
   [ -z "$problems" ] || {
     printf '%s\n' "$problems"
@@ -155,17 +162,26 @@ check_zero_deps() {
 }
 
 check_foundation_only() {
-  local dir="$1" problems="" imports="" module
+  local dir="$1" problems="" file="" imports="" module=""
   if [ -d "$dir/Sources" ]; then
-    imports="$(grep -rhE '^[[:space:]]*import[[:space:]]+' "$dir/Sources" 2>/dev/null \
-      | sed -E 's/^[[:space:]]*import[[:space:]]+//' | sort -u || true)"
+    while IFS= read -r file; do
+      [ -z "$file" ] && continue
+      imports="$(grep -hE '^[[:space:]]*import[[:space:]]+' "$file" 2>/dev/null \
+        | sed -E 's/^[[:space:]]*import[[:space:]]+//' | sort -u || true)"
+      for module in $imports; do
+        case "$module" in
+          Foundation) ;;
+          PurePaceRunCore)
+            case "$file" in
+              "$dir/Sources/PurePaceGpxTool/"*) ;;
+              *) problems="${problems} ${file#"$dir"/} 出现非白名单 import '${module}';" ;;
+            esac
+            ;;
+          *) problems="${problems} ${file#"$dir"/} 出现非白名单 import '${module}';" ;;
+        esac
+      done
+    done <<< "$(find "$dir/Sources" -name '*.swift' 2>/dev/null || true)"
   fi
-  for module in $imports; do
-    case "$module" in
-      Foundation) ;;
-      *) problems="${problems} Sources 出现非白名单 import '${module}';" ;;
-    esac
-  done
   [ -z "$problems" ] || {
     printf '%s\n' "$problems"
     return 1
@@ -256,7 +272,8 @@ check_gates() {
       const expected = {
         "lint-ios-run-core": "bash scripts/check-ios-run-core.sh",
         "build-ios-run-core": "swift build --package-path ios/RunCore",
-        "test-ios-run-core": "swift test --package-path ios/RunCore"
+        "test-ios-run-core": "swift test --package-path ios/RunCore",
+        "check-gpx-export": "bash scripts/check-gpx-export.sh"
       };
       const gates = new Map((doc.gates || []).map((gate) => [gate.id, gate.command]));
       const bad = [];
@@ -281,9 +298,11 @@ check_gates() {
       '"lint-ios-run-core"' \
       '"build-ios-run-core"' \
       '"test-ios-run-core"' \
+      '"check-gpx-export"' \
       '"bash scripts/check-ios-run-core.sh"' \
       '"swift build --package-path ios/RunCore"' \
-      '"swift test --package-path ios/RunCore"'; do
+      '"swift test --package-path ios/RunCore"' \
+      '"bash scripts/check-gpx-export.sh"'; do
       grep -Fq -- "${pair}" "$gates_file" || problems="${problems} 缺少 ${pair};"
     done
   fi
@@ -381,6 +400,47 @@ let package = Package(
 )
 EOF
   expect_failure "package-dependency" "$case_dir" check_zero_deps
+
+  # 反例 6：注入第二个 executable target，包形状断言必须失败。
+  case_dir="${tmp}/case-second-executable"
+  copy_package "$package_dir" "$case_dir"
+  cat > "${case_dir}/Package.swift" <<'EOF'
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "PurePaceRunCore",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [.library(name: "PurePaceRunCore", targets: ["PurePaceRunCore"])],
+    targets: [
+        .target(name: "PurePaceRunCore"),
+        .executableTarget(name: "PurePaceGpxTool", dependencies: ["PurePaceRunCore"]),
+        .executableTarget(name: "InjectedTool"),
+        .testTarget(name: "PurePaceRunCoreTests", dependencies: ["PurePaceRunCore"])
+    ]
+)
+EOF
+  expect_failure "second-executable" "$case_dir" check_package_shape
+
+  # 反例 7：把唯一 executable target 改名，包形状断言必须失败。
+  case_dir="${tmp}/case-renamed-executable"
+  copy_package "$package_dir" "$case_dir"
+  cat > "${case_dir}/Package.swift" <<'EOF'
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "PurePaceRunCore",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [.library(name: "PurePaceRunCore", targets: ["PurePaceRunCore"])],
+    targets: [
+        .target(name: "PurePaceRunCore"),
+        .executableTarget(name: "InjectedTool"),
+        .testTarget(name: "PurePaceRunCoreTests", dependencies: ["PurePaceRunCore"])
+    ]
+)
+EOF
+  expect_failure "renamed-executable" "$case_dir" check_package_shape
 
   # 反例 3：注入根 VERSION 字面值，版本断言必须失败。
   case_dir="${tmp}/case-version"
