@@ -8,10 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		15EDC33B1E24E97A4957B062 /* PurePaceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D544645EC6019C70AE1FCB9B /* PurePaceApp.swift */; };
+		2F999FC994DB1D62B63532D3 /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */; };
 		358FEAA8B7FA910C49D6A2F6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4022B4F31A31C90183669928 /* ContentView.swift */; };
+		4285B22F8606CCAF879A4F88 /* AudioSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */; };
 		4630D37407D50ADD42E288B9 /* PlaceholderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2424BAA98EB7E062430FAC /* PlaceholderScreen.swift */; };
+		4E53875F48834DC17122A3A3 /* AudioSessionAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */; };
 		65DEA5E02496C6EE0C2078D7 /* PlaceholderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4A6A698CBDC8913EA3C9E25 /* PlaceholderUITests.swift */; };
 		730B24AD242910F6792390E2 /* PlaceholderCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2681D3A2A0FEB52AAEFBF11 /* PlaceholderCopy.swift */; };
+		D507D14D063F008CE5AA1EFB /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = FE15D17AB4D2BE7110E8E8E7 /* PurePaceRunCore */; };
 		FCE1949B2709C1C85BDAEE51 /* PlaceholderCopyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B6598D68755F1C5881365E /* PlaceholderCopyTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -37,13 +41,35 @@
 		213E0734F10F057EC5D70560 /* PurePace.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PurePace.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3C2424BAA98EB7E062430FAC /* PlaceholderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderScreen.swift; sourceTree = "<group>"; };
 		4022B4F31A31C90183669928 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionAdapter.swift; sourceTree = "<group>"; };
 		A4A6A698CBDC8913EA3C9E25 /* PlaceholderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderUITests.swift; sourceTree = "<group>"; };
 		C2681D3A2A0FEB52AAEFBF11 /* PlaceholderCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderCopy.swift; sourceTree = "<group>"; };
 		D544645EC6019C70AE1FCB9B /* PurePaceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurePaceApp.swift; sourceTree = "<group>"; };
+		D95868ACD3C931AD65C048A3 /* RunCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RunCore; path = RunCore; sourceTree = SOURCE_ROOT; };
 		DC8073B76B7E229DE71EACEF /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+		E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionAdapterTests.swift; sourceTree = "<group>"; };
 		E9B6598D68755F1C5881365E /* PlaceholderCopyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderCopyTests.swift; sourceTree = "<group>"; };
 		ED9C15A330903ACD9C77F5EC /* PurePaceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PurePaceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1E83C869D40CCA95B76D6D33 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2F999FC994DB1D62B63532D3 /* PurePaceRunCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3F1EB35691D812E7AB9ECD5F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D507D14D063F008CE5AA1EFB /* PurePaceRunCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0AF5E95CD7C05132C4955CA5 /* Products */ = {
@@ -56,9 +82,26 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		397D97B5FBC92D32D5539625 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D95868ACD3C931AD65C048A3 /* RunCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		3E7308127CDE2FB9963B0FAF /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
 		4DC45A0525C1669862B613EB /* PurePace */ = {
 			isa = PBXGroup;
 			children = (
+				3E7308127CDE2FB9963B0FAF /* Audio */,
 				4022B4F31A31C90183669928 /* ContentView.swift */,
 				C2681D3A2A0FEB52AAEFBF11 /* PlaceholderCopy.swift */,
 				3C2424BAA98EB7E062430FAC /* PlaceholderScreen.swift */,
@@ -71,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				C0C6380DA892B2435ECBFC08 /* Config */,
+				397D97B5FBC92D32D5539625 /* Packages */,
 				4DC45A0525C1669862B613EB /* PurePace */,
 				B2474BCE8B51486EDB5EB719 /* PurePaceTests */,
 				BE117B21B1CFF0C0193AE588 /* PurePaceUITests */,
@@ -81,6 +125,7 @@
 		B2474BCE8B51486EDB5EB719 /* PurePaceTests */ = {
 			isa = PBXGroup;
 			children = (
+				E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */,
 				E9B6598D68755F1C5881365E /* PlaceholderCopyTests.swift */,
 			);
 			path = PurePaceTests;
@@ -110,6 +155,7 @@
 			buildConfigurationList = AB64463988F77782AFEA1211 /* Build configuration list for PBXNativeTarget "PurePaceTests" */;
 			buildPhases = (
 				5D2A0E3A82B5DB7AF04FBED3 /* Sources */,
+				1E83C869D40CCA95B76D6D33 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -118,6 +164,7 @@
 			);
 			name = PurePaceTests;
 			packageProductDependencies = (
+				6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */,
 			);
 			productName = PurePaceTests;
 			productReference = ED9C15A330903ACD9C77F5EC /* PurePaceTests.xctest */;
@@ -146,6 +193,7 @@
 			buildConfigurationList = 3C337483EF52673DDE0338D2 /* Build configuration list for PBXNativeTarget "PurePace" */;
 			buildPhases = (
 				6F378BAF456D020BAD481ABF /* Sources */,
+				3F1EB35691D812E7AB9ECD5F /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -153,6 +201,7 @@
 			);
 			name = PurePace;
 			packageProductDependencies = (
+				FE15D17AB4D2BE7110E8E8E7 /* PurePaceRunCore */,
 			);
 			productName = PurePace;
 			productReference = 213E0734F10F057EC5D70560 /* PurePace.app */;
@@ -181,6 +230,9 @@
 			);
 			mainGroup = 7DEDBA866CFBC52754D3FC15;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5D7CAF17AFFF98A8FC85C2D4 /* XCLocalSwiftPackageReference "RunCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0AF5E95CD7C05132C4955CA5 /* Products */;
 			projectDirPath = "";
@@ -206,6 +258,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4E53875F48834DC17122A3A3 /* AudioSessionAdapterTests.swift in Sources */,
 				FCE1949B2709C1C85BDAEE51 /* PlaceholderCopyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -214,6 +267,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4285B22F8606CCAF879A4F88 /* AudioSessionAdapter.swift in Sources */,
 				358FEAA8B7FA910C49D6A2F6 /* ContentView.swift in Sources */,
 				730B24AD242910F6792390E2 /* PlaceholderCopy.swift in Sources */,
 				4630D37407D50ADD42E288B9 /* PlaceholderScreen.swift in Sources */,
@@ -508,6 +562,24 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		5D7CAF17AFFF98A8FC85C2D4 /* XCLocalSwiftPackageReference "RunCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = RunCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PurePaceRunCore;
+		};
+		FE15D17AB4D2BE7110E8E8E7 /* PurePaceRunCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PurePaceRunCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8326CF3C402BFDF3251B3192 /* Project object */;
 }

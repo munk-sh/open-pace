@@ -19,6 +19,11 @@ configFiles:
   Debug: Config/Version.xcconfig
   Release: Config/Version.xcconfig
 
+packages:
+  # 唯一允许的依赖：仓库内本地 path package（相对 spec 目录），无远程/第三方。
+  PurePaceRunCore:
+    path: RunCore
+
 settings:
   base:
     CURRENT_PROJECT_VERSION: "1"
@@ -42,6 +47,9 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - package: PurePaceRunCore
+        product: PurePaceRunCore
 
   PurePaceTests:
     type: bundle.unit-test
@@ -53,6 +61,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID).tests
     dependencies:
       - target: PurePace
+      # 显式声明，避免依赖 App target 的传递可见性（Swift 6 下更稳）。
+      - package: PurePaceRunCore
+        product: PurePaceRunCore
 
   PurePaceUITests:
     type: bundle.ui-testing
