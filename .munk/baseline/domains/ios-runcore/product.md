@@ -1,19 +1,23 @@
 # Domain: ios-runcore
 
-跑步域纯逻辑包：独立 SwiftPM package `ios/RunCore`（包名/模块名 `PurePaceRunCore`，目录名 `RunCore`）。承载两类内容：值类型契约（状态枚举、距离/配速、采样点、分段、播报命令、音频配置镜像、错误类型）与纯逻辑度量引擎（Haversine 距离、累计距离/活跃时长/当前与平均配速、公里分段）；不接 UI、平台框架、文件/网络/JSON。与 `ios-core`（`PurePaceCore`，基础设施）边界分离，不做合并。
+跑步域纯逻辑包：独立 SwiftPM package `ios/RunCore`（包名/模块名 `PurePaceRunCore`，目录名 `RunCore`）。承载值类型契约（状态枚举、距离/配速、采样点、分段、播报命令、音频配置镜像、错误类型）、会话状态机与真实文件 checkpoint 存储/恢复，以及距离/配速/分段度量引擎；仍属纯逻辑，IO 只出现在 `RunCheckpointStore`（`Foundation` 文件读写），不接 UI、平台框架、网络；与 `ios-core`（`PurePaceCore`，基础设施）边界分离，不做合并。
 
 ## 范围
 
 - `ios/RunCore/Package.swift`：`// swift-tools-version: 6.0`，`name: "PurePaceRunCore"`，platforms 同时声明 `.iOS(.v17)` 与 `.macOS(.v14)`（macOS host 上可直接 `swift build` / `swift test`），零外部依赖，targets 仅 `PurePaceRunCore` + `PurePaceRunCoreTests`。
 - 布局固定 `ios/RunCore/{Package.swift, Sources/PurePaceRunCore/, Tests/PurePaceRunCoreTests/}`；不放 `project.yml` / `.xcodeproj` / `project.pbxproj`。
-- `Sources/PurePaceRunCore/` 契约文件全部 `public`、值语义、显式 `Sendable`，仅 `import Foundation`，无平台框架、IO 或持久化：
-  - `RunSessionState`（`ready/running/paused/finished`，`String` 原始值）及派生只读 `isActive`、`isTerminal`；不含迁移逻辑。
+- `Sources/PurePaceRunCore/` 全部 `public`、值语义、显式 `Sendable`，仅 `import Foundation`，无平台框架；契约类型与度量引擎不含 IO，IO 仅出现在 `RunCheckpointStore`：
+  - `RunSessionState`（`ready/running/paused/finished`，`String` 原始值）及派生只读 `isActive`、`isTerminal`；枚举本身不含迁移逻辑。
   - `RunDistance`（`meters`）、`RunPace`（`secondsPerKilometer`，并可由距离+时长派生）。
   - `RunSample`（经纬度/海拔/时间戳/心率/步频）、`RunSplit`（`index` + 距离 + 时长，派生 `pace`）。
   - `AnnouncementTrigger`、`AnnouncementCommand`（触发源 / 分段序号 / 距离 / 配速 / 已用时长）。
   - `AudioCategory` / `AudioMode` / `AudioCategoryOption` 与 `AudioSessionSettings`：纯数据镜像，**不 import AVFoundation**。
   - `RunCoreError`（`Error, Equatable, Sendable`，`CustomStringConvertible`）。
-- 度量引擎（纯逻辑，同包内 `import Foundation`、全 `Sendable`、无 `class`/`actor`/全局可变状态）：
+- 会话与持久化（同包内，`struct` 全 `Sendable`）：
+  - `RunSessionMachine`（持有 `state: RunSessionState`）：`init(state:)`、`canTransition(to:)`、`mutating transition(to:) throws`、语义化 `start()/pause()/resume()/finish()`，以及 `init(restoring:)`；非法迁移抛 `RunCoreError.invalidStateTransition(from:to:)` 且状态不变。
+  - `RunCheckpoint`（手写 `Codable`）：`formatVersion`（唯一合法 1）/`state`/`completedDistance`/`elapsed`/`splits`/`recordedAt`，`init?` 校验有限非负 `elapsed`、`splits` 索引从 1 连续、时间非 `distantPast`/`distantFuture`、`ready` 时零距离零分段。
+  - `RunCheckpointStore`（持有 `fileURL: URL`）：JSONL 追加写盘（每行 UTF-8 JSON + `\n`）、`loadAll()`、`loadLatest()`、`reset()`；缺失文件视为空，尾行损坏静默丢弃，非尾行损坏抛 `corruptedCheckpoint`。
+- 度量引擎（纯逻辑，全 `Sendable`、无 `class`/`actor`/全局可变状态）：
   - `GeoDistance.swift`：公开 Haversine 纯函数（输入两组经纬度返回米），地球平均半径命名常量 `6_371_000.0`，`min(1.0, sqrt(h))` 防 `asin` 越界。
   - `RunMetrics.swift`：快照值类型（累计 `RunDistance`、活跃 `elapsed`、`averagePace`/`currentPace: RunPace?`、`splits: [RunSplit]`、整公里计数）与 `RunMetricsUpdate`（快照 + `newlyCompletedSplits`）。
   - `RunMetricsEngine.swift`：唯一输入口 `ingest(_ sample: RunSample) -> RunMetricsUpdate`，外加 `start(at:)`/`pause(at:)`/`resume(at:)`/`finish(at:)` 四个幂等锚点；不解析 JSONL、不接 CoreLocation、不含时间格式化。
@@ -36,7 +40,7 @@
 - ac-code-gates-ios-run-core: `.munk/code-gates.json` 原有 16 个 `id` 全部保留且 command 不变，新增 `lint-ios-run-core` / `build-ios-run-core` / `test-ios-run-core`，command 为单一 argv、无 shell 分隔符/重定向；`bash scripts/check-baseline.sh` 仍全部 PASS。
 - ac-test-ios-runcore-entry: `scripts/test-ios.sh` 直接包含字面量 `swift test --package-path ios/RunCore`，同时保留 `xcodebuild test`、`-scheme`、`ios/PurePace.xcodeproj`、`swift test --package-path ios/Core`、`blocked:` 与 iPhone 16 destination；`--help` 说明新增 RunCore 分支；RunCore 测试失败时脚本退出码非 0；`ios/RunCore` 缺失时打印 `blocked:` 并继续，不伪造成功行。
 - ac-build-artifacts-ignored: `swift build` / `swift test` 之后 `git status --porcelain` 不出现 `ios/RunCore/.build/`、`ios/RunCore/.swiftpm/`（复用根 `.gitignore`，不新增或放宽忽略规则）。
-- ac-no-platform-or-ui-change: 未新增/修改 `ios/project.yml`、`ios/PurePace.xcodeproj`、`ios/PurePace/**`、`shared/**`、`android/**`、`.github/workflows/**`、`VERSION`、`README.md`、`AGENTS.md`、`scripts/version.sh` 与既有 16 门 command。
+- ac-no-platform-or-ui-change: 未新增/修改 `ios/project.yml`、`ios/PurePace.xcodeproj`、`ios/PurePace/**`、`scripts/**`、`shared/**`、`android/**`、`.github/workflows/**`、`VERSION`、`README.md`、`AGENTS.md`、`scripts/version.sh` 与既有 16 门 command。
 - ac-first-sample-no-metrics: 首个被接受的 `RunSample` 只建立锚点——`distance == 0`、`elapsed == 0`、`averagePace == nil`、`currentPace == nil`、`splits.isEmpty`；其后第一个有效点才产生非零距离。
 - ac-haversine-constant: 距离函数使用常量地球半径 `6_371_000.0`（单测直接断言该常量值）；对 4 个合成坐标点（纬 31.2304→31.2358、经 121.4737→121.4773，逐点 +0.0018/+0.0012）累加得 `691.16 m ± 0.05 m`，与 `shared/fixtures/README.md` 的 `derived_distance_m: 691.2` 口径一致。
 - ac-distance-error-le-1pct: 对 5:00/km 与 7:00/km 两条合成 1 Hz 流（各 ≥ 600 点、恒定航向），引擎累计距离相对误差 `≤ 1.0%`（与同流独立 Haversine 逐段累加值比较）。
@@ -51,10 +55,26 @@
 - ac-pure-foundation-and-no-io: 新增源码仅 `import Foundation`；`bash scripts/check-ios-run-core.sh` 全部 `[PASS]`（无平台框架符号、无夹具令牌、无版本字面值、XCTest only）。
 - ac-existing-tests-still-pass: `swift test --package-path ios/RunCore` 退出码 0，既有 17 个用例仍通过，新增用例数 ≥ 8。
 - ac-gates-not-reduced: `.munk/code-gates.json` 现有 19 个 `id` 全部保留且 command 不变；`bash scripts/check-baseline.sh` 仍全部 PASS。
-
+- ac-session-legal-matrix: 5 条合法迁移（`ready→running`、`running→paused`、`running→finished`、`paused→running`、`paused→finished`）全部成功且落点状态正确；`canTransition(to:)` 对 16 种组合的返回值与 `transition(to:)` 实际成功/抛错逐对穷举一致。
+- ac-session-illegal-rejected: 其余 11 种组合（含全部自迁移、`ready→paused/finished`、`finished→*`）抛 `RunCoreError.invalidStateTransition`，`error.from`/`error.to` 与实际一致，抛错后 `machine.state` 不变。
+- ac-session-event-entrypoints: `start()` 仅 `.ready`、`pause()` 仅 `.running`、`resume()` 仅 `.paused`、`finish()` 仅 `.running`/`.paused` 成功；错误状态调用抛错且状态不变。
+- ac-checkpoint-real-file: `append` 后磁盘真实存在 `fileURL`，每次 append 恰一行、以 `\n` 结尾、可独立 UTF-8 解码为 JSON；追加 N 次后行数 N，旧行字节前缀不变（不整文件重写）。
+- ac-checkpoint-roundtrip: 新 `RunCheckpointStore` 实例 `loadLatest()` 与最后 append 相等（含 `state`/`completedDistance`/`elapsed`/`splits`/`recordedAt`）；`loadAll()` 按写入顺序返回全部记录。
+- ac-checkpoint-missing-and-empty: 文件不存在或 0 字节时 `loadLatest()` 返回 `nil`、`loadAll()` 返回空数组且不抛错。
+- ac-checkpoint-partial-tail-discarded: 末行被截断（无结尾换行或 JSON 不完整）时 `loadLatest()`/`loadAll()` 不抛错，只返回截断前的有效完整记录。
+- ac-checkpoint-corrupt-tail-discarded: 末行为合法 JSON 但违反契约（负距离、非有限 `elapsed`、未知 `formatVersion`、`splits` 序号断裂）时按尾行丢弃，返回前一条有效记录且不抛错。
+- ac-checkpoint-middle-corruption-throws: 非末行损坏/非法时 `loadLatest()`/`loadAll()` 抛 `RunCoreError.corruptedCheckpoint`（描述非空），不得静默跳过。
+- ac-checkpoint-creates-directory: 父目录不存在时 `append` 创建目录并写入；`reset()` 后文件不存在，重复 `reset()` 幂等成功。
+- ac-recovery-running-paused: 由 `.running`/`.paused` 的 checkpoint 恢复均得 `.paused`，随后 `resume()` 合法并可到 `.running`；恢复不修改 `completedDistance`/`elapsed`/`splits`。
+- ac-recovery-terminal-and-ready: `.finished` 恢复后为 `.finished`，`resume()`/`start()`/`pause()` 均抛错且状态不变；`.ready` 恢复后为 `.ready`，`start()` 可进入 `.running`。
+- ac-restart-keeps-completed-splits: 含 ≥2 个已完成分段的 checkpoint 经全新 store 实例（模拟新进程）`loadLatest()` 并恢复后，`splits` 数量与逐项 `index/distance/duration`、`completedDistance` 与写入值完全相等。
+- ac-runcore-layer-only: 新增代码只落 `ios/RunCore/Sources/PurePaceRunCore/` 与 `ios/RunCore/Tests/PurePaceRunCoreTests/`；`Sources/**` 的 `import` 仍仅 `Foundation`，不出现平台符号、`shared/fixtures`/夹具令牌与根 `VERSION` 字面值。
+- ac-no-frozen-contract-break: `RunSessionState`/`RunDistance`/`RunPace`/`RunSample`/`RunSplit`/`Announcement*`/`AudioSessionSettings`/`RunCoreError` 的既有公开字段、初始化签名与既有 17 个用例语义不变；不为既有类型新增 `Codable`（`RunCheckpoint` 自行编码原始字段）。
+- ac-swift-test-green: 仓库根 `swift test --package-path ios/RunCore` 退出码 0、失败数 0 且新用例真实执行（用例数 > 17）；`bash scripts/check-ios-run-core.sh`、`bash scripts/check-baseline.sh` 全 `[PASS]`；`.munk/code-gates.json` 既有门（含 `lint-ios-run-core`/`build-ios-run-core`/`test-ios-run-core`）id 与 command 不变。
 ## 非目标
 
-- 不实现会话状态机迁移合法性判定（归同波状态机子项；度量引擎只做计时/距离账本，锚点幂等不做状态辩论）、每公里播报调度与去重、AudioSession 协调器与读回、GPX 1.1 导出、checkpoint 持久化与恢复；不写 JSONL 解析器、不读文件、不接 `CLLocationManager`、不做精度过滤/首点漂移剔除（适配器侧职责）。
+- 不实现每公里播报调度与去重、AudioSession 协调器与读回、GPX 1.1 导出、App target 音频适配器、CoreLocation 接入、模拟器 Harness 与 `verify-ios-sim-runtime.sh`；不跑 `xcrun simctl` / `xcodebuild`。度量引擎只做计时/距离账本（锚点幂等，不做状态辩论），checkpoint 只存盘与会话恢复（不做距离重算、不产生新分段），跨进程 terminate→relaunch 编排归波 2。
+- 不写采样流 JSONL 解析器、不在 RunCore 内读夹具文件、不做精度过滤/首点漂移剔除（适配器侧职责）。
 - 不新增可执行 target（`PurePaceGpxTool` 归后续子项）；不建 App target、不接 CoreLocation/AVFoundation、不建 UI 页面。
 - 不做 XcodeGen 接入（本地包进 `.xcodeproj` 留给后续子项，届时需放宽 `check-ios-shell.sh` 仅对本地包）。
 - 不改动 `check-ios-core.sh` / `check-ios-scripts.sh` / `check-ios-shell.sh` / `check-shared.sh` / `check-baseline.sh` 的既有断言语义；`scripts/test-ios.sh` 只追加，不重排/不删除既有分支。
@@ -76,9 +96,13 @@
 - 注意 `Timer` 是结构红线禁用子串：新增类型/常量命名不得包含该词。
 - 构建产物：根 `.gitignore` 的 `.build/`、`.swiftpm/` 已覆盖嵌套路径，不改忽略规则；若 `git status --porcelain` 仍出现产物，从包落点修正。
 - 证据口径：只报 `swift build` / `swift test` 真实输出摘要与用例数、`check-ios-run-core.sh` 的 PASS 计数。
+- 状态机红线：`idle` 等同既有 `ready`，不新增/重命名枚举 case（`allCases` 顺序与 rawValue 已锁定）；合法迁移矩阵恰为 5 条，其余一律 `invalidStateTransition` 且状态不变；语义化入口复用同一校验，不另开旁路。
+- checkpoint 红线：文件即真源，`RunCheckpointStore` 是唯一落盘点，外面不得再包内存缓存层；`FileHandle` 追加 + 每行 `\n`，只用 `Foundation`（`FileManager`/`Data`/`FileHandle`/`JSONEncoder`/`JSONDecoder`/`URL`），不引入 `OutputStream`/SQLite/`UserDefaults`；尾行丢弃、非尾行抛错、IO 不可读不得伪装成空结果。
+- 恢复语义红线：`.running`/`.paused` 一律恢复为 `.paused`，禁止进程重启后静默冒充 running；`.ready`/`.finished` 原样恢复；恢复不改写 checkpoint 数据。
+- 测试隔离：临时目录用 `FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)`，每用例独立目录并 `defer` 清理；仍用 XCTest（禁 `import Testing`），测试数值全部合成，不出现夹具令牌与根 `VERSION` 字面值。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_acb54fb5fa309301（2026-11-07，pass，`track-metrics-splits`）
-- 交付：`ios/RunCore/Sources/PurePaceRunCore/` 新增 `GeoDistance.swift`（Haversine 纯函数 + 半径常量 `6_371_000.0`）、`RunMetrics.swift`（快照与 `RunMetricsUpdate`）、`RunMetricsEngine.swift`（`ingest(_:) -> RunMetricsUpdate` 单一输入口 + `start`/`pause`/`resume`/`finish` 幂等锚点；分段、滑动窗口当前配速、暂停冻结、时间倒退丢弃）；`Tests/PurePaceRunCoreTests/RunMetricsEngineTests.swift` 新增 10 个 XCTest 方法（首点无度量、半径常量与 691.16 m 口径、1% 距离误差、2 s/km 平均与当前配速、分段 ≤1 采样点边界与累计一致性、重复点零增量、时间倒退丢弃、暂停排除、锚点幂等）；`SendableContractTests.swift` 补入新类型。
-- 验证：`code_gates` 全部通过——`lint-ios-run-core` 结构扫描 PASS、`build-ios-run-core` / `test-ios-run-core` 真实 `swift build` / `swift test`（既有 17 例 + 新增 10 例全绿）；未改 `.munk/code-gates.json`（19 门保留）、未改 `scripts/`、未触碰 `ios/PurePace/**` / `project.yml` / `.xcodeproj` / `shared/` / `android/` / CI / `VERSION`。
+- workItemId: wi_ws_acb54fb5fa309301（2026-11-07，pass，`track-metrics-splits`；同 tip 已并 `wi_ws_93a3efc9df0e98eb`）
+- 交付：`ios/RunCore/Sources/PurePaceRunCore/` 新增 `GeoDistance.swift`（Haversine 纯函数 + 半径常量 `6_371_000.0`）、`RunMetrics.swift`（快照与 `RunMetricsUpdate`）、`RunMetricsEngine.swift`（`ingest(_:) -> RunMetricsUpdate` 单一输入口 + 四个幂等锚点；分段、滑动窗口当前配速、暂停冻结、时间倒退丢弃）；`Tests/PurePaceRunCoreTests/RunMetricsEngineTests.swift` 新增 10 个 XCTest（首点无度量、半径常量与 691.16 m 口径、1% 距离误差、2 s/km 平均与当前配速、分段 ≤1 采样点边界与累计一致性、重复点零增量、时间倒退丢弃、暂停排除、锚点幂等）。同域既有交付：`RunSessionMachine`（5 条合法迁移 + `init(restoring:)`）、`RunCheckpoint`、`RunCheckpointStore`（JSONL 真实文件追加、尾行丢弃 / 非尾行抛 `corruptedCheckpoint`），RunCore 用例总数 34 + 新增 10。
+- 验证：`code_gates` 全绿——`lint-ios-run-core` 结构扫描 PASS、`build-ios-run-core` / `test-ios-run-core` 真实 `swift build` / `swift test` 无失败；未改 `.munk/code-gates.json`（19 门 id/command 不变）、未改 `scripts/**`、未触碰 `ios/PurePace/**` / `project.yml` / `.xcodeproj` / `shared/` / `android/` / CI / `VERSION`。
