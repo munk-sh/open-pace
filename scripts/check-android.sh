@@ -123,7 +123,7 @@ for name in $android_scripts; do
     problems="$problems scripts/$name --help 输出缺少「用法」;"
   fi
   bash "scripts/$name" --definitely-invalid >/dev/null 2>&1 && bad_rc=0 || bad_rc=$?
-  [ "$bad_rc" -eq 2 ] || problems="$problems scripts/$name 未知参数退出 $bad_rc（期望 2）;"
+  [ "$bad_rc" -eq 2 ] || problems="$problems scripts/$name 未知参数退出 ${bad_rc}（期望 2）;"
 done
 if [ -z "$problems" ]; then
   pass "ac-script-help-and-strict (help/strict args)"

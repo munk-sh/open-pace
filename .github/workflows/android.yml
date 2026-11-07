@@ -55,7 +55,7 @@ jobs:
             fi
           done
 
-          echo "install: JDK $java_version，ANDROID_HOME=$ANDROID_HOME"
+          echo "install: JDK ${java_version}，ANDROID_HOME=$ANDROID_HOME"
 
       - name: lint
         run: |
