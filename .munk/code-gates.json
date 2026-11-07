@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS 侧另有 ios/Core SwiftPM 包的真实 build/test 门与结构断言门（零第三方依赖、无业务实现、无写死版本），以及 iOS 空壳工程的 XcodeGen 结构断言（check-ios-shell）与 iOS 构建/测试脚本契约断言（check-ios-scripts），build-ios / test-ios 真实执行（工程可用时走 xcodebuild，缺失时显式 blocked 并降级 SwiftPM）。Android 侧 lint-android 执行 scripts/check-android.sh 结构/契约断言（含反例自检），build-android / test-android 经统一脚本真实执行 assembleDebug 与 testDebugUnitTest（额外校验非空 APK 与两类用例各 ≥1，强度不低于直连 gradle）。",
+  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS 侧另有 ios/Core SwiftPM 包的真实 build/test 门与结构断言门（零第三方依赖、无业务实现、无写死版本），以及 iOS 空壳工程的 XcodeGen 结构断言（check-ios-shell）与 iOS 构建/测试脚本契约断言（check-ios-scripts），build-ios / test-ios 真实执行（工程可用时走 xcodebuild，缺失时显式 blocked 并降级 SwiftPM）。Android 侧 lint-android 执行 scripts/check-android.sh 结构/契约断言（含反例自检），lint-android-workflow 执行 scripts/check-android-workflow.sh 校验 .github/workflows/android.yml 的 YAML 解析与结构/复用/负向自检断言，build-android / test-android 经统一脚本真实执行 assembleDebug 与 testDebugUnitTest（额外校验非空 APK 与两类用例各 ≥1，强度不低于直连 gradle）。",
   "gates": [
     {
       "id": "lint",
@@ -36,6 +36,11 @@
       "id": "lint-android",
       "cwd": ".",
       "command": "bash scripts/check-android.sh"
+    },
+    {
+      "id": "lint-android-workflow",
+      "cwd": ".",
+      "command": "bash scripts/check-android-workflow.sh"
     },
     {
       "id": "build-ios-core",
