@@ -62,7 +62,7 @@ if [ -f scripts/sync-ios-version.sh ]; then
 fi
 
 test_with_xcodebuild() {
-  echo "info: xcodebuild test -scheme $scheme -destination '$destination'（派生数据 $derived_data）"
+  echo "info: xcodebuild test -scheme $scheme -destination '$destination'（派生数据 ${derived_data}）"
   xcodebuild test \
     -project "$project_path" \
     -scheme "$scheme" \
@@ -77,7 +77,7 @@ if [ -d "$project_path" ]; then
 fi
 
 if [ -f "$spec_path" ] && command -v xcodegen >/dev/null 2>&1; then
-  echo "info: 缺 $project_path，使用 xcodegen 从 $spec_path 生成工程"
+  echo "info: 缺 ${project_path}，使用 xcodegen 从 $spec_path 生成工程"
   xcodegen generate --spec "$spec_path" --project "$ios_dir"
   test_with_xcodebuild
   exit 0
@@ -86,19 +86,19 @@ fi
 if [ ! -f "$spec_path" ] && ! command -v xcodegen >/dev/null 2>&1; then
   missing_reason="缺 xcodegen 且缺 $spec_path"
 elif [ ! -f "$spec_path" ]; then
-  missing_reason="缺 $spec_path（xcodegen 已安装，但没有可供生成的 spec）"
+  missing_reason="缺 ${spec_path}（xcodegen 已安装，但没有可供生成的 spec）"
 elif ! command -v xcodegen >/dev/null 2>&1; then
-  missing_reason="缺 xcodegen（有 $spec_path，但本机无法生成工程）"
+  missing_reason="缺 xcodegen（有 ${spec_path}，但本机无法生成工程）"
 else
   missing_reason="缺 xcodegen 可用的 $project_path"
 fi
 
-echo "blocked: $missing_reason，无法生成或使用 $project_path，跳过 xcodebuild test"
+echo "blocked: ${missing_reason}，无法生成或使用 ${project_path}，跳过 xcodebuild test"
 echo "info: 降级执行 swift test --package-path ios/Core"
 if swift test --package-path ios/Core; then
   echo "info: 降级 SwiftPM 测试完成（未运行 XCTest/XCUITest）"
 else
   status=$?
-  echo "test-ios: 降级 swift test 失败（退出码 $status）" >&2
+  echo "test-ios: 降级 swift test 失败（退出码 ${status}）" >&2
   exit "$status"
 fi
