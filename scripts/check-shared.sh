@@ -78,7 +78,7 @@ if ! command -v xmllint >/dev/null 2>&1; then
   missing_tools="$missing_tools xmllint"
 fi
 if [ -n "$missing_tools" ]; then
-  fail "ac-tools-available" "缺少依赖工具:$missing_tools（xmllint: xcode-select --install；python3: 安装 CPython 3，不得静默跳过）"
+  fail "ac-tools-available" "缺少依赖工具:${missing_tools}（xmllint: xcode-select --install；python3: 安装 CPython 3，不得静默跳过）"
 fi
 
 # ------------------------------------------------------------ 数据契约断言
@@ -620,7 +620,7 @@ PYCHECK
   set -e
 
   if [ "$py_status" -ne 0 ]; then
-    fail "ac-checker-runtime" "python3 断言脚本异常退出（exit $py_status），结果不可信"
+    fail "ac-checker-runtime" "python3 断言脚本异常退出（exit ${py_status}），结果不可信"
   elif [ -z "$results" ]; then
     fail "ac-checker-runtime" "python3 断言脚本未输出任何结果"
   else

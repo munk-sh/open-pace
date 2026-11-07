@@ -93,7 +93,7 @@ ensure_android_sdk() {
   fi
   if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "$ANDROID_SDK_ROOT" ]; then
     export ANDROID_HOME="$ANDROID_SDK_ROOT"
-    echo "info: ANDROID_HOME=$ANDROID_HOME（来自 ANDROID_SDK_ROOT）"
+    echo "info: ANDROID_HOME=${ANDROID_HOME}（来自 ANDROID_SDK_ROOT）"
     return 0
   fi
   if [ -f android/local.properties ] && grep -q '^sdk\.dir=' android/local.properties 2>/dev/null; then
@@ -124,7 +124,7 @@ else
 fi
 
 if [ ! -d "$results_dir" ]; then
-  echo "error: testDebugUnitTest 未产出结果目录 $results_dir（gradle 退出码 $gradle_status）" >&2
+  echo "error: testDebugUnitTest 未产出结果目录 ${results_dir}（gradle 退出码 ${gradle_status}）" >&2
   exit 1
 fi
 
@@ -134,7 +134,7 @@ for f in "$results_dir"/*.xml; do
   xml_files+=("$f")
 done
 if [ "${#xml_files[@]}" -eq 0 ]; then
-  echo "error: $results_dir 下没有本次运行的 *.xml 结果（gradle 退出码 $gradle_status）" >&2
+  echo "error: ${results_dir} 下没有本次运行的 *.xml 结果（gradle 退出码 ${gradle_status}）" >&2
   exit 1
 fi
 
@@ -224,11 +224,11 @@ echo "info: 累计 tests=$total_tests failures=$total_failures errors=$total_err
 
 status=0
 if [ "$gradle_status" -ne 0 ]; then
-  echo "error: testDebugUnitTest 失败（退出码 $gradle_status）" >&2
+  echo "error: testDebugUnitTest 失败（退出码 ${gradle_status}）" >&2
   status=1
 fi
 if [ "$total_failures" -ne 0 ] || [ "$total_errors" -ne 0 ]; then
-  echo "error: 存在失败用例（failures=$total_failures errors=$total_errors）" >&2
+  echo "error: 存在失败用例（failures=$total_failures errors=${total_errors}）" >&2
   status=1
 fi
 if [ -n "$unknown" ]; then

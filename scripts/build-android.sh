@@ -88,7 +88,7 @@ ensure_android_sdk() {
   fi
   if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "$ANDROID_SDK_ROOT" ]; then
     export ANDROID_HOME="$ANDROID_SDK_ROOT"
-    echo "info: ANDROID_HOME=$ANDROID_HOME（来自 ANDROID_SDK_ROOT）"
+    echo "info: ANDROID_HOME=${ANDROID_HOME}（来自 ANDROID_SDK_ROOT）"
     return 0
   fi
   if [ -f android/local.properties ] && grep -q '^sdk\.dir=' android/local.properties 2>/dev/null; then
@@ -114,7 +114,7 @@ else
   build_status=$?
 fi
 if [ "$build_status" -ne 0 ]; then
-  echo "build-android: assembleDebug 失败（退出码 $build_status）" >&2
+  echo "build-android: assembleDebug 失败（退出码 ${build_status}）" >&2
   exit "$build_status"
 fi
 

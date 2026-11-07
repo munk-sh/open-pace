@@ -113,7 +113,7 @@ for name in $strict_targets; do
     problems="$problems scripts/$name --help 输出缺少「用法」;"
   fi
   bash "scripts/$name" --definitely-invalid >/dev/null 2>&1 && bad_rc=0 || bad_rc=$?
-  [ "$bad_rc" -eq 2 ] || problems="$problems scripts/$name 未知参数退出 $bad_rc（期望 2）;"
+  [ "$bad_rc" -eq 2 ] || problems="$problems scripts/$name 未知参数退出 ${bad_rc}（期望 2）;"
 done
 if [ -z "$problems" ]; then
   pass "ac-ios-scripts-help"
@@ -219,7 +219,7 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
       xcode_expected=""
     fi
     if [ -n "$xcode_expected" ]; then
-      printf '%s' "$tools_out" | grep -Fxq -- "Xcode: $xcode_expected" || problems="$problems Xcode 行与 xcodebuild -version 不一致（期望 $xcode_expected）;"
+      printf '%s' "$tools_out" | grep -Fxq -- "Xcode: $xcode_expected" || problems="$problems Xcode 行与 xcodebuild -version 不一致（期望 ${xcode_expected}）;"
     else
       printf '%s' "$tools_out" | grep -Eq '^Xcode: 未就绪' || problems="$problems Xcode 行未标注未就绪;"
     fi
@@ -230,7 +230,7 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
       swift_expected=""
     fi
     if [ -n "$swift_expected" ]; then
-      printf '%s' "$tools_out" | grep -Fxq -- "Swift: Apple Swift version $swift_expected" || problems="$problems Swift 行与 swift --version 不一致（期望 $swift_expected）;"
+      printf '%s' "$tools_out" | grep -Fxq -- "Swift: Apple Swift version $swift_expected" || problems="$problems Swift 行与 swift --version 不一致（期望 ${swift_expected}）;"
     else
       printf '%s' "$tools_out" | grep -Eq '^Swift: 未就绪' || problems="$problems Swift 行未标注未就绪;"
     fi
@@ -238,7 +238,7 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
     if command -v java >/dev/null 2>&1; then
       jdk_expected="$(java -version 2>&1 | sed -n 's/.*version "\([^"]*\)".*/\1/p' | head -n 1 || true)"
       if [ -n "$jdk_expected" ]; then
-        printf '%s' "$tools_out" | grep -Eq "^JDK: .*${jdk_expected}" || problems="$problems JDK 行与 java -version 不一致（期望含 $jdk_expected）;"
+        printf '%s' "$tools_out" | grep -Eq "^JDK: .*${jdk_expected}" || problems="$problems JDK 行与 java -version 不一致（期望含 ${jdk_expected}）;"
       else
         printf '%s' "$tools_out" | grep -Eq '^JDK: 未就绪' || problems="$problems JDK 行未标注未就绪;"
       fi
