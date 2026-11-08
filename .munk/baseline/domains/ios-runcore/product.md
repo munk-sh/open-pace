@@ -31,6 +31,7 @@
 - `Sources/PurePaceGpxTool/main.swift`：无 UI 校验 CLI，`--input`/`--output`；参数缺失或未知退 2，解析/IO 失败退 3 并 stderr 打 `error:`，成功退 0，`--help` 退 0；不含夹具路径字面量。
 - `scripts/check-gpx-export.sh`：结构沿用 `check-ios-core.sh`（`set -euo pipefail`、`BASH_SOURCE` 推根、pass/fail 计数 +「N 项断言，M 项失败」、`--help`、未知参数退 2）；`mktemp -d` + `trap` 真实跑工具，`xmllint --noout` + `python3` 逐字段比对 `shared/fixtures/sample-run.gpx`。
 - 门禁：`.munk/code-gates.json` 保留既有 19 个 `id`/`command`（含 `lint-ios-run-core`、`build-ios-run-core`、`test-ios-run-core`、`check-gpx-export`）；`scripts/check-ios-run-core.sh` 恰好放行一个 `PurePaceGpxTool` executable target；`scripts/test-ios.sh` 保留既有 RunCore 入口。
+- 跑次归档与 GPX 文件导出（`RunRecord`/`RunArchiveStore`/`RunGPXExporter`）为本包增量能力，契约与验收见 `ios-runcore-archive` 域。
 
 ## 验收
 
