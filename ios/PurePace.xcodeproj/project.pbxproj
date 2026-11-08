@@ -27,10 +27,12 @@
 		5F0EB03A10C58F30D3457944 /* HarnessDirectRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */; };
 		5F154B7EC5D4DDD0A31809E4 /* RunSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EEFFD9E2E088D5F4F33FDA /* RunSessionViewModelTests.swift */; };
 		6777284E5A9917CADD861ABB /* HarnessLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDADE06F6CE6F526CB3D0E52 /* HarnessLocationSource.swift */; };
+		6795C85FFD209099FDB61BB8 /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF175C374D94F838558C47F6 /* RunDetailView.swift */; };
 		705CBAEC44F719BA7B7DA310 /* AnnouncementSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */; };
 		855E0CE18DD960D7553B6BD7 /* RunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C128654102AD78C2EBB9A29 /* RunView.swift */; };
 		8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */; };
 		9D3E951B8CB63F021BD31C89 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12287FD1ADD03B7D645179B1 /* HistoryView.swift */; };
+		A2A403B86105C64D10718B6E /* RunDetailContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */; };
 		AB63DB59C7CAF4EF2DB33284 /* RunFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */; };
 		B06E7E8197B2C9E2C264CF6C /* HarnessStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8CAD5BD310B0E3D77E09B1 /* HarnessStatus.swift */; };
 		CBC9DA325A63516DBA96DFCE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C6747A6B1939AD682A84E9 /* SettingsView.swift */; };
@@ -38,6 +40,7 @@
 		E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */; };
 		E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F52CE6745B637780DCF9BB /* RunLocationSource.swift */; };
 		EBF83618B15A8A29636BC004 /* RunFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657A96566570892DD608DC14 /* RunFormattingTests.swift */; };
+		FB437BCB0F7B5AC7FD5183A8 /* RunDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3946F0FB94B97F9094A132C2 /* RunDetailContent.swift */; };
 		FD9A7D79DD24C09FB77E8411 /* HarnessCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0118AB66198755EEAC86B0 /* HarnessCore.swift */; };
 /* End PBXBuildFile section */
 
@@ -66,6 +69,7 @@
 		213E0734F10F057EC5D70560 /* PurePace.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PurePace.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRootView.swift; sourceTree = "<group>"; };
 		2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementSpeaker.swift; sourceTree = "<group>"; };
+		3946F0FB94B97F9094A132C2 /* RunDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailContent.swift; sourceTree = "<group>"; };
 		3A0C307E21FE7705A4EC61DF /* RunSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSessionViewModel.swift; sourceTree = "<group>"; };
 		3DA2DBA596D083A3F2C96360 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3F0118AB66198755EEAC86B0 /* HarnessCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessCore.swift; sourceTree = "<group>"; };
@@ -83,10 +87,12 @@
 		84F52CE6745B637780DCF9BB /* RunLocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLocationSource.swift; sourceTree = "<group>"; };
 		8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFormatting.swift; sourceTree = "<group>"; };
 		90C6747A6B1939AD682A84E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailContentTests.swift; sourceTree = "<group>"; };
 		A8BBE0CAF511BF62F9D0A7E9 /* HarnessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRunner.swift; sourceTree = "<group>"; };
 		AE8CAD5BD310B0E3D77E09B1 /* HarnessStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessStatus.swift; sourceTree = "<group>"; };
 		B7A75A903B92F745A7E76CD1 /* HarnessArguments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessArguments.swift; sourceTree = "<group>"; };
 		BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFlowUITests.swift; sourceTree = "<group>"; };
+		CF175C374D94F838558C47F6 /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
 		D544645EC6019C70AE1FCB9B /* PurePaceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurePaceApp.swift; sourceTree = "<group>"; };
 		D95868ACD3C931AD65C048A3 /* RunCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RunCore; path = RunCore; sourceTree = SOURCE_ROOT; };
 		DC8073B76B7E229DE71EACEF /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
@@ -207,6 +213,8 @@
 			isa = PBXGroup;
 			children = (
 				12287FD1ADD03B7D645179B1 /* HistoryView.swift */,
+				3946F0FB94B97F9094A132C2 /* RunDetailContent.swift */,
+				CF175C374D94F838558C47F6 /* RunDetailView.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -222,6 +230,7 @@
 				4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */,
 				48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */,
 				0C63B74113003C1F66A18A9B /* HarnessTestSupport.swift */,
+				946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */,
 				657A96566570892DD608DC14 /* RunFormattingTests.swift */,
 				F8EEFFD9E2E088D5F4F33FDA /* RunSessionViewModelTests.swift */,
 			);
@@ -374,6 +383,7 @@
 				E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */,
 				4FF2BFB3A4B2DD2F23F05E8C /* HarnessResumeTests.swift in Sources */,
 				0F0A6511EC0967A95F98F0B7 /* HarnessTestSupport.swift in Sources */,
+				A2A403B86105C64D10718B6E /* RunDetailContentTests.swift in Sources */,
 				EBF83618B15A8A29636BC004 /* RunFormattingTests.swift in Sources */,
 				5F154B7EC5D4DDD0A31809E4 /* RunSessionViewModelTests.swift in Sources */,
 			);
@@ -396,6 +406,8 @@
 				47D8E9D40C1B127FE9E2E985 /* HarnessStreamParser.swift in Sources */,
 				9D3E951B8CB63F021BD31C89 /* HistoryView.swift in Sources */,
 				15EDC33B1E24E97A4957B062 /* PurePaceApp.swift in Sources */,
+				FB437BCB0F7B5AC7FD5183A8 /* RunDetailContent.swift in Sources */,
+				6795C85FFD209099FDB61BB8 /* RunDetailView.swift in Sources */,
 				8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */,
 				E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */,
 				15E12F1120D7F04C367B521C /* RunSessionViewModel.swift in Sources */,
