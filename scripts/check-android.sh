@@ -25,6 +25,12 @@ usage() {
   - ac-check-android-gates-integrity
                                 .munk/code-gates.json 可解析、id 唯一、无空转/串接命令，
                                 Android 三门指向三个新脚本，既有非 Android 门 id 与 command 零改动
+  - ac-android-gradle-bounded-retry
+                                build/test 的 gradlew 调用必须经同一个有界重试函数，且只对
+                                网络/下载类失败最多重试 3 次（1 + 3 次尝试）
+  - ac-check-android-retry-cases
+                                沙箱 stub gradlew 验证：非网络失败只尝试 1 次、网络失败恰好 4 次
+                                后非零退出、第 2 次成功则继续原有产物校验
   - ac-check-android-negative-path
                                 沙箱复制最小样本并注入「applicationId 出现两处」「compileSdk
                                 不等于 36」反例，必须分别 FAIL 并非零退出
@@ -130,6 +136,75 @@ if [ -z "$problems" ]; then
 else
   fail "ac-script-help-and-strict" "$problems"
 fi
+
+# ------------------------------ gradlew 有界重试静态断言（两个 Android 脚本）
+gradle_retry_static_problems() {
+  local file="$1" task="$2" out="" inv_lines inv_count inv_line fn_start fn_end pattern
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  grep -Fq -- 'gradle_with_retry() {' "$file" || out="$out 缺少 gradle_with_retry 函数;"
+  grep -Fq -- 'max_attempts=4' "$file" || out="$out 重试尝试上限不是 4（1 次 + 3 次重试）;"
+
+  inv_lines="$(grep -nE '^[[:space:]]*bash android/gradlew' "$file" | cut -d: -f1 || true)"
+  inv_count=0
+  if [ -n "$inv_lines" ]; then
+    inv_count="$(printf '%s\n' "$inv_lines" | wc -l | tr -d ' ')"
+  fi
+  if [ "$inv_count" -ne 1 ]; then
+    out="$out 存在 ${inv_count} 处裸 gradlew 调用（期望恰好 1 处，位于重试函数内）;"
+  else
+    inv_line="$inv_lines"
+    fn_start="$(grep -nE '^gradle_with_retry\(\) \{' "$file" | cut -d: -f1 | head -n 1)"
+    fn_end=""
+    if [ -n "$fn_start" ]; then
+      fn_end="$(awk -v s="$fn_start" 'NR > s && /^\}/{ print NR; exit }' "$file")"
+    fi
+    if [ -z "$fn_start" ] || [ -z "$fn_end" ] || [ "$inv_line" -le "$fn_start" ] || [ "$inv_line" -ge "$fn_end" ]; then
+      out="$out gradlew 调用不在 gradle_with_retry 函数体内;"
+    fi
+  fi
+
+  for pattern in 'Could not download' 'Could not resolve' 'Read timed out' 'Connection refused' 'HTTP 5'; do
+    grep -Fq -- "$pattern" "$file" || out="$out 缺少网络失败特征 '$pattern';"
+  done
+
+  if [ "$task" = "assembleDebug" ]; then
+    grep -Fq -- 'gradle_with_retry assembleDebug' "$file" || out="$out 未经 gradle_with_retry 调用 assembleDebug;"
+  else
+    grep -Fq -- "gradle_with_retry $task" "$file" || out="$out 未经 gradle_with_retry 调用 $task;"
+  fi
+
+  printf '%s' "$out"
+}
+
+problems=""
+for name in build-android.sh test-android.sh; do
+  static_task="assembleDebug"
+  if [ "$name" = "test-android.sh" ]; then
+    static_task="testDebugUnitTest"
+  fi
+  file_problems="$(gradle_retry_static_problems "scripts/$name" "$static_task")"
+  if [ -n "$file_problems" ]; then
+    problems="$problems scripts/$name:$file_problems"
+  fi
+done
+if [ -z "$problems" ]; then
+  pass "ac-android-gradle-bounded-retry (static)"
+else
+  fail "ac-android-gradle-bounded-retry" "$problems"
+fi
+
+# 反例自检：删除重试函数后的违规样本必须被同一静态断言识别（非恒真）。
+static_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-android-static.XXXXXX")"
+sed '/^gradle_with_retry() {/,/^}/d' scripts/build-android.sh > "$static_sandbox/bad.sh"
+if [ -n "$(gradle_retry_static_problems "$static_sandbox/bad.sh" assembleDebug)" ]; then
+  pass "ac-android-gradle-bounded-retry (self-test)"
+else
+  fail "ac-android-gradle-bounded-retry" "删除重试函数的违规样本未被静态断言识别"
+fi
+rm -rf "$static_sandbox"
 
 # ------------------------------- Android 工程结构断言（可对任意 --root 等价样本运行）
 check_android_structure() {
@@ -407,6 +482,162 @@ if [ -z "$negative_problems" ]; then
   pass "ac-check-android-negative-path"
 else
   fail "ac-check-android-negative-path" "$negative_problems"
+fi
+
+# ------------------- 有界重试行为反例（沙箱 stub，离线、无网络、不碰仓库）
+retry_root="$sandbox/retry"
+mkdir -p "$retry_root/scripts" "$retry_root/android"
+cp scripts/build-android.sh "$retry_root/scripts/build-android.sh"
+cp scripts/test-android.sh "$retry_root/scripts/test-android.sh"
+
+mkdir -p "$retry_root/fake-jdk/bin" "$retry_root/fake-sdk"
+cat > "$retry_root/fake-jdk/bin/java" <<'FAKEJAVA'
+#!/usr/bin/env bash
+echo 'openjdk version "21.0.1" 2024-01-15'
+FAKEJAVA
+chmod +x "$retry_root/fake-jdk/bin/java"
+
+cat > "$retry_root/android/gradlew" <<'STUBGRADLE'
+#!/usr/bin/env bash
+set -u
+mode="${PUREPACE_STUB_MODE:-network}"
+counter="${PUREPACE_STUB_COUNTER:?counter required}"
+task=""
+for arg in "$@"; do
+  task="$arg"
+done
+attempt=0
+if [ -f "$counter" ]; then
+  attempt="$(cat "$counter")"
+fi
+attempt=$((attempt + 1))
+printf '%s\n' "$attempt" > "$counter"
+case "$mode" in
+  network)
+    echo "Could not download https://services.gradle.org/distributions/gradle-8.14.3-all.zip: HTTP 504 Gateway Timeout" >&2
+    exit 5
+    ;;
+  buildfail)
+    echo "e: compile error without network marker" >&2
+    exit 3
+    ;;
+  success2)
+    if [ "$attempt" -lt 2 ]; then
+      echo "Could not download https://services.gradle.org/distributions/gradle-8.14.3-all.zip: HTTP 504 Gateway Timeout" >&2
+      exit 5
+    fi
+    ;;
+  *)
+    echo "unknown stub mode" >&2
+    exit 9
+    ;;
+esac
+if [ "$task" = "assembleDebug" ]; then
+  mkdir -p android/app/build/outputs/apk/debug
+  printf 'fake-apk\n' > android/app/build/outputs/apk/debug/app-debug.apk
+elif [ "$task" = "testDebugUnitTest" ]; then
+  mkdir -p android/app/build/test-results/testDebugUnitTest
+  printf '%s\n' '<testsuite name="com.chaxiu.purepace.FakeJvmTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-com.chaxiu.purepace.FakeJvmTest.xml
+  printf '%s\n' '<testsuite name="com.chaxiu.purepace.FakeRobolectricTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-com.chaxiu.purepace.FakeRobolectricTest.xml
+fi
+exit 0
+STUBGRADLE
+
+mkdir -p "$retry_root/android/app/src/test/java/com/chaxiu/purepace"
+printf '%s\n' 'package com.chaxiu.purepace' 'class FakeJvmTest' \
+  > "$retry_root/android/app/src/test/java/com/chaxiu/purepace/FakeJvmTest.kt"
+printf '%s\n' 'package com.chaxiu.purepace' '// RobolectricTestRunner' 'class FakeRobolectricTest' \
+  > "$retry_root/android/app/src/test/java/com/chaxiu/purepace/FakeRobolectricTest.kt"
+
+retry_counter="$retry_root/attempts.txt"
+
+run_retry_case() {
+  local script="$1" mode="$2"
+  rm -f "$retry_counter"
+  rm -rf "$retry_root/android/app/build"
+  (
+    cd "$retry_root" || exit 1
+    PUREPACE_STUB_MODE="$mode" \
+      PUREPACE_STUB_COUNTER="$retry_counter" \
+      JAVA_HOME="$retry_root/fake-jdk" \
+      ANDROID_HOME="$retry_root/fake-sdk" \
+      PATH="$retry_root/fake-jdk/bin:$PATH" \
+      bash "scripts/$script"
+  ) >"$retry_root/${script}.${mode}.log" 2>&1
+  return $?
+}
+
+retry_attempts=0
+
+retry_problems=""
+
+# 反例 A：非网络失败立即失败，只尝试 1 次，退出码原样透传
+if run_retry_case build-android.sh buildfail; then retry_rc=0; else retry_rc=$?; fi
+retry_attempts="$(cat "$retry_counter" 2>/dev/null || echo 0)"
+retry_log="$retry_root/build-android.sh.buildfail.log"
+if [ "$retry_rc" -ne 3 ]; then
+  retry_problems="$retry_problems build-android 非网络失败退出码 ${retry_rc}（期望 3）;"
+fi
+if [ "$retry_attempts" -ne 1 ]; then
+  retry_problems="$retry_problems build-android 非网络失败尝试 ${retry_attempts} 次（期望 1）;"
+fi
+grep -Fq -- '非网络类失败' "$retry_log" || retry_problems="$retry_problems build-android 未打印非网络失败提示;"
+
+# 反例 B：网络类失败每次命中，恰好 1 + 3 次尝试后原样非零退出
+if run_retry_case build-android.sh network; then retry_rc=0; else retry_rc=$?; fi
+retry_attempts="$(cat "$retry_counter" 2>/dev/null || echo 0)"
+retry_log="$retry_root/build-android.sh.network.log"
+if [ "$retry_rc" -ne 5 ]; then
+  retry_problems="$retry_problems build-android 网络失败退出码 ${retry_rc}（期望 5）;"
+fi
+if [ "$retry_attempts" -ne 4 ]; then
+  retry_problems="$retry_problems build-android 网络失败尝试 ${retry_attempts} 次（期望 4）;"
+fi
+grep -Fq -- '4/4 次尝试' "$retry_log" || retry_problems="$retry_problems build-android 未打印 4/4 次尝试;"
+grep -Fq -- '尝试上限' "$retry_log" || retry_problems="$retry_problems build-android 未打印放弃重试提示;"
+
+# 反例 C：第 2 次尝试成功，重试后继续原有 APK 产物校验
+if run_retry_case build-android.sh success2; then retry_rc=0; else retry_rc=$?; fi
+retry_attempts="$(cat "$retry_counter" 2>/dev/null || echo 0)"
+retry_log="$retry_root/build-android.sh.success2.log"
+if [ "$retry_rc" -ne 0 ]; then
+  retry_problems="$retry_problems build-android 第 2 次成功仍退出 ${retry_rc};"
+fi
+if [ "$retry_attempts" -ne 2 ]; then
+  retry_problems="$retry_problems build-android 第 2 次成功尝试 ${retry_attempts} 次（期望 2）;"
+fi
+if [ ! -s "$retry_root/android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+  retry_problems="$retry_problems build-android 第 2 次成功后未校验到 APK 产物;"
+fi
+
+# 反例 D：test-android 网络失败恰好 4 次尝试后以 1 结束并打印失败信息
+if run_retry_case test-android.sh network; then retry_rc=0; else retry_rc=$?; fi
+retry_attempts="$(cat "$retry_counter" 2>/dev/null || echo 0)"
+retry_log="$retry_root/test-android.sh.network.log"
+if [ "$retry_rc" -ne 1 ]; then
+  retry_problems="$retry_problems test-android 网络失败退出码 ${retry_rc}（期望 1）;"
+fi
+if [ "$retry_attempts" -ne 4 ]; then
+  retry_problems="$retry_problems test-android 网络失败尝试 ${retry_attempts} 次（期望 4）;"
+fi
+grep -Fq -- 'testDebugUnitTest 失败' "$retry_log" || retry_problems="$retry_problems test-android 未打印 testDebugUnitTest 失败;"
+
+# 反例 E：test-android 第 2 次成功，继续原有 test-results 与用例计数校验
+if run_retry_case test-android.sh success2; then retry_rc=0; else retry_rc=$?; fi
+retry_attempts="$(cat "$retry_counter" 2>/dev/null || echo 0)"
+retry_log="$retry_root/test-android.sh.success2.log"
+if [ "$retry_rc" -ne 0 ]; then
+  retry_problems="$retry_problems test-android 第 2 次成功仍退出 ${retry_rc};"
+fi
+if [ "$retry_attempts" -ne 2 ]; then
+  retry_problems="$retry_problems test-android 第 2 次成功尝试 ${retry_attempts} 次（期望 2）;"
+fi
+grep -Fq -- 'Android 测试通过' "$retry_log" || retry_problems="$retry_problems test-android 第 2 次成功后未走原成功路径;"
+
+if [ -z "$retry_problems" ]; then
+  pass "ac-check-android-retry-cases"
+else
+  fail "ac-check-android-retry-cases" "$retry_problems"
 fi
 
 printf '\n%d 项断言，%d 项失败\n' "$CHECKS" "$FAILURES"

@@ -15,6 +15,7 @@ usage() {
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
+  - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
   - 脚本与 README.md 不出现根 VERSION 字面值，不出现不实验收措辞
 
 选项:
@@ -204,6 +205,41 @@ else
   fail "ac-version-bare-unchanged" "$problems"
 fi
 
+# ------------------- version.sh 不得调用 gradlew，必须离线读 wrapper properties
+version_offline_problems() {
+  local file="$1" out=""
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  if grep -Fq -- 'gradlew' "$file"; then
+    out="$out 正文出现 gradlew（--tools 必须离线解析 wrapper）;"
+  fi
+  if ! grep -Fq -- 'android/gradle/wrapper/gradle-wrapper.properties' "$file"; then
+    out="$out 未读取 android/gradle/wrapper/gradle-wrapper.properties;"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(version_offline_problems scripts/version.sh)"
+if [ -z "$problems" ]; then
+  pass "ac-version-tools-no-gradlew"
+else
+  fail "ac-version-tools-no-gradlew" "$problems"
+fi
+
+# 反例自检：向沙箱样本注入 gradlew 调用，必须被同一断言识别（非恒真）。
+offline_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-offline.XXXXXX")"
+mkdir -p "$offline_sandbox/scripts"
+cp scripts/version.sh "$offline_sandbox/scripts/version.sh" 2>/dev/null || true
+printf '%s\n' '' '# android/gradlew -p android --version' >> "$offline_sandbox/scripts/version.sh"
+if [ -n "$(version_offline_problems "$offline_sandbox/scripts/version.sh")" ]; then
+  pass "ac-version-tools-no-gradlew (self-test)"
+else
+  fail "ac-version-tools-no-gradlew" "注入 gradlew 的违规样本未被识别"
+fi
+rm -rf "$offline_sandbox"
+
 # ------------------------------------------------------- version.sh --tools
 problems=""
 if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
@@ -246,10 +282,16 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
       printf '%s' "$tools_out" | grep -Eq '^JDK: 未就绪' || problems="$problems JDK 行未标注未就绪;"
     fi
 
-    if [ -x android/gradlew ]; then
-      printf '%s' "$tools_out" | grep -Eq '^Gradle: [0-9]' || problems="$problems Gradle 行未取到真实版本;"
+    gradle_wrapper="android/gradle/wrapper/gradle-wrapper.properties"
+    gradle_expected=""
+    if [ -f "$gradle_wrapper" ]; then
+      gradle_url="$(sed -n 's/^distributionUrl[[:space:]]*=[[:space:]]*//p' "$gradle_wrapper" | tr -d '\r' | head -n 1)"
+      gradle_expected="$(printf '%s' "$gradle_url" | sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*\.zip$/\1/p' | head -n 1)"
+    fi
+    if [ -n "$gradle_expected" ]; then
+      printf '%s' "$tools_out" | grep -Fxq -- "Gradle: $gradle_expected" || problems="$problems Gradle 行与 wrapper properties 推导值不一致（期望 ${gradle_expected}）;"
     else
-      printf '%s' "$tools_out" | grep -Eq '^Gradle: 未就绪' || problems="$problems 缺少 android/gradlew 时 Gradle 行未标注未就绪;"
+      printf '%s' "$tools_out" | grep -Eq '^Gradle: 未就绪' || problems="$problems 缺少 wrapper properties 时 Gradle 行未标注未就绪;"
     fi
 
     tools_out2="$(bash scripts/version.sh --tools 2>&1)" || true

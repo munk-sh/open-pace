@@ -14,7 +14,7 @@ usage() {
   - 校验 Android SDK 可用（ANDROID_HOME / ANDROID_SDK_ROOT，或已存在的
     android/local.properties 的 sdk.dir），不写 local.properties；
   - 运行前清理 android/app/build/test-results/testDebugUnitTest，旧结果不参与判定；
-  - 执行 bash android/gradlew -p android testDebugUnitTest；
+  - 经有界重试函数执行 gradle -p android testDebugUnitTest（仅网络/下载类失败最多重试 3 次）；
   - 解析本次 JUnit XML，输出累计 tests / failures / errors 与两类用例数：
       * 纯 JVM 单测（不含 Robolectric / Compose 规则的测试类）
       * Robolectric / Compose UI 测试（RobolectricTestRunner / createComposeRule /
@@ -104,6 +104,38 @@ ensure_android_sdk() {
   return 1
 }
 
+# gradlew 调用统一入口：仅对网络/下载类失败做有界重试（1 + 最多 3 次尝试），
+# 非网络失败立即返回；输出经 tee 实时打印，最终失败原样透传 gradle 退出码。
+gradle_with_retry() {
+  local task="$1"
+  local attempt=1
+  local max_attempts=4
+  local log_file status=0
+  log_file="$(mktemp "${TMPDIR:-/tmp}/purepace-gradle-retry.XXXXXX")"
+  while :; do
+    echo "info: gradle ${task} 第 ${attempt}/${max_attempts} 次尝试" >&2
+    status=0
+    bash android/gradlew -p android "$task" 2>&1 | tee "$log_file" || status=${PIPESTATUS[0]}
+    if [ "$status" -eq 0 ]; then
+      rm -f "$log_file"
+      return 0
+    fi
+    if ! grep -Eqi 'Could not download|Could not resolve|Read timed out|Connect timed out|Connection refused|UnknownHostException|SSLException|HTTP 5[0-9][0-9]|network is unreachable' "$log_file"; then
+      echo "warn: gradle ${task} 非网络类失败，不重试（退出码 ${status}）" >&2
+      rm -f "$log_file"
+      return "$status"
+    fi
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      echo "warn: gradle ${task} 网络类失败已达 ${max_attempts} 次尝试上限，放弃重试（退出码 ${status}）" >&2
+      rm -f "$log_file"
+      return "$status"
+    fi
+    echo "warn: gradle ${task} 第 ${attempt} 次尝试命中网络类失败，1 秒后重试" >&2
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+}
+
 if [ ! -f android/gradlew ]; then
   echo "error: 缺少 android/gradlew，无法执行 testDebugUnitTest" >&2
   exit 1
@@ -116,11 +148,12 @@ results_dir="android/app/build/test-results/testDebugUnitTest"
 # 只以本次运行结果为准：旧 result XML（含预置的伪造结果）在运行前整体移除。
 rm -rf "$results_dir"
 
-echo "info: bash android/gradlew -p android testDebugUnitTest"
-if bash android/gradlew -p android testDebugUnitTest; then
-  gradle_status=0
-else
-  gradle_status=$?
+echo "info: gradle testDebugUnitTest（有界重试：网络类失败最多重试 3 次）"
+gradle_status=0
+gradle_with_retry testDebugUnitTest || gradle_status=$?
+
+if [ "$gradle_status" -ne 0 ]; then
+  echo "error: testDebugUnitTest 失败（退出码 ${gradle_status}）" >&2
 fi
 
 if [ ! -d "$results_dir" ]; then
