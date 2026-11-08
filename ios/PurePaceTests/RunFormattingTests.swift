@@ -30,4 +30,20 @@ final class RunFormattingTests: XCTestCase {
         XCTAssertEqual(RunFormatting.splitCountText(3), "3")
         XCTAssertEqual(RunFormatting.splitCountText(-1), "0")
     }
+
+    func testDateTimeTextDiffersAcrossStartAndEnd() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let end = Date(timeIntervalSince1970: 1_700_000_301)
+        let startedText = RunFormatting.dateTimeText(start)
+        let endedText = RunFormatting.dateTimeText(end)
+        XCTAssertFalse(startedText.isEmpty)
+        XCTAssertFalse(endedText.isEmpty)
+        XCTAssertNotEqual(startedText, endedText)
+    }
+
+    func testSplitTextHelpers() {
+        XCTAssertEqual(RunFormatting.splitIndexText(2), "2")
+        XCTAssertEqual(RunFormatting.splitSummaryText(count: 3), "分段 · 3")
+        XCTAssertEqual(RunFormatting.splitSummaryText(count: -1), "分段 · 0")
+    }
 }

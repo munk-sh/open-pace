@@ -16,8 +16,15 @@ struct HistoryView: View {
                 if records.isEmpty {
                     emptyState
                 } else {
-                    List(records, id: \.id) { record in
-                        row(for: record)
+                    List {
+                        ForEach(records, id: \.id) { record in
+                            NavigationLink {
+                                RunDetailView(record: record)
+                            } label: {
+                                row(for: record)
+                            }
+                            .accessibilityIdentifier("history.row")
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -42,16 +49,21 @@ struct HistoryView: View {
     }
 
     private func row(for record: RunRecord) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let pace = RunFormatting.paceText(
+            RunPace(distance: record.distance, duration: record.activeDuration)
+        )
+        return VStack(alignment: .leading, spacing: 4) {
             Text(record.startedAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.headline)
-            Text("\(RunFormatting.distanceText(record.distance)) · \(RunFormatting.elapsedText(record.activeDuration))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Text(
+                "\(RunFormatting.distanceText(record.distance)) · "
+                    + "\(RunFormatting.elapsedText(record.activeDuration)) · \(pace)"
+            )
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("history.row")
     }
 
     private func load() {

@@ -53,6 +53,11 @@ final class RunFlowUITests: XCTestCase {
             0,
             "空态下不应渲染任何跑次"
         )
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "runDetail.root").count,
+            0,
+            "归档为空时详情不可达"
+        )
         XCTAssertTrue(app.tabBars.buttons["Run"].waitForExistence(timeout: 10), "缺少 Run Tab")
         app.tabBars.buttons["Run"].tap()
         XCTAssertTrue(start.waitForExistence(timeout: 10), "返回跑步页后缺少开始按钮")
@@ -112,9 +117,62 @@ final class RunFlowUITests: XCTestCase {
             "History 应恰有 1 条真实记录，实际 \(rows.count) 条"
         )
         XCTAssertFalse(app.staticTexts["history.empty"].exists, "有记录时不应显示空态")
+
+        let row = rows.firstMatch
+        let rowLabel = row.label
+        XCTAssertTrue(rowLabel.contains(" km"), "历史行缺少距离文本")
+        XCTAssertTrue(rowLabel.contains(":"), "历史行缺少时长文本")
+        XCTAssertTrue(rowLabel.contains("/km"), "历史行缺少平均配速文本")
+
+        row.tap()
+
+        let detailRoot = app.descendants(matching: .any).matching(identifier: "runDetail.root").firstMatch
+        XCTAssertTrue(
+            detailRoot.waitForExistence(timeout: 10),
+            "点击历史行后未进入跑次详情"
+        )
+
+        let detailStarted = app.staticTexts["runDetail.startedAt"]
+        let detailEnded = app.staticTexts["runDetail.endedAt"]
+        XCTAssertTrue(detailStarted.waitForExistence(timeout: 5), "详情缺少开始时间")
+        XCTAssertTrue(detailEnded.exists, "详情缺少结束时间")
+        XCTAssertFalse(detailStarted.label.isEmpty)
+        XCTAssertNotEqual(detailStarted.label, detailEnded.label, "起止时间必须可区分")
+
+        let detailDistance = app.staticTexts["runDetail.distance"]
+        let detailActiveDuration = app.staticTexts["runDetail.activeDuration"]
+        let detailAveragePace = app.staticTexts["runDetail.averagePace"]
+        XCTAssertTrue(detailDistance.exists, "详情缺少总距离")
+        XCTAssertTrue(detailActiveDuration.exists, "详情缺少活跃时长")
+        XCTAssertTrue(detailAveragePace.exists, "详情缺少平均配速")
+        XCTAssertTrue(rowLabel.contains(detailDistance.label), "详情距离必须与列表同源")
+        XCTAssertTrue(rowLabel.contains(detailActiveDuration.label), "详情时长必须与列表同源")
+        XCTAssertTrue(rowLabel.contains(detailAveragePace.label), "详情配速必须与列表同源")
+
+        let splits = app.staticTexts["runDetail.splits"]
+        XCTAssertTrue(splits.waitForExistence(timeout: 5), "详情缺少分段区域")
+        let splitRows = app.descendants(matching: .any).matching(identifier: "runDetail.splitRow")
+        let expectedSplits = splitCount(from: splits.label)
+        XCTAssertEqual(
+            splitRows.count,
+            expectedSplits,
+            "详情分段行数必须等于摘要条数，实际 \(splitRows.count) / \(expectedSplits)"
+        )
+        if expectedSplits == 0 {
+            XCTAssertTrue(
+                app.staticTexts["runDetail.splitsEmpty"].exists,
+                "无分段时详情应显示诚实空态"
+            )
+        }
     }
 
     // MARK: - 授权与等待
+
+    /// 从「分段 · N」摘要中解析分段条数。
+    private func splitCount(from label: String) -> Int {
+        let digits = label.reversed().prefix { $0.isNumber }.reversed()
+        return Int(String(digits)) ?? 0
+    }
 
     private func allowLocationIfNeeded() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
