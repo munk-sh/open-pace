@@ -8,9 +8,9 @@
 - `scripts/check-baseline.sh` 以可执行结构断言覆盖本域验收（VERSION 格式、无硬编码版本、`AGENTS.md` 四节、skill 路由与磁盘双向一致、iOS+Android skill 存在），同时充当 `code-gates` 的 `test` 门。
 - 薄 `README.md`（定位、冻结技术栈、构建/测试入口、版本说明、指向 `AGENTS.md`）与仓库根薄 `AGENTS.md`（技术栈与核心库 / 目录约定 / 测试金字塔 / `.agents/skills` 路由表）。
 - `.agents/skills/` 仓库内本地安装的官方 skill（iOS/SwiftUI 与 Android 各至少一个），与 `AGENTS.md` 路由表双向一一对应。
-- `scripts/version.sh`：无参保持单行版本输出；新增 `--tools` 追加根 `VERSION` 与 Xcode / Swift / JDK / Gradle 摘要，工具缺失显式标注「未就绪」，不报错、不伪造版本。
+- `scripts/version.sh`：无参保持单行版本输出；`--tools` 追加根 `VERSION` 与 Xcode / Swift / JDK / Gradle 摘要，工具缺失显式标注「未就绪」，不报错、不伪造版本。Gradle 行**离线解析** `android/gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl`（`gradle-<x.y[.z]>-{bin,all}.zip` → `x.y[.z]`），**不调用 `android/gradlew`、不启动 JVM、不触网**。
 - `scripts/build-ios.sh` / `scripts/test-ios.sh`：按 `ios/PurePace.xcodeproj`（或 `ios/project.yml` + 本机 `xcodegen`）可用性自动分支。工程可用走 `xcodebuild build|test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16'`（派生数据落 `.build/ios`）；不可用输出 `blocked:` 原因并降级真实执行 `swift build|test --package-path ios/Core`，以该命令退出码为准。
-- `scripts/check-ios-scripts.sh`：上述三脚本的静态契约断言（`bash -n`、`set -euo pipefail`、`--help` 退出 0、未知参数退出 2、无版本字面值、无伪造成功行、含 xcodebuild/destination 契约字面量）。
+- `scripts/check-ios-scripts.sh`：上述三脚本的静态契约断言（`bash -n`、`set -euo pipefail`、`--help` 退出 0、未知参数退出 2、无版本字面值、无伪造成功行、含 xcodebuild/destination 契约字面量）；并断言 `version.sh` 正文不含 `gradlew` 且必读 `gradle-wrapper.properties`，Gradle 期望值**独立**从 wrapper properties 推导（不回写 `version.sh`，避免同源恒真），含沙箱反例自检。
 - `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加；`check-shell-expansion` 与 `verify-ios-sim-runtime`（模拟器三链路编排，编排口径见 `ios-shell` 域）为 append-only 追加，既有门 id/command 逐字不变。
 - `scripts/check-shell-expansion.sh` + `check-shell-expansion` 门：变量展开卫生静态门，扫描 `scripts/**/*.sh`、`android/**` 的 shell 文件（含无扩展名 `android/gradlew`）与 `.github/workflows/*.yml|*.yaml` 的非注释行，禁止裸 `$var` 紧跟非 ASCII 字节；本域持有该门的范围/豁免/退出码契约，跨域脚本（Android、shared、CI 侧）只做 `${var}` 包裹，不改入口语义与退出码。
 
@@ -27,8 +27,13 @@
 - ac-code-gates-test-real: `code-gates.json` 含 `lint` 与 `test` 门，command 均为单一 argv（无 `&&`/`||`/`|`/`;`/重定向）；`test` 真实执行 `scripts/check-baseline.sh`，本机退出码 0，且人为改坏断言后能非零退出。
 - ac-no-business-code: 新增文件仅限 `VERSION`、`README.md`、`AGENTS.md`、`.agents/skills/**`、`scripts/*.sh`、`.munk/code-gates.json`；不出现任何跑步业务实现、占位以外的样例/种子数据或 `ios/`、`android/` 应用工程。
 - ac-version-bare-unchanged: `bash scripts/version.sh` 退出 0 且 stdout 去换行等于根 `VERSION` 内容；`bash scripts/version.sh --help` 退出 0。
-- ac-version-tools-report: `bash scripts/version.sh --tools` 退出 0，输出同时含根 `VERSION` 值、Xcode 版本（与 `xcodebuild -version` 首行数字一致）、Swift 版本（与 `swift --version` 的 `Apple Swift version x.y.z` 一致）、JDK 行与 Gradle 行；工具缺失时该行显式标注未就绪（无 `android/gradlew` 时 Gradle 行标注未就绪），任一行缺失即失败。
-- ac-version-tools-idempotent: 连续两次 `bash scripts/version.sh --tools` 输出逐字节相同（不含时间戳、随机数、与路径相关的变量）。
+- ac-version-tools-report: `bash scripts/version.sh --tools` 退出 0，输出同时含根 `VERSION` 值、Xcode 版本（与 `xcodebuild -version` 首行数字一致）、Swift 版本（与 `swift --version` 的 `Apple Swift version x.y.z` 一致）、JDK 行与 Gradle 行；Gradle 行取自 wrapper properties 离线解析值（`android/gradlew` 缺失或不可执行不影响），仅当 wrapper properties 缺失/无法解析时该行标注「未就绪（…）」，任一行缺失即失败。
+- ac-version-tools-idempotent: 连续两次 `bash scripts/version.sh --tools` 输出逐字节相同（不含时间戳、随机数、与路径相关的变量；含 Gradle 分发不可达环境）。
+- ac-version-tools-no-gradlew: `scripts/version.sh` 正文（含注释与帮助文本）不含字面量 `gradlew`；`android/gradlew` 不可执行时 `bash scripts/version.sh --tools` 仍退出 0 且输出匹配 `^Gradle: [0-9]` 的行。
+- ac-version-tools-offline-parse: 把 wrapper properties 的 `distributionUrl` 临时改为 `gradle-9.9.9-all.zip` 后 `--tools` 输出 `Gradle: 9.9.9`（证明值来自 wrapper properties 而非网络或缓存）；恢复原值后输出与仓库状态一致。
+- ac-version-tools-matches-wrapper: 仓库真实状态下 `--tools` 的 `Gradle:` 行等于 `gradle-wrapper.properties` 中 `distributionUrl` 解析出的 `gradle-<x.y[.z]>-{bin,all}.zip` 版本号（当前 8.14.3）。
+- ac-version-tools-missing-wrapper-fallback: `android/gradle/wrapper/gradle-wrapper.properties` 缺失或无法解析出版本时，Gradle 行标注「未就绪（…）」，命令仍退出 0，不伪造版本。
+- ac-check-ios-scripts-offline-guard: `bash scripts/check-ios-scripts.sh` 含 `version.sh` 无 `gradlew`、必读 wrapper properties、Gradle 期望值独立推导三条断言，且注入违规样本（如追加一行 gradlew 调用）时输出 FAIL 并非零退出。
 - ac-ios-scripts-help: `bash scripts/build-ios.sh --help`、`bash scripts/test-ios.sh --help`、`bash scripts/check-ios-scripts.sh --help` 均退出 0，stdout 含「用法」；三者对未知参数均退出 2。
 - ac-ios-scripts-bash-strict: 三个 iOS 脚本 `bash -n` 退出 0，shebang 为 `#!/usr/bin/env bash`，正文含 `set -euo pipefail`。
 - ac-build-ios-xcodebuild-path: `scripts/build-ios.sh` 源码含 `xcodebuild build`、`-scheme`、iPhone 16 destination（引号形式可等价，允许显式 `OS=18.6` 或 UDID 以消除 latest 歧义），分支判定基于 `ios/PurePace.xcodeproj` 是否存在；分支 A 成功时日志含 `BUILD SUCCEEDED` 与存在的 `*.app` 路径。
@@ -77,11 +82,12 @@
 - 红线：不修改 Host 托管文件（`goal.md`、`handoff.md`、`now.md`、`product.json`、`close-proposal.json`）；不自建远端；不写「CI 通过 / 真机已验证」等不实表述；不嵌套第二个 `.git`。
 - 展开卫生口径：非 ASCII 判定用字节级比较（`LC_ALL=C`，字节 ≥ 0x80），不依赖当前 locale 的字符分类；扫描器只用 python3 或 perl（不假定 GNU `grep -P` 可用），二者都缺失即 fail。注释行（行首允许前导空白 `#`）整行豁免，`android/gradlew` 属 Gradle wrapper 生成物且命中在注释，**禁止编辑**。
 - 门自身会被自己扫描：`check-shell-expansion.sh` 源码不得出现裸 `$var` + 非 ASCII 的字面组合（正则用 `[^ -~]` 一类 ASCII 取反类表达）；自检样本必须落在 `mktemp -d` 临时目录，不在仓库内落地 `.sh` 夹具。
+- 版本探测口径：`--tools` 的 Gradle 行只读 `<repo_root>/android/gradle/wrapper/gradle-wrapper.properties`（路径以脚本自身推导的仓库根为基准，任意 cwd 一致），解析只用 bash/sed/grep；不启动 JVM、不触网、不依赖 Gradle 缓存与 `android/gradlew`。静态断言不得复用 `version.sh` 的解析逻辑（否则恒真）。
 - 新脚本仍受 `check-baseline.sh` 约束：不得写死根 `VERSION` 字面值，遵循 `#!/usr/bin/env bash` + `set -euo pipefail` + `--help`/未知参数退出 2 的既有脚本契约。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_8ca5ddccad72148d（2026-11-08，pass）
-- 交付：`.munk/code-gates.json` append-only 追加第 22 个门 `verify-ios-sim-runtime`（`cwd=.`，command `bash scripts/verify-ios-sim-runtime.sh`，单一 argv）；既有 21 个门 id/command 逐字未变；本域仅更新门清单记录，编排口径与 AC 落 `ios-shell` 域。
-- 验证：`code_gates` 22 门全绿（attempt 001，含 `lint-baseline`、`test`=`check-baseline.sh`）；`bash scripts/check-shell-expansion.sh` 退出 0（新脚本非注释行零裸 `$var` + 非 ASCII 命中），`scripts/verify-ios-sim-runtime.sh` 不写根 `VERSION` 字面值。
-- 风险标注：`.github/workflows/*` 本轮未改、CI 未在远端复跑，不得声称 CI 已通过；模拟器三链路证据为本机 iPhone 16 / iOS 18.6 实测。
+- workItemId: wi_ws_829cd75d36d5bb39（2026-11-08，pass）
+- 交付：`scripts/version.sh` 的 `--tools` Gradle 行改为离线解析 `android/gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl`，彻底移除 `android/gradlew` 调用（干净 runner 上不再触发 Gradle 分发包下载，消除 504 导致的「Gradle: 未就绪」误判）；`scripts/check-ios-scripts.sh` 新增「无 `gradlew` / 必读 wrapper properties / 期望值独立推导」静态断言与沙箱反例自检。输出格式、行序、退出码、`--help`/无参契约一律不变。
+- 验证：`bash scripts/version.sh --tools` 输出 `Gradle: 8.14.3`（与 wrapper properties 一致，`android/gradlew` 不参与）；`code_gates` 全绿；`.munk/code-gates.json` 22 门 id/command 未变。
+- 边界：Android `gradlew` 脚本层有界重试口径与 stub 反例落在 `android-shell` 域；本轮 `--tools` 不再探测 `android/gradlew`，`android-shell` 域相应契约已同步更新。

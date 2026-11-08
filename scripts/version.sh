@@ -90,15 +90,18 @@ if [ -z "$jdk_line" ]; then
   jdk_line="未就绪（java 不可用）"
 fi
 
+# Gradle 版本离线取自 wrapper 配置，绝不启动 JVM 或触网；缺失/无法解析时显式「未就绪」。
+gradle_wrapper_properties="$repo_root/android/gradle/wrapper/gradle-wrapper.properties"
 gradle_line=""
-if [ -x android/gradlew ]; then
-  gradle_version="$(android/gradlew -p android --version 2>/dev/null | sed -n 's/^Gradle \([0-9][0-9.]*\)$/\1/p' | head -n 1 || true)"
+if [ -f "$gradle_wrapper_properties" ]; then
+  gradle_distribution_url="$(sed -n 's/^distributionUrl[[:space:]]*=[[:space:]]*//p' "$gradle_wrapper_properties" | tr -d '\r' | head -n 1)"
+  gradle_version="$(printf '%s' "$gradle_distribution_url" | sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*\.zip$/\1/p' | head -n 1)"
   if [ -n "$gradle_version" ]; then
     gradle_line="$gradle_version"
   fi
 fi
 if [ -z "$gradle_line" ]; then
-  gradle_line="未就绪（缺少 android/gradlew）"
+  gradle_line="未就绪（缺少或无法解析 android/gradle/wrapper/gradle-wrapper.properties）"
 fi
 
 printf 'VERSION: %s\n' "$version"
