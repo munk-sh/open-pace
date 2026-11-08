@@ -13,6 +13,8 @@ usage() {
     存在且本机有 xcodegen 可从 spec 生成工程时，执行
     xcodebuild test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6'，
     派生数据写入 .build/ios，scheme 同时运行 PurePaceTests（XCTest）与 PurePaceUITests（XCUITest）。
+    测试前 boot iPhone 16 / iOS 18.6 模拟器并以 xcrun simctl location start --speed=3 --interval=1
+    注入 ≥20 km 直线航点驱动真实 CoreLocation，测试结束在 trap 中 clear。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
   - 两个分支都会追加执行 swift test --package-path ios/RunCore（跑步域纯逻辑包）；
@@ -57,13 +59,62 @@ spec_path="$ios_dir/project.yml"
 derived_data=".build/ios"
 scheme="PurePace"
 destination="platform=iOS Simulator,name=iPhone 16,OS=18.6"
+bundle_id="com.chaxiu.purepace"
 
 # 版本派生：MARKETING_VERSION 只能来自根 VERSION（写 ios/Config/Version.xcconfig）。
 if [ -f scripts/sync-ios-version.sh ]; then
   bash scripts/sync-ios-version.sh
 fi
 
+# XCUITest 的真实定位链路：固定 iPhone 16 / iOS 18.6，boot 后注入 ≥20 km 直线航点，
+# 速率 3 m/s、间隔 1 s；测试结束在 trap 中 clear，不用 launch-arg 假流替代。
+sim_udid=""
+location_started=0
+cleanup_location() {
+  if [ "$location_started" -eq 1 ] && [ -n "$sim_udid" ]; then
+    xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_location EXIT
+
+select_simulator() {
+  xcrun simctl list devices available --json 2>/dev/null | python3 -c '
+import json, sys
+data = json.load(sys.stdin).get("devices", {})
+for runtime, devices in data.items():
+    if not runtime.endswith("iOS-18-6"):
+        continue
+    for device in devices:
+        if device.get("name") == "iPhone 16" and device.get("isAvailable", True):
+            print(device["udid"])
+            sys.exit(0)
+sys.exit(1)
+'
+}
+
+start_location_injection() {
+  sim_udid="$(select_simulator || true)"
+  if [ -z "$sim_udid" ]; then
+    echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法注入真实定位" >&2
+    exit 1
+  fi
+  echo "info: 使用模拟器 $sim_udid 注入 CoreLocation 更新"
+  if ! xcrun simctl bootstatus "$sim_udid" -b >/dev/null 2>&1; then
+    echo "test-ios: 模拟器 $sim_udid 启动失败" >&2
+    exit 1
+  fi
+  # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
+  xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
+  xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
+  location_started=1
+  if ! xcrun simctl location "$sim_udid" start --speed=3 --interval=1 37.3349,-122.0090 37.5200,-122.0090 >/dev/null 2>&1; then
+    echo "test-ios: xcrun simctl location start 注入失败" >&2
+    exit 1
+  fi
+}
+
 test_with_xcodebuild() {
+  start_location_injection
   echo "info: xcodebuild test -scheme $scheme -destination '$destination'（派生数据 ${derived_data}）"
   xcodebuild test \
     -project "$project_path" \

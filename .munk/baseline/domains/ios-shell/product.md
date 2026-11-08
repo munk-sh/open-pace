@@ -1,17 +1,17 @@
 # Domain: ios-shell
 
-PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一真源生成 `ios/PurePace.xcodeproj`，承载 App 占位页、无 UI 运行 Harness、XCTest/XCUITest 两个测试 target 与真实 `xcodebuild` 构建/测试脚本。只做骨架、运行期可观测契约与验证路径，不含视觉设计与第三方运行时依赖。
+PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml` 为唯一真源生成 `ios/PurePace.xcodeproj`，承载无 UI 运行 Harness、XCTest/XCUITest 两个测试 target、真实 `xcodebuild` 构建/测试脚本与结构门禁。面向用户的跑步 UI 与定位数据源由 `ios-app` 域承接；本域只管骨架、Harness 契约与验证路径，不含视觉设计与第三方运行时依赖。
 
 ## 范围
 
 - `ios/project.yml`：XcodeGen 规格，声明 App target `PurePace`、单元测试 target `PurePaceTests`、UI 测试 target `PurePaceUITests` 与共享 scheme `PurePace`；deployment target iOS 17.0、`SWIFT_VERSION = 6.2`、唯一允许的依赖是仓库内本地 path package `PurePaceRunCore`（`path: RunCore`，无远程/第三方依赖）、模拟器构建 `CODE_SIGNING_ALLOWED=NO`。
 - `ios/PurePace.xcodeproj`：由 `xcodegen generate` 生成的产物入库，**禁止手写 `project.pbxproj`**。
 - `ios/Config/Version.xcconfig`：由 `scripts/sync-ios-version.sh` 从根 `VERSION` 派生 `MARKETING_VERSION`；`project.yml` 以 `configFiles` 引用，版本不在规格或源码中写死。
-- `ios/PurePace/`：SwiftUI 占位页（App 名 `PurePace` + 一句 tagline + Run/History/Log/Settings 四个空 Tab），无业务逻辑、无内置样例数据、无网络请求；`ios/PurePace/Audio/` 只放 `AVAudioSession` 适配器（把 `PurePaceRunCore` 的音频契约接到真实平台，不发声、不接线首屏）。
+- `ios/PurePace/`：App 源码目录——页面职责与行为 AC 见 `ios-app` 域，本域只约束骨架事实（目录分层、import 允许表、无内置样例/网络请求/夹具引用）；`ios/PurePace/Audio/` 只放 `AVAudioSession` 适配器（把 `PurePaceRunCore` 的音频契约接到真实平台，不发声、不接线首屏）。
 - `ios/PurePace/Harness/`：仅由 launch arg（`--harness direct|corelocation|resume`）激活的无业务 UI 运行 Harness——参数解析、JSONL 直接流、status 原子落盘、checkpoint 节奏与 resume 恢复为可单测纯逻辑内核，`CLLocationManager` 仅经最小采样源协议注入；`CoreLocation` 只允许出现在该目录。
-- `ios/PurePace/PurePaceApp.swift`：只增加入口判定——无 `--harness` 走既有 `ContentView`（占位首屏零变化），有合法参数时渲染空白 Harness root（无 Tab、无业务控件、无路由）。
+- `ios/PurePace/PurePaceApp.swift`：只做入口判定——无 `--harness` 走既有 `ContentView`（真实跑步首屏，页面细节见 `ios-app` 域），有合法参数时渲染空白 Harness root（无 Tab、无业务控件、无路由）。
 - `ios/project.yml` 定位配置：非空 `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` 与 `ios/PurePace/Info.plist` 的 `UIBackgroundModes: [location]`；仅配置声明，不承诺真机后台行为。
-- `ios/PurePaceTests/`：XCTest 用例，覆盖占位页文案/结构、音频适配器与 Harness 纯逻辑（参数、流解析、status、checkpoint、resume）；`ios/PurePaceUITests/`：XCUITest 用例，启动 App 后断言 `PurePace` 文案与四个 Tab 可访问。
+- `ios/PurePaceTests/`：XCTest 用例，覆盖音频适配器、Harness 纯逻辑（参数、流解析、status、checkpoint、resume）与会话 ViewModel/格式化（行为 AC 见 `ios-app` 域）；`ios/PurePaceUITests/`：XCUITest 用例，真实定位注入下走通跑步全流程（见 `ios-app` 域 ac-ui-flow-e2e）。
 - `scripts/build-ios.sh`、`scripts/test-ios.sh`：先由根 `VERSION` 同步 `Config/Version.xcconfig`，工程缺失且有 xcodegen 时从 spec 生成，再对 iPhone 16 / iOS 18.6 执行真实 `xcodebuild build` / `xcodebuild test`（无签名）；工程不可用时输出 `blocked:` 并降级真实 `swift build|test --package-path ios/Core`，绝不伪造成功行。`scripts/check-ios-shell.sh` 承载本域结构断言（含 import 允许表与 `CoreLocation` 目录限定、定位配置、Harness 文件清单），`scripts/check-ios-scripts.sh` 承载脚本契约断言。
 - `scripts/verify-ios-sim-runtime.sh`：模拟器三链路编排（direct / terminate-relaunch / corelocation）唯一入口，真实驱动已交付 Harness、用 `python3` 独立复算距离与配速、产出机读报告 `.build/verify-ios-sim-runtime/report.json`；不碰 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 的契约字段。
 - 门禁：`.munk/code-gates.json` 的 `lint-ios-shell` / `build-ios` / `test-ios` / `verify-ios-sim-runtime`（均为单一 argv，指向上述脚本）；既有 `lint` / `lint-baseline` / `lint-ios-core` / `build-ios-core` / `test-ios-core` / `test` 语义不变。
@@ -22,14 +22,14 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - ac-no-handwritten-pbxproj: `project.pbxproj` 仅存在于 `ios/PurePace.xcodeproj/` 且可由 `project.yml` 再生成；不存在第二份工程或「有工程却无 `project.yml`」的孤立工程。
 - ac-build-settings: `xcodebuild -showBuildSettings -scheme PurePace`（iPhone 16 / iOS 18.6 destination）输出 `IPHONEOS_DEPLOYMENT_TARGET = 17.0`、`SWIFT_VERSION = 6.2`，且 `MARKETING_VERSION` 等于根 `VERSION` 内容。
 - ac-build-app: `xcodebuild build`（`-scheme PurePace`、同 destination、`CODE_SIGNING_ALLOWED=NO`）返回 0 并在构建目录产出 `PurePace.app`。
-- ac-app-targets-and-frameworks: 工程含 `PurePace` / `PurePaceTests` / `PurePaceUITests` 三个 target，依赖仅限本地 path package `PurePaceRunCore`（无远程/第三方 SwiftPM 声明）；App 源码 import 仅限 `SwiftUI` / `Foundation` / `AVFoundation` / `CoreLocation` / `PurePaceRunCore`，`AVFoundation` 只允许出现在 `ios/PurePace/Audio/`，`CoreLocation` 只允许出现在 `ios/PurePace/Harness/`，占位页不得引用业务框架或网络请求。
+- ac-app-targets-and-frameworks: 工程含 `PurePace` / `PurePaceTests` / `PurePaceUITests` 三个 target，依赖仅限本地 path package `PurePaceRunCore`（无远程/第三方 SwiftPM 声明）；App 源码 import 仅限 `SwiftUI` / `Foundation` / `AVFoundation` / `CoreLocation` / `PurePaceRunCore`，`AVFoundation` 只允许出现在 `ios/PurePace/Audio/`，`CoreLocation` 只允许出现在 `ios/PurePace/Harness/` 与 `ios/PurePace/Location/`，页面不得引用网络请求。
 - ac-local-package-wired: `ios/project.yml` 以 `path: RunCore` 声明 `PurePaceRunCore`，`PurePace` 与 `PurePaceTests` 均显式依赖；连续两次 `xcodegen generate` 后 `ios/PurePace.xcodeproj` 零 diff，生成的 pbxproj 仅含 `XCLocalSwiftPackageReference`、不含 `url:`/`https://`/远程 package 引用；`xcodebuild -resolvePackageDependencies` 只解析仓库内 `ios/RunCore`。
 - ac-project-regenerable: 连续两次 `xcodegen generate --spec ios/project.yml` 后 `ios/PurePace.xcodeproj` 零 diff；pbxproj 仅含 `XCLocalSwiftPackageReference`、无远程依赖；`PurePace`/`PurePaceTests` 仍显式依赖 `PurePaceRunCore`；无新增第三方/远程 SwiftPM 依赖、无新增 target。
 - ac-app-audio-session-adapter: `ios/PurePace/Audio/AudioSessionAdapter.swift` 把 `AudioSessionSettings.defaultAnnouncement` 落到真实 `AVAudioSession`（`.playback` / `.spokenAudio` / `[.duckOthers, .mixWithOthers]`），播报结束仅下发一次 `setActive(false, options: [.notifyOthersOnDeactivation])`，`interruptionNotification` 的 began/ended（含 `ShouldResume`）映射到 `AudioSessionCoordinator` 并执行其动作；平台调用抽到 `AudioSessionControlling` 协议后面，`PurePaceTests` 在 iPhone 16 / iOS 18.6 上以真实读回 + spy 断言，不使用 `XCTSkip`。
-- ac-placeholder-ui: App 首屏源码含 `PurePace` 文案、一句 tagline 与 Run/History/Log/Settings 四个 `TabView` 占位，无业务逻辑、无内置样例/种子数据、无网络请求。
-- ac-placeholder-default: 无 launch args 启动时首屏与现状完全一致（`PurePace` + tagline + 四个空 `TabView`）；`PlaceholderCopyTests`、`PlaceholderUITests`、`check-ios-shell.sh` 占位页断言通过；Harness 代码不含任何内置样例/夹具数据。
+- ac-live-run-ui: App 首屏为 Run / History / Settings 三个真实 Tab（无 `Log`），Run 页数值一律读 `orchestrator.metrics`，源码无内置样例/种子数据、无网络请求、无夹具引用；结构断言在 `check-ios-shell.sh`，行为 AC 见 `ios-app` 域。
+- ac-placeholder-default (superseded): 占位页与四 Tab 契约随真实跑步 UI 交付废止，`Placeholder*` 源码与用例已删除，由 `ac-live-run-ui` 及 `ios-app` 域 AC 取代；Harness 代码仍不含任何内置样例/夹具数据。
 - ac-xctest-pass: `xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 (iOS 18.6) 模拟器通过，执行用例数 ≥ 1。
-- ac-xcuitest-pass: `xcodebuild test -only-testing:PurePaceUITests` 在同一模拟器通过，用例真实启动 App 并断言 `PurePace` 静态文本与四个 Tab 存在。
+- ac-xcuitest-pass: `xcodebuild test -only-testing:PurePaceUITests` 在同一模拟器通过，用例真实启动 App 并在真实定位注入下走通跑步流程（断言细节见 `ios-app` 域 ac-ui-flow-e2e），不再断言四 Tab。
 - ac-scripts-and-gates: `bash scripts/build-ios.sh --help` 与 `bash scripts/test-ios.sh --help` 退出码 0 且打印说明；两脚本真实执行构建/测试（非 `echo` / `true` 空转）；`.munk/code-gates.json` 中 iOS 门全部单一 argv 且本机全绿，既有门语义未放宽。
 - ac-harness-args-parse: 参数解析为纯逻辑并可单测：合法 `direct`（需 `--stream`、`--checkpoint`、`--status`）、`corelocation`（需 `--checkpoint`、`--status`）、`resume`（需 `--checkpoint`、`--status`）均解析成功；无 `--harness` 返回「不激活」（即使存在其他 flag）；缺必需参数、未知模式返回带稳定错误码的失败；给了 `--status` 时失败也写出 error status，不崩溃。
 - ac-mode-dispatch: 三个模式分别进入对应采样源：`direct` 只读 `--stream` 文件，`corelocation` 只走 `CLLocationManager`，`resume` 只读 checkpoint 且不接入任何新采样；任一模式的 status `mode` 字段与 launch arg 一致。
@@ -46,9 +46,9 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - ac-corelocation-filter-pure: 精度过滤与首点锚点逻辑为纯逻辑单测覆盖：`horizontalAccuracy < 0` 或 `> 50.0 m` 的样本被拒并计入 `rejectedByAccuracy`；首个被接受样本仅作锚点、不计入距离并计入 `rejectedByFirstPoint`；后续样本正常累计；不重采样、不改写原始时间戳。
 - ac-corelocation-authorization: 启动时请求定位授权并记录 `locationAuthorization`（`notDetermined/restricted/denied/authorizedWhenInUse/authorizedAlways`）；未获授权时停止采集并写 `error.code == "locationUnauthorized"`；权限回调后才开始 `startUpdatingLocation`；`finish`/`--max-duration` 到达后停止采集并写最终 status。
 - ac-corelocation-config-declared: `ios/project.yml` 同时声明非空的 `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` 与 `UIBackgroundModes` 含 `location`（`info.properties` 或 `INFOPLIST_KEY_*` 任一形式均可）；`check-ios-shell.sh` 静态断言两者存在且非空；`xcodegen generate` 产物可解析到这两项（下游模拟器脚本复核含键）。
-- ac-corelocation-isolation: `CLLocationManager`/`CoreLocation` 只出现在 `ios/PurePace/Harness/`，且 Harness 内核（参数解析、流解析、驱动编排、status 构建、checkpoint 节奏）不 import CoreLocation/SwiftUI，可用 fake 采样源在 `PurePaceTests` 中单测。
-- ac-imports-scoped: `check-ios-shell.sh` 的 App import 允许表新增 `CoreLocation`，且 `CoreLocation` 仅允许出现在 `ios/PurePace/Harness/*.swift`；`AVFoundation` 仍只允许在 `ios/PurePace/Audio/`；`MapKit/HealthKit/CoreMotion/UserNotifications/URLSession` 等仍判失败；占位页显式文件清单断言不放松；新增断言带 `--self-test` 反例自检。
-- ac-build-test-green: `bash scripts/check-ios-shell.sh`、`bash scripts/build-ios.sh`、`bash scripts/test-ios.sh` 退出码 0；`xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 / iOS 18.6 模拟器通过，既有占位/音频用例不减少且新增 Harness 用例 ≥ 1（无 `XCTSkip` 或条件跳过）；`.munk/code-gates.json` 门数不减少、既有门语义不放宽。
+- ac-corelocation-isolation: `CLLocationManager`/`CoreLocation` 只出现在 `ios/PurePace/Harness/` 与 `ios/PurePace/Location/`，且 Harness 内核（参数解析、流解析、驱动编排、status 构建、checkpoint 节奏）不 import CoreLocation/SwiftUI，可用 fake 采样源在 `PurePaceTests` 中单测。
+- ac-imports-scoped: `check-ios-shell.sh` 的 App import 允许表新增 `CoreLocation`，且 `CoreLocation` 仅允许出现在 `ios/PurePace/Harness/*.swift` 与 `ios/PurePace/Location/*.swift`；`AVFoundation` 仍只允许在 `ios/PurePace/Audio/`；`MapKit/HealthKit/CoreMotion/UserNotifications/URLSession` 等仍判失败；页面显式文件清单断言不放松（已改为真实 UI 清单）；新增断言带 `--self-test` 反例自检。
+- ac-build-test-green: `bash scripts/check-ios-shell.sh`、`bash scripts/build-ios.sh`、`bash scripts/test-ios.sh` 退出码 0；`xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 / iOS 18.6 模拟器通过，既有音频/Harness 用例不减少且真实跑步 UI 用例 ≥ 1（无 `XCTSkip` 或条件跳过）；`.munk/code-gates.json` 门数不减少、既有门语义不放宽。
 - ac-runcore-unchanged: `ios/RunCore/**` 默认零改动；`bash scripts/check-ios-run-core.sh`、`swift test --package-path ios/RunCore` 全绿；RunCore 仍只 `import Foundation`。若确需为装配补一个可选字段，必须保持旧 JSONL 可解码且同步补 RunCore 单测（默认路径不改）。
 - ac-evidence-wording: 交付结论只写「模拟器契约通过」「配置与调度契约通过」；「后台锁屏连续定位」「音乐不打断与 duck 恢复」「TTS 实听」一律 `pending: 待人现场`；不得出现「已验证」「实听通过」「真机后台定位可用」。
 - ac-script-hygiene: `scripts/verify-ios-sim-runtime.sh` 用 `#!/usr/bin/env bash` + `set -euo pipefail` + `BASH_SOURCE` 推导仓库根；`--help` 退出 0 且输出含「用法」，未知参数退出 2，`bash -n` 通过；`bash scripts/check-shell-expansion.sh`、`bash scripts/check-baseline.sh` 仍绿（无非 ASCII 裸展开、无版本字面值）。
@@ -71,7 +71,7 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 
 ## 非目标
 
-- 不做面向用户的跑步业务与 UI：不新增跑步页/历史/设置/导出/地图页、不加路由与内置样例数据；`ios/PurePace/Harness/` 只是仅由 launch arg 激活的验证接缝（无 Tab、无业务控件），不构成可用跑步功能。
+- 本域不定义面向用户的跑步业务 UI（Run/History/Settings 与真实定位数据源已由 `ios-app` 域承接）；不新增历史详情/导出/地图页、不加路由与内置样例数据；`ios/PurePace/Harness/` 仍只是仅由 launch arg 激活的验证接缝（无 Tab、无业务控件）。
 - 不实现真实语音/TTS、不激活 `AVAudioSession` 发声、不改 `AudioSessionAdapter.swift`；播报只入队不播放。
 - Harness 交付项本身不写 `scripts/verify-ios-sim-runtime.sh`、不跑 `xcrun simctl`（模拟器三链路编排已由后续项在 `scripts/verify-ios-sim-runtime.sh` 补齐，见下节）；不替换 `ios/RunCore` 的状态机/度量算法与硬阈值。
 - 不做真机验证与后台移入后的连续采集、不做真机签名/provision/TestFlight；后台模式只是 `Info.plist` 配置声明。
@@ -85,7 +85,7 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - XcodeGen 为构建期工具，已由 Owner 批准一次安装（`brew install xcodegen` 或等价官方二进制）；本域不允许手写 pbxproj 绕过工具缺失，也不允许在无 xcodegen 时伪造工程入库。
 - bundle id 统一 `com.chaxiu.purepace`（与 Android applicationId 口径一致），只在 `project.yml` 一处定义，测试 target 以其为前缀派生。
 - 版本派生：`MARKETING_VERSION` 只能来自根 `VERSION`（经 `scripts/sync-ios-version.sh` → `ios/Config/Version.xcconfig`），`project.yml`、源码与脚本均不得写死当前版本字面值；`CURRENT_PROJECT_VERSION` 用常量构建号。
-- 依赖/分层：仅允许以本地 path package 依赖 `ios/RunCore`（`PurePaceRunCore`），不得声明远程/第三方 SwiftPM 依赖；`AVFoundation` 只允许出现在 `ios/PurePace/Audio/` 适配器，`CoreLocation` 只允许出现在 `ios/PurePace/Harness/`；`ContentView`/`Placeholder*` 保持零业务引用，只有 `PurePaceApp.swift` 做入口判定；`ios/PurePace/` 不放样例数据，示例数据只允许出现在测试代码中。
+- 依赖/分层：仅允许以本地 path package 依赖 `ios/RunCore`（`PurePaceRunCore`），不得声明远程/第三方 SwiftPM 依赖；`AVFoundation` 只允许出现在 `ios/PurePace/Audio/` 适配器，`CoreLocation` 只允许出现在 `ios/PurePace/Harness/` 与 `ios/PurePace/Location/`；`ContentView` 只做 Tab 容器与入口分支，跑步数值只经 `RunSessionOrchestrator.metrics`；`ios/PurePace/` 不放样例数据，示例数据只允许出现在测试代码中。
 - Harness launch arg 契约（下游脚本据此驱动，不得改名）：`--harness <direct|corelocation|resume>` 出现即激活，缺省完全不激活；`--status <绝对路径>` 三模式必填，`--stream <绝对路径>` 仅 `direct` 必填，`--checkpoint <绝对路径>` 三模式必填（direct/corelocation 追加、resume 读取），`--max-duration <秒>` 可选按活跃时长自动 `finish`；Harness 自行创建 status/checkpoint 父目录。
 - Harness 内核与契约：JSONL 直接流为 UTF-8 一行一对象、时间统一 epoch 秒；status 为唯一对外可观测面（原子写：同目录临时文件 + 原子替换），`schemaVersion=1`，每次接受采样/状态迁移后更新，禁止依赖日志或 UI 文本断言；顺序固定 `ingest` → `AnnouncementScheduler.tick` → `RunCheckpointStore.append`，checkpoint 只经 `RunCheckpointStore` 读写（禁自建 JSON 拼接/内存伪文件），resume 用 `announcedSplitIndex ?? splits.count` 播种调度器。
 - CoreLocation 适配：`CLLocationManager` 只在 Harness 目录使用并经最小采样源协议注入纯逻辑内核（单测用 fake，不触真实定位）；`requestWhenInUseAuthorization()` 授权后才 `startUpdatingLocation()`；精度阈值 50 m、首点仅锚点；`finish`/超时/去初始化时停止采样；不引入后台持续采集的运行时承诺。
@@ -106,7 +106,6 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 
 ## 最近交付证明
 
-- workItemId: wi_ws_8ca5ddccad72148d（2026-11-08，pass）
-- 交付：新增唯一脚本 `scripts/verify-ios-sim-runtime.sh`（入口/`--help`/未知参数 2、`BASH_SOURCE` 定根、复用 `build-ios.sh`、`python3` 独立 Haversine 与配速复算、机读报告），`.munk/code-gates.json` append-only 追加第 22 个门 `verify-ios-sim-runtime`（单一 argv）；corelocation 改为 1 Hz `simctl location set` 确定性推点（首点就绪后开始、按已采距离确认推进、停滞 5 s 重推最多 2 轮、进度型 300 s 预算），消除 `location start` 播放式注入的偶发欠采集；`ios/RunCore/**` 与 `ios/PurePace/Harness/**` 零改动。
-- 实测（iPhone 16 / iOS 18.6，连续 3 次本地运行 `rc=0`、`report.json verdict=pass`）：direct 3004 行流 / 3000 接受样本，距离 3007.20 m（复算 3010.00 m，相对误差 0.093%），平均配速 357.48 s/km（复算 357.14，差 0.33 s/km），`completedKilometers==3`、`splitCount==3`、播报 3 条公里 + 1 条 finished；corelocation 三次均 84 样本、采集 248.999 m（覆盖率 0.9960）、距离相对误差 5.0e-13、配速 333.82 s/km（误差 0.44–0.48 s/km）、`locationAuthorization==authorizedWhenInUse`；terminate-relaunch `resumed==true`，容器内 checkpoint 307 行恢复 3007.20 m / 3 段 / `announcedSplitIndex=3`，重复播报 0。门整体单次约 3 min 40 s（含构建），corelocation 阶段 201 s。
-- 验证：`code_gates` 22 门全绿；`bash scripts/check-shell-expansion.sh`、`check-baseline.sh`、`check-ios-shell.sh`、`check-ios-scripts.sh`、`check-ios-run-core.sh` 均退出 0，既有 21 门 id/command 逐字未变。阈值口径：距离相对误差 0.5%、配速 ±2 s/km、分段/播报/restored 三项全保留、覆盖率 99% 未降级。结论口径：模拟器契约通过；后台锁屏连续定位、音乐不打断与 duck 恢复、TTS 实听仍为 `pending: 待人现场`，`cp-stage2-exit` 未关闭。
+- workItemId: wi_ws_5b140889e212b982（2026-11-08，pass）
+- 交付：占位页契约退场——`check-ios-shell.sh` 的「占位页内容」段整段改写为真实 UI 段（9 个 App 源码文件清单、12 个无障碍标识、History/Settings 诚实态、`shared/fixtures|.gpx|.tcx` 禁用、Run 目录禁 `Timer`/`asyncAfter`/`CADisplayLink`），`CoreLocation` import 允许表扩为 `Harness/` + `Location/` 并新增「其它目录出现 CoreLocation」反例；`test-ios.sh` 增加 iPhone 16 / iOS 18.6 选择 + boot + `simctl location start --speed=3 --interval=1` 注入（≥20 km 航点）与 `trap` 内 `clear`；`Placeholder*` 四文件及其用例删除，改由 `Run/`、`Location/`、`History/`、`Settings/` 与 `RunSessionViewModelTests`、`RunFormattingTests`、`RunFlowUITests` 承担（行为 AC 见 `ios-app` 域）。
+- 实测：`code_gates` 22 门全绿（attempt 001，含 `lint-ios-shell` / `build-ios` / `test-ios` / `verify-ios-sim-runtime`），门 id 与 command 逐字未变；`ios/RunCore/**`、`ios/PurePace/Harness/**`、`project.yml` 依赖零改动（仅 `project.pbxproj` 由 xcodegen 再生成同步文件清单）。结论口径：模拟器契约通过；真机、后台锁屏连续定位、音乐 duck 与 TTS 实听仍为 `pending: 待人现场`，`cp-stage2-exit` 未关闭。
