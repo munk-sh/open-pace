@@ -14,12 +14,14 @@ struct ContentView: View {
     @State private var selection: Tab = .run
 
     private let archiveStore: RunArchiveStore
+    private let exporter: RunGPXExporter
 
     @MainActor
     init() {
         let stores = RunStorage.makeStores()
         let settings = AnnouncementSettingsStore()
         archiveStore = stores.archive
+        exporter = stores.exporter
         _settings = StateObject(wrappedValue: settings)
         _runModel = StateObject(
             wrappedValue: RunSessionViewModel(
@@ -39,6 +41,7 @@ struct ContentView: View {
 
             HistoryView(
                 archiveStore: archiveStore,
+                exporter: exporter,
                 refreshToken: runModel.savedCount,
                 onRunAgain: { selection = .run }
             )

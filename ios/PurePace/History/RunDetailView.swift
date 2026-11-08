@@ -5,6 +5,9 @@ import SwiftUI
 /// 视图只做绑定与排版，不重算距离、不聚合分段、不读样例。
 struct RunDetailView: View {
     let record: RunRecord
+    let exporter: RunGPXExporter
+
+    @State private var exportState = RunExportState()
 
     private var content: RunDetailContent {
         RunDetailContent(record: record)
@@ -43,9 +46,37 @@ struct RunDetailView: View {
                 Text(content.splitsSummaryText)
                     .accessibilityIdentifier("runDetail.splits")
             }
+            exportSection
         }
         .navigationTitle("跑次详情")
         .accessibilityIdentifier("runDetail.root")
+    }
+
+    @ViewBuilder
+    private var exportSection: some View {
+        Section {
+            Button("导出 GPX") {
+                exportState.export(record, using: exporter)
+            }
+            .accessibilityIdentifier("runDetail.export")
+
+            switch exportState.phase {
+            case .idle:
+                EmptyView()
+            case .exported(let url):
+                Text("已导出 \(url.lastPathComponent)")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("runDetail.exported")
+                ShareLink(item: url) {
+                    Text("分享")
+                }
+                .accessibilityIdentifier("runDetail.share")
+            case .failed:
+                Text("导出失败")
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("runDetail.exportFailed")
+            }
+        }
     }
 
     private func field(_ title: String, _ value: String, identifier: String) -> some View {
