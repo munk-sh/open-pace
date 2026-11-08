@@ -11,7 +11,7 @@
 - `scripts/version.sh`：无参保持单行版本输出；新增 `--tools` 追加根 `VERSION` 与 Xcode / Swift / JDK / Gradle 摘要，工具缺失显式标注「未就绪」，不报错、不伪造版本。
 - `scripts/build-ios.sh` / `scripts/test-ios.sh`：按 `ios/PurePace.xcodeproj`（或 `ios/project.yml` + 本机 `xcodegen`）可用性自动分支。工程可用走 `xcodebuild build|test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16'`（派生数据落 `.build/ios`）；不可用输出 `blocked:` 原因并降级真实执行 `swift build|test --package-path ios/Core`，以该命令退出码为准。
 - `scripts/check-ios-scripts.sh`：上述三脚本的静态契约断言（`bash -n`、`set -euo pipefail`、`--help` 退出 0、未知参数退出 2、无版本字面值、无伪造成功行、含 xcodebuild/destination 契约字面量）。
-- `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加。
+- `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加；`check-shell-expansion` 与 `verify-ios-sim-runtime`（模拟器三链路编排，编排口径见 `ios-shell` 域）为 append-only 追加，既有门 id/command 逐字不变。
 - `scripts/check-shell-expansion.sh` + `check-shell-expansion` 门：变量展开卫生静态门，扫描 `scripts/**/*.sh`、`android/**` 的 shell 文件（含无扩展名 `android/gradlew`）与 `.github/workflows/*.yml|*.yaml` 的非注释行，禁止裸 `$var` 紧跟非 ASCII 字节；本域持有该门的范围/豁免/退出码契约，跨域脚本（Android、shared、CI 侧）只做 `${var}` 包裹，不改入口语义与退出码。
 
 ## 验收
@@ -81,7 +81,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_ws_b4d31c0d5d6290f0（2026-11-07，pass）
-- 交付：新增 `scripts/check-shell-expansion.sh`（字节级扫描 + 注释豁免 + `mktemp -d` 三组自检 + `--help`/未知参数 2），`.munk/code-gates.json` append-only 追加第 21 个门 `check-shell-expansion`（`bash scripts/check-shell-expansion.sh`，`cwd=.`）；把 15 处裸 `$var`+非 ASCII 展开改为 `${var}`（`scripts/test-android.sh`、`check-ios-scripts.sh`、`build-android.sh`、`check-shared.sh`、`check-android.sh` 与 `.github/workflows/android.yml` 的 echo 行），`android/gradlew` 逐字节未改。
-- 验证：`bash scripts/check-shell-expansion.sh` 退出 0（7 项断言全 PASS：扫描器可用、范围非空且覆盖 `android/gradlew`、真实仓库零命中、正/反/注释三组自检）；`code_gates` 全绿含既有 `check-*` 结构门；既有 20 个门 id/command 逐字未变。
-- 风险标注：`.github/workflows/android.yml` 为该次唯一 CI 触碰点（L58 一处 echo 变量包裹），CI 未在本 WorkSet 内远端复跑，不得声称 CI 已通过。
+- workItemId: wi_ws_8ca5ddccad72148d（2026-11-08，pass）
+- 交付：`.munk/code-gates.json` append-only 追加第 22 个门 `verify-ios-sim-runtime`（`cwd=.`，command `bash scripts/verify-ios-sim-runtime.sh`，单一 argv）；既有 21 个门 id/command 逐字未变；本域仅更新门清单记录，编排口径与 AC 落 `ios-shell` 域。
+- 验证：`code_gates` 22 门全绿（attempt 001，含 `lint-baseline`、`test`=`check-baseline.sh`）；`bash scripts/check-shell-expansion.sh` 退出 0（新脚本非注释行零裸 `$var` + 非 ASCII 命中），`scripts/verify-ios-sim-runtime.sh` 不写根 `VERSION` 字面值。
+- 风险标注：`.github/workflows/*` 本轮未改、CI 未在远端复跑，不得声称 CI 已通过；模拟器三链路证据为本机 iPhone 16 / iOS 18.6 实测。

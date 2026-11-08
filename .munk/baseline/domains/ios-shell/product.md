@@ -13,7 +13,8 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - `ios/project.yml` 定位配置：非空 `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` 与 `ios/PurePace/Info.plist` 的 `UIBackgroundModes: [location]`；仅配置声明，不承诺真机后台行为。
 - `ios/PurePaceTests/`：XCTest 用例，覆盖占位页文案/结构、音频适配器与 Harness 纯逻辑（参数、流解析、status、checkpoint、resume）；`ios/PurePaceUITests/`：XCUITest 用例，启动 App 后断言 `PurePace` 文案与四个 Tab 可访问。
 - `scripts/build-ios.sh`、`scripts/test-ios.sh`：先由根 `VERSION` 同步 `Config/Version.xcconfig`，工程缺失且有 xcodegen 时从 spec 生成，再对 iPhone 16 / iOS 18.6 执行真实 `xcodebuild build` / `xcodebuild test`（无签名）；工程不可用时输出 `blocked:` 并降级真实 `swift build|test --package-path ios/Core`，绝不伪造成功行。`scripts/check-ios-shell.sh` 承载本域结构断言（含 import 允许表与 `CoreLocation` 目录限定、定位配置、Harness 文件清单），`scripts/check-ios-scripts.sh` 承载脚本契约断言。
-- 门禁：`.munk/code-gates.json` 的 `lint-ios-shell` / `build-ios` / `test-ios`（均为单一 argv，指向上述脚本）；既有 `lint` / `lint-baseline` / `lint-ios-core` / `build-ios-core` / `test-ios-core` / `test` 语义不变。
+- `scripts/verify-ios-sim-runtime.sh`：模拟器三链路编排（direct / terminate-relaunch / corelocation）唯一入口，真实驱动已交付 Harness、用 `python3` 独立复算距离与配速、产出机读报告 `.build/verify-ios-sim-runtime/report.json`；不碰 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 的契约字段。
+- 门禁：`.munk/code-gates.json` 的 `lint-ios-shell` / `build-ios` / `test-ios` / `verify-ios-sim-runtime`（均为单一 argv，指向上述脚本）；既有 `lint` / `lint-baseline` / `lint-ios-core` / `build-ios-core` / `test-ios-core` / `test` 语义不变。
 
 ## 验收
 
@@ -50,12 +51,29 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - ac-build-test-green: `bash scripts/check-ios-shell.sh`、`bash scripts/build-ios.sh`、`bash scripts/test-ios.sh` 退出码 0；`xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 / iOS 18.6 模拟器通过，既有占位/音频用例不减少且新增 Harness 用例 ≥ 1（无 `XCTSkip` 或条件跳过）；`.munk/code-gates.json` 门数不减少、既有门语义不放宽。
 - ac-runcore-unchanged: `ios/RunCore/**` 默认零改动；`bash scripts/check-ios-run-core.sh`、`swift test --package-path ios/RunCore` 全绿；RunCore 仍只 `import Foundation`。若确需为装配补一个可选字段，必须保持旧 JSONL 可解码且同步补 RunCore 单测（默认路径不改）。
 - ac-evidence-wording: 交付结论只写「模拟器契约通过」「配置与调度契约通过」；「后台锁屏连续定位」「音乐不打断与 duck 恢复」「TTS 实听」一律 `pending: 待人现场`；不得出现「已验证」「实听通过」「真机后台定位可用」。
+- ac-script-hygiene: `scripts/verify-ios-sim-runtime.sh` 用 `#!/usr/bin/env bash` + `set -euo pipefail` + `BASH_SOURCE` 推导仓库根；`--help` 退出 0 且输出含「用法」，未知参数退出 2，`bash -n` 通过；`bash scripts/check-shell-expansion.sh`、`bash scripts/check-baseline.sh` 仍绿（无非 ASCII 裸展开、无版本字面值）。
+- ac-direct-run-real: iPhone 16 / iOS 18.6 上真实安装启动 App 跑完 direct 链路，status 满足 `schemaVersion==1`、`mode=="direct"`、`state=="finished"`、`rawSamples` 非空、`sampleCounts.received==rawSamples.count`；脚本自生成并写入 App 容器的 JSONL ≥ 3000 行（3 km/1 Hz），零引用 `shared/fixtures`。
+- ac-direct-distance-within-1pct: 脚本对 `rawSamples` 中被接受样本独立 Haversine 累加得 `recomputedDistanceMeters`，判 `|actual.distanceMeters - recomputed|/recomputed ≤ 0.005`（收紧自 0.01）且 `|recomputed - 3000|/3000 ≤ 0.01`；报告同时写出阈值与实测三项数值。
+- ac-direct-pace-within-2s: 脚本独立按 `elapsedSeconds/(recomputed/1000)` 复算平均配速，与 `actual.averagePaceSecondsPerKilometer` 差 ≤ 2.0 s/km；`currentPaceSecondsPerKilometer` 非 null 且落在 `[300, 420]`。
+- ac-direct-split-boundary-pm1: `actual.completedKilometers == 3`、`splitSampleIndexes` 长 3，每段索引与脚本按 1 Hz + 生成路线算出的期望索引差 ≤ 1 个采样点；`splits[].distanceMeters` 单调递增且每段 1000 m（±1%）。
+- ac-announcement-exactly-once-runtime: 模拟器 direct 链路的 `announcements` 条数 == `completedKilometers`，`splitIndex` 集合恰为 `1...completedKilometers` 且无重复；`finished` 后不再新增（只允许至多一条 `finished` 触发）；流中暂停窗口不产生播报。
+- ac-location-injection-real: corelocation 链路真实执行 `xcrun simctl privacy grant`，再用 `xcrun simctl location set` 按 1 Hz 确定性逐点推进 250 m 路线（每 tick 3.0 m，先推首点等 App 采到首个样本，再按 status 实际采集距离确认推进；停滞 >5 s 用当前进度重算剩余点并重推，最多 2 轮；进度型超时总预算 300 s），不依赖 `simctl location start` 的播放时长；status `mode=="corelocation"`、`locationAuthorization` 为已授权取值、`error==null`、`rawSamples` 非空；结束前执行 `xcrun simctl location clear`，不得用夹具或硬编码坐标冒充捕获点。
+- ac-location-distance-within-1pct: 排除首点锚点后对 corelocation `rawSamples` 独立 Haversine 累加，判 `|actual-recomputed|/recomputed ≤ 0.005`（收紧自 0.01），且与注入路线 250 m 偏差 ≤ 1%。
+- ac-location-capture-coverage: 捕获轨迹长度 / 注入路线长度 ≥ 0.99（阈值写死 99%），报告记录 `capturedMeters`、`injectedMeters`、`coverage` 实际值。
+- ac-location-pace-within-2s: `|actual.averagePaceSecondsPerKilometer - 300| <= 2.0` 的文案目标按物理换算为 3.0 m/s ⇒ 333.33 s/km：实际判定 `|actual.averagePace - 333.33| <= 2.0` 且独立复算与之相差 ≤ 2.0 s/km（以物理换算为准，不放宽）。
+- ac-terminate-relaunch-restores: 对 `completedKilometers >= 2` 且 checkpoint 文件存在非空的一次 direct 运行，真实 `xcrun simctl terminate` 后以 `--harness resume` relaunch；resume status `resumed==true`、`restored.completedDistanceMeters >= 杀进程前末个 checkpoint 的 completedDistanceMeters`、`restored.splitCount >= 该 checkpoint 的 splits.count`、`restored.announcedSplitIndex >= 已播报最大 splitIndex`。
+- ac-terminate-relaunch-no-duplicate-announcement: relaunch 后 `announcements` 不含 `splitIndex <= restored.announcedSplitIndex` 的条目，且 resume status `error==null`。
+- ac-checkpoint-on-disk-real: 杀进程前后读取的是 App 容器内真实 checkpoint 文件（JSONL，每行可被 `RunCheckpointStore` 语义解析；行数 ≥ 2，末行 `completedDistanceMeters`/`splits` 与 resume 快照一致），拒绝内存态或脚本伪造文件充当证据。
+- ac-report-machine-readable: `.build/verify-ios-sim-runtime/report.json` 为合法 JSON（`python3 -c 'json.load'` 可解析），含 `schemaVersion`、`device{name,udid,runtime}`、`links[]{id,status,thresholds,actual,verdict,durationSeconds}` 与顶层 `verdict`；每类阈值同时写出「阈值」与「实际值」；`deviceVerification` 的 `backgroundLocationContinuous`/`audioNotInterrupted`/`ttsLiveListen` 恒为 `"pending: 待人现场"`，全文不出现「已验证」「实听通过」。
+- ac-failure-nonzero: 任一链路失败、阈值越界、status 缺失/无法解析、`xcrun`/`xcodebuild`/模拟器运行时缺失、App 安装或启动失败时脚本非零退出（不 `exit 0`、不静默 skip），并在 stderr 与 `links[].failureReason` 写明失败指标。
+- ac-gate-registered: `.munk/code-gates.json` 追加 `{"id": "verify-ios-sim-runtime", "cwd": ".", "command": "bash scripts/verify-ios-sim-runtime.sh"}`；既有门 `id`/`command` 逐字不变（只增不减），新门 command 为单一 argv（不含 `&&`/`||`/`|`/`;`/`>`/`<`）。
+- ac-existing-gates-green: `check-ios-shell.sh`、`check-ios-scripts.sh`、`check-ios-run-core.sh`、`check-shared.sh`、`check-gpx-export.sh`、`check-shell-expansion.sh`、`check-baseline.sh` 全部退出 0；本项不改 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 契约字段。
 
 ## 非目标
 
 - 不做面向用户的跑步业务与 UI：不新增跑步页/历史/设置/导出/地图页、不加路由与内置样例数据；`ios/PurePace/Harness/` 只是仅由 launch arg 激活的验证接缝（无 Tab、无业务控件），不构成可用跑步功能。
 - 不实现真实语音/TTS、不激活 `AVAudioSession` 发声、不改 `AudioSessionAdapter.swift`；播报只入队不播放。
-- 不写 `scripts/verify-ios-sim-runtime.sh`、不跑 `xcrun simctl`（location 注入、privacy grant、terminate/relaunch）、不生成验证报告与阈值比对脚本；不替换 `ios/RunCore` 的状态机/度量算法与硬阈值。
+- Harness 交付项本身不写 `scripts/verify-ios-sim-runtime.sh`、不跑 `xcrun simctl`（模拟器三链路编排已由后续项在 `scripts/verify-ios-sim-runtime.sh` 补齐，见下节）；不替换 `ios/RunCore` 的状态机/度量算法与硬阈值。
 - 不做真机验证与后台移入后的连续采集、不做真机签名/provision/TestFlight；后台模式只是 `Info.plist` 配置声明。
 - 不做视觉设计、设计 token、多语言框架、账号/云/社交，不引入跨端框架与第三方运行时依赖。
 - 不做 Android 骨架、`shared/` 夹具与 schema；iOS CI workflow 与远端 run 验证已由 `ci` 域承接，不在本域扩展。
@@ -76,8 +94,19 @@ PurePace iOS 空壳工程域：以 XcodeGen 规格 `ios/project.yml` 为唯一�
 - 门禁共存：本域 `lint-ios-shell` 与脚本契约门 `lint-ios-scripts` 必须同时通过；后者对 destination 的断言按「iPhone 16 + 可选 OS/UDID」校验，不得放宽为任意机型。
 - 证据口径：只报真实命令输出摘要与用例数，不写「CI 通过」「真机已验证」；本地门通过不替代远端 run；结论限「模拟器契约通过」「配置与调度契约通过」。
 
+### 模拟器运行时验证编排（`scripts/verify-ios-sim-runtime.sh`）
+
+- 入口：`bash scripts/verify-ios-sim-runtime.sh`（`--help` 退出 0，未知参数或多参数退出 2；`set -euo pipefail`；仓库根由 `BASH_SOURCE` 推导）；门禁 `verify-ios-sim-runtime` 追加在 `.munk/code-gates.json` 末尾，command 为单一 argv。
+- 设备固定 iPhone 16 / iOS 18.6（`com.apple.CoreSimulator.SimRuntime.iOS-18-6`），复用 `scripts/build-ios.sh` 产物与 `CODE_SIGNING_ALLOWED=NO`；容器经 `xcrun simctl get_app_container <udid> com.chaxiu.purepace data` 取得。
+- 三链路（按 direct → terminate-relaunch → corelocation 执行）：
+  - direct：脚本生成 3 km、1 Hz、5:00–7:00/km 的 JSONL 直接流写入 App 容器（×3 km ≈ 3000+ 行，含暂停窗口），以 `--harness direct --status --stream --checkpoint` 启动；独立 Haversine 复算距离/配速，判定距离相对误差 ≤1%、配速误差 ≤2 s/km、分段采样索引 ±1、每公里播报恰好一次（只允许 `kilometerCompleted` 与至多一条 `finished` 触发），finished 后静置复读断言 announcement 不再增长。
+  - terminate-relaunch：direct 达到 ≥2 个已完成分段后 `xcrun simctl terminate`，再 `--harness resume` relaunch；比对 App 容器内真实 checkpoint 末行（`formatVersion=1`、`splits` 索引连续 1..n）与 `restored{completedDistanceMeters,splitCount,announcedSplitIndex}`，断言不重复播报。
+  - corelocation：`xcrun simctl privacy grant` 后以 1 Hz `xcrun simctl location set` 确定性逐点推进约 250 m（每 tick 3.0 m ⇒ 3.0 m/s ⇒ 333.33 s/km，PRD 中「5:00/km」为文案近似；判定以物理换算为准）；App 采到首点后再开始推，每 tick 按 status 已采距离确认推进，停滞 >5 s 用当前进度重算剩余点并重推（最多 2 轮），超时为进度型、总预算 300 s，`--max-duration 200` 兜底；结束时 `xcrun simctl location clear`；排除首点锚点后判定距离相对误差 ≤0.5%、与 250 m 偏差 ≤1%、覆盖率 ≥99%、配速误差 ±2 s/km；不用夹具或硬编码坐标冒充捕获点。该门曾在 `location start` 播放式注入下偶发只采到 148 m，故改为确定性推点（阈值未放松，距离相对误差由 1% 收紧到 0.5%）。
+- 报告：`.build/verify-ios-sim-runtime/report.json`（机读 JSON，含 `schemaVersion`、`device{name,udid,runtime}`、`links[]{id,status,thresholds,actual,checks,verdict,durationSeconds,failureReason}`、顶层 `verdict`）；任一链路/阈值/环境失败即非零退出并在 stderr 与 `failureReason` 写明指标；`deviceVerification` 的 `backgroundLocationContinuous` / `audioNotInterrupted` / `ttsLiveListen` 恒为 `pending: 待人现场`。
+
 ## 最近交付证明
 
-- workItemId: wi_ws_8ec19b08ac1853ee（2026-11-08，pass）
-- 交付：新增 `ios/PurePace/Harness/`（`HarnessArguments` / `HarnessStreamParser` / `HarnessCore` / `HarnessRunner` / `HarnessStatus` / `HarnessLocationSource` / `HarnessRootView`）与 `ios/PurePaceTests/Harness*Tests.swift` 5 个测试文件；`ios/project.yml` 增加非空定位用途说明与 `UIBackgroundModes: location`（含 `ios/PurePace/Info.plist`），重新 `xcodegen generate` 入库；`PurePaceApp.swift` 只加 launch-arg 入口判定，无参数时占位首屏不变；`scripts/check-ios-shell.sh` import 允许表新增 `CoreLocation`（限定 `ios/PurePace/Harness/`），新增定位配置与 Harness 文件清单断言及 `--self-test` 反例。
-- 验证：`bash scripts/check-ios-shell.sh` 9 项断言 0 失败（`--self-test` 正/负反例通过）；`bash scripts/build-ios.sh`、`bash scripts/test-ios.sh` 退出码 0；`xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 / iOS 18.6 上 28 例全部通过（其中 Harness 参数/status 6 例、direct 运行 6 例、定位内核 3 例、resume 3 例，无 `XCTSkip`）；RunCore 侧 87 例全绿。结论口径：模拟器契约通过、配置与调度契约通过；后台锁屏连续定位、音乐不打断与 duck 恢复、TTS 实听仍为 `pending: 待人现场`。
+- workItemId: wi_ws_8ca5ddccad72148d（2026-11-08，pass）
+- 交付：新增唯一脚本 `scripts/verify-ios-sim-runtime.sh`（入口/`--help`/未知参数 2、`BASH_SOURCE` 定根、复用 `build-ios.sh`、`python3` 独立 Haversine 与配速复算、机读报告），`.munk/code-gates.json` append-only 追加第 22 个门 `verify-ios-sim-runtime`（单一 argv）；corelocation 改为 1 Hz `simctl location set` 确定性推点（首点就绪后开始、按已采距离确认推进、停滞 5 s 重推最多 2 轮、进度型 300 s 预算），消除 `location start` 播放式注入的偶发欠采集；`ios/RunCore/**` 与 `ios/PurePace/Harness/**` 零改动。
+- 实测（iPhone 16 / iOS 18.6，连续 3 次本地运行 `rc=0`、`report.json verdict=pass`）：direct 3004 行流 / 3000 接受样本，距离 3007.20 m（复算 3010.00 m，相对误差 0.093%），平均配速 357.48 s/km（复算 357.14，差 0.33 s/km），`completedKilometers==3`、`splitCount==3`、播报 3 条公里 + 1 条 finished；corelocation 三次均 84 样本、采集 248.999 m（覆盖率 0.9960）、距离相对误差 5.0e-13、配速 333.82 s/km（误差 0.44–0.48 s/km）、`locationAuthorization==authorizedWhenInUse`；terminate-relaunch `resumed==true`，容器内 checkpoint 307 行恢复 3007.20 m / 3 段 / `announcedSplitIndex=3`，重复播报 0。门整体单次约 3 min 40 s（含构建），corelocation 阶段 201 s。
+- 验证：`code_gates` 22 门全绿；`bash scripts/check-shell-expansion.sh`、`check-baseline.sh`、`check-ios-shell.sh`、`check-ios-scripts.sh`、`check-ios-run-core.sh` 均退出 0，既有 21 门 id/command 逐字未变。阈值口径：距离相对误差 0.5%、配速 ±2 s/km、分段/播报/restored 三项全保留、覆盖率 99% 未降级。结论口径：模拟器契约通过；后台锁屏连续定位、音乐不打断与 duck 恢复、TTS 实听仍为 `pending: 待人现场`，`cp-stage2-exit` 未关闭。
