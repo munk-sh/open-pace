@@ -1,7 +1,7 @@
 {
   "ok": true,
   "caliber": "模拟器 + 代码层",
-  "generatedAt": "2026-11-08T18:41:35Z",
+  "generatedAt": "2026-11-08T19:51:08Z",
   "script": "scripts/verify-ios-ui-e2e.sh",
   "destination": "platform=iOS Simulator,name=iPhone 16,OS=18.6",
   "simulator": {
@@ -59,7 +59,7 @@
     {
       "name": "container",
       "ok": true,
-      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/D7160B22-0548-4421-BFE7-6199AD8EBE55"
+      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/BB425C53-322A-4D0B-8A5C-D2EE89413E20"
     },
     {
       "name": "container-assertions",
@@ -80,34 +80,34 @@
   "container": {
     "ok": true,
     "problems": [],
-    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/D7160B22-0548-4421-BFE7-6199AD8EBE55",
+    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/BB425C53-322A-4D0B-8A5C-D2EE89413E20",
     "runs": {
       "count": 1,
       "files": [
-        "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.json"
+        "20261108T195040Z-9B7516D9-16A8-4C8F-A694-156B3916D125.json"
       ],
       "formatVersion": 1,
-      "distance": 18.163084304933545,
-      "activeDuration": 6.188732028007507,
-      "startedAt": 1794163267.210792,
-      "endedAt": 1794163278.694207,
+      "distance": 18.101906117346875,
+      "activeDuration": 6.2929699420928955,
+      "startedAt": 1794167440.7181668,
+      "endedAt": 1794167452.4847221,
       "sampleCount": 8,
       "firstSample": {
-        "latitude": 37.33552541181886,
+        "latitude": 37.335444077370106,
         "longitude": -122.00900000000001,
-        "timestamp": 1794163267.275607
+        "timestamp": 1794167441.1897721
       },
       "lastSample": {
-        "latitude": 37.335824652014146,
+        "latitude": 37.33574233008919,
         "longitude": -122.00900000000001,
-        "timestamp": 1794163278.348793
+        "timestamp": 1794167452.227055
       }
     },
     "exports": {
       "count": 1,
       "files": [
         {
-          "name": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx",
+          "name": "20261108T195040Z-9B7516D9-16A8-4C8F-A694-156B3916D125.gpx",
           "bytes": 1572,
           "xmllintOk": true,
           "rootTag": "{http://www.topografix.com/GPX/1/1}gpx",
@@ -116,17 +116,17 @@
           "rootOk": true
         }
       ],
-      "primary": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx"
+      "primary": "20261108T195040Z-9B7516D9-16A8-4C8F-A694-156B3916D125.gpx"
     }
   },
   "externalParse": {
-    "gpxFile": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx",
+    "gpxFile": "20261108T195040Z-9B7516D9-16A8-4C8F-A694-156B3916D125.gpx",
     "trkptCount": 8,
     "sampleCount": 8,
-    "firstTimeDeltaSeconds": 0.2756071090698242,
-    "lastTimeDeltaSeconds": 0.34879302978515625,
-    "firstCoordinateDelta": 4.1181885990226874e-07,
-    "lastCoordinateDelta": 3.479858534660707e-07,
+    "firstTimeDeltaSeconds": 0.1897721290588379,
+    "lastTimeDeltaSeconds": 0.22705507278442383,
+    "firstCoordinateDelta": 7.737010321307025e-08,
+    "lastCoordinateDelta": 3.300891862068056e-07,
     "problems": [],
     "ok": true
   },
@@ -134,25 +134,25 @@
     {
       "name": "e2e-finish",
       "file": "e2e-finish.png",
-      "bytes": 110350,
+      "bytes": 111775,
       "ok": true
     },
     {
       "name": "e2e-history",
       "file": "e2e-history.png",
-      "bytes": 92145,
+      "bytes": 94099,
       "ok": true
     },
     {
       "name": "e2e-detail",
       "file": "e2e-detail.png",
-      "bytes": 150893,
+      "bytes": 153444,
       "ok": true
     },
     {
       "name": "e2e-share",
       "file": "e2e-share.png",
-      "bytes": 514712,
+      "bytes": 523750,
       "ok": true
     }
   ],

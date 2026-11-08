@@ -14,6 +14,8 @@ usage() {
     退出 0 且含「用法」，未知参数退出 2
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
+  - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → xcodebuild test（顺序可断言），
+    且带 bash 看门狗硬超时、启动预热，不依赖 macOS 缺失的 GNU timeout
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
@@ -168,6 +170,62 @@ if [ -z "$problems" ]; then
 else
   fail "ac-test-ios-xcodebuild-path" "$problems"
 fi
+
+# ---------------- test-ios.sh 模拟器前置状态契约：bootstatus → 安装 → 授权 → 测试 + 硬超时
+test_ios_preparation_problems() {
+  local file="$1" out="" install_line="" privacy_line="" test_line=""
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  for needle in \
+    "simctl bootstatus" \
+    "simctl privacy" \
+    "grant location" \
+    "simctl install" \
+    "simctl launch" \
+    "simctl terminate" \
+    "run_with_watchdog" \
+    "IOS_XCODEBUILD_TIMEOUT"; do
+    grep -Fq -- "$needle" "$file" || out="$out 缺少 '$needle';"
+  done
+  # 只看真实命令调用行：帮助文本里也有同样字样，不能作为顺序锚点。
+  install_line="$(grep -nF -- 'xcrun simctl install' "$file" | head -n 1 | cut -d: -f1 || true)"
+  privacy_line="$(grep -nF -- 'xcrun simctl privacy' "$file" | head -n 1 | cut -d: -f1 || true)"
+  test_line="$(grep -nF -- 'xcodebuild test \' "$file" | head -n 1 | cut -d: -f1 || true)"
+  if [ -z "$install_line" ] || [ -z "$privacy_line" ] || [ -z "$test_line" ]; then
+    out="$out 缺少 install/privacy/xcodebuild test 顺序锚点;"
+  elif [ "$install_line" -ge "$privacy_line" ]; then
+    out="$out simctl privacy 必须排在 simctl install 之后（install=${install_line} privacy=${privacy_line}）;"
+  elif [ "$privacy_line" -ge "$test_line" ]; then
+    out="$out simctl privacy 必须排在 xcodebuild test 之前（privacy=${privacy_line} test=${test_line}）;"
+  fi
+  # macOS runner 没有 GNU timeout：硬超时必须是 bash 看门狗（kill），不能用 timeout 命令。
+  if grep -Eq '(^|[^[:alnum:]_])timeout[[:space:]]+[0-9]' "$file"; then
+    out="$out test-ios.sh 依赖 GNU timeout（macOS runner 无该命令），应使用 bash 看门狗 + kill;"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(test_ios_preparation_problems scripts/test-ios.sh)"
+if [ -z "$problems" ]; then
+  pass "ac-test-ios-simulator-preparation"
+else
+  fail "ac-test-ios-simulator-preparation" "$problems"
+fi
+
+# 反例自检：把授权命令挪到文件最前（先于安装），顺序断言必须报错。
+prep_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-prep.XXXXXX")"
+{
+  printf '%s\n' '# xcrun simctl privacy simctl privacy grant location'
+  cat scripts/test-ios.sh
+} > "$prep_sandbox/test-ios.sh"
+if [ -n "$(test_ios_preparation_problems "$prep_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-simulator-preparation (self-test)"
+else
+  fail "ac-test-ios-simulator-preparation" "授权先于安装的违规样本未被识别"
+fi
+rm -rf "$prep_sandbox"
 
 # ------------------------------- 降级分支不伪造成功行（不 echo BUILD/TEST SUCCEEDED）
 problems=""

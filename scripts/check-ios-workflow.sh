@@ -17,8 +17,10 @@ usage() {
   - install 幂等安装 xcodegen 并准备 iPhone 16 + iOS 18.6 模拟器
   - lint 独立调用 scripts/check-baseline.sh、check-ios-core.sh、check-ios-scripts.sh、check-ios-shell.sh
   - test/build 复用 scripts/test-ios.sh、scripts/build-ios.sh，且对 blocked: 输出显式 exit 1
+  - test 步骤设置 timeout-minutes（≤45），仅承载层不稳定特征允许最多 1 次有界重试
   - workflow 内无第二套 xcodebuild test/build、无根 VERSION 字面值、无不实措辞
-  - 自测：改错 runs-on / 删除 test 步骤 / 去掉 push 触发 / 去掉 blocked 失败口径时脚本非零退出
+  - 自测：改错 runs-on / 删除 test 步骤 / 去掉 push 触发 / 去掉 blocked 失败口径 /
+    去掉 test 硬超时 / 去掉承载层重试特征 / 重试次数改成 3 时脚本非零退出
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -177,6 +179,19 @@ blocked_ok = test_run.include?('blocked:') && test_run.match?(/exit\s+1/) &&
 report(blocked_ok, 'ac-ci-fails-on-blocked-degradation',
        'test/build 未对 blocked: 输出显式 exit 1')
 
+test_step = steps.find { |s| step_name.call(s) == 'test' }
+timeout_minutes = test_step.is_a?(Hash) ? test_step['timeout-minutes'] : nil
+timeout_ok = timeout_minutes.is_a?(Integer) && timeout_minutes.positive? && timeout_minutes <= 45
+report(timeout_ok, 'ac-test-step-hard-timeout',
+       "test 步骤 timeout-minutes 缺失或不在 1..45（实际 #{timeout_minutes.inspect}）")
+
+flaky_patterns = [/Timed out while loading Accessibility/, /unknown to FrontBoard/]
+retry_signatures = flaky_patterns.all? { |pattern| test_run.match?(pattern) }
+attempts = test_run.scan(/run_attempt\s+\d+/).map { |m| m[/\d+/].to_i }
+bounded = attempts == [1, 2] && !test_run.match?(/while\s+true/) && !test_run.match?(/until\s+false/)
+report(retry_signatures && bounded, 'ac-test-bounded-retry',
+       "承载层特征缺失(#{retry_signatures}) 或重试非有界（attempts=#{attempts.inspect}）")
+
 version = File.file?('VERSION') ? File.read('VERSION').strip : ''
 report(version.empty? || !raw.include?(version), 'ac-no-version-literal',
        "workflow 出现根 VERSION 字面值 '#{version}'")
@@ -246,6 +261,17 @@ assert_rejected "去掉 push 触发" "$tmp_dir/no-push.yml" "ac-workflow-push-tr
 
 sed 's/blocked:/blocked-removed:/g' "$WORKFLOW" > "$tmp_dir/no-blocked.yml"
 assert_rejected "去掉 blocked 失败口径" "$tmp_dir/no-blocked.yml" "ac-ci-fails-on-blocked-degradation"
+
+sed '/^        timeout-minutes: 45$/d' "$WORKFLOW" > "$tmp_dir/no-timeout.yml"
+assert_rejected "去掉 test 硬超时" "$tmp_dir/no-timeout.yml" "ac-test-step-hard-timeout"
+
+sed -e 's/unknown to FrontBoard/unknown-to-FrontBoard-removed/g' \
+    -e 's/Timed out while loading Accessibility\./accessibility-timeout-removed/g' \
+    "$WORKFLOW" > "$tmp_dir/no-retry-signature.yml"
+assert_rejected "去掉承载层重试特征" "$tmp_dir/no-retry-signature.yml" "ac-test-bounded-retry"
+
+sed 's/run_attempt 2 /run_attempt 3 /' "$WORKFLOW" > "$tmp_dir/unbounded-retry.yml"
+assert_rejected "重试次数被改成 3" "$tmp_dir/unbounded-retry.yml" "ac-test-bounded-retry"
 
 if [ "$self_test_failures" -ne 0 ]; then
   echo "check-ios-workflow: 负向自测失败 $self_test_failures 项" >&2

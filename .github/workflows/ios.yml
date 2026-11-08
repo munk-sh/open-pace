@@ -76,21 +76,55 @@ jobs:
           bash scripts/check-ios-shell.sh
 
       - name: test
+        timeout-minutes: 45
         run: |
           set -euo pipefail
-          if output="$(bash scripts/test-ios.sh 2>&1)"; then
-            step_rc=0
-          else
-            step_rc=$?
-          fi
-          printf '%s\n' "$output"
-          case "$output" in
-            *blocked:*)
+
+          log_dir=".build/ci"
+          mkdir -p "$log_dir"
+
+          run_attempt() {
+            attempt="$1"
+            log_file="$2"
+            rc=0
+            if bash scripts/test-ios.sh >"$log_file" 2>&1; then
+              rc=0
+            else
+              rc=$?
+            fi
+            echo "test: 第 ${attempt} 次 scripts/test-ios.sh 退出 ${rc}（完整日志 ${log_file}）"
+            cat "$log_file"
+            return "$rc"
+          }
+
+          # 仅 GitHub 承载层不稳定（无障碍初始化超时 / FrontBoard 未知进程）允许有界重试；
+          # 产品级断言失败不重试。
+          infra_unstable() {
+            grep -Eq 'Timed out while loading Accessibility\.|unknown to FrontBoard' "$1"
+          }
+
+          reset_simulator() {
+            echo "test: 重试前关闭模拟器，交由 test-ios.sh 重新 bootstatus + 安装 + 授权"
+            xcrun simctl shutdown all >/dev/null 2>&1 || true
+          }
+
+          rc=0
+          run_attempt 1 "$log_dir/test-ios-attempt1.log" || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            if grep -Fq -- 'blocked:' "$log_dir/test-ios-attempt1.log"; then
               echo "test: scripts/test-ios.sh 走了 blocked: 降级分支，CI 判失败" >&2
               exit 1
-              ;;
-          esac
-          exit "$step_rc"
+            fi
+            if infra_unstable "$log_dir/test-ios-attempt1.log"; then
+              echo "test: 首次失败命中 GitHub 承载层不稳定特征，重置模拟器后有界重试 1 次" >&2
+              reset_simulator
+              rc=0
+              run_attempt 2 "$log_dir/test-ios-attempt2.log" || rc=$?
+            else
+              echo "test: 非承载层不稳定的失败（产品/脚本断言），不重试" >&2
+            fi
+          fi
+          exit "$rc"
 
       - name: build
         run: |
