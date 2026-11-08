@@ -10,6 +10,7 @@ struct ContentView: View {
     }
 
     @StateObject private var runModel: RunSessionViewModel
+    @StateObject private var settings: AnnouncementSettingsStore
     @State private var selection: Tab = .run
 
     private let archiveStore: RunArchiveStore
@@ -17,12 +18,15 @@ struct ContentView: View {
     @MainActor
     init() {
         let stores = RunStorage.makeStores()
+        let settings = AnnouncementSettingsStore()
         archiveStore = stores.archive
+        _settings = StateObject(wrappedValue: settings)
         _runModel = StateObject(
             wrappedValue: RunSessionViewModel(
                 checkpointStore: stores.checkpoint,
                 archiveStore: stores.archive,
-                locationSource: RunLocationSource()
+                locationSource: RunLocationSource(),
+                announcementsEnabled: settings.isEnabled
             )
         )
     }
@@ -41,9 +45,12 @@ struct ContentView: View {
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             .tag(Tab.history)
 
-            SettingsView()
+            SettingsView(store: settings)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(Tab.settings)
+        }
+        .onChange(of: settings.isEnabled) { _, enabled in
+            runModel.setAnnouncementsEnabled(enabled)
         }
     }
 }

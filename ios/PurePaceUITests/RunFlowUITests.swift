@@ -166,6 +166,55 @@ final class RunFlowUITests: XCTestCase {
         }
     }
 
+    func testAnnouncementTogglePersistsAcrossRelaunch() {
+        let app = XCUIApplication()
+        addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
+            for label in ["Allow While Using App", "Allow Once", "Allow", "使用 App 期间允许", "允许一次"] {
+                let button = alert.buttons[label]
+                if button.exists {
+                    button.tap()
+                    return true
+                }
+            }
+            return false
+        }
+        app.launch()
+        allowLocationIfNeeded()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
+        let settingsTab = tabBar.buttons["Settings"]
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 10), "缺少 Settings Tab")
+        settingsTab.tap()
+
+        let toggle = app.switches["settings.announcementToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings 缺少每公里播报开关")
+
+        // 先把开关归一为开启，避免上一次运行留下的状态影响断言。
+        if (toggle.value as? String) == "0" {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            XCTAssertTrue(waitUntil(timeout: 5) { (toggle.value as? String) == "1" })
+        }
+        XCTAssertEqual(toggle.value as? String, "1", "默认/归一后开关应为开启")
+
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { (toggle.value as? String) == "0" },
+            "翻转后开关应关闭"
+        )
+
+        app.terminate()
+        app.launch()
+
+        let relaunchedTabBar = app.tabBars.firstMatch
+        XCTAssertTrue(relaunchedTabBar.waitForExistence(timeout: 30), "重启后缺少 Tab 栏")
+        relaunchedTabBar.buttons["Settings"].tap()
+
+        let relaunchedToggle = app.switches["settings.announcementToggle"]
+        XCTAssertTrue(relaunchedToggle.waitForExistence(timeout: 10), "重启后缺少每公里播报开关")
+        XCTAssertEqual(relaunchedToggle.value as? String, "0", "重启后应保持关闭状态")
+    }
+
     // MARK: - 授权与等待
 
     /// 从「分段 · N」摘要中解析分段条数。

@@ -206,6 +206,35 @@ validate_harness_manifest() {
   printf '%s' "$problems"
 }
 
+# Settings 页必须暴露真实播报开关，且不得含「暂无可配置项」或示例数值。
+# 输出为空字符串表示通过，否则返回问题描述。
+validate_settings_view() {
+  local file="$1"
+  local problems=""
+
+  if [ ! -f "$file" ]; then
+    problems="$problems 缺少 $file;"
+    printf '%s' "$problems"
+    return
+  fi
+
+  grep -Fq 'Toggle' "$file" || problems="$problems Settings 缺少真实 Toggle 开关;"
+  grep -Fq '"settings.announcementToggle"' "$file" \
+    || problems="$problems Settings 缺少 settings.announcementToggle 标识;"
+
+  if grep -Fq '暂无可配置项' "$file" || grep -Fq 'settings.empty' "$file"; then
+    problems="$problems Settings 仍声明无可配置项;"
+  fi
+  if grep -Eq 'Stepper|Slider' "$file"; then
+    problems="$problems Settings 含 Stepper/Slider;"
+  fi
+  if grep -Eq '示例|Sample' "$file"; then
+    problems="$problems Settings 含示例数值;"
+  fi
+
+  printf '%s' "$problems"
+}
+
 run_self_test() {
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-ios-shell.XXXXXX")"
@@ -309,10 +338,30 @@ run_self_test() {
   printf 'let fixture = "shared/fixtures/sample-run.gpx"\n' > "$tmp_dir/manifest-fixture/ios/PurePace/Harness/HarnessArguments.swift"
   check_fail "Harness 引用夹具反例" "$(validate_harness_manifest "$tmp_dir/manifest-fixture")"
 
+  # Settings 开关正负反例
+  mkdir -p "$tmp_dir/settings-good"
+  printf 'Toggle("每公里语音播报", isOn: .constant(true))\n  .accessibilityIdentifier("settings.announcementToggle")\n' \
+    > "$tmp_dir/settings-good/SettingsView.swift"
+  check_ok "Settings 真实开关正例" "$(validate_settings_view "$tmp_dir/settings-good/SettingsView.swift")"
+
+  mkdir -p "$tmp_dir/settings-no-toggle"
+  printf 'Text("本阶段暂无可配置项")\n' > "$tmp_dir/settings-no-toggle/SettingsView.swift"
+  check_fail "Settings 缺 Toggle 反例" "$(validate_settings_view "$tmp_dir/settings-no-toggle/SettingsView.swift")"
+
+  mkdir -p "$tmp_dir/settings-stepper"
+  printf 'Toggle("每公里语音播报", isOn: .constant(true))\n  .accessibilityIdentifier("settings.announcementToggle")\nStepper("音量", value: .constant(1))\n' \
+    > "$tmp_dir/settings-stepper/SettingsView.swift"
+  check_fail "Settings 含 Stepper 反例" "$(validate_settings_view "$tmp_dir/settings-stepper/SettingsView.swift")"
+
+  mkdir -p "$tmp_dir/settings-sample"
+  printf 'Toggle("每公里语音播报", isOn: .constant(true))\n  .accessibilityIdentifier("settings.announcementToggle")\nText("示例 5.00 km")\n' \
+    > "$tmp_dir/settings-sample/SettingsView.swift"
+  check_fail "Settings 含示例数值反例" "$(validate_settings_view "$tmp_dir/settings-sample/SettingsView.swift")"
+
   if [ "$failures" -ne 0 ]; then
     exit 1
   fi
-  printf '[PASS] self-test (包/import/定位配置/Harness 清单正负反例)\n'
+  printf '[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关正负反例)\n'
   printf '\n%d 项断言，0 项失败\nself-test OK\n' "$checks"
 }
 
@@ -445,7 +494,7 @@ fi
 
 # ------------------------------------------------ 真实跑步 UI
 problems=""
-live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/Settings/SettingsView.swift"
+live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift"
 for file in $live_sources; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
 done
@@ -470,6 +519,11 @@ if [ -z "$problems" ]; then
   for id in run.distance run.elapsed run.currentPace run.averagePace run.splits run.start run.pause run.resume run.finish run.saved; do
     grep -Fq "\"$id\"" ios/PurePace/Run/RunView.swift || problems="$problems 缺少无障碍标识 $id;"
   done
+  # 播报偏好必须接线到 ViewModel 与真实播报器
+  grep -Fq 'setAnnouncementsEnabled' ios/PurePace/ContentView.swift || problems="$problems ContentView 未同步播报开关;"
+  grep -Fq 'update.announcements' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未转发播报命令;"
+  grep -Fq 'AVSpeechSynthesizer' ios/PurePace/Audio/AnnouncementSpeaker.swift || problems="$problems 播报器未使用 AVSpeechSynthesizer;"
+  grep -Fq 'beginAnnouncement' ios/PurePace/Audio/AnnouncementSpeaker.swift || problems="$problems 播报器未激活音频会话;"
   # History / Settings 诚实态
   grep -Fq '"history.empty"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.empty 空态;"
   grep -Fq '"history.row"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.row 行标识;"
@@ -483,10 +537,9 @@ if [ -z "$problems" ]; then
   done
   grep -Fq 'record.startedAt' ios/PurePace/History/RunDetailContent.swift || problems="$problems 详情映射未取 startedAt;"
   grep -Fq 'record.splits' ios/PurePace/History/RunDetailContent.swift || problems="$problems 详情映射未取 splits;"
-  grep -Fq '暂无可配置项' ios/PurePace/Settings/SettingsView.swift || problems="$problems Settings 未声明无可配置项;"
-  if grep -Eq 'Toggle|Stepper|Slider' ios/PurePace/Settings/SettingsView.swift; then
-    problems="$problems Settings 含可切换控件;"
-  fi
+  # Settings：真实播报开关（禁止「暂无可配置项」/示例数值/Stepper/Slider）
+  settings_problems="$(validate_settings_view ios/PurePace/Settings/SettingsView.swift)"
+  [ -z "$settings_problems" ] || problems="$problems $settings_problems"
   # 无内置样例、无夹具引用、无假计时
   if grep -rEq --include='*.swift' 'shared/fixtures|\.gpx|\.tcx' ios/PurePace; then
     problems="$problems App 源码引用夹具/样例数据;"
@@ -503,7 +556,7 @@ fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
@@ -515,7 +568,7 @@ if [ -z "$problems" ]; then
   done
   grep -Fq 'XCUIApplication' "$ui_tests" || problems="$problems XCUITest 未使用 XCUIApplication;"
   grep -Fq 'app.launch()' "$ui_tests" || problems="$problems XCUITest 未启动 App;"
-  for id in run.start run.pause run.resume run.finish run.saved history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty; do
+  for id in run.start run.pause run.resume run.finish run.saved history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty settings.announcementToggle; do
     grep -Fq "\"$id\"" "$ui_tests" || problems="$problems XCUITest 未断言 $id;"
   done
   if grep -Eq '(Thread\.sleep|sleep\()' "$ui_tests"; then

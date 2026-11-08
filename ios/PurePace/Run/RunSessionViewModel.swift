@@ -17,22 +17,27 @@ final class RunSessionViewModel: ObservableObject {
 
     private var orchestrator: RunSessionOrchestrator
     private let locationSource: RunLocationProviding
+    private let announcements: AnnouncementSpeaking
     private let now: () -> Date
 
     init(
         checkpointStore: RunCheckpointStore,
         archiveStore: RunArchiveStore,
         locationSource: RunLocationProviding,
+        announcements: AnnouncementSpeaking = SpeechAnnouncementSpeaker(),
+        announcementsEnabled: Bool = true,
         now: @escaping () -> Date = { Date() }
     ) {
         let orchestrator = RunSessionOrchestrator(
             checkpointStore: checkpointStore,
-            archiveStore: archiveStore
+            archiveStore: archiveStore,
+            announcementsEnabled: announcementsEnabled
         )
         self.orchestrator = orchestrator
         self.state = orchestrator.state
         self.metrics = orchestrator.metrics
         self.locationSource = locationSource
+        self.announcements = announcements
         self.now = now
         locationSource.delegate = self
     }
@@ -74,6 +79,13 @@ final class RunSessionViewModel: ObservableObject {
         } catch {
             errorMessage = Self.describe(error)
         }
+    }
+
+    // MARK: - 播报开关
+
+    /// 只转调编排器；关闭即时生效，重新开启不补播由编排器保证。
+    func setAnnouncementsEnabled(_ enabled: Bool) {
+        orchestrator.setAnnouncementsEnabled(enabled)
     }
 
     // MARK: - 采样摄入
@@ -120,6 +132,9 @@ final class RunSessionViewModel: ObservableObject {
 
     private func apply(_ update: RunSessionUpdate) {
         apply(state: update.state, metrics: update.metrics)
+        for command in update.announcements {
+            announcements.speak(command)
+        }
     }
 
     private func apply(state: RunSessionState, metrics: RunMetrics) {

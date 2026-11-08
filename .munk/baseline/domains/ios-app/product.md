@@ -1,17 +1,19 @@
 # Domain: ios-app
 
-PurePace iOS App 运行域（波 1 最小闭环）：把 `ios/PurePace` 从空壳占位页换成真实跑步单页——Run / History / Settings 三 Tab、`CLLocationManager` 真实定位数据源、`RunSessionOrchestrator` 驱动的会话 ViewModel、真实归档历史与诚实空态设置页，并用 `xcrun simctl location` 注入的真实 CoreLocation 更新跑通 XCUITest。App 侧只做接线与展示，距离/时长/配速/分段一律来自 `PurePaceRunCore` 既有契约，不重写 RunCore、不自建计时器或距离公式。
+PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实跑步单页——Run / History / Settings 三 Tab、`CLLocationManager` 真实定位数据源、`RunSessionOrchestrator` 驱动的会话 ViewModel、真实归档历史（行配速 + 跑次详情）、带真实播报偏好开关的设置页与 `AVSpeechSynthesizer` 每公里语音播报，并用 `xcrun simctl location` 注入的真实 CoreLocation 更新跑通 XCUITest。App 侧只做接线与展示，距离/时长/配速/分段与播报调度一律来自 `PurePaceRunCore` 既有契约，不重写 RunCore、不自建计时器或距离公式。
 
 ## 范围
 
-- `ios/PurePace/ContentView.swift`：`TabView` 收敛为 Run / History / Settings 三项（`Log` 删除）；非 Harness 启动直落 Run 页，0 秒可用，无登录/引导/样例加载。
+- `ios/PurePace/ContentView.swift`：`TabView` 收敛为 Run / History / Settings 三项（`Log` 删除）；非 Harness 启动直落 Run 页，0 秒可用，无登录/引导/样例加载；`@StateObject` 持有播报偏好存储并注入两个子页面。
 - `ios/PurePace/Location/RunLocationSource.swift`：`CLLocationManager` 唯一 App 侧采点入口（`.fitness` / `desiredAccuracyBest` / `distanceFilter = kCLDistanceFilterNone` / `pausesLocationUpdatesAutomatically = false` / 不自动暂停）；`.notDetermined` 时请求「使用期间」授权，授权后自动继续，拒绝时显示诚实等待态。
-- `ios/PurePace/Run/`：`RunSessionViewModel`（主线程可观测，持有 `RunSessionOrchestrator` + `RunCheckpointStore` + `RunArchiveStore`，delegate 采样 → `ingest`，start/pause/resume/finish → 编排器动作）、`RunView` 单页 UI（距离、活跃时长、当前/平均配速、已完成分段数 + 开始/暂停/恢复/结束互斥按钮 + 结束「已保存」反馈）、`RunFormatting` 纯函数格式化、`RunStorage` 沙盒路径（`Documents/Runs/` 归档 + `Caches/` checkpoint，路径由 ViewModel 注入）。
-- `ios/PurePace/History/HistoryView.swift`：读 `RunArchiveStore.list()`，空态 `history.empty` + 「去跑一次」入口；有记录按 `startedAt` 倒序展示真实日期/距离/时长，并补本条跑次平均配速（只由 `RunPace(distance:duration:)` 从 `record.distance` + `record.activeDuration` 派生，`RunFormatting.paceText` 格式化，派生为 `nil` 时用 `RunFormatting.emptyPace`）；行可点击进入详情。
+- `ios/PurePace/Run/`：`RunSessionViewModel`（主线程可观测，持有 `RunSessionOrchestrator` + `RunCheckpointStore` + `RunArchiveStore` + 播报器，delegate 采样 → `ingest`，start/pause/resume/finish → 编排器动作，`RunSessionUpdate.announcements` 逐条转播报器，播报开关经 `setAnnouncementsEnabled` 同步编排器）、`RunView` 单页 UI（距离、活跃时长、当前/平均配速、已完成分段数 + 开始/暂停/恢复/结束互斥按钮 + 结束「已保存」反馈）、`RunFormatting` 纯函数格式化、`RunStorage` 沙盒路径（`Documents/Runs/` 归档 + `Caches/` checkpoint，路径由 ViewModel 注入）。
+- `ios/PurePace/History/HistoryView.swift`：读 `RunArchiveStore.list()`，空态 `history.empty` + `history.runAgain` 入口；有记录按 `startedAt` 倒序展示真实日期/距离/时长，并补本行平均配速（只由 `RunPace(distance:duration:)` 从 `record.distance` + `record.activeDuration` 派生，`RunFormatting.paceText` 格式化，派生为 `nil` 时用 `RunFormatting.emptyPace`）；行可点击进入详情。
 - `ios/PurePace/History/RunDetailView.swift` + `RunDetailContent.swift`：行点击进入的跑次详情（起止时间、总距离、活跃时长、平均配速、全部分段序号 + 分段配速）；`RunDetailContent` 只把被点击的 `RunRecord`（含 `splits`）映射为展示字符串与分段行数组，视图零逻辑，`splits` 为空时显示 `runDetail.splits` 标题 + `runDetail.splitsEmpty` 诚实空态。
-- `ios/PurePace/Settings/SettingsView.swift`：明确声明本阶段无可配置项，无任何可交互开关或示例数值。
-- `ios/PurePaceTests/`：`RunSessionViewModelTests`（编排器一致性、暂停冻结、恢复锚点、结束单条归档）、`RunFormattingTests`（格式化纯函数，含配速/分段文本）、`RunDetailContentTests`（`RunRecord` → 详情展示映射与分段行）；`ios/PurePaceUITests/RunFlowUITests.swift`：真实定位注入下的全流程断言（含 History 行配速 → 点击进入详情 → 详情起止时间与分段区域）。
-- `scripts/check-ios-shell.sh`：真实 UI 断言（文件清单、无障碍标识、History/Settings 诚实态、无 `shared/fixtures|.gpx|.tcx`、Run 无 `Timer` 假计时）+ `CoreLocation` 仅 `Harness/` 与 `Location/` 双作用域正负反例；清单同步纳入 `History/RunDetailView.swift`、`History/RunDetailContent.swift`、`runDetail.*` 标识与新增/更新的 XCTest / XCUITest 落点。
+- `ios/PurePace/Settings/AnnouncementSettingsStore.swift`：`@MainActor final class ... : ObservableObject`，构造注入 `UserDefaults`（默认 `.standard`），单一常量键 + 默认 `true`，`isEnabled` / `setEnabled(_:)` 读写同一键。
+- `ios/PurePace/Settings/SettingsView.swift`：渲染真实「每公里语音播报」`Toggle`（无障碍标识 `settings.announcementToggle`），无「暂无可配置项」/`settings.empty`，无示例数值与 `Stepper`/`Slider`。
+- `ios/PurePace/Audio/AnnouncementSpeaker.swift`：`AnnouncementSpeaking` 协议 + `SpeechSynthesizing` 最小合成接缝 + `SpeechAnnouncementSpeaker`（`AVSpeechSynthesizer` + 既有 `AudioSessionAdapter`）；顺序固定「激活会话 → 一次 speak → 结束/取消回调停用」，文案为仅依赖 Foundation 的纯函数（含公里序号与用时）。
+- `ios/PurePaceTests/`：`RunSessionViewModelTests`（编排器一致性、暂停冻结、恢复锚点、结束单条归档、播报开关关断零播报/重开不补播/暂停结束静默）、`RunFormattingTests`（格式化纯函数，含配速/分段文本）、`RunDetailContentTests`（`RunRecord` → 详情展示映射与分段行）、`AnnouncementSettingsStoreTests`（默认开启、持久化、键唯一）、`AnnouncementSpeakerTests`（speak 次数/文案、会话激活停用序列、取消路径、无命令零调用）；`ios/PurePaceUITests/RunFlowUITests.swift`：真实定位注入下的全流程断言（含 History 行配速 → 详情 → 起止时间与分段区域）与 Settings 开关可见 + 重启保持。
+- `scripts/check-ios-shell.sh`：真实 UI 结构断言（文件清单含全部真实源文件与测试落点、无障碍标识清单、History/Settings 诚实态、无 `shared/fixtures|.gpx|.tcx`、Run 无 `Timer` 假计时、Settings 必须有 `Toggle` 且禁止示例数值与 `Stepper`/`Slider`）+ `CoreLocation` 仅 `Harness/` 与 `Location/` 双作用域正负反例 + Settings 断言正负自检。
 - `scripts/test-ios.sh`：测试前 boot iPhone 16 / iOS 18.6 并 `xcrun simctl location start --speed=3 --interval=1` 注入 ≥20 km 直线航点，`trap` 收尾 `clear`；设备/runtime 缺失显式失败。
 
 ## 验收
@@ -34,8 +36,19 @@ PurePace iOS App 运行域（波 1 最小闭环）：把 `ios/PurePace` 从空�
 - ac-ui-detail-navigable: 同一 XCUITest 中点击该行后出现 `runDetail.root`；`runDetail.startedAt`、`runDetail.endedAt` 存在且 label 不同；`runDetail.distance`、`runDetail.activeDuration`、`runDetail.averagePace` 与列表行一致；`runDetail.splits` 存在，且 `runDetail.splitRow` 元素数等于 `runDetail.splits` 摘要中的分段条数（真实亚公里跑次为 0，此时 `runDetail.splitsEmpty` 存在）。
 - ac-ui-empty-no-detail: 开跑前（归档为空）History 仅 `history.empty` + `history.runAgain`，`history.row` 与任何 `runDetail.*` 元素数均为 0，空态文案不变。
 - ac-no-recompute-no-sample: App 源码中详情/列表的距离、时长、配速与分段全部来自 `RunRecord` 字段与 `RunFormatting`；不出现自建距离公式、`Ingest`/`RunMetricsEngine` 调用、内置坐标序列、`shared/fixtures`、`.gpx`/`.tcx` 字面量或样例跑次。
+- ac-settings-toggle-default-on: 从未写入过偏好键的全新 `UserDefaults` 域构造 `AnnouncementSettingsStore` 时 `isEnabled == true`；`SettingsView` 渲染 `Toggle` 且其无障碍标识为 `settings.announcementToggle`，初始值与存储值一致。
+- ac-settings-toggle-persists: 置关闭后用同一 `UserDefaults` 域新建存储实例读回关闭；再置开启读回开启；写入固定为单一常量键，不额外写入其它键。
+- ac-settings-honest-copy: App 源码不再出现「暂无可配置项」与 `settings.empty` 标识；Settings 页除该真实播报开关外不含示例数值、内置样例与 `Stepper`/`Slider`（由 `check-ios-shell.sh` 静态断言兜底）。
+- ac-speaker-one-speak-per-command: 对一条 `AnnouncementCommand`（`trigger == .kilometerCompleted`、`splitIndex == 1`）播报器恰好调用一次 `speak`，文案包含该公里序号；重复投递同一条命令不多出第二条语音。
+- ac-speaker-session-sequence: 每条播报的平台调用序列为「激活 → 一次 `speak` → 语音结束/取消回调 → 停用」：激活阶段 spy 记录 `setCategory(.playback, .spokenAudio, [.duckOthers, .mixWithOthers])` 且随后一次 `setActive(true)`；结束回调后恰好一次 `setActive(false, [.notifyOthersOnDeactivation])`；`didCancel` 同样触发停用；无命令时不产生任何音频会话调用。
+- ac-announcement-off-zero-speak: 编排器播报关闭时跨整公里摄入采样，ViewModel 侧 `speak` 调用数为 0 且音频会话激活调用数为 0。
+- ac-toggle-immediate-no-backfill: 运行中关闭开关后跨下一个整公里 `speak` 数为 0；重新开启不补播被抑制的公里；再跨下一个整公里恰好一次 `speak`，`splitIndex` 为最新公里。
+- ac-pause-finish-silent: 暂停期间摄入采样不触发 `speak`；结束动作不触发 `speak`（编排器不对外返回收尾命令）；View 层不自行发起播报。
+- ac-no-duplicated-run-logic: App 侧不新增公里判定、计时或播报去抖逻辑，`speak` 只由 `RunSessionUpdate.announcements` 驱动（`ios/PurePace/Run` 仍无 `Timer` / `DispatchQueue.asyncAfter` / `CADisplayLink`）；`ios/RunCore` 无源码改动。
+- ac-audio-scope-preserved: `AVFoundation` 仍只出现在 `ios/PurePace/Audio/`；App import 允许表不变（SwiftUI / Foundation / AVFoundation / CoreLocation / PurePaceRunCore），不新增 `Speech` 等框架；`check-ios-shell.sh --self-test` 的 AVFoundation 越界反例仍判失败。
+- ac-ui-toggle-restart: XCUITest 在 Settings Tab 断言 `settings.announcementToggle` 存在且可点击；翻转开关后 `terminate()` + `launch()`，再次进入 Settings 断言开关值与翻转后一致（用 `waitForExistence` 等待，不以固定 `sleep` 作判据）。
+- ac-shell-gate-updated: `bash scripts/check-ios-shell.sh` 断言 Settings 源码含 `Toggle` 与 `settings.announcementToggle`、不含「暂无可配置项」、不含示例数值与 `Stepper`/`Slider`；`live_sources` 含 `Settings/AnnouncementSettingsStore.swift` 与 `Audio/AnnouncementSpeaker.swift`，`unit_tests` 含两个新测试文件；`--self-test` 含 Settings 断言的正负反例且全部通过。
 - ac-shell-gate-synced: `scripts/check-ios-shell.sh` 的 `live_sources` 含 `ios/PurePace/History/RunDetailView.swift` 与 `ios/PurePace/History/RunDetailContent.swift`，标识断言覆盖 `history.row`、`runDetail.root`、`runDetail.startedAt`、`runDetail.endedAt`、`runDetail.distance`、`runDetail.activeDuration`、`runDetail.averagePace`、`runDetail.splits`、`runDetail.splitsEmpty`；测试落点清单含新增/更新的 XCTest 与 XCUITest 文件；`--self-test` 仍退出 0。
-- ac-settings-honest: Settings 不包含任何可切换控件、示例数值或内置样例，并明确说明本阶段无可配置项。
 - ac-no-fake-data: App 源码不含内置坐标序列、fixture 引用或 GPX/TCX 样例文件路径，也不存在以固定步长递增距离或用定时器伪造时长的逻辑（源码中不得出现 `.gpx` / `.tcx` 字面量）；距离与时长只能来自 `ingest` 后的 `metrics`。
 - ac-location-scope: `CoreLocation` 只允许出现在 `ios/PurePace/Harness/` 与 `ios/PurePace/Location/`；其它目录出现即判失败（`check-ios-shell.sh --self-test` 保留该反例并通过）。App import 允许表仍为 SwiftUI / Foundation / AVFoundation / CoreLocation / PurePaceRunCore，不新增其它系统框架。
 - ac-harness-intact: `ios/PurePace/Harness/` 七个文件仍存在且行为不变，`--harness direct|corelocation|resume` 的 launch-arg 路径仍可用；Harness 清单与「无夹具引用」断言保留。
@@ -49,7 +62,8 @@ PurePace iOS App 运行域（波 1 最小闭环）：把 `ios/PurePace` 从空�
 - 不做 GPX 文件导出、系统分享面板，也不在 App 内调用 `RunGPXExporter`（波 2）。
 - 不做地图、轨迹折线、轨迹摘要卡片与采样点回放；详情页不渲染 `record.samples`。
 - 不做删除/编辑/重命名记录、分页/筛选/搜索、跨天分组、浮动详情动画或自定义视觉主题。
-- 不做每公里播报开关、真实 TTS 播放与 AudioSession 接线（波 2）；本阶段不新增 Settings 持久化偏好。
+- 不做播报语速 / 音量 / 语言 / 音色设置 UI，不做 TTS 试听按钮；文案与语音参数沿用系统默认。
+- 不做暂停播报、结束播报、整公里合并播报等新调度语义，也不做后台 / 锁屏播报与音频中断恢复后的重播策略（沿用既有编排器与调度器规则，App 侧不自建）。
 - 不做 `scripts/verify-ios-ui-e2e.sh` 与新增端到端门禁（波 3）；只保证既有 `test-ios` 门绿。
 - 不改 `ios/RunCore`、`ios/Core`、`ios/PurePace/Harness/` 的源码与契约；不改 Android、`shared/`、`.github/workflows/*`；不推 tag、不动 Release。
 - 不做视觉设计系统 / 自定义 token / 主题；沿用系统语义色、系统控件与 Dynamic Type。
@@ -61,16 +75,18 @@ PurePace iOS App 运行域（波 1 最小闭环）：把 `ios/PurePace` 从空�
 - 视图零逻辑：`View` 只做绑定与格式化；格式化放 `RunFormatting` 纯函数，在 `PurePaceTests` 直接断言，不写进 `RunCore`。
 - 时间来源：编排器动作一律传 `Date`；UI 时长只能随 `ingest` 后的 `metrics.elapsed` 变化，禁止 `Timer` 自增或伪造空闲变化（`check-ios-shell.sh` 对 `ios/PurePace/Run` 断言无 `Timer`/`DispatchQueue.asyncAfter`/`CADisplayLink`）。
 - 存储路径：归档与 checkpoint 放 App 沙盒（`Documents/Runs/`、`Caches/` 下 JSONL），`URL` 由 `FileManager` 构造并由 ViewModel 注入，生产代码不留硬编码绝对路径，测试用临时目录断言。
+- 播报偏好：键名只在 `AnnouncementSettingsStore` 内单点定义（单一常量键，默认 `true`），`UserDefaults` 构造注入（测试用独立 suite 并自行清理）；`ContentView` 用 `@StateObject` 持有并注入 `RunSessionViewModel` / `SettingsView`，以 `.onChange(of:)` 调 `runModel.setAnnouncementsEnabled(_:)`，不引入 Combine。
+- 播报器接缝：`SpeechAnnouncementSpeaker` 持有可注入的 `AudioSessionAdapter`（测试传 `observesInterruptions: false`）与 `SpeechSynthesizing`；顺序固定 `beginAnnouncement()` → 一次 `speak` → 结束/取消回调 `endAnnouncement()`；会话调用抛错即吞掉并继续（不打断跑次、不重复停用）；`ViewModel.finish()` 路径不额外播报。
+- 详情导航与数据源：用视图式 `NavigationLink { RunDetailView(record:) } label: { row }`，不要求 `RunRecord` 新增 `Hashable`；详情只读 `record.startedAt` / `endedAt` / `distance` / `activeDuration` / `splits`，平均配速只 `RunPace(distance:duration:)`、分段配速只 `split.pace`，禁止 App 侧重算距离、重切分段或按 elapsed 自造数值。
 - 定位注入是 XCUITest 唯一真实链路：`scripts/test-ios.sh` 选 UDID 并 boot，`xcrun simctl location start --speed=3 --interval=1 <p1> <p2>`（航点总长 ≥ 20 km）后跑 `xcodebuild test`，`trap` 中 `simctl location clear`；禁止用 `--harness direct --stream` 假流替代。
 - 授权处理：测试内用 SpringBoard 弹窗或 interruption monitor 点击「使用 App 期间允许」；弹窗缺失时继续执行而非失败。
-- 无障碍标识为稳定测试契约：`run.distance`、`run.elapsed`、`run.currentPace`、`run.averagePace`、`run.splits`、`run.start`、`run.pause`、`run.resume`、`run.finish`、`run.saved`、`history.empty`、`history.runAgain`、`history.row`、`runDetail.root`、`runDetail.startedAt`、`runDetail.endedAt`、`runDetail.distance`、`runDetail.activeDuration`、`runDetail.averagePace`、`runDetail.splits`（含分段条数摘要）、`runDetail.splitRow`、`runDetail.splitsEmpty`；标识写成字符串字面量，距离文本含单位可比较字符串变化，配速空态用固定占位（`RunFormatting.emptyPace` = `--`）。
-- 详情导航与数据源：用视图式 `NavigationLink { RunDetailView(record:) } label: { row }`，不要求 `RunRecord` 新增 `Hashable`；详情只读 `record.startedAt` / `endedAt` / `distance` / `activeDuration` / `splits`，平均配速只 `RunPace(distance:duration:)`、分段配速只 `split.pace`，禁止 App 侧重算距离、重切分段或按 elapsed 自造数值。
-- 门禁写法：不新增门、不改 `.munk/code-gates.json`；`check-ios-shell.sh` 保持真实脚本断言（`grep -Fq 'xcodebuild test'` 等）并保留 `--self-test` 反例自检，`Location/` 加入 import 允许表并补「其它目录出现 CoreLocation 判失败」反例。
+- 无障碍标识为稳定测试契约：`run.distance`、`run.elapsed`、`run.currentPace`、`run.averagePace`、`run.splits`、`run.start`、`run.pause`、`run.resume`、`run.finish`、`run.saved`、`history.empty`、`history.runAgain`、`history.row`、`runDetail.root`、`runDetail.startedAt`、`runDetail.endedAt`、`runDetail.distance`、`runDetail.activeDuration`、`runDetail.averagePace`、`runDetail.splits`（含分段条数摘要）、`runDetail.splitRow`、`runDetail.splitsEmpty`、`settings.announcementToggle`；标识写成字符串字面量，距离文本含单位可比较字符串变化，配速空态用固定占位（`RunFormatting.emptyPace` = `--`），开关值断言用 `value as? String` 的 `"1"`/`"0"`。
+- 门禁写法：不新增门、不改 `.munk/code-gates.json`；`check-ios-shell.sh` 保持真实脚本断言（`grep -Fq 'xcodebuild test'` 等）并保留 `--self-test` 反例自检，`Location/` 加入 import 允许表并补「其它目录出现 CoreLocation 判失败」反例；Settings 段改为「必须有 `Toggle` + `settings.announcementToggle`、禁止示例数值与 `Stepper`/`Slider`」并补对应正负自检。
 - 证据口径：只写「模拟器链路通过」「代码层断言通过」，不得出现「真机已验证」「阶段 2/3 已通过」。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_ea354771cc07f1ba（2026-11-09，pass）
-- 交付：History 每行补平均配速（`RunPace(distance:duration:)` 派生、`RunFormatting.paceText` 格式化、`nil` 回退 `RunFormatting.emptyPace`），并新增 `History/RunDetailView.swift` + `History/RunDetailContent.swift` 跑次详情（起止时间、距离、活跃时长、平均配速、全部分段序号 + 配速；`splits` 空显示 `runDetail.splitsEmpty`）；`RunDetailContent` 为纯展示映射，视图零逻辑，列表与详情同源不引入第二套计算。
-- 契约与测试同步：`check-ios-shell.sh` 文件/标识/测试落点清单纳入两个新文件与 `runDetail.*` 稳定标识（门禁 9 项断言 0 失败；`--self-test` 18 项断言 0 失败、退出 0）；`RunFormattingTests` 扩配速/分段文本，新增 `RunDetailContentTests`（4 例），`RunFlowUITests` 单一真实链路补「行含配速 → 点击详情 → 起止时间 + 分段区域与摘要条数一致」；`Run/`、`ios/RunCore`、`ios/Core` 未改。
-- 实测：`code_gates` 22 门全绿（attempt 003，含 `lint-ios-shell` / `build-ios` / `test-ios`）；`test-ios` 下 `PurePaceTests` 40 例 + `RunFlowUITests` 1 例全通过，`swift test` RunCore 123 例、Core 全通过。结论口径：模拟器链路通过、代码层断言通过；真机、锁屏连续定位、音乐 duck 与 TTS 实听仍为 `pending: 待人现场`。
+- workItemId: wi_ws_83cc527f6e15a8eb（2026-11-09，pass）
+- 交付：波 1 遗留的两处空白补齐——新增 `Settings/AnnouncementSettingsStore.swift`（`UserDefaults` 单键偏好，默认开启、重启保持）与 `Audio/AnnouncementSpeaker.swift`（`AVSpeechSynthesizer` + 既有 `AudioSessionAdapter`，固定「激活 → 一次 speak → 结束/取消停用」，文案为纯函数短句）；`SettingsView` 由「暂无可配置项」改为真实 `settings.announcementToggle` 开关；`RunSessionViewModel` 逐条转发 `RunSessionUpdate.announcements` 并透传 `setAnnouncementsEnabled`；`ContentView` 以 `@StateObject` 装配 + `.onChange` 同步开关（未引入 Combine）。
+- 门禁与测试同步：`check-ios-shell.sh` Settings 段改为断言真实 `Toggle` + 标识、禁止「暂无可配置项」/示例数值/`Stepper`/`Slider`，`live_sources` 与 `unit_tests` 纳入两个新源文件与两个新测试文件，`--self-test` 补 1 正 3 负反例；`AnnouncementSettingsStoreTests`、`AnnouncementSpeakerTests` 新增，`RunSessionViewModelTests` 补关断零播报/重开不补播/暂停结束静默，`RunFlowUITests` 补开关可见 + terminate/launch 保持。`ios/RunCore`、`ios/Core` 与 import 允许表零改动。
+- 实测：`code_gates` 22 门全绿（含 `lint-ios-shell` / `build-ios` / `test-ios`），门 id 与 command 逐字未变；合并 `main` 上已交付的 History 行配速 / 跑次详情（`wi_ws_ea354771cc07f1ba`）后，两者的 AC、文件清单与标识断言均保留。结论口径：配置与调度契约通过、代码层断言通过；TTS 实听、音乐 duck 恢复、真机与锁屏连续播报仍为 `pending: 待人现场`。
