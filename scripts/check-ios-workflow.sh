@@ -185,12 +185,24 @@ timeout_ok = timeout_minutes.is_a?(Integer) && timeout_minutes.positive? && time
 report(timeout_ok, 'ac-test-step-hard-timeout',
        "test 步骤 timeout-minutes 缺失或不在 1..45（实际 #{timeout_minutes.inspect}）")
 
-flaky_patterns = [/Timed out while loading Accessibility/, /unknown to FrontBoard/]
+# 承载层特征：AC 原文两条 + runner 实测同族措辞（Xcode 版本差异），只用于「是否重试」判定。
+flaky_patterns = [
+  /Timed out while loading Accessibility/,
+  /unknown to FrontBoard/,
+  /Timed out waiting for AX loaded notification/,
+  /Failed to initialize for UI testing/
+]
 retry_signatures = flaky_patterns.all? { |pattern| test_run.match?(pattern) }
 attempts = test_run.scan(/run_attempt\s+\d+/).map { |m| m[/\d+/].to_i }
 bounded = attempts == [1, 2] && !test_run.match?(/while\s+true/) && !test_run.match?(/until\s+false/)
 report(retry_signatures && bounded, 'ac-test-bounded-retry',
        "承载层特征缺失(#{retry_signatures}) 或重试非有界（attempts=#{attempts.inspect}）")
+
+# 重试只服务承载层不稳定：守卫里不得混入产品断言措辞。
+product_assert_words = ['距离', '开关', 'History', '休整', 'run.distance']
+polluted = product_assert_words.select { |word| (test_run[/infra_pattern=.+$/] || '').include?(word) }
+report(polluted.empty?, 'ac-test-bounded-retry-scope',
+       "infra 特征串混入产品断言措辞: #{polluted.join(',')}")
 
 version = File.file?('VERSION') ? File.read('VERSION').strip : ''
 report(version.empty? || !raw.include?(version), 'ac-no-version-literal',
@@ -267,8 +279,13 @@ assert_rejected "去掉 test 硬超时" "$tmp_dir/no-timeout.yml" "ac-test-step-
 
 sed -e 's/unknown to FrontBoard/unknown-to-FrontBoard-removed/g' \
     -e 's/Timed out while loading Accessibility\./accessibility-timeout-removed/g' \
+    -e 's/Timed out waiting for AX loaded notification/ax-loaded-timeout-removed/g' \
+    -e 's/Failed to initialize for UI testing/ui-test-init-removed/g' \
     "$WORKFLOW" > "$tmp_dir/no-retry-signature.yml"
 assert_rejected "去掉承载层重试特征" "$tmp_dir/no-retry-signature.yml" "ac-test-bounded-retry"
+
+sed "s/infra_pattern='Timed out/infra_pattern='距离|Timed out/" "$WORKFLOW" > "$tmp_dir/polluted-infra.yml"
+assert_rejected "承载层特征串混入产品断言" "$tmp_dir/polluted-infra.yml" "ac-test-bounded-retry-scope"
 
 sed 's/run_attempt 2 /run_attempt 3 /' "$WORKFLOW" > "$tmp_dir/unbounded-retry.yml"
 assert_rejected "重试次数被改成 3" "$tmp_dir/unbounded-retry.yml" "ac-test-bounded-retry"
