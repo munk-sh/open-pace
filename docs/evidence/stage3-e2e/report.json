@@ -1,7 +1,7 @@
 {
   "ok": true,
   "caliber": "模拟器 + 代码层",
-  "generatedAt": "2026-11-08T19:58:49Z",
+  "generatedAt": "2026-11-08T20:39:37Z",
   "script": "scripts/verify-ios-ui-e2e.sh",
   "destination": "platform=iOS Simulator,name=iPhone 16,OS=18.6",
   "simulator": {
@@ -59,7 +59,7 @@
     {
       "name": "container",
       "ok": true,
-      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/7D775178-4E8B-4191-BBB7-BD625571BC1C"
+      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/F537242C-65D8-4DB3-BA90-EFBDCF47DA0F"
     },
     {
       "name": "container-assertions",
@@ -80,34 +80,34 @@
   "container": {
     "ok": true,
     "problems": [],
-    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/7D775178-4E8B-4191-BBB7-BD625571BC1C",
+    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/F537242C-65D8-4DB3-BA90-EFBDCF47DA0F",
     "runs": {
       "count": 1,
       "files": [
-        "20261108T195820Z-564A0B8D-6C12-43B5-BB1B-88F9FDD670EE.json"
+        "20261108T203909Z-9D756A72-BA41-4DA9-A83E-718C2B8B6558.json"
       ],
       "formatVersion": 1,
-      "distance": 18.13582568109012,
-      "activeDuration": 6.230483889579773,
-      "startedAt": 1794167900.65199,
-      "endedAt": 1794167912.8363261,
+      "distance": 18.143114735791098,
+      "activeDuration": 6.259576082229614,
+      "startedAt": 1794170349.276052,
+      "endedAt": 1794170361.209419,
       "sampleCount": 8,
       "firstSample": {
-        "latitude": 37.3354446182204,
+        "latitude": 37.33544456694973,
         "longitude": -122.00900000000001,
-        "timestamp": 1794167901.472766
+        "timestamp": 1794170349.88349
       },
       "lastSample": {
-        "latitude": 37.33574358518065,
+        "latitude": 37.33574411021245,
         "longitude": -122.00900000000001,
-        "timestamp": 1794167912.536199
+        "timestamp": 1794170360.968044
       }
     },
     "exports": {
       "count": 1,
       "files": [
         {
-          "name": "20261108T195820Z-564A0B8D-6C12-43B5-BB1B-88F9FDD670EE.gpx",
+          "name": "20261108T203909Z-9D756A72-BA41-4DA9-A83E-718C2B8B6558.gpx",
           "bytes": 1572,
           "xmllintOk": true,
           "rootTag": "{http://www.topografix.com/GPX/1/1}gpx",
@@ -116,17 +116,17 @@
           "rootOk": true
         }
       ],
-      "primary": "20261108T195820Z-564A0B8D-6C12-43B5-BB1B-88F9FDD670EE.gpx"
+      "primary": "20261108T203909Z-9D756A72-BA41-4DA9-A83E-718C2B8B6558.gpx"
     }
   },
   "externalParse": {
-    "gpxFile": "20261108T195820Z-564A0B8D-6C12-43B5-BB1B-88F9FDD670EE.gpx",
+    "gpxFile": "20261108T203909Z-9D756A72-BA41-4DA9-A83E-718C2B8B6558.gpx",
     "trkptCount": 8,
     "sampleCount": 8,
-    "firstTimeDeltaSeconds": 0.4727659225463867,
-    "lastTimeDeltaSeconds": 0.5361990928649902,
-    "firstCoordinateDelta": 3.8177959993390687e-07,
-    "lastCoordinateDelta": 4.1481934687226385e-07,
+    "firstTimeDeltaSeconds": 0.8834900856018066,
+    "lastTimeDeltaSeconds": 0.9680440425872803,
+    "firstCoordinateDelta": 4.330502676452852e-07,
+    "lastCoordinateDelta": 1.1021245427400572e-07,
     "problems": [],
     "ok": true
   },
@@ -134,25 +134,25 @@
     {
       "name": "e2e-finish",
       "file": "e2e-finish.png",
-      "bytes": 111714,
+      "bytes": 111268,
       "ok": true
     },
     {
       "name": "e2e-history",
       "file": "e2e-history.png",
-      "bytes": 95122,
+      "bytes": 94088,
       "ok": true
     },
     {
       "name": "e2e-detail",
       "file": "e2e-detail.png",
-      "bytes": 154553,
+      "bytes": 152326,
       "ok": true
     },
     {
       "name": "e2e-share",
       "file": "e2e-share.png",
-      "bytes": 521799,
+      "bytes": 524488,
       "ok": true
     }
   ],
