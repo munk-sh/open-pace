@@ -190,7 +190,9 @@ flaky_patterns = [
   /Timed out while loading Accessibility/,
   /unknown to FrontBoard/,
   /Timed out waiting for AX loaded notification/,
-  /Failed to initialize for UI testing/
+  /Failed to initialize for UI testing/,
+  /operation never finished bootstrapping/,
+  /while preparing to run tests/
 ]
 retry_signatures = flaky_patterns.all? { |pattern| test_run.match?(pattern) }
 attempts = test_run.scan(/run_attempt\s+\d+/).map { |m| m[/\d+/].to_i }
