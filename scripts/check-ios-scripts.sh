@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # iOS 脚本静态/契约断言（.munk/code-gates.json 的 lint-ios-scripts 门真实执行体）。
-# 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh 的 bash 严格模式、
-# 参数契约、xcodebuild 分支字面量、降级分支、无写死版本、无伪造成功行；任一条失败即非零退出。
+# 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh / verify-ios-ui-e2e.sh 的
+# bash 严格模式、参数契约、xcodebuild 分支字面量、降级分支、无写死版本、无伪造成功行；任一条失败即非零退出。
 set -euo pipefail
 
 usage() {
@@ -9,8 +9,9 @@ usage() {
 用法: scripts/check-ios-scripts.sh [--help]
 
 对 iOS 构建/测试/版本脚本做结构与契约断言并打印逐条结果：
-  - 四个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
-  - build-ios.sh / test-ios.sh / check-ios-scripts.sh 的 --help 退出 0 且含「用法」，未知参数退出 2
+  - 五个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
+  - build-ios.sh / test-ios.sh / check-ios-scripts.sh / verify-ios-ui-e2e.sh 的 --help
+    退出 0 且含「用法」，未知参数退出 2
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
@@ -64,8 +65,8 @@ fail() {
   printf '[FAIL] %s: %s\n' "$1" "$2"
 }
 
-targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh"
-strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh"
+targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh"
+strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh"
 
 # ------------------------------------------------- 脚本存在、语法与严格模式
 problems=""

@@ -1,0 +1,160 @@
+{
+  "ok": true,
+  "caliber": "模拟器 + 代码层",
+  "generatedAt": "2026-11-08T18:41:35Z",
+  "script": "scripts/verify-ios-ui-e2e.sh",
+  "destination": "platform=iOS Simulator,name=iPhone 16,OS=18.6",
+  "simulator": {
+    "name": "iPhone 16",
+    "udid": "B3F00298-E08A-41E0-876E-6E8A75C730FD",
+    "runtime": "iOS 18.6",
+    "bundleId": "com.chaxiu.purepace"
+  },
+  "steps": [
+    {
+      "name": "sync-version",
+      "ok": true,
+      "detail": "根 VERSION 已同步到 ios/Config/Version.xcconfig"
+    },
+    {
+      "name": "generate-project",
+      "ok": true,
+      "detail": "使用现有 ios/PurePace.xcodeproj（XcodeGen 产物）"
+    },
+    {
+      "name": "simulator",
+      "ok": true,
+      "detail": "选中 iPhone 16 / iOS 18.6（B3F00298-E08A-41E0-876E-6E8A75C730FD）"
+    },
+    {
+      "name": "simulator-boot",
+      "ok": true,
+      "detail": "模拟器已启动（B3F00298-E08A-41E0-876E-6E8A75C730FD）"
+    },
+    {
+      "name": "build",
+      "ok": true,
+      "detail": "构建产物 .build/ios/Build/Products/Debug-iphonesimulator/PurePace.app"
+    },
+    {
+      "name": "install",
+      "ok": true,
+      "detail": "已安装 com.chaxiu.purepace 到 B3F00298-E08A-41E0-876E-6E8A75C730FD"
+    },
+    {
+      "name": "empty-container",
+      "ok": true,
+      "detail": "uninstall 后容器不存在，测试前为空"
+    },
+    {
+      "name": "location",
+      "ok": true,
+      "detail": "已注入 ≥20 km 长航点（--speed=3 --interval=1）"
+    },
+    {
+      "name": "ui-test",
+      "ok": true,
+      "detail": "RunFlowUITests/testRunPauseResumeFinishAndHistory 真实通过"
+    },
+    {
+      "name": "container",
+      "ok": true,
+      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/D7160B22-0548-4421-BFE7-6199AD8EBE55"
+    },
+    {
+      "name": "container-assertions",
+      "ok": true,
+      "detail": "Runs 恰 1 条、Exports GPX 合法（见容器与导出解析数值）"
+    },
+    {
+      "name": "external-parse",
+      "ok": true,
+      "detail": "trkpt 数与采样数一致，首末时间与经纬度在容差内"
+    },
+    {
+      "name": "screenshots",
+      "ok": true,
+      "detail": "4 张固定名称截图已导出并复制到证据目录"
+    }
+  ],
+  "container": {
+    "ok": true,
+    "problems": [],
+    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/D7160B22-0548-4421-BFE7-6199AD8EBE55",
+    "runs": {
+      "count": 1,
+      "files": [
+        "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.json"
+      ],
+      "formatVersion": 1,
+      "distance": 18.163084304933545,
+      "activeDuration": 6.188732028007507,
+      "startedAt": 1794163267.210792,
+      "endedAt": 1794163278.694207,
+      "sampleCount": 8,
+      "firstSample": {
+        "latitude": 37.33552541181886,
+        "longitude": -122.00900000000001,
+        "timestamp": 1794163267.275607
+      },
+      "lastSample": {
+        "latitude": 37.335824652014146,
+        "longitude": -122.00900000000001,
+        "timestamp": 1794163278.348793
+      }
+    },
+    "exports": {
+      "count": 1,
+      "files": [
+        {
+          "name": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx",
+          "bytes": 1572,
+          "xmllintOk": true,
+          "rootTag": "{http://www.topografix.com/GPX/1/1}gpx",
+          "version": "1.1",
+          "xmlns": "http://www.topografix.com/GPX/1/1",
+          "rootOk": true
+        }
+      ],
+      "primary": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx"
+    }
+  },
+  "externalParse": {
+    "gpxFile": "20261108T184107Z-8B33E6B0-5DCE-44C0-B24C-A6710888E17B.gpx",
+    "trkptCount": 8,
+    "sampleCount": 8,
+    "firstTimeDeltaSeconds": 0.2756071090698242,
+    "lastTimeDeltaSeconds": 0.34879302978515625,
+    "firstCoordinateDelta": 4.1181885990226874e-07,
+    "lastCoordinateDelta": 3.479858534660707e-07,
+    "problems": [],
+    "ok": true
+  },
+  "screenshots": [
+    {
+      "name": "e2e-finish",
+      "file": "e2e-finish.png",
+      "bytes": 110350,
+      "ok": true
+    },
+    {
+      "name": "e2e-history",
+      "file": "e2e-history.png",
+      "bytes": 92145,
+      "ok": true
+    },
+    {
+      "name": "e2e-detail",
+      "file": "e2e-detail.png",
+      "bytes": 150893,
+      "ok": true
+    },
+    {
+      "name": "e2e-share",
+      "file": "e2e-share.png",
+      "bytes": 514712,
+      "ok": true
+    }
+  ],
+  "failures": []
+}

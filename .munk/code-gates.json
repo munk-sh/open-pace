@@ -111,6 +111,11 @@
       "id": "verify-ios-sim-runtime",
       "cwd": ".",
       "command": "bash scripts/verify-ios-sim-runtime.sh"
+    },
+    {
+      "id": "verify-ios-ui-e2e",
+      "cwd": ".",
+      "command": "bash scripts/verify-ios-ui-e2e.sh"
     }
   ]
 }
