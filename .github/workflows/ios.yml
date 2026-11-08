@@ -97,10 +97,14 @@ jobs:
             return "$rc"
           }
 
-          # 仅 GitHub 承载层不稳定（无障碍初始化超时 / FrontBoard 未知进程）允许有界重试；
-          # 产品级断言失败不重试。
+          # 仅 GitHub 承载层不稳定允许有界重试，产品级断言失败不重试。
+          # runner 实测出现的同族原文（Xcode 版本不同措辞不同）：
+          #   Timed out while loading Accessibility.
+          #   Failed to initialize for UI testing / Timed out waiting for AX loaded notification
+          #   unknown to FrontBoard
+          infra_pattern='Timed out while loading Accessibility\.|unknown to FrontBoard|Timed out waiting for AX loaded notification|Failed to initialize for UI testing'
           infra_unstable() {
-            grep -Eq 'Timed out while loading Accessibility\.|unknown to FrontBoard' "$1"
+            grep -Eq "$infra_pattern" "$1"
           }
 
           reset_simulator() {
@@ -117,6 +121,8 @@ jobs:
             fi
             if infra_unstable "$log_dir/test-ios-attempt1.log"; then
               echo "test: 首次失败命中 GitHub 承载层不稳定特征，重置模拟器后有界重试 1 次" >&2
+              echo "test: 首次失败原因原文：" >&2
+              grep -Eo "$infra_pattern" "$log_dir/test-ios-attempt1.log" | head -n 1 >&2 || true
               reset_simulator
               rc=0
               run_attempt 2 "$log_dir/test-ios-attempt2.log" || rc=$?
