@@ -182,6 +182,97 @@ final class RunSessionViewModelTests: XCTestCase {
         XCTAssertGreaterThan(viewModel.metrics.elapsed, 0)
     }
 
+    // MARK: - 播报接线
+
+    func testAnnouncementsForwardedOncePerKilometer() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let spy = AnnouncementSpy()
+        let viewModel = makeViewModel(stores: stores, clock: Clock(date: startDate), announcements: spy)
+
+        viewModel.start()
+        for sample in kilometerSamples(count: 80) {
+            viewModel.ingest(sample)
+        }
+
+        XCTAssertEqual(spy.commands.map(\.splitIndex), [1, 2])
+        XCTAssertTrue(spy.commands.allSatisfy { $0.trigger == .kilometerCompleted })
+    }
+
+    func testAnnouncementsEnabledFalseProducesZeroSpeak() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let spy = AnnouncementSpy()
+        let viewModel = makeViewModel(
+            stores: stores,
+            clock: Clock(date: startDate),
+            announcements: spy,
+            announcementsEnabled: false
+        )
+
+        viewModel.start()
+        for sample in kilometerSamples(count: 80) {
+            viewModel.ingest(sample)
+        }
+
+        XCTAssertTrue(spy.commands.isEmpty)
+        XCTAssertEqual(viewModel.metrics.completedKilometers, 2)
+    }
+
+    func testDisablingImmediatelyStopsAndReopeningDoesNotBackfill() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let spy = AnnouncementSpy()
+        let viewModel = makeViewModel(stores: stores, clock: Clock(date: startDate), announcements: spy)
+        let samples = kilometerSamples(count: 120)
+
+        viewModel.start()
+        for sample in samples[0..<40] {
+            viewModel.ingest(sample)
+        }
+        XCTAssertEqual(spy.commands.map(\.splitIndex), [1])
+
+        viewModel.setAnnouncementsEnabled(false)
+        for sample in samples[40..<80] {
+            viewModel.ingest(sample)
+        }
+        XCTAssertEqual(spy.commands.map(\.splitIndex), [1])
+        XCTAssertEqual(viewModel.metrics.completedKilometers, 2)
+
+        viewModel.setAnnouncementsEnabled(true)
+        XCTAssertEqual(spy.commands.map(\.splitIndex), [1], "重新开启不应补播被抑制的公里")
+
+        for sample in samples[80..<120] {
+            viewModel.ingest(sample)
+        }
+        XCTAssertEqual(spy.commands.map(\.splitIndex), [1, 3])
+    }
+
+    func testPauseAndFinishAreSilent() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let clock = Clock(date: startDate)
+        let spy = AnnouncementSpy()
+        let viewModel = makeViewModel(stores: stores, clock: clock, announcements: spy)
+        let samples = kilometerSamples(count: 80)
+
+        viewModel.start()
+        for sample in samples[0..<40] {
+            viewModel.ingest(sample)
+        }
+        XCTAssertEqual(spy.commands.count, 1)
+
+        clock.date = startDate.addingTimeInterval(100)
+        viewModel.pause()
+        for sample in samples[40..<80] {
+            viewModel.ingest(sample)
+        }
+        XCTAssertEqual(spy.commands.count, 1, "暂停期间不得播报")
+
+        viewModel.finish()
+        XCTAssertEqual(spy.commands.count, 1, "结束动作不得额外播报")
+    }
+
     // MARK: - 夹具
 
     private let t0: TimeInterval = 1_700_000_000
@@ -204,6 +295,14 @@ final class RunSessionViewModelTests: XCTestCase {
         }
     }
 
+    private final class AnnouncementSpy: AnnouncementSpeaking {
+        private(set) var commands: [AnnouncementCommand] = []
+
+        func speak(_ command: AnnouncementCommand) {
+            commands.append(command)
+        }
+    }
+
     private func makeStores(suffix: String = "vm") -> Stores {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PurePaceVM-\(suffix)-\(UUID().uuidString)", isDirectory: true)
@@ -218,13 +317,27 @@ final class RunSessionViewModelTests: XCTestCase {
         try? FileManager.default.removeItem(at: stores.root)
     }
 
-    private func makeViewModel(stores: Stores, clock: Clock) -> RunSessionViewModel {
+    private func makeViewModel(
+        stores: Stores,
+        clock: Clock,
+        announcements: AnnouncementSpeaking = AnnouncementSpy(),
+        announcementsEnabled: Bool = true
+    ) -> RunSessionViewModel {
         RunSessionViewModel(
             checkpointStore: stores.checkpoint,
             archiveStore: stores.archive,
             locationSource: FakeLocationSource(),
+            announcements: announcements,
+            announcementsEnabled: announcementsEnabled,
             now: { clock.date }
         )
+    }
+
+    /// 约每 30 米一点，最后一公里边界由 34 个增量（约 1020 米）跨过。
+    private func kilometerSamples(count: Int) -> [RunSample] {
+        (1...count).map { index in
+            sample(latitude: baseLatitude + step * Double(index), timestamp: t0 + Double(index))
+        }
     }
 
     private func sample(latitude: Double, timestamp: TimeInterval) -> RunSample {
