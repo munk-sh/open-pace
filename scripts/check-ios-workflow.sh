@@ -192,7 +192,8 @@ flaky_patterns = [
   /Timed out waiting for AX loaded notification/,
   /Failed to initialize for UI testing/,
   /operation never finished bootstrapping/,
-  /while preparing to run tests/
+  /while preparing to run tests/,
+  /runner bootstrap 挂起/
 ]
 retry_signatures = flaky_patterns.all? { |pattern| test_run.match?(pattern) }
 attempts = test_run.scan(/run_attempt\s+\d+/).map { |m| m[/\d+/].to_i }
@@ -288,6 +289,9 @@ assert_rejected "去掉承载层重试特征" "$tmp_dir/no-retry-signature.yml" 
 
 sed "s/infra_pattern='Timed out/infra_pattern='距离|Timed out/" "$WORKFLOW" > "$tmp_dir/polluted-infra.yml"
 assert_rejected "承载层特征串混入产品断言" "$tmp_dir/polluted-infra.yml" "ac-test-bounded-retry-scope"
+
+sed 's/runner bootstrap 挂起/runner-bootstrap-removed/g' "$WORKFLOW" > "$tmp_dir/no-watchdog-retry.yml"
+assert_rejected "去掉看门狗超时重试特征" "$tmp_dir/no-watchdog-retry.yml" "ac-test-bounded-retry"
 
 sed 's/run_attempt 2 /run_attempt 3 /' "$WORKFLOW" > "$tmp_dir/unbounded-retry.yml"
 assert_rejected "重试次数被改成 3" "$tmp_dir/unbounded-retry.yml" "ac-test-bounded-retry"

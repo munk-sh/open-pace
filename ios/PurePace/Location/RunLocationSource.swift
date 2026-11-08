@@ -59,6 +59,10 @@ final class RunLocationSource: NSObject, RunLocationProviding {
 
     private let manager = CLLocationManager()
     private var isUpdating = false
+#if targetEnvironment(simulator)
+    /// 仅模拟器（CI/本机测试）启用的定位链路诊断，不改授权与采样策略。
+    private let diagnostics = RunLocationDiagnostics()
+#endif
 
     override init() {
         super.init()
@@ -94,6 +98,9 @@ final class RunLocationSource: NSObject, RunLocationProviding {
             isUpdating = false
             manager.stopUpdatingLocation()
         }
+#if targetEnvironment(simulator)
+        diagnostics.authorization(resolved, updating: resolved.isAuthorized)
+#endif
     }
 
     private func deliver(_ payloads: [LocationPayload]) {
@@ -102,6 +109,9 @@ final class RunLocationSource: NSObject, RunLocationProviding {
             guard payload.horizontalAccuracy >= 0,
                   payload.horizontalAccuracy <= RunLocationSource.accuracyThresholdMeters
             else {
+#if targetEnvironment(simulator)
+                diagnostics.filtered(accuracy: payload.horizontalAccuracy)
+#endif
                 continue
             }
             guard let sample = RunSample(
@@ -114,6 +124,13 @@ final class RunLocationSource: NSObject, RunLocationProviding {
             ) else {
                 continue
             }
+#if targetEnvironment(simulator)
+            diagnostics.sample(
+                latitude: payload.latitude,
+                longitude: payload.longitude,
+                accuracy: payload.horizontalAccuracy
+            )
+#endif
             delegate?.locationSource(self, didProduce: sample)
         }
     }
@@ -151,3 +168,65 @@ extension RunLocationSource: CLLocationManagerDelegate {
         }
     }
 }
+
+#if targetEnvironment(simulator)
+/// 仅模拟器（CI/本机测试）启用的定位链路诊断：把授权状态与样本投递计数追加写入
+/// App 沙盒 `Documents/location-diagnostics.log`，供 `scripts/test-ios.sh` 在测试后回读，
+/// 使「授权是否被拒 / 是否收到样本」可在脚本日志与 xcresult 中取证；不进入真机行为。
+@MainActor
+private final class RunLocationDiagnostics {
+    private let fileURL: URL
+    private var sampleCount = 0
+    private var filteredCount = 0
+    private var hasSessionHeader = false
+
+    init() {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        fileURL = documents.appendingPathComponent("location-diagnostics.log")
+    }
+
+    func authorization(_ status: RunLocationAuthorization, updating: Bool) {
+        append("authorization=\(status.rawValue) updating=\(updating)")
+    }
+
+    func sample(latitude: Double, longitude: Double, accuracy: Double) {
+        sampleCount += 1
+        guard sampleCount == 1 || sampleCount % 5 == 0 else { return }
+        append(
+            "sample count=\(sampleCount)"
+                + " lat=\(Self.format(latitude, digits: 6))"
+                + " lon=\(Self.format(longitude, digits: 6))"
+                + " accuracy=\(Self.format(accuracy, digits: 1))"
+        )
+    }
+
+    func filtered(accuracy: Double) {
+        filteredCount += 1
+        guard filteredCount == 1 else { return }
+        append("filtered accuracy=\(Self.format(accuracy, digits: 1)) total=\(filteredCount)")
+    }
+
+    private func append(_ message: String) {
+        let entry: String
+        if hasSessionHeader {
+            entry = "[location] \(message)\n"
+        } else {
+            hasSessionHeader = true
+            entry = "[location] === session start ===\n[location] \(message)\n"
+        }
+        guard let data = entry.data(using: .utf8) else { return }
+        if let handle = try? FileHandle(forWritingTo: fileURL) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: fileURL)
+        }
+    }
+
+    private static func format(_ value: Double, digits: Int) -> String {
+        String(format: "%.\(digits)f", value)
+    }
+}
+#endif

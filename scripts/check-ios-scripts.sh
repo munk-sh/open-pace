@@ -186,7 +186,11 @@ test_ios_preparation_problems() {
     "simctl launch" \
     "simctl terminate" \
     "run_with_watchdog" \
-    "IOS_XCODEBUILD_TIMEOUT"; do
+    "IOS_XCODEBUILD_TIMEOUT" \
+    'location "$sim_udid" set' \
+    "-test-timeouts-enabled YES" \
+    "-default-test-execution-time-allowance" \
+    "-maximum-test-execution-time-allowance"; do
     grep -Fq -- "$needle" "$file" || out="$out 缺少 '$needle';"
   done
   # 只看真实命令调用行：帮助文本里也有同样字样，不能作为顺序锚点。
@@ -203,6 +207,18 @@ test_ios_preparation_problems() {
   # macOS runner 没有 GNU timeout：硬超时必须是 bash 看门狗（kill），不能用 timeout 命令。
   if grep -Eq '(^|[^[:alnum:]_])timeout[[:space:]]+[0-9]' "$file"; then
     out="$out test-ios.sh 依赖 GNU timeout（macOS runner 无该命令），应使用 bash 看门狗 + kill;"
+  fi
+  # 定位注入必须逐秒 set 直线推进；start 路线回放在 hosted runner 上不投递样本。
+  if grep -Fq -- 'location "$sim_udid" start' "$file"; then
+    out="$out test-ios.sh 仍用 simctl location start 路线回放，应改为每秒 location set;"
+  fi
+  # 单次 attempt 静默等待硬上限 ≤600s。
+  local timeout_default=""
+  timeout_default="$(sed -n 's/.*IOS_XCODEBUILD_TIMEOUT:-\([0-9][0-9]*\).*/\1/p' "$file" | head -n 1 || true)"
+  if [ -z "$timeout_default" ]; then
+    out="$out 未找到 IOS_XCODEBUILD_TIMEOUT 默认值;"
+  elif [ "$timeout_default" -gt 600 ]; then
+    out="$out 看门狗默认超时 ${timeout_default}s 超过 600s（AX 静默等待未被压住）;"
   fi
   printf '%s' "$out"
 }
@@ -226,6 +242,27 @@ else
   fail "ac-test-ios-simulator-preparation" "授权先于安装的违规样本未被识别"
 fi
 rm -rf "$prep_sandbox"
+
+# 反例自检：残留 start 路线回放（hosted runner 不投递样本）必须被识别。
+start_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-start.XXXXXX")"
+cp scripts/test-ios.sh "$start_sandbox/test-ios.sh"
+printf '%s\n' 'xcrun simctl location "$sim_udid" start --speed=3 --interval=1 37.3349,-122.0090 37.5200,-122.0090' >> "$start_sandbox/test-ios.sh"
+if [ -n "$(test_ios_preparation_problems "$start_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-set-loop-injection (self-test)"
+else
+  fail "ac-test-ios-set-loop-injection" "残留 start 路线回放的违规样本未被识别"
+fi
+rm -rf "$start_sandbox"
+
+# 反例自检：看门狗默认超时 >600s 必须被识别。
+timeout_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-timeout.XXXXXX")"
+sed 's/IOS_XCODEBUILD_TIMEOUT:-600/IOS_XCODEBUILD_TIMEOUT:-1800/' scripts/test-ios.sh > "$timeout_sandbox/test-ios.sh"
+if [ -n "$(test_ios_preparation_problems "$timeout_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-watchdog-budget (self-test)"
+else
+  fail "ac-test-ios-watchdog-budget" "看门狗 1800s 的违规样本未被识别"
+fi
+rm -rf "$timeout_sandbox"
 
 # ------------------------------- 降级分支不伪造成功行（不 echo BUILD/TEST SUCCEEDED）
 problems=""

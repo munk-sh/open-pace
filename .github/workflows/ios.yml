@@ -104,7 +104,8 @@ jobs:
           #   unknown to FrontBoard
           #   PurePaceUITests-Runner ... Early unexpected exit, operation never finished
           #   bootstrapping（Test crashed with signal abrt while preparing to run tests）
-          infra_pattern='Timed out while loading Accessibility\.|unknown to FrontBoard|Timed out waiting for AX loaded notification|Failed to initialize for UI testing|operation never finished bootstrapping|while preparing to run tests'
+          #   runner bootstrap 挂起（scripts/test-ios.sh 600s 看门狗在进入产品断言前硬超时）
+          infra_pattern='Timed out while loading Accessibility\.|unknown to FrontBoard|Timed out waiting for AX loaded notification|Failed to initialize for UI testing|operation never finished bootstrapping|while preparing to run tests|runner bootstrap 挂起'
           infra_unstable() {
             grep -Eq "$infra_pattern" "$1"
           }
