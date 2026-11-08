@@ -76,8 +76,10 @@ final class RunFlowUITests: XCTestCase {
         let startedElapsed = elapsed.label
         XCTAssertEqual(startedDistance, "0.00 km", "开跑起点距离必须为零")
         // 首次运行：先有界等待首个真实定位样本让距离从 0.00 km 变化，再做距离/时长断言。
+        // 期间持续处理定位授权弹窗：脚本预置的 TCC 可能被 xcodebuild 重新安装 App 清掉，
+        // 弹窗出现在点击「开始」之后，必须在这里兜住，否则用例会一直看到 0.00 km。
         XCTAssertTrue(
-            waitUntil(timeout: firstSampleTimeout) { distance.label != startedDistance },
+            waitForFirstLocationSample(distance: distance, baseline: startedDistance, timeout: firstSampleTimeout),
             "开始后 \(Int(firstSampleTimeout))s 内距离没有随真实定位样本从 \(startedDistance) 变化"
         )
         XCTAssertTrue(
@@ -305,6 +307,48 @@ final class RunFlowUITests: XCTestCase {
     private func splitCount(from label: String) -> Int {
         let digits = label.reversed().prefix { $0.isNumber }.reversed()
         return Int(String(digits)) ?? 0
+    }
+
+    /// 有界等待首个真实定位样本：等待期间持续处理可能弹出的定位授权弹窗（含 App 自身 alert 与
+    /// SpringBoard 弹窗），一旦 `distance` 离开基线立即返回；不使用固定 sleep 作为成功判据。
+    private func waitForFirstLocationSample(
+        distance: XCUIElement,
+        baseline: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if distance.label != baseline {
+                return true
+            }
+            dismissLocationAlertsIfPresent()
+            let remaining = max(0.5, min(5, deadline.timeIntervalSinceNow))
+            _ = waitUntil(timeout: remaining) { distance.label != baseline }
+        }
+        return distance.label != baseline
+    }
+
+    /// 非阻塞扫描一次定位授权弹窗并放行，供首个样本等待循环复用（不消耗整段等待预算）。
+    private func dismissLocationAlertsIfPresent() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = XCUIApplication()
+        for label in Self.locationAllowLabels {
+            let springboardButton = springboard.buttons[label]
+            if springboardButton.exists {
+                springboardButton.tap()
+                return
+            }
+            let springboardAlertButton = springboard.alerts.firstMatch.buttons[label]
+            if springboardAlertButton.exists {
+                springboardAlertButton.tap()
+                return
+            }
+            let appAlertButton = app.alerts.firstMatch.buttons[label]
+            if appAlertButton.exists {
+                appAlertButton.tap()
+                return
+            }
+        }
     }
 
     /// 授权兜底：TCC 已由脚本预置时无弹窗；干净设备上仍要在有界窗口内处理 SpringBoard 弹窗。
