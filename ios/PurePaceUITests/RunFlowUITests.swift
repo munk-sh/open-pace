@@ -4,6 +4,14 @@ import XCTest
 /// `xcrun simctl location start --speed=3 --interval=1` 注入 CoreLocation 更新。
 /// 不使用 launch-arg 假流、不内置样例、不以固定 sleep 作为成功判据。
 final class RunFlowUITests: XCTestCase {
+    /// 授权弹窗按钮文案（系统英文/中文）。
+    private static let locationAllowLabels = [
+        "Allow While Using App", "Allow Once", "Allow", "Always Allow",
+        "使用 App 期间允许", "允许一次", "始终允许"
+    ]
+    /// 首个真实定位样本的有界等待上限（秒）；干净模拟器冷启动可能较慢，但不得无限等待。
+    private let firstSampleTimeout: TimeInterval = 60
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -11,7 +19,7 @@ final class RunFlowUITests: XCTestCase {
     func testRunPauseResumeFinishAndHistory() {
         let app = XCUIApplication()
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
-            for label in ["Allow While Using App", "Allow Once", "Allow", "使用 App 期间允许", "允许一次"] {
+            for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
                 if button.exists {
                     button.tap()
@@ -66,9 +74,11 @@ final class RunFlowUITests: XCTestCase {
 
         let startedDistance = distance.label
         let startedElapsed = elapsed.label
+        XCTAssertEqual(startedDistance, "0.00 km", "开跑起点距离必须为零")
+        // 首次运行：先有界等待首个真实定位样本让距离从 0.00 km 变化，再做距离/时长断言。
         XCTAssertTrue(
-            waitUntil(timeout: 30) { distance.label != startedDistance },
-            "开始后距离没有随真实定位变化"
+            waitUntil(timeout: firstSampleTimeout) { distance.label != startedDistance },
+            "开始后 \(Int(firstSampleTimeout))s 内距离没有随真实定位样本从 \(startedDistance) 变化"
         )
         XCTAssertTrue(
             waitUntil(timeout: 10) { elapsed.label != startedElapsed },
@@ -230,7 +240,7 @@ final class RunFlowUITests: XCTestCase {
     func testAnnouncementTogglePersistsAcrossRelaunch() {
         let app = XCUIApplication()
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
-            for label in ["Allow While Using App", "Allow Once", "Allow", "使用 App 期间允许", "允许一次"] {
+            for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
                 if button.exists {
                     button.tap()
@@ -259,8 +269,13 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1", "默认/归一后开关应为开启")
 
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        // 冷启动时 SpringBoard 授权弹窗可能吞掉首次点击；有界重试一次，断言强度不变。
+        if !waitUntil(timeout: 5, { (toggle.value as? String) == "0" }) {
+            allowLocationIfNeeded()
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
         XCTAssertTrue(
-            waitUntil(timeout: 5) { (toggle.value as? String) == "0" },
+            waitUntil(timeout: 10) { (toggle.value as? String) == "0" },
             "翻转后开关应关闭"
         )
 
@@ -292,12 +307,12 @@ final class RunFlowUITests: XCTestCase {
         return Int(String(digits)) ?? 0
     }
 
+    /// 授权兜底：TCC 已由脚本预置时无弹窗；干净设备上仍要在有界窗口内处理 SpringBoard 弹窗。
     private func allowLocationIfNeeded() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let labels = ["Allow While Using App", "Allow Once", "Allow", "使用 App 期间允许", "允许一次"]
-        let deadline = Date().addingTimeInterval(8)
+        let deadline = Date().addingTimeInterval(10)
         while Date() < deadline {
-            for label in labels {
+            for label in Self.locationAllowLabels {
                 let button = springboard.buttons[label]
                 if button.exists {
                     button.tap()
@@ -305,7 +320,7 @@ final class RunFlowUITests: XCTestCase {
                 }
             }
             if springboard.alerts.firstMatch.exists {
-                for label in labels {
+                for label in Self.locationAllowLabels {
                     let button = springboard.alerts.firstMatch.buttons[label]
                     if button.exists {
                         button.tap()

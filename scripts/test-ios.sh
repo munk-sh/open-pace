@@ -13,8 +13,12 @@ usage() {
     存在且本机有 xcodegen 可从 spec 生成工程时，执行
     xcodebuild test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6'，
     派生数据写入 .build/ios，scheme 同时运行 PurePaceTests（XCTest）与 PurePaceUITests（XCUITest）。
-    测试前 boot iPhone 16 / iOS 18.6 模拟器并以 xcrun simctl location start --speed=3 --interval=1
-    注入 ≥20 km 直线航点驱动真实 CoreLocation，测试结束在 trap 中 clear。
+    测试前按固定顺序准备模拟器状态：bootstatus 等待设备可用 → simctl uninstall 清容器 →
+    构建并安装 App → simctl privacy grant location 预置定位授权（授权只对已安装 bundle 生效，
+    且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热 →
+    xcrun simctl location start --speed=3 --interval=1 注入 ≥20 km 直线航点驱动真实 CoreLocation。
+    xcodebuild test 带进程级硬超时（bash 看门狗，不依赖 GNU timeout），超时后非零退出并打印
+    超时阶段与已执行的测试摘要；测试结束在 trap 中 clear。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
   - 两个分支都会追加执行 swift test --package-path ios/RunCore（跑步域纯逻辑包）；
@@ -23,10 +27,14 @@ usage() {
 选项:
   -h, --help   显示本帮助并退出 0
 
+环境变量:
+  IOS_XCODEBUILD_TIMEOUT  xcodebuild test 的硬超时秒数，默认 1800
+
 退出码:
-  0  测试通过，或工程缺失但降级的 swift test 真实通过（输出含 blocked:）
-  1  工程存在但真实测试失败，或降级 swift test 失败
-  2  参数非法
+  0    测试通过，或工程缺失但降级的 swift test 真实通过（输出含 blocked:）
+  1    工程存在但真实测试失败，或降级 swift test 失败
+  2    参数非法
+  124  xcodebuild test 触发硬超时（看门狗已强制终止）
 EOF
 }
 
@@ -66,10 +74,15 @@ if [ -f scripts/sync-ios-version.sh ]; then
   bash scripts/sync-ios-version.sh
 fi
 
-# XCUITest 的真实定位链路：固定 iPhone 16 / iOS 18.6，boot 后注入 ≥20 km 直线航点，
-# 速率 3 m/s、间隔 1 s；测试结束在 trap 中 clear，不用 launch-arg 假流替代。
+# XCUITest 的真实定位链路：固定 iPhone 16 / iOS 18.6；bootstatus 等待设备完全可用，
+# 卸载清容器 → 构建安装 App → simctl privacy 预置定位授权 → 启动预热 → 注入航点，
+# 最后带硬超时跑 xcodebuild test。测试结束在 trap 中 clear，不用 launch-arg 假流替代。
 sim_udid=""
 location_started=0
+app_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePace.app"
+log_dir=".build/logs"
+xcodebuild_log="$log_dir/xcodebuild-test.log"
+xcodebuild_timeout="${IOS_XCODEBUILD_TIMEOUT:-1800}"
 cleanup_location() {
   if [ "$location_started" -eq 1 ] && [ -n "$sim_udid" ]; then
     xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
@@ -92,7 +105,8 @@ sys.exit(1)
 '
 }
 
-start_location_injection() {
+# 干净设备 boot 等待：bootstatus -b 通过才继续，失败时打印 udid 与阶段并非零退出。
+wait_for_simulator_boot() {
   sim_udid="$(select_simulator || true)"
   if [ -z "$sim_udid" ]; then
     echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法注入真实定位" >&2
@@ -100,28 +114,115 @@ start_location_injection() {
   fi
   echo "info: 使用模拟器 $sim_udid 注入 CoreLocation 更新"
   if ! xcrun simctl bootstatus "$sim_udid" -b >/dev/null 2>&1; then
-    echo "test-ios: 模拟器 $sim_udid 启动失败" >&2
-    exit 1
-  fi
-  # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
-  xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
-  xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
-  location_started=1
-  if ! xcrun simctl location "$sim_udid" start --speed=3 --interval=1 37.3349,-122.0090 37.5200,-122.0090 >/dev/null 2>&1; then
-    echo "test-ios: xcrun simctl location start 注入失败" >&2
+    echo "test-ios: 阶段 simulator-boot 失败：模拟器 $sim_udid 启动/就绪失败（xcrun simctl bootstatus $sim_udid -b）" >&2
     exit 1
   fi
 }
 
-test_with_xcodebuild() {
-  start_location_injection
-  echo "info: xcodebuild test -scheme $scheme -destination '$destination'（派生数据 ${derived_data}）"
-  xcodebuild test \
+# 容器清理 → 构建 → 安装 → 预置定位授权 → 启动预热。
+# TCC 只对已安装 bundle 生效且 simctl uninstall 会清掉它，所以授权必须排在安装之后。
+prepare_simulator_for_ui_tests() {
+  mkdir -p "$log_dir"
+  # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
+  xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
+
+  echo "info: 阶段 xcodebuild-build：构建 App 供安装与授权（派生数据 ${derived_data}）"
+  if ! xcodebuild build \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
     -derivedDataPath "$derived_data" \
-    CODE_SIGNING_ALLOWED=NO
+    CODE_SIGNING_ALLOWED=NO; then
+    echo "test-ios: 阶段 xcodebuild-build 失败：构建 App 失败（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+
+  if [ ! -d "$app_path" ]; then
+    echo "test-ios: 阶段 simulator-install 失败：未找到构建产物 ${app_path}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+  echo "info: 阶段 simulator-install：安装 $app_path"
+  if ! xcrun simctl install "$sim_udid" "$app_path" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-install 失败：simctl install 安装 $bundle_id 失败（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+
+  echo "info: 阶段 simulator-privacy：预置定位授权（simctl privacy grant location ${bundle_id}）"
+  if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+
+  echo "info: 阶段 simulator-warmup：启动并终止 App 一次完成预热"
+  if ! xcrun simctl launch "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-warmup 失败：simctl launch ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+  if ! xcrun simctl terminate "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-warmup 失败：simctl terminate ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+}
+
+start_location_injection() {
+  xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
+  location_started=1
+  if ! xcrun simctl location "$sim_udid" start --speed=3 --interval=1 37.3349,-122.0090 37.5200,-122.0090 >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-location 失败：xcrun simctl location start 注入失败（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+}
+
+# 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）：超时先 TERM 再 KILL，
+# 打印超时阶段与已执行测试摘要，返回 124；正常退出时透传子进程退出码。
+run_with_watchdog() {
+  local timeout_seconds="$1"
+  local out_log="$2"
+  shift 2
+  local command_pid=""
+  local waited=0
+  local wait_status=0
+  "$@" >"$out_log" 2>&1 &
+  command_pid=$!
+  while kill -0 "$command_pid" 2>/dev/null; do
+    if [ "$waited" -ge "$timeout_seconds" ]; then
+      echo "test-ios: 阶段 xcodebuild-test 硬超时（${timeout_seconds}s），强制终止 PID ${command_pid}" >&2
+      kill -TERM "$command_pid" >/dev/null 2>&1 || true
+      sleep 2
+      kill -KILL "$command_pid" >/dev/null 2>&1 || true
+      wait "$command_pid" >/dev/null 2>&1 || true
+      echo "test-ios: 超时前已执行的测试摘要：" >&2
+      grep -E "Test Case .*(started|passed|failed)|Executed [0-9]+ tests" "$out_log" 2>/dev/null | tail -n 40 >&2 || true
+      cat "$out_log" 2>/dev/null || true
+      return 124
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  wait "$command_pid" || wait_status=$?
+  return "$wait_status"
+}
+
+test_with_xcodebuild() {
+  wait_for_simulator_boot
+  prepare_simulator_for_ui_tests
+  start_location_injection
+  echo "info: xcodebuild test -scheme $scheme -destination '$destination'（硬超时 ${xcodebuild_timeout}s，日志 ${xcodebuild_log}）"
+  local xcodebuild_status=0
+  run_with_watchdog "$xcodebuild_timeout" "$xcodebuild_log" \
+    xcodebuild test \
+    -project "$project_path" \
+    -scheme "$scheme" \
+    -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
+    -derivedDataPath "$derived_data" \
+    CODE_SIGNING_ALLOWED=NO || xcodebuild_status=$?
+  cat "$xcodebuild_log" 2>/dev/null || true
+  if [ "$xcodebuild_status" -eq 124 ]; then
+    echo "test-ios: 阶段 xcodebuild-test 失败：超过 ${xcodebuild_timeout}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
+  elif [ "$xcodebuild_status" -ne 0 ]; then
+    echo "test-ios: 阶段 xcodebuild-test 失败：xcodebuild test 退出 ${xcodebuild_status}（模拟器 ${sim_udid}）" >&2
+  fi
+  return "$xcodebuild_status"
 }
 
 # RunCore 是纯逻辑 SwiftPM 包，两个分支都真实执行；包缺失时显式 blocked 不伪造成功。
