@@ -4,8 +4,10 @@ Android 远端 CI 域：以单个 GitHub Actions workflow 承载 Android 的 ins
 
 ## 范围
 
-- `.github/workflows/android.yml`：`name: android`；触发为 `on.push`（不限分支）与 `workflow_dispatch`；`permissions.contents: read`；单 job `runs-on: ubuntu-latest`（可设 `timeout-minutes` 上限）；步骤固定 `checkout` → `install` → `lint` → `test` → `build`。
+- `.github/workflows/android.yml`：`name: android`；触发为 `on.push`（不限分支）与 `workflow_dispatch`；`permissions.contents: read`；单 job `runs-on: ubuntu-latest`（可设 `timeout-minutes` 上限）；步骤固定 `checkout` → `install-jdk` → `gradle-cache` → `install-sdk` → `install` → `lint` → `test` → `build`。
 - `install` 步负责 runner 前置且幂等：`actions/setup-java@v4`（temurin，`java-version: '21'`）、`android-actions/setup-android@v3` 提供 SDK/`sdkmanager`，再确保 `platforms;android-36` 与 `build-tools;36.0.0` 已装；随后显式校验 `java` 主版本为 21、`ANDROID_HOME` 目录存在、两个 SDK 子目录存在，任一不符即非零退出（不赌 runner 默认值）。
+- `gradle-cache` 步（位于 `install-jdk` 之后、`install-sdk` 之前）：官方 `gradle/actions/setup-gradle@v6`，`cache-provider: basic`（100% 开源 `actions/cache` 实现），缓存 `~/.gradle/wrapper/dists` 与 `~/.gradle/caches`（含 `caches/modules-2`）；缓存键由构建文件内容 hash（`**/*.gradle*`、`**/gradle-wrapper.properties` 等）派生，`cache-read-only: 'false'` 保证分支也写缓存；不接 Develocity / build-scan / dependency-graph / cache-encryption-key。
+- `android/gradle/wrapper/gradle-wrapper.properties`：`distributionUrl` 指向 `gradle-8.14.3-bin.zip`（去掉 docs/sources 缩小约一半），配官方 `distributionSha256Sum`，`retries=3` + `retryBackOffMs=1000` 兜底；键集合与其它取值保持既有。
 - `lint` 步逐条调用既有本地门：`bash scripts/check-baseline.sh`、`bash scripts/check-android.sh`，各自独立命令行，不合并成长 `&&` 串，不新增空转门、不新增 Gradle `lintDebug` / detekt / ktlint。
 - `test` / `build` 步分别执行 `bash scripts/test-android.sh` / `bash scripts/build-android.sh` 并透传输出；捕获到 `blocked:` 一律判失败（显式 `exit 1`），否则以脚本退出码为准。
 - `scripts/check-android-workflow.sh`：本机 workflow 结构/语法断言（bash、`set -euo pipefail`、`--help`、幂等、以仓库根为路径基准），用本机已有 `ruby -ryaml`（回退 `python3`）解析 YAML，并内置反例自检（改错 `runs-on`、删除 `test` 步骤、去掉 `push` 触发、去掉 `blocked:` 失败口径时必须拒绝）。
@@ -17,12 +19,26 @@ Android 远端 CI 域：以单个 GitHub Actions workflow 承载 Android 的 ins
 - ac-workflow-exists-and-parses: `.github/workflows/android.yml` 存在，可被本机已有解释器（`ruby -ryaml` 或 `python3`）解析，含 `name` / `on` / `jobs` 顶层键；不引入 actionlint 等新工具依赖。
 - ac-workflow-push-trigger: `on` 含 `push` 且未被 `tags` 或分支白名单排除（推任意分支即触发），并含 `workflow_dispatch`；不得只挂 `pull_request`。
 - ac-workflow-single-ubuntu-job: 只有一个 job，`runs-on` 为 `ubuntu-latest`，且 `permissions.contents` 为 `read`。
+- ac-workflow-has-setup-gradle: `.github/workflows/android.yml` 存在 `uses: gradle/actions/setup-gradle@v6` 的步骤，步骤顺序位于 `checkout`、`install-jdk` 之后与 `lint` 之前。
+- ac-workflow-cache-config: 该步骤 `with` 恰含 `cache-provider: basic`、`cache-read-only: 'false'`；不额外接 Develocity / build-scan / dependency-graph / cache-encryption-key 等输入。
+- ac-cache-key-not-fixed: 文件内不得出现固定 key 的缓存步骤——不出现 `actions/cache` 步骤；若出现，其 `with.key` 必须含 `hashFiles(`。
+- ac-workflow-semantics-preserved: 解析后仍为单 job、`runs-on: ubuntu-latest`、`timeout-minutes: 45`、`permissions.contents: read`；`install` / `lint` / `test` / `build` 四步名称与顺序不变且 `run` 非空；文件内不出现 `continue-on-error` / `allowed-failure`，不删 job、不删步、不摘 test/build 腿。
 - ac-install-provisions-jdk21-and-sdk: `install` 步显式装载 JDK 21（`actions/setup-java` 的 `java-version: '21'` 或等价显式声明），并确保 `platforms;android-36`、`build-tools;36.0.0` 已安装与 `ANDROID_HOME` 可用；步内存在显式校验（java 主版本 21、SDK 目录存在），不依赖 runner 默认值。
 - ac-workflow-step-order: job steps 中 `install`、`lint`、`test`、`build` 按此顺序出现，每步 `run` 非空。
 - ac-lint-step-reuses-local-gates: `lint` 步调用 `bash scripts/check-baseline.sh` 与 `bash scripts/check-android.sh`，两者为独立命令行，真实执行既有断言。
 - ac-test-build-reuse-scripts: `test` 步执行 `bash scripts/test-android.sh`，`build` 步执行 `bash scripts/build-android.sh`；workflow 内不出现绕过脚本的第二套 `gradlew assembleDebug` / `gradlew testDebugUnitTest` 调用。
+- ac-distribution-url-bin: `distributionUrl` 精确等于 `https\://services.gradle.org/distributions/gradle-8.14.3-bin.zip`，文件中不出现 `-all.zip`。
+- ac-distribution-sha256-sum: 文件含 `distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531`（64 位小写十六进制），与官方 `gradle-8.14.3-bin.zip` 一致。
+- ac-wrapper-retries: 文件含 `retries=3`、`retryBackOffMs=1000`、`networkTimeout=10000`、`validateDistributionUrl=true` 四键且取值精确（`retries` 不为 0）。
+- ac-properties-parseable: properties 每行满足 `key=value`、键唯一、无 CR；`bash scripts/version.sh` 仍解析出 Gradle `8.14.3`（离线，不触网、不启动 JVM）。
 - ac-workflow-structural-gate: `bash scripts/check-android-workflow.sh` 退出 0，覆盖 YAML 解析与上述结构断言，并含 ≥3 条内置反例自检（改错 `runs-on`、删 `test` 步、去 `push` 触发时断言 FAIL 且非零退出，恢复后 PASS）；`.munk/code-gates.json` 中 `lint-android-workflow` 的 `command` 为单一 argv、`cwd` 为 `.`。
 - ac-existing-gates-unchanged: `.munk/code-gates.json` 既有门（含 `lint-android` / `build-android` / `test-android` / `test`）的 id 与 command 逐字节未变，`bash scripts/check-baseline.sh`、`bash scripts/check-android.sh` 仍退出 0。
+- ac-workflow-gates-green: `bash scripts/check-android-workflow.sh`（含反例自检）、`bash scripts/check-android.sh`、`bash scripts/check-baseline.sh` 全部退出 0；三个脚本与 `.munk/code-gates.json` 零改动。
+- ac-scope-two-files: 相对基线 `git diff --name-only` 仅含 `.github/workflows/android.yml` 与 `android/gradle/wrapper/gradle-wrapper.properties`（外加 `.munk/changes/**`）；`scripts/**`、`.munk/code-gates.json`、`android/**`（仅 wrapper properties 允许）、`ios/**`、`shared/**` 零改动。
+- ac-local-evidence-recorded: 交付说明写明本机验证证据：YAML 解析通过（无 PyYAML 时用 `ruby -ryaml`，与仓内既有门同口径）、properties 解析通过、sha256 取值来源为官方三处源（`services.gradle.org` / `gradle.org/release-checksums` / `downloads.gradle.org`）一致。
+- ac-remote-run-recorded: 交付 push 触发的 `android` run 记录真实数字 run id 与 conclusion（来源 `gh run list --repo munk-sh/open-pace --workflow android.yml` 或 Host CI 通道）；取不到时逐字记 `pending: 待远端复核`，禁止编造 run id。
+- ac-second-run-cache-hit: 复核用第二次 push 触发的 `android` run 日志出现缓存恢复命中（如 `Cache restored from key` / `Restored Gradle User Home`）且不再出现 `Downloading https://services.gradle.org`，两次 run 均 `success` 才算根治。
+- ac-cache-scope-honest-report: 若复核 run 与写缓存 run 跨分支（GitHub 缓存按分支作用域，功能分支条目对默认分支不可见）导致该次仍冷启动，交付说明必须给出真实 run id、日志行与该作用域事实，不得写成「已命中」，也不得为凑命中反复推空提交。
 - ac-no-version-literal: 新增的 workflow 与 `scripts/check-android-workflow.sh` 不出现根 `VERSION` 当前字面值，版本只经 `scripts/version.sh` 取得。
 - ac-scope-no-app-change: 改动只落在 `.github/workflows/android.yml`、`scripts/check-android-workflow.sh`、`.munk/code-gates.json`（及 `.munk/changes/**`）；`ios/**`、`android/**`、`shared/**`、`scripts/build-android.sh`、`scripts/test-android.sh`、`scripts/check-android.sh` 零改动。
 - ac-branch-only-push: Delivery 只经 Host 工具推本分支触发 Actions；不推 tag、不建 Release、不改 remote URL、不新增 remote、不向远端 seed（`git tag -l` 无新增、`git remote -v` 与推送前一致）。
@@ -37,7 +53,7 @@ Android 远端 CI 域：以单个 GitHub Actions workflow 承载 Android 的 ins
 - 不改 `android/` 工程：Gradle/AGP/依赖版本、SDK 声明、首屏 Compose、测试用例一律不动；CI 暴露工程缺陷时按 `blocked:` 记录实测命令与原始错误回报，不顺手改工程。
 - 不改 `scripts/build-android.sh` / `test-android.sh` / `check-android.sh` 契约，不改 `scripts/version.sh`；不为迎合 runner 放宽任何本机断言。
 - 不做 `.github/workflows/ios.yml` 或任何 iOS/`shared/` 改动；不写业务实现。
-- 不引入 actionlint / fastlane / 依赖缓存 / 构建产物上传 / 覆盖率等附加设施；不加矩阵构建、多 JDK 或 macOS job。
+- 不引入 actionlint / fastlane / 构建产物上传 / 覆盖率等附加设施；仅保留 `gradle-cache` 步的 Gradle User Home 依赖缓存（此步取代旧「不引入依赖缓存」非目标，公司负责人 2026-11-08 裁决）；不做 Android SDK / JDK / Robolectric 专项目录或构建产物缓存；不加矩阵构建、多 JDK 或 macOS job。
 - 不设置分支保护、required checks、secrets、environment 或任何仓库设置类变更；不推 tag、不建 Release、不改 remote、不 seed。
 - 不做模拟器/真机安装、`connectedAndroidTest`、签名、Release/AAB；不做视觉设计与业务功能。
 - 不改 `README.md`（本项无 CI 文档需求）。
@@ -48,14 +64,18 @@ Android 远端 CI 域：以单个 GitHub Actions workflow 承载 Android 的 ins
 - Psych 遵循 YAML 1.1，会把裸 `on:` 解析成布尔 `true`；断言脚本需按原文或别名键处理，避免误判「缺 on」。
 - 本地 `check-android.sh` / `check-baseline.sh` 仅用 bash/sed/awk/grep/find/node/git，Linux runner 可直接运行；`android/gradlew` 已入库且权限 100755。
 - `scripts/build-android.sh` / `test-android.sh` 要求 `JAVA_HOME` 指向 JDK 21 且 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 目录存在，缺一即 fail fast；CI 侧须由 `install` 步显式满足。
-- workflow 形态：步骤命名固定 `checkout` / `install` / `lint` / `test` / `build`；`lint` 只复用两条本地门；不引入缓存/上传步骤，首次 Robolectric 下载慢属预期，不因超时放宽断言（可设 job `timeout-minutes` 上限但不得跳过测试）。
+- workflow 形态：步骤命名固定 `checkout` / `install-jdk` / `gradle-cache` / `install-sdk` / `install` / `lint` / `test` / `build`；`lint` 只复用两条本地门；除 `gradle-cache` 外不引入上传步骤；首次冷启动 Robolectric 下载慢属预期，不因超时放宽断言（可设 job `timeout-minutes` 上限但不得跳过测试）。
+- 缓存选型不得改主意：`setup-gradle@v6` 的 Basic 提供方键为 `setup-java-{RUNNER_OS}-{arch}-gradle-{hash}`（hash 取自构建文件内容），满足「键含 wrapper properties hash、不得固定 key」硬约束；Enhanced 默认提供方键为 `{os}|{job-id}|{workflow-hash}|{git-sha}` 不含该 hash，不得改用；也不得手写 `actions/cache` 自建第二套。
+- wrapper properties 约束：`check-android.sh` 要求 `distributionUrl` 匹配 `^distributionUrl=.*gradle-[0-9]+\.[0-9]+(\.[0-9]+)?-(bin|all)\.zip$`，且全文不含 `latest` / `snapshot`（不区分大小写）与 `+`——因此该文件**不得新增注释**；文件路径不可改。
+- `check-android-workflow.sh` 要求文件原文不含 `gradlew`（`setup-gradle` 不含该串）；额外步骤名不在断言集合内，不影响 `install`/`lint`/`test`/`build` 顺序断言。
+- 缓存作用域事实（交付与复核口径）：GitHub Actions 缓存按分支作用域，功能分支写入的条目对默认分支不可见；写缓存 run 与命中 run 同分支时第二次必命中，跨分支则仍冷启动——须如实报告 run id 与日志行，不为凑命中反复推空提交。
+- 推送与证据：网络 git 操作统一 `env -u GIT_EXEC_PATH git ...`；Delivery 只推本分支 `munk/{workItemId}` 触发 `on.push`，一次推送后轮询 `gh run list`，取不到即记 `pending: 待远端复核`，不为等 run 反复推空提交；只报真实命令输出摘要、run id 与 conclusion，不以本地绿替代远端 run。
 - 脚本形态对齐既有脚本：`#!/usr/bin/env bash` + `set -euo pipefail` + `usage()` + `BASH_SOURCE` 推导仓库根 + `--help` 退出 0 / 未知参数退出 2 + `[PASS]/[FAIL]` 逐条输出与汇总。
 - 门禁口径：`lint-android-workflow` 单一 argv（无 `&&`、`|`、`;`、重定向、反引号），`cwd` 为 `.`；`check-android.sh` 对既有门映射的逐字节断言仍须 PASS。
-- 推送与证据：网络 git 操作统一 `env -u GIT_EXEC_PATH git ...`；Delivery 只推本分支 `munk/{workItemId}` 触发 `on.push`，一次推送后轮询 `gh run list`，取不到即记 `pending: 待 remote 验证`，不为等 run 反复推空提交；只报真实命令输出摘要、run id 与 conclusion，不以本地绿替代远端 run。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_81dd4c38fb89a06d（2026-11-07，pass）
-- 交付：`.github/workflows/android.yml`（`name: android`；`on.push` + `workflow_dispatch`；`permissions.contents: read`；单 job `ubuntu-latest` + `timeout-minutes: 45`；`checkout` → `install`（setup-java temurin 21 + setup-android `packages: platform-tools` + `platforms;android-36` / `build-tools;36.0.0` + java 主版本与 `ANDROID_HOME`/SDK 目录显式校验）→ `lint`（独立调用 `check-baseline.sh`、`check-android.sh`）→ `test` / `build`（复用 `test-android.sh` / `build-android.sh`，`blocked:` 判失败））；`scripts/check-android-workflow.sh`（结构断言 + 4 类反例自检，ruby/python3 解析回退）；`.munk/code-gates.json` 新增 `lint-android-workflow`，既有门 id/command 未变。
-- 验证：code_gates 全绿（含新增 `lint-android-workflow`、`check-baseline.sh`、`check-android.sh`）；`android/**`、`ios/**`、`shared/**` 与三个既有 Android 脚本零改动。远端真实 run：`gh run view 42323902603`（workflow `android`，Conclusion `success`，headSha `fd20690`，job `android` 全步骤通过）。首次 run `42323355963` 曾 `failure`（`install-sdk` 步：`android-actions/setup-android@v3` 默认 `packages: tools platform-tools` 触发 `sdkmanager tools`，报 `Warning: Failed to find package 'tools'` 后 exit 1），已改为 `packages: platform-tools` 后重新推送取新 run，不沿用旧 run。
-- 经验口径：runner 镜像已不提供 legacy `tools` 包，`setup-android` 必须显式收窄 `packages`；平台与 build-tools 由 `install` 步自装自校验，不依赖 action 默认值。
+- workItemId: wi_intake_acc4202586b789a5（2026-11-08，pass）
+- 交付：`.github/workflows/android.yml` 在 `install-jdk` 与 `install-sdk` 之间新增 `gradle-cache` 步（`gradle/actions/setup-gradle@v6`，`cache-provider: basic`、`cache-read-only: 'false'`，缓存 `~/.gradle/wrapper/dists` 与 `~/.gradle/caches`，键随构建文件内容 hash）；`android/gradle/wrapper/gradle-wrapper.properties` 从 `gradle-8.14.3-all.zip` 改为 `gradle-8.14.3-bin.zip`，新增官方 `distributionSha256Sum`（`bd7110…f3531`），`retries=3` + `retryBackOffMs=1000` 兜底。根因：`main@bea5040` 的 run 42471304587 因 `services.gradle.org` 504 + wrapper `Attempt 1/1` 直接红，且每条腿现下 230MB+ `all.zip`、无 Gradle 缓存。
+- 验证：`scripts/check-android-workflow.sh`（含反例自检）、`check-android.sh`、`check-baseline.sh` 全绿；`ruby -ryaml` 解析 YAML 通过；properties 逐行 `key=value` 且无 CR、无注释，`scripts/version.sh` 仍解析 Gradle `8.14.3`；sha256 经 `services.gradle.org` / `gradle.org/release-checksums` / `downloads.gradle.org` 三处官方源核对一致（本机拉 130MB+ 包超时，未本机复算）。改动范围仅两文件 + `.munk/changes/**`，`scripts/**`、`.munk/code-gates.json`、`ios/**`、`shared/**` 零改动。
+- 远端证据：pending: 待远端复核（本域 `android` workflow 远端 run id 与 conclusion 由 Delivery 推送后按 `gh run list` 补记，禁止编造）。第二次 run 命中缓存的判定口径见 `ac-second-run-cache-hit` 与 `ac-cache-scope-honest-report`。
