@@ -102,7 +102,9 @@ jobs:
           #   Timed out while loading Accessibility.
           #   Failed to initialize for UI testing / Timed out waiting for AX loaded notification
           #   unknown to FrontBoard
-          infra_pattern='Timed out while loading Accessibility\.|unknown to FrontBoard|Timed out waiting for AX loaded notification|Failed to initialize for UI testing'
+          #   PurePaceUITests-Runner ... Early unexpected exit, operation never finished
+          #   bootstrapping（Test crashed with signal abrt while preparing to run tests）
+          infra_pattern='Timed out while loading Accessibility\.|unknown to FrontBoard|Timed out waiting for AX loaded notification|Failed to initialize for UI testing|operation never finished bootstrapping|while preparing to run tests'
           infra_unstable() {
             grep -Eq "$infra_pattern" "$1"
           }
