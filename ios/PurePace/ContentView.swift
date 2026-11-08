@@ -1,29 +1,50 @@
+import PurePaceRunCore
 import SwiftUI
 
-/// 空壳首屏：App 名称 + 一句 tagline，外加四个空 Tab。
-/// 不含业务逻辑、网络请求或内置样例数据。
+/// App 首屏：Run / History / Settings 三个 Tab，启动即落在真实跑步页（0 秒可用）。
 struct ContentView: View {
-    var body: some View {
-        TabView {
-            PlaceholderScreen(
-                title: PlaceholderCopy.appName,
-                subtitle: PlaceholderCopy.tagline
-            )
-            .tabItem { tabLabel(.run) }
-
-            PlaceholderScreen(title: PlaceholderTab.history.title)
-                .tabItem { tabLabel(.history) }
-
-            PlaceholderScreen(title: PlaceholderTab.log.title)
-                .tabItem { tabLabel(.log) }
-
-            PlaceholderScreen(title: PlaceholderTab.settings.title)
-                .tabItem { tabLabel(.settings) }
-        }
+    enum Tab: Hashable {
+        case run
+        case history
+        case settings
     }
 
-    private func tabLabel(_ tab: PlaceholderTab) -> some View {
-        Label(tab.title, systemImage: tab.systemImage)
+    @StateObject private var runModel: RunSessionViewModel
+    @State private var selection: Tab = .run
+
+    private let archiveStore: RunArchiveStore
+
+    @MainActor
+    init() {
+        let stores = RunStorage.makeStores()
+        archiveStore = stores.archive
+        _runModel = StateObject(
+            wrappedValue: RunSessionViewModel(
+                checkpointStore: stores.checkpoint,
+                archiveStore: stores.archive,
+                locationSource: RunLocationSource()
+            )
+        )
+    }
+
+    var body: some View {
+        TabView(selection: $selection) {
+            RunView(viewModel: runModel)
+                .tabItem { Label("Run", systemImage: "figure.run") }
+                .tag(Tab.run)
+
+            HistoryView(
+                archiveStore: archiveStore,
+                refreshToken: runModel.savedCount,
+                onRunAgain: { selection = .run }
+            )
+            .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+            .tag(Tab.history)
+
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(Tab.settings)
+        }
     }
 }
 

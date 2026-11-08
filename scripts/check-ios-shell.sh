@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# iOS 空壳工程结构断言（.munk/code-gates.json 的 lint-ios-shell 门真实执行体）。
-# 校验：XcodeGen 单一真源与可重复生成、无手写工程、构建设置、占位页内容、
+# iOS 工程结构断言（.munk/code-gates.json 的 lint-ios-shell 门真实执行体）。
+# 校验：XcodeGen 单一真源与可重复生成、无手写工程、构建设置、真实跑步 UI、
 # XCTest/XCUITest 落点、构建/测试脚本真实执行。任一条失败即非零退出。
 set -euo pipefail
 
@@ -8,15 +8,15 @@ usage() {
   cat <<'EOF'
 用法: scripts/check-ios-shell.sh [--help]
 
-对 PurePace iOS 空壳工程做结构断言并打印逐条结果：
+对 PurePace iOS 工程做结构断言并打印逐条结果：
   - ios/project.yml 存在，xcodegen 连续两次生成结果一致
   - project.pbxproj 仅存在于 ios/PurePace.xcodeproj
   - iOS 17.0 / Swift 6.2 / 仅本地 path package RunCore / MARKETING_VERSION 来自 VERSION
-  - 三个 target 与占位页（PurePace、tagline、Run/History/Log/Settings）
-  - App import 允许表（CoreLocation 仅限 ios/PurePace/Harness/）
+  - 三个 target 与真实跑步页（Run / History / Settings，无 Log）
+  - App import 允许表（CoreLocation 仅限 ios/PurePace/Harness/ 与 Location/）
   - project.yml 定位用途说明与后台定位模式声明非空
-  - Harness 文件清单与占位页显式文件清单
-  - XCTest 与 XCUITest 源码落点
+  - Harness 文件清单 + 真实跑步 UI 文件清单 + 无障碍标识
+  - XCTest 与 XCUITest 源码落点（真实流程断言、无固定 sleep）
   - scripts/build-ios.sh、scripts/test-ios.sh 真实执行 xcodebuild
 
 选项:
@@ -130,8 +130,8 @@ validate_app_imports() {
   while IFS= read -r file; do
     [ -z "$file" ] && continue
     case "$file" in
-      "$app_dir"/Harness/*.swift) ;;
-      *) problems="$problems CoreLocation 只允许出现在 ios/PurePace/Harness/: $file;" ;;
+      "$app_dir"/Harness/*.swift|"$app_dir"/Location/*.swift) ;;
+      *) problems="$problems CoreLocation 只允许出现在 ios/PurePace/Harness/ 与 ios/PurePace/Location/: $file;" ;;
     esac
   done <<< "$(grep -rlE --include='*.swift' 'CoreLocation' "$app_dir" 2>/dev/null || true)"
 
@@ -237,15 +237,20 @@ run_self_test() {
   check_fail "非 RunCore path 包反例" "$(validate_packages "$tmp_dir/remote-path.yml")"
 
   # import 作用域正负反例
-  mkdir -p "$tmp_dir/app/Harness" "$tmp_dir/app/Audio"
+  mkdir -p "$tmp_dir/app/Harness" "$tmp_dir/app/Audio" "$tmp_dir/app/Location"
   printf 'import SwiftUI\n' > "$tmp_dir/app/PurePaceApp.swift"
   printf 'import CoreLocation\nimport Foundation\n' > "$tmp_dir/app/Harness/LocationSource.swift"
+  printf 'import CoreLocation\nimport Foundation\n' > "$tmp_dir/app/Location/RunLocationSource.swift"
   printf 'import AVFoundation\n' > "$tmp_dir/app/Audio/AudioSessionAdapter.swift"
-  check_ok "App import 允许表正例" "$(validate_app_imports "$tmp_dir/app")"
+  check_ok "App import 允许表正例（Harness + Location 双作用域）" "$(validate_app_imports "$tmp_dir/app")"
 
   mkdir -p "$tmp_dir/app-bad-corelocation"
   printf 'import CoreLocation\n' > "$tmp_dir/app-bad-corelocation/ContentView.swift"
   check_fail "CoreLocation 越界反例" "$(validate_app_imports "$tmp_dir/app-bad-corelocation")"
+
+  mkdir -p "$tmp_dir/app-bad-corelocation-scope/Run"
+  printf 'import CoreLocation\n' > "$tmp_dir/app-bad-corelocation-scope/Run/RunView.swift"
+  check_fail "CoreLocation 在非 Harness/Location 目录反例" "$(validate_app_imports "$tmp_dir/app-bad-corelocation-scope")"
 
   mkdir -p "$tmp_dir/app-bad-framework/Harness"
   printf 'import MapKit\n' > "$tmp_dir/app-bad-framework/Harness/Map.swift"
@@ -412,7 +417,7 @@ else
   import_problems="$(validate_app_imports ios/PurePace)"
   [ -z "$import_problems" ] || problems="$problems $import_problems"
   if [ -z "$problems" ]; then
-    pass "ac-app-targets-and-frameworks (3 targets / import 允许表含 Harness 作用域)"
+    pass "ac-app-targets-and-frameworks (3 targets / import 允许表含 Harness + Location 作用域)"
   else
     fail "ac-app-targets-and-frameworks" "$problems"
   fi
@@ -438,48 +443,78 @@ else
   fail "ac-harness-manifest" "$harness_problems"
 fi
 
-# ------------------------------------------------ 占位页内容
+# ------------------------------------------------ 真实跑步 UI
 problems=""
-for file in ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/PlaceholderCopy.swift ios/PurePace/PlaceholderScreen.swift; do
+live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/Settings/SettingsView.swift"
+for file in $live_sources; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
 done
 if [ -z "$problems" ]; then
-  grep -Fq 'PurePace' ios/PurePace/PlaceholderCopy.swift || problems="$problems 缺少 PurePace 文案;"
-  grep -Fq 'Your pace, purely yours.' ios/PurePace/PlaceholderCopy.swift || problems="$problems 缺少 tagline;"
   grep -Fq 'TabView' ios/PurePace/ContentView.swift || problems="$problems 首屏缺少 TabView;"
-  for tab in Run History Log Settings; do
-    grep -Fq "\"$tab\"" ios/PurePace/PlaceholderCopy.swift || problems="$problems 缺少 Tab '$tab';"
+  for tab in Run History Settings; do
+    grep -Fq "\"$tab\"" ios/PurePace/ContentView.swift || problems="$problems 缺少 Tab '$tab';"
   done
-  # 显式文件清单：不靠非递归 glob 漏掉子目录（Audio/ 下的适配器不受占位页断言约束）。
-  placeholder_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/PlaceholderCopy.swift ios/PurePace/PlaceholderScreen.swift"
-  if grep -Eq 'URLSession|CoreLocation|AVFoundation|HealthKit' $placeholder_sources 2>/dev/null; then
-    problems="$problems 占位页含业务逻辑/网络请求;"
+  if grep -Fq '"Log"' ios/PurePace/ContentView.swift || grep -Fq 'case log' ios/PurePace/ContentView.swift; then
+    problems="$problems 首屏仍含 Log Tab;"
+  fi
+  # 真实 CoreLocation 数据源配置
+  grep -Fq 'CLLocationManager' ios/PurePace/Location/RunLocationSource.swift || problems="$problems 定位数据源未使用 CLLocationManager;"
+  grep -Fq 'requestWhenInUseAuthorization' ios/PurePace/Location/RunLocationSource.swift || problems="$problems 定位数据源未请求使用期间授权;"
+  grep -Fq 'activityType = .fitness' ios/PurePace/Location/RunLocationSource.swift || problems="$problems 定位数据源未声明 fitness 活动类型;"
+  grep -Fq 'distanceFilter = kCLDistanceFilterNone' ios/PurePace/Location/RunLocationSource.swift || problems="$problems 定位数据源未关闭距离过滤;"
+  grep -Fq 'pausesLocationUpdatesAutomatically = false' ios/PurePace/Location/RunLocationSource.swift || problems="$problems 定位数据源未关闭自动暂停;"
+  # 会话 ViewModel 必须经编排器取度量
+  grep -Fq 'RunSessionOrchestrator' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未持有 RunSessionOrchestrator;"
+  grep -Fq 'orchestrator.metrics' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未从编排器读取 metrics;"
+  # 无障碍标识（测试契约）
+  for id in run.distance run.elapsed run.currentPace run.averagePace run.splits run.start run.pause run.resume run.finish run.saved; do
+    grep -Fq "\"$id\"" ios/PurePace/Run/RunView.swift || problems="$problems 缺少无障碍标识 $id;"
+  done
+  # History / Settings 诚实态
+  grep -Fq '"history.empty"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.empty 空态;"
+  grep -Fq '"history.row"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.row 行标识;"
+  grep -Fq 'archiveStore.list()' ios/PurePace/History/HistoryView.swift || problems="$problems History 未读取真实归档;"
+  grep -Fq '暂无可配置项' ios/PurePace/Settings/SettingsView.swift || problems="$problems Settings 未声明无可配置项;"
+  if grep -Eq 'Toggle|Stepper|Slider' ios/PurePace/Settings/SettingsView.swift; then
+    problems="$problems Settings 含可切换控件;"
+  fi
+  # 无内置样例、无夹具引用、无假计时
+  if grep -rEq --include='*.swift' 'shared/fixtures|\.gpx|\.tcx' ios/PurePace; then
+    problems="$problems App 源码引用夹具/样例数据;"
+  fi
+  if grep -rEq --include='*.swift' 'Timer|DispatchQueue\.asyncAfter|CADisplayLink' ios/PurePace/Run; then
+    problems="$problems Run 目录含定时器/假计时逻辑;"
   fi
 fi
 if [ -z "$problems" ]; then
-  pass "ac-placeholder-ui (名称 + tagline + 四个空 Tab)"
+  pass "ac-live-run-ui (Run/History/Settings + 真实定位数据源 + 无障碍标识)"
 else
-  fail "ac-placeholder-ui" "$problems"
+  fail "ac-live-run-ui" "$problems"
 fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/PlaceholderCopyTests.swift"
-ui_tests="ios/PurePaceUITests/PlaceholderUITests.swift"
-[ -f "$unit_tests" ] || problems="$problems 缺少 $unit_tests;"
-[ -f "$ui_tests" ] || problems="$problems 缺少 $ui_tests;"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift"
+ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
+for file in $unit_tests $ui_tests; do
+  [ -f "$file" ] || problems="$problems 缺少 $file;"
+done
 if [ -z "$problems" ]; then
-  grep -Fq '@testable import PurePace' "$unit_tests" || problems="$problems XCTest 未导入 App 模块;"
-  grep -Fq 'XCTAssert' "$unit_tests" || problems="$problems XCTest 无断言;"
+  for file in $unit_tests; do
+    grep -Fq '@testable import PurePace' "$file" || problems="$problems $file 未导入 App 模块;"
+    grep -Fq 'XCTAssert' "$file" || problems="$problems $file 无断言;"
+  done
   grep -Fq 'XCUIApplication' "$ui_tests" || problems="$problems XCUITest 未使用 XCUIApplication;"
   grep -Fq 'app.launch()' "$ui_tests" || problems="$problems XCUITest 未启动 App;"
-  grep -Fq 'PurePace' "$ui_tests" || problems="$problems XCUITest 未断言 PurePace 文案;"
-  for tab in Run History Log Settings; do
-    grep -Fq "\"$tab\"" "$ui_tests" || problems="$problems XCUITest 未断言 Tab '$tab';"
+  for id in run.start run.pause run.resume run.finish run.saved history.row; do
+    grep -Fq "\"$id\"" "$ui_tests" || problems="$problems XCUITest 未断言 $id;"
   done
+  if grep -Eq '(Thread\.sleep|sleep\()' "$ui_tests"; then
+    problems="$problems XCUITest 使用固定 sleep 作为成功判据;"
+  fi
 fi
 if [ -z "$problems" ]; then
-  pass "ac-tests-present (XCTest + XCUITest)"
+  pass "ac-tests-present (XCTest + XCUITest 真实流程)"
 else
   fail "ac-tests-present" "$problems"
 fi
