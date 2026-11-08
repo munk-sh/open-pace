@@ -107,6 +107,7 @@ final class RunFlowUITests: XCTestCase {
             "结束后缺少「已保存」反馈"
         )
         XCTAssertFalse(app.buttons["run.finish"].exists, "结束后不应再有结束按钮")
+        attachScreenshot(app, name: "e2e-finish")
 
         XCTAssertTrue(historyTab.waitForExistence(timeout: 10), "缺少 History Tab")
         historyTab.tap()
@@ -123,6 +124,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(rowLabel.contains(" km"), "历史行缺少距离文本")
         XCTAssertTrue(rowLabel.contains(":"), "历史行缺少时长文本")
         XCTAssertTrue(rowLabel.contains("/km"), "历史行缺少平均配速文本")
+        attachScreenshot(app, name: "e2e-history")
 
         row.tap()
 
@@ -164,6 +166,7 @@ final class RunFlowUITests: XCTestCase {
                 "无分段时详情应显示诚实空态"
             )
         }
+        attachScreenshot(app, name: "e2e-detail")
 
         let exportButton = app.buttons["runDetail.export"]
         XCTAssertTrue(exportButton.waitForExistence(timeout: 5), "详情缺少导出按钮")
@@ -188,6 +191,39 @@ final class RunFlowUITests: XCTestCase {
             app.staticTexts["runDetail.exportFailed"].exists,
             false,
             "导出成功后不应显示失败态"
+        )
+
+        // 真实点击分享入口后，系统活动视图必须出现；有界等待，不用固定 sleep。
+        share.tap()
+        let shareSheetAppeared = waitUntil(timeout: 20) {
+            app.otherElements["ActivityListView"].exists
+                || app.sheets.firstMatch.exists
+                || app.buttons["Copy"].exists
+                || app.buttons["拷贝"].exists
+                || app.buttons["Save to Files"].exists
+                || app.buttons["存储到“文件”"].exists
+        }
+        XCTAssertTrue(shareSheetAppeared, "点击分享后系统分享面板/活动视图未出现")
+        attachScreenshot(app, name: "e2e-share")
+
+        // 关闭分享面板并恢复详情页，避免影响后续流程。
+        var dismissed = false
+        for label in ["Close", "关闭", "取消", "Cancel", "Done", "完成"] {
+            let button = app.buttons[label]
+            if button.exists {
+                button.tap()
+                dismissed = true
+                break
+            }
+        }
+        if !dismissed {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+            from.press(forDuration: 0.1, thenDragTo: to)
+        }
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { detailRoot.exists },
+            "关闭分享面板后应回到跑次详情"
         )
     }
 
@@ -241,6 +277,14 @@ final class RunFlowUITests: XCTestCase {
     }
 
     // MARK: - 授权与等待
+
+    /// 以固定名称保存关键节点截图（lifetime = .keepAlways），供端到端脚本导出取证。
+    private func attachScreenshot(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 
     /// 从「分段 · N」摘要中解析分段条数。
     private func splitCount(from label: String) -> Int {
