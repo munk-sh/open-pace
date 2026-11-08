@@ -1,11 +1,11 @@
 {
-  "gpxFile": "20261108T203909Z-9D756A72-BA41-4DA9-A83E-718C2B8B6558.gpx",
+  "gpxFile": "20261108T234505Z-356B6D90-3833-4B0B-B4E8-422FAD999A15.gpx",
   "trkptCount": 8,
   "sampleCount": 8,
-  "firstTimeDeltaSeconds": 0.8834900856018066,
-  "lastTimeDeltaSeconds": 0.9680440425872803,
-  "firstCoordinateDelta": 4.330502676452852e-07,
-  "lastCoordinateDelta": 1.1021245427400572e-07,
+  "firstTimeDeltaSeconds": 0.686370849609375,
+  "lastTimeDeltaSeconds": 0.7496910095214844,
+  "firstCoordinateDelta": 1.3052076042185945e-07,
+  "lastCoordinateDelta": 1.168086285474601e-07,
   "problems": [],
   "ok": true
 }

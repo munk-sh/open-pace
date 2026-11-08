@@ -1,7 +1,7 @@
 import XCTest
 
 /// 真实链路 UI 测试：依赖 `scripts/test-ios.sh` 在测试前用
-/// `xcrun simctl location start --speed=3 --interval=1` 注入 CoreLocation 更新。
+/// `xcrun simctl location <udid> set <lat>,<lon>` 每秒直线推进注入 CoreLocation 更新。
 /// 不使用 launch-arg 假流、不内置样例、不以固定 sleep 作为成功判据。
 final class RunFlowUITests: XCTestCase {
     /// 授权弹窗按钮文案（系统英文/中文）。
@@ -9,8 +9,9 @@ final class RunFlowUITests: XCTestCase {
         "Allow While Using App", "Allow Once", "Allow", "Always Allow",
         "使用 App 期间允许", "允许一次", "始终允许"
     ]
-    /// 首个真实定位样本的有界等待上限（秒）；干净模拟器冷启动可能较慢，但不得无限等待。
-    private let firstSampleTimeout: TimeInterval = 60
+    /// 首个真实定位样本的快速探针上限（秒）：注入若未投递样本，≤10s 即失败并落诊断，
+    /// 不再用 60s 静默等待掩盖链路问题。真实样本通常在注入后 1-2s 内到达。
+    private let firstSampleProbeTimeout: TimeInterval = 10
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -75,12 +76,25 @@ final class RunFlowUITests: XCTestCase {
         let startedDistance = distance.label
         let startedElapsed = elapsed.label
         XCTAssertEqual(startedDistance, "0.00 km", "开跑起点距离必须为零")
-        // 首次运行：先有界等待首个真实定位样本让距离从 0.00 km 变化，再做距离/时长断言。
+        // 首样本探针：注入后 ≤10s 无真实样本即快速失败并落诊断，不再静默等 60s。
         // 期间持续处理定位授权弹窗：脚本预置的 TCC 可能被 xcodebuild 重新安装 App 清掉，
         // 弹窗出现在点击「开始」之后，必须在这里兜住，否则用例会一直看到 0.00 km。
+        let firstSampleArrived = waitForFirstLocationSample(
+            distance: distance,
+            baseline: startedDistance,
+            timeout: firstSampleProbeTimeout
+        )
+        if !firstSampleArrived {
+            attachLocationDiagnostics(
+                app,
+                distance: distance,
+                elapsed: elapsed,
+                baseline: startedDistance
+            )
+        }
         XCTAssertTrue(
-            waitForFirstLocationSample(distance: distance, baseline: startedDistance, timeout: firstSampleTimeout),
-            "开始后 \(Int(firstSampleTimeout))s 内距离没有随真实定位样本从 \(startedDistance) 变化"
+            firstSampleArrived,
+            "开始后 \(Int(firstSampleProbeTimeout))s 内距离没有随真实定位样本从 \(startedDistance) 变化"
         )
         XCTAssertTrue(
             waitUntil(timeout: 10) { elapsed.label != startedElapsed },
@@ -301,6 +315,26 @@ final class RunFlowUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// 首样本探针失败时把可观测状态写入 xcresult；App 侧授权与样本计数由
+    /// `scripts/test-ios.sh` 回读容器内 `location-diagnostics.log` 输出到脚本日志。
+    private func attachLocationDiagnostics(
+        _ app: XCUIApplication,
+        distance: XCUIElement,
+        elapsed: XCUIElement,
+        baseline: String
+    ) {
+        let summary = """
+        location-probe-failed at \(Date())
+        baseline=\(baseline) currentDistance=\(distance.label) currentElapsed=\(elapsed.label)
+        springboardAlert=\(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
+        """
+        let text = XCTAttachment(string: summary)
+        text.name = "location-diagnostics"
+        text.lifetime = .keepAlways
+        add(text)
+        attachScreenshot(app, name: "location-probe-failed")
     }
 
     /// 从「分段 · N」摘要中解析分段条数。
