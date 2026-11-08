@@ -32,4 +32,19 @@ enum RunFormatting {
     static func splitCountText(_ count: Int) -> String {
         "\(max(0, count))"
     }
+
+    /// 历史详情的起止时间：带秒，保证同一次跑次的开始/结束文本可区分。
+    static func dateTimeText(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .standard)
+    }
+
+    /// 分段序号文本（`RunSplit.index` 从 1 开始）。
+    static func splitIndexText(_ index: Int) -> String {
+        "\(index)"
+    }
+
+    /// 分段区域摘要，含分段条数，供 UI 测试与详情标题共用。
+    static func splitSummaryText(count: Int) -> String {
+        "分段 · \(max(0, count))"
+    }
 }
