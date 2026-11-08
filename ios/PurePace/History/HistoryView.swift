@@ -5,6 +5,7 @@ import SwiftUI
 /// 无记录时给出诚实空态与「去跑一次」入口，不渲染任何示例跑次。
 struct HistoryView: View {
     let archiveStore: RunArchiveStore
+    let exporter: RunGPXExporter
     let refreshToken: Int
     let onRunAgain: () -> Void
 
@@ -19,7 +20,7 @@ struct HistoryView: View {
                     List {
                         ForEach(records, id: \.id) { record in
                             NavigationLink {
-                                RunDetailView(record: record)
+                                RunDetailView(record: record, exporter: exporter)
                             } label: {
                                 row(for: record)
                             }

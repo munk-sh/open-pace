@@ -235,6 +235,19 @@ validate_settings_view() {
   printf '%s' "$problems"
 }
 
+# App 源码不得引用夹具/样例数据；`.gpx` 扩展名本身合法（导出链路必须产出真实 .gpx）。
+# 输出为空字符串表示通过，否则返回问题描述。
+validate_no_fixture_data() {
+  local dir="$1"
+  local problems=""
+
+  if grep -rEq --include='*.swift' 'shared/fixtures|\.tcx|sample[^"[:space:]]*\.gpx' "$dir" 2>/dev/null; then
+    problems="$problems App 源码引用夹具/样例数据;"
+  fi
+
+  printf '%s' "$problems"
+}
+
 run_self_test() {
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-ios-shell.XXXXXX")"
@@ -357,6 +370,17 @@ run_self_test() {
   printf 'Toggle("每公里语音播报", isOn: .constant(true))\n  .accessibilityIdentifier("settings.announcementToggle")\nText("示例 5.00 km")\n' \
     > "$tmp_dir/settings-sample/SettingsView.swift"
   check_fail "Settings 含示例数值反例" "$(validate_settings_view "$tmp_dir/settings-sample/SettingsView.swift")"
+
+  # App 夹具引用正负反例（.gpx 扩展名字面量合法，仅禁止夹具/样例文件引用）
+  mkdir -p "$tmp_dir/app-fixture-good"
+  printf 'let ext = "gpx"\nlet target = directory.appendingPathExtension("gpx")\n' \
+    > "$tmp_dir/app-fixture-good/RunExportState.swift"
+  check_ok "App 无夹具引用正例" "$(validate_no_fixture_data "$tmp_dir/app-fixture-good")"
+
+  mkdir -p "$tmp_dir/app-fixture-bad"
+  printf 'let fixture = "shared/fixtures/sample-run.gpx"\n' \
+    > "$tmp_dir/app-fixture-bad/RunExportState.swift"
+  check_fail "App 引用夹具反例" "$(validate_no_fixture_data "$tmp_dir/app-fixture-bad")"
 
   if [ "$failures" -ne 0 ]; then
     exit 1
@@ -494,7 +518,7 @@ fi
 
 # ------------------------------------------------ 真实跑步 UI
 problems=""
-live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift"
+live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/History/RunExportState.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift"
 for file in $live_sources; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
 done
@@ -532,18 +556,23 @@ if [ -z "$problems" ]; then
   grep -Fq 'RunDetailView(record:' ios/PurePace/History/HistoryView.swift || problems="$problems History 未接入跑次详情;"
   # 跑次详情：字段来自 RunRecord 与 RunDetailContent，稳定标识供 UI 测试
   grep -Fq 'RunDetailContent(record: record)' ios/PurePace/History/RunDetailView.swift || problems="$problems 详情页未使用 RunDetailContent;"
-  for id in runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty; do
+  for id in runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty runDetail.export runDetail.exported runDetail.share runDetail.exportFailed; do
     grep -Fq "\"$id\"" ios/PurePace/History/RunDetailView.swift || problems="$problems 缺少详情无障碍标识 $id;"
   done
+  # 导出必须经 RunGPXExporter 落盘，目录由 RunStorage 统一构造
+  grep -Fq 'RunGPXExporter(directoryURL: exportDirectory' ios/PurePace/Run/RunStorage.swift || problems="$problems RunStorage 未统一构造 GPX 导出器/目录;"
+  grep -Fq 'exporter.export(record)' ios/PurePace/History/RunExportState.swift || problems="$problems 导出动作未复用 RunGPXExporter;"
+  grep -Fq 'isLandedGPXFile' ios/PurePace/History/RunExportState.swift || problems="$problems 导出未校验真实落盘;"
+  grep -Fq 'stores.exporter' ios/PurePace/ContentView.swift || problems="$problems ContentView 未注入 GPX 导出器;"
+  grep -Fq 'exporter: exporter' ios/PurePace/History/HistoryView.swift || problems="$problems History 未向详情透传导出能力;"
   grep -Fq 'record.startedAt' ios/PurePace/History/RunDetailContent.swift || problems="$problems 详情映射未取 startedAt;"
   grep -Fq 'record.splits' ios/PurePace/History/RunDetailContent.swift || problems="$problems 详情映射未取 splits;"
   # Settings：真实播报开关（禁止「暂无可配置项」/示例数值/Stepper/Slider）
   settings_problems="$(validate_settings_view ios/PurePace/Settings/SettingsView.swift)"
   [ -z "$settings_problems" ] || problems="$problems $settings_problems"
   # 无内置样例、无夹具引用、无假计时
-  if grep -rEq --include='*.swift' 'shared/fixtures|\.gpx|\.tcx' ios/PurePace; then
-    problems="$problems App 源码引用夹具/样例数据;"
-  fi
+  fixture_problems="$(validate_no_fixture_data ios/PurePace)"
+  [ -z "$fixture_problems" ] || problems="$problems $fixture_problems"
   if grep -rEq --include='*.swift' 'Timer|DispatchQueue\.asyncAfter|CADisplayLink' ios/PurePace/Run; then
     problems="$problems Run 目录含定时器/假计时逻辑;"
   fi
@@ -556,7 +585,7 @@ fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
@@ -568,7 +597,7 @@ if [ -z "$problems" ]; then
   done
   grep -Fq 'XCUIApplication' "$ui_tests" || problems="$problems XCUITest 未使用 XCUIApplication;"
   grep -Fq 'app.launch()' "$ui_tests" || problems="$problems XCUITest 未启动 App;"
-  for id in run.start run.pause run.resume run.finish run.saved history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty settings.announcementToggle; do
+  for id in run.start run.pause run.resume run.finish run.saved history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty runDetail.export runDetail.exported runDetail.share runDetail.exportFailed settings.announcementToggle; do
     grep -Fq "\"$id\"" "$ui_tests" || problems="$problems XCUITest 未断言 $id;"
   done
   if grep -Eq '(Thread\.sleep|sleep\()' "$ui_tests"; then

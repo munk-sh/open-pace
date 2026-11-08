@@ -107,6 +107,6 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 
 ## 最近交付证明
 
-- workItemId: wi_ws_83cc527f6e15a8eb（2026-11-09，pass）
-- 交付：`check-ios-shell.sh` 的 Settings 断言由「必须声明无可配置项、禁止 Toggle」改为 `validate_settings_view`（必须有 `Toggle` + `settings.announcementToggle`，禁止「暂无可配置项」/`settings.empty`/示例数值/`Stepper`/`Slider`），`live_sources` 纳入 `Settings/AnnouncementSettingsStore.swift` 与 `Audio/AnnouncementSpeaker.swift`，`unit_tests` 纳入 `AnnouncementSettingsStoreTests` / `AnnouncementSpeakerTests`，`RunFlowUITests` 需断言 `settings.announcementToggle`；`--self-test` 新增 1 正 3 负 Settings 反例，`AVFoundation` 目录限定反例未变。
-- 实测：`code_gates` 22 门全绿（attempt 001，含 `lint-ios-shell` / `build-ios` / `test-ios` / `verify-ios-sim-runtime`），门 id 与 command 逐字未变；`ios/RunCore/**`、`ios/PurePace/Harness/**`、`project.yml` 依赖零改动。结论口径：配置与调度契约通过；TTS 实听、真机与锁屏连续播报仍为 `pending: 待人现场`。
+- workItemId: wi_ws_c27dd79d1ae31478（2026-11-09，pass）
+- 交付：`check-ios-shell.sh` 支持详情页 GPX 导出——`live_sources` 纳入 `History/RunExportState.swift`，详情标识断言扩到 `runDetail.export` / `exported` / `share` / `exportFailed`，新增导出正向断言（`RunGPXExporter(directoryURL: exportDirectory`、`exporter.export(record)`、`isLandedGPXFile`、`stores.exporter`、`exporter: exporter`、`RunDetailView(record:` 仍成立）；原「App 源码出现 `.gpx` 即失败」收窄为 `validate_no_fixture_data`（仅禁 `shared/fixtures` / `sample*.gpx` / `.tcx`，允许真实导出扩展名），`--self-test` 补 1 正 1 负夹具反例，`CoreLocation` 与 `AVFoundation` 目录限定反例未变。
+- 实测：`code_gates` 22 门全绿（含 `lint-ios-shell` / `build-ios` / `test-ios` / `test-ios-run-core`），门 id 与 `command` 逐字未变；`ios/RunCore/**`、`ios/PurePace/Harness/**`、`project.yml` 依赖与 import 允许表零改动。结论口径：模拟器契约通过；导出文件外部解析/容器取证留待波 3，真机与锁屏连续播报仍为 `pending: 待人现场`。

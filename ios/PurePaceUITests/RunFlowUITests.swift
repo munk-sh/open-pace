@@ -164,6 +164,31 @@ final class RunFlowUITests: XCTestCase {
                 "无分段时详情应显示诚实空态"
             )
         }
+
+        let exportButton = app.buttons["runDetail.export"]
+        XCTAssertTrue(exportButton.waitForExistence(timeout: 5), "详情缺少导出按钮")
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "runDetail.exported").count,
+            0,
+            "落盘前不得出现导出完成态"
+        )
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "runDetail.share").count,
+            0,
+            "落盘前不得出现分享入口"
+        )
+        exportButton.tap()
+
+        let exported = app.staticTexts["runDetail.exported"]
+        XCTAssertTrue(exported.waitForExistence(timeout: 10), "导出后缺少完成态文本")
+        XCTAssertTrue(exported.label.hasSuffix(".gpx"), "完成态必须包含 .gpx 文件名，实际 \(exported.label)")
+        let share = app.descendants(matching: .any).matching(identifier: "runDetail.share").firstMatch
+        XCTAssertTrue(share.waitForExistence(timeout: 10), "落盘后缺少系统分享入口")
+        XCTAssertEqual(
+            app.staticTexts["runDetail.exportFailed"].exists,
+            false,
+            "导出成功后不应显示失败态"
+        )
     }
 
     func testAnnouncementTogglePersistsAcrossRelaunch() {
