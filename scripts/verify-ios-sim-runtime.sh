@@ -11,7 +11,8 @@ usage() {
 在 iPhone 16 / iOS 18.6 模拟器上真实执行三条链路并写出机读报告：
   1. direct：脚本生成 3 km、1 Hz、5:00–7:00/km 的 JSONL 直接流（真实写入 App 容器），
      以 --harness direct 启动 App，独立 Haversine 复算距离/配速/分段/播报。
-  2. corelocation：grant 定位授权后用 xcrun simctl location start --speed=3.0 注入约 250 m，
+  2. corelocation：grant 定位授权后按 1 Hz 用 xcrun simctl location set 逐点推进约 250 m 路线
+     （每 tick 3.0 m，按 status 实际采集距离确认推进，停滞 5 s 用当前进度重推，最多 2 轮），
      以 --harness corelocation 采集，独立复算捕获距离、覆盖率与配速。
   3. terminate→relaunch：direct 结束后 xcrun simctl terminate 杀进程，再以 --harness resume
      relaunch，比对真实 checkpoint 与恢复快照。
@@ -169,32 +170,161 @@ sys.exit(1)
 PY
 }
 
-wait_for_injected_distance() {
+wait_for_first_location_sample() {
   local status_path="$1"
-  local target_meters="$2"
-  local timeout_seconds="$3"
-  python3 - "${status_path}" "${target_meters}" "${timeout_seconds}" <<'PY'
+  local timeout_seconds="$2"
+  python3 - "${status_path}" "${timeout_seconds}" <<'PY'
 import json
 import sys
 import time
 
-path, target, timeout = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
+path, timeout = sys.argv[1], float(sys.argv[2])
 deadline = time.time() + timeout
-last = 0.0
 while time.time() < deadline:
     try:
         with open(path, "r", encoding="utf-8") as handle:
             doc = json.load(handle)
-        last = float(doc.get("actual", {}).get("distanceMeters") or 0.0)
-        if last >= target:
+        if len(doc.get("rawSamples") or []) > 0:
             sys.exit(0)
     except FileNotFoundError:
         pass
     except Exception:  # noqa: BLE001 - 原子写瞬间可能读不到，重试即可
         pass
     time.sleep(0.05)
-print("等待注入距离达到 %.1f m 超时（最后 %.1f m）" % (target, last), file=sys.stderr)
+print("等待首个定位样本超时（rawSamples 仍为空）", file=sys.stderr)
 sys.exit(1)
+PY
+}
+
+# 确定性推点：以 1 Hz 用 simctl location set 逐点推进注入路线（每 tick 3.0 m），
+# 每 tick 读 status 的实际采集距离确认推进；停滞超过 5 s 用当前进度重算剩余点并重推（最多 2 轮）。
+# 进度型超时：总预算 300 s，不依赖模拟器 location start 的播放时长。
+push_location_route() {
+  local status_path="$1"
+  local plan_path="$2"
+  local total_budget="$3"
+  python3 - "${status_path}" "${plan_path}" "${udid}" "${total_budget}" <<'PY'
+import json
+import math
+import subprocess
+import sys
+import time
+
+status_path, plan_path, udid, total_budget = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4])
+
+with open(plan_path, "r", encoding="utf-8") as handle:
+    plan = json.load(handle)
+
+speed = float(plan["speedMetersPerSecond"])
+injected = float(plan["injectedMeters"])
+target = injected * float(plan["coverageMin"])
+start_latitude = float(plan["startLatitude"])
+start_longitude = float(plan["startLongitude"])
+meters_per_degree_latitude = 6371000.0 * math.pi / 180.0
+interval = 1.0
+stall_seconds = 5.0
+max_repush_rounds = 2
+
+
+def point_at(distance_meters):
+    return start_latitude + distance_meters / meters_per_degree_latitude, start_longitude
+
+
+def push(distance_meters):
+    latitude, longitude = point_at(distance_meters)
+    completed = subprocess.run(
+        ["xcrun", "simctl", "location", udid, "set", "%.7f,%.7f" % (latitude, longitude)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        message = completed.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError("simctl location set 失败: %s" % message)
+
+
+def read_distance():
+    try:
+        with open(status_path, "r", encoding="utf-8") as handle:
+            doc = json.load(handle)
+    except FileNotFoundError:
+        return None
+    except Exception:  # noqa: BLE001 - 原子写瞬间可能读不到，重试即可
+        return None
+    return float((doc.get("actual") or {}).get("distanceMeters") or 0.0)
+
+
+started = time.time()
+try:
+    push(0.0)
+except RuntimeError as exc:
+    print(str(exc), file=sys.stderr)
+    sys.exit(1)
+
+anchor_deadline = time.time() + 30.0
+while time.time() < anchor_deadline:
+    if read_distance() is not None:
+        break
+    time.sleep(0.05)
+else:
+    print("App 未在 30 s 内写出 status（首个定位样本缺失）", file=sys.stderr)
+    sys.exit(1)
+
+distance = read_distance() or 0.0
+cursor = 0.0
+last_distance = distance
+last_progress_at = time.time()
+next_tick = time.time() + interval
+repush_rounds = 0
+
+while distance < target:
+    now = time.time()
+    measured = read_distance()
+    if measured is not None:
+        distance = measured
+    if distance >= target:
+        break
+    if now - started >= total_budget:
+        print(
+            "推点在总预算 %.0f s 内未达到 %.1f m（最后 %.1f m，重推 %d 轮）"
+            % (total_budget, target, distance, repush_rounds),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if distance > last_distance + 0.05:
+        last_distance = distance
+        last_progress_at = now
+    elif now - last_progress_at >= stall_seconds:
+        repush_rounds += 1
+        if repush_rounds > max_repush_rounds:
+            print(
+                "注入停滞超过 %.0f s 且已重推 %d 轮仍未推进（最后 %.1f m）"
+                % (stall_seconds, max_repush_rounds, distance),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        cursor = distance
+        last_distance = distance
+        last_progress_at = now
+        next_tick = now + interval
+        continue
+    if now < next_tick:
+        time.sleep(min(0.05, next_tick - now))
+        continue
+    cursor = min(cursor + speed * interval, injected)
+    if cursor <= distance:
+        cursor = min(distance + speed * interval, injected)
+    try:
+        push(cursor)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    next_tick += interval
+
+print(
+    "注入完成：target=%.1f m collected=%.1f m repush=%d elapsed=%.1f s"
+    % (target, distance, repush_rounds, time.time() - started),
+    file=sys.stderr,
+)
 PY
 }
 
@@ -447,7 +577,7 @@ PY
 }
 
 phase_corelocation() {
-  local container run_dir status checkpoint plan start_point end_point
+  local container run_dir status checkpoint plan
   container="$(app_container_path)" || link_fail "无法获取 App 容器路径"
   run_dir="${container}/Library/Caches/verify-ios-sim-runtime"
   mkdir -p "${run_dir}"
@@ -476,16 +606,13 @@ plan = {
     "endLatitude": latitude + delta_latitude,
     "endLongitude": longitude,
     "coverageMin": 0.99,
-    "distanceRelativeErrorMax": 0.01,
+    "distanceRelativeErrorMax": 0.005,
     "paceErrorMaxSecondsPerKilometer": 2.0,
 }
 with open(plan_path, "w", encoding="utf-8") as handle:
     json.dump(plan, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
 PY
-
-  start_point="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("%.7f,%.7f" % (d["startLatitude"], d["startLongitude"]))' "${plan}")"
-  end_point="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("%.7f,%.7f" % (d["endLatitude"], d["endLongitude"]))' "${plan}")"
 
   trap 'xcrun simctl location "${udid}" clear >/dev/null 2>&1 || true' EXIT
 
@@ -495,14 +622,11 @@ PY
     --harness corelocation \
     --status "${status}" \
     --checkpoint "${checkpoint}" \
-    --max-duration 150 >/dev/null || link_fail "corelocation 模式 App 启动失败"
+    --max-duration 200 >/dev/null || link_fail "corelocation 模式 App 启动失败"
 
   wait_for_corelocation_ready "${status}" 30 || link_fail "corelocation 定位授权未就绪"
 
-  xcrun simctl location "${udid}" start --speed=3.0 "${start_point}" "${end_point}" >/dev/null \
-    || link_fail "simctl location start 注入失败"
-
-  wait_for_injected_distance "${status}" 247.5 150 || link_fail "注入路线未在超时内被采集到 99% 距离"
+  push_location_route "${status}" "${plan}" 300 || link_fail "注入路线未在进度预算内被采集到 99% 距离"
 
   xcrun simctl location "${udid}" clear >/dev/null 2>&1 || true
 
@@ -736,7 +860,7 @@ def direct_link():
             on_disk_lines >= 3000,
             "onDiskLineCount=%d" % on_disk_lines,
         ),
-        ("distanceRelativeError", distance_error <= 0.01, "relativeError=%.6f" % distance_error),
+        ("distanceRelativeError", distance_error <= 0.005, "relativeError=%.6f" % distance_error),
         ("expectedDistanceRelativeError", expected_distance_error <= 0.01, "relativeError=%.6f" % expected_distance_error),
         ("averagePaceError", pace_error <= 2.0, "paceError=%.6f" % pace_error),
         (
@@ -782,7 +906,7 @@ def direct_link():
     ]
 
     thresholds = {
-        "distanceRelativeErrorMax": 0.01,
+        "distanceRelativeErrorMax": 0.005,
         "paceErrorMaxSecondsPerKilometer": 2.0,
         "splitBoundaryToleranceSamples": 1,
         "expectedDistanceMeters": 3000.0,
@@ -845,7 +969,7 @@ def corelocation_link():
             int(status.get("sampleCounts", {}).get("received", -1)) == len(raw),
             "received=%s rawSamples=%d" % (status.get("sampleCounts", {}).get("received"), len(raw)),
         ),
-        ("distanceRelativeError", distance_error <= 0.01, "relativeError=%.6f" % distance_error),
+        ("distanceRelativeError", distance_error <= 0.005, "relativeError=%.6f" % distance_error),
         ("injectedDistanceError", injected_error <= 0.01, "relativeError=%.6f" % injected_error),
         ("captureCoverage", coverage >= 0.99, "coverage=%.6f" % coverage),
         ("averagePaceError", pace_error <= 2.0, "paceError=%.6f" % pace_error),
@@ -854,7 +978,7 @@ def corelocation_link():
     ]
 
     thresholds = {
-        "distanceRelativeErrorMax": 0.01,
+        "distanceRelativeErrorMax": 0.005,
         "paceErrorMaxSecondsPerKilometer": 2.0,
         "coverageMin": 0.99,
         "injectedRouteMeters": injected,
@@ -1005,7 +1129,7 @@ link_builders = [
 def fallback_thresholds(link_id):
     if link_id == "direct":
         return {
-            "distanceRelativeErrorMax": 0.01,
+            "distanceRelativeErrorMax": 0.005,
             "paceErrorMaxSecondsPerKilometer": 2.0,
             "splitBoundaryToleranceSamples": 1,
             "expectedDistanceMeters": 3000.0,
@@ -1019,7 +1143,7 @@ def fallback_thresholds(link_id):
         except Exception:
             plan = {}
         return {
-            "distanceRelativeErrorMax": 0.01,
+            "distanceRelativeErrorMax": 0.005,
             "paceErrorMaxSecondsPerKilometer": 2.0,
             "coverageMin": float(plan.get("coverageMin") or 0.99),
             "injectedRouteMeters": float(plan.get("injectedMeters") or 250.0),
@@ -1082,7 +1206,7 @@ report = {
     },
     "notes": [
         "direct 直接流为脚本生成的 3 km、1 Hz、5:00–7:00/km JSONL，真实写入 App 容器；独立 Haversine 复算不信任 actual 自证。",
-        "corelocation 以 xcrun simctl location start --speed=3.0 注入 250 m；按 3.0 m/s 独立换算的期望配速为 333.33 s/km（阈值仍为 ±2 s/km），PRD 文案写作 5:00/km 与 3.0 m/s 不等价。",
+        "corelocation 以 1 Hz 的 xcrun simctl location set 确定性逐点推进 250 m 路线（每 tick 3.0 m），不依赖 simctl location start 的播放时长；按 3.0 m/s 独立换算的期望配速为 333.33 s/km（阈值仍为 ±2 s/km），PRD 文案写作 5:00/km 与 3.0 m/s 不等价。",
         "真机项（后台锁屏连续定位、音乐不打断与 duck 恢复、TTS 实听）保持 pending: 待人现场。",
     ],
     "verdict": verdict,
