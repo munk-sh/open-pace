@@ -14,6 +14,17 @@ enum RunLocationAuthorization: String, Sendable {
         self == .authorizedWhenInUse || self == .authorizedAlways
     }
 
+    /// 与 `CLAuthorizationStatus` 原始值一致的整数映射（遥测自证用）。
+    var clRawValue: Int {
+        switch self {
+        case .notDetermined: return 0
+        case .restricted: return 1
+        case .denied: return 2
+        case .authorizedAlways: return 3
+        case .authorizedWhenInUse: return 4
+        }
+    }
+
     /// 只有 `Always` 授权才具备后台锁屏连续定位能力；`WhenInUse` 视为降级。
     var backgroundCapable: Bool {
         self == .authorizedAlways
@@ -48,6 +59,12 @@ enum RunLocationAuthorization: String, Sendable {
 protocol RunLocationProviding: AnyObject {
     var delegate: RunLocationSourceDelegate? { get set }
     var authorization: RunLocationAuthorization { get }
+    /// 本数据源产出的采样点来源（`device` / `simulated`），供遥测如实记录。
+    var sampleSource: RunSampleSource { get }
+    /// 跑步进行态的后台更新开关快照（真实源反映 manager，测试源如实为 false）。
+    var allowsBackgroundLocationUpdates: Bool { get }
+    /// 跑步进行态的系统自动暂停开关快照。
+    var pausesLocationUpdatesAutomatically: Bool { get }
     func start()
     func stop()
 }
@@ -120,6 +137,16 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     /// 强引用持有证明：数据源生命周期内 manager 不得被回收（供 XCTest 断言）。
     var retainedManager: RunLocationManaging {
         manager
+    }
+
+    var sampleSource: RunSampleSource { .device }
+
+    var allowsBackgroundLocationUpdates: Bool {
+        manager.allowsBackgroundLocationUpdates
+    }
+
+    var pausesLocationUpdatesAutomatically: Bool {
+        manager.pausesLocationUpdatesAutomatically
     }
 
     func start() {

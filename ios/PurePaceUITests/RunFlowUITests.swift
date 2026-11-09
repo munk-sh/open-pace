@@ -20,7 +20,7 @@ final class RunFlowUITests: XCTestCase {
     func testRunPauseResumeFinishAndHistory() {
         let app = XCUIApplication()
         // 确定性测试定位源（仅 DEBUG 生效）：不依赖 hosted runner 的 simulator 定位投递。
-        app.launchArguments += ["-uiTestLocation"]
+        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
@@ -255,6 +255,57 @@ final class RunFlowUITests: XCTestCase {
         )
     }
 
+    /// ac-audio-ui-e2e / ac-tel-always：跨 1 km 边界后由 DEBUG 门控的 `run.telemetry`
+    /// 无障碍摘要断言授权/音频遥测。定位源为确定性快速源，仅用于触发公里边界。
+    func testRunProducesTelemetryAcrossKilometerBoundary() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestLocation", "-uiTestLocationFast", "-uiTestResetArchive"]
+        app.launch()
+
+        let distance = app.staticTexts["run.distance"]
+        XCTAssertTrue(distance.waitForExistence(timeout: 30), "跑步页缺少距离读数")
+        XCTAssertEqual(distance.label, "0.00 km", "未开始时距离必须为零")
+
+        // 播报开关可能被前序用例关闭；本用例经真实 UI 归一为开启，保证公里播报会发生。
+        enableAnnouncements(app)
+
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
+        start.tap()
+
+        XCTAssertTrue(
+            waitUntil(timeout: 30) { self.distanceKilometers(distance.label) >= 1.0 },
+            "快速确定源未在预算内跨过 1 km 边界，当前 \(distance.label)"
+        )
+        attachScreenshot(app, name: "telemetry-kilometer")
+
+        let finish = app.buttons["run.finish"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
+        finish.tap()
+        XCTAssertTrue(
+            app.staticTexts["run.saved"].waitForExistence(timeout: 10),
+            "结束后缺少「已保存」反馈"
+        )
+
+        let telemetry = app.staticTexts["run.telemetry"]
+        XCTAssertTrue(
+            telemetry.waitForExistence(timeout: 10),
+            "结束后缺少 DEBUG 门控的 run.telemetry 遥测摘要"
+        )
+        let summary = telemetry.label
+        XCTAssertTrue(summary.contains("authorizationStatus"), "遥测缺少 authorizationStatus：\(summary)")
+        XCTAssertTrue(summary.contains("authorizedAlways"), "系统授权应为 authorizedAlways：\(summary)")
+        XCTAssertTrue(summary.contains("rawValue=3"), "授权 rawValue 应为 3：\(summary)")
+        XCTAssertTrue(summary.contains("duckOthers=true"), "播报遥测缺少 duckOthers：\(summary)")
+        XCTAssertTrue(summary.contains("第 1 公里"), "播报遥测缺少「第 1 公里」文本：\(summary)")
+        XCTAssertTrue(summary.contains("otherAudioPlaying="), "遥测缺少 isOtherAudioPlaying：\(summary)")
+        XCTAssertTrue(
+            summary.contains("secondaryAudioSilenced="),
+            "遥测缺少 secondaryAudioShouldBeSilencedHint：\(summary)"
+        )
+        attachScreenshot(app, name: "telemetry-finish")
+    }
+
     func testAnnouncementTogglePersistsAcrossRelaunch() {
         let app = XCUIApplication()
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
@@ -310,6 +361,32 @@ final class RunFlowUITests: XCTestCase {
     }
 
     // MARK: - 授权与等待
+
+    /// 通过真实 Settings UI 把每公里播报开关归一为开启（前序用例可能已关闭）。
+    private func enableAnnouncements(_ app: XCUIApplication) {
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
+        tabBar.buttons["Settings"].tap()
+        let toggle = app.switches["settings.announcementToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings 缺少每公里播报开关")
+        if (toggle.value as? String) == "0" {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            XCTAssertTrue(
+                waitUntil(timeout: 5) { (toggle.value as? String) == "1" },
+                "无法通过 Settings 开启每公里播报"
+            )
+        }
+        tabBar.buttons["Run"].tap()
+        XCTAssertTrue(
+            app.buttons["run.start"].waitForExistence(timeout: 10),
+            "返回跑步页后缺少开始按钮"
+        )
+    }
+
+    /// 从「1.23 km」距离读数解析公里数。
+    private func distanceKilometers(_ label: String) -> Double {
+        Double(label.split(separator: " ").first ?? "0") ?? 0
+    }
 
     /// 以固定名称保存关键节点截图（lifetime = .keepAlways），供端到端脚本导出取证。
     private func attachScreenshot(_ app: XCUIApplication, name: String) {

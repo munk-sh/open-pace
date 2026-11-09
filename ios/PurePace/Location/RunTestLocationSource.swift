@@ -12,23 +12,41 @@ final class RunTestLocationSource: RunLocationProviding {
     weak var delegate: RunLocationSourceDelegate?
     private(set) var authorization: RunLocationAuthorization = .authorizedWhenInUse
 
-    /// 基准坐标与推进量：纬度每秒 +0.000090 度（约 10 m/s）。
+    /// 基准坐标：纬度每秒推进，步进由模式决定（约 10 m/s 为默认，快速模式用于跨公里边界）。
     private static let baseLatitude = 37.334900
     private static let baseLongitude = -122.009000
-    private static let latitudeStepPerSecond = 0.000090
-    private static let interval: TimeInterval = 1.0
+    private static let defaultStepPerTick = 0.000090
+    private static let fastStepPerTick = 0.001500
+    private static let defaultInterval: TimeInterval = 1.0
+    private static let fastInterval: TimeInterval = 0.5
+
+    /// `-uiTestLocationFast` 只在该测试源内生效，不改变既有 `-uiTestLocation` 默认节奏。
+    private let stepPerTick: Double
+    private let interval: TimeInterval
 
     private var tick = 0
     private var isRunning = false
     private var timer: Timer?
 
+    init(arguments: [String] = CommandLine.arguments) {
+        let fast = arguments.contains("-uiTestLocationFast")
+        stepPerTick = fast ? Self.fastStepPerTick : Self.defaultStepPerTick
+        interval = fast ? Self.fastInterval : Self.defaultInterval
+    }
+
+    var sampleSource: RunSampleSource { .simulated }
+
+    /// 确定性测试源不触碰 `CLLocationManager`，如实记录 false/false 而不伪造后台能力。
+    var allowsBackgroundLocationUpdates: Bool { false }
+    var pausesLocationUpdatesAutomatically: Bool { false }
+
     func start() {
         delegate?.locationSource(self, didChangeAuthorization: authorization)
         guard !isRunning else { return }
         isRunning = true
-        // 首个样本立即产出（≤1s），之后约每秒一个。
+        // 首个样本立即产出（≤1s），之后按模式节奏推进。
         emit()
-        timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.emit()
             }
@@ -43,7 +61,7 @@ final class RunTestLocationSource: RunLocationProviding {
 
     private func emit() {
         guard isRunning else { return }
-        let latitude = Self.baseLatitude + Double(tick) * Self.latitudeStepPerSecond
+        let latitude = Self.baseLatitude + Double(tick) * stepPerTick
         tick += 1
         guard let sample = RunSample(
             latitude: latitude,

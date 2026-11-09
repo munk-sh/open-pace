@@ -14,18 +14,31 @@ final class RunSessionViewModel: ObservableObject {
     @Published private(set) var didSave = false
     @Published private(set) var savedCount = 0
     @Published private(set) var errorMessage: String?
+    /// DEBUG + `-uiTestLocation` 时暴露的遥测摘要，供 XCUITest 断言；Release 恒为 nil。
+    @Published private(set) var telemetrySummary: String?
 
     private var orchestrator: RunSessionOrchestrator
     private let locationSource: RunLocationProviding
     private let announcements: AnnouncementSpeaking
+    private let announcementRecorder: AnnouncementTelemetryRecording
+    private let authorizationProbe: SystemAuthorizationProbing
+    private let telemetryWriter: RunTelemetryWriting
+    private let telemetryDebugEnabled: Bool
     private let now: () -> Date
+
+    private var sampleSources: [TimeInterval: RunSampleSource] = [:]
+    private var backgroundSnapshot: (allows: Bool, pauses: Bool)?
 
     init(
         checkpointStore: RunCheckpointStore,
         archiveStore: RunArchiveStore,
         locationSource: RunLocationProviding,
-        announcements: AnnouncementSpeaking = SpeechAnnouncementSpeaker(),
+        announcements: AnnouncementSpeaking? = nil,
         announcementsEnabled: Bool = true,
+        announcementRecorder: AnnouncementTelemetryRecording? = nil,
+        authorizationProbe: SystemAuthorizationProbing? = nil,
+        telemetryWriter: RunTelemetryWriting? = nil,
+        telemetryDebugEnabled: Bool = false,
         now: @escaping () -> Date = { Date() }
     ) {
         let orchestrator = RunSessionOrchestrator(
@@ -33,11 +46,16 @@ final class RunSessionViewModel: ObservableObject {
             archiveStore: archiveStore,
             announcementsEnabled: announcementsEnabled
         )
+        let recorder = announcementRecorder ?? AnnouncementTelemetryRecorder()
         self.orchestrator = orchestrator
         self.state = orchestrator.state
         self.metrics = orchestrator.metrics
         self.locationSource = locationSource
-        self.announcements = announcements
+        self.announcements = announcements ?? SpeechAnnouncementSpeaker(telemetry: recorder)
+        self.announcementRecorder = recorder
+        self.authorizationProbe = authorizationProbe ?? SystemAuthorizationProbe()
+        self.telemetryWriter = telemetryWriter ?? RunTelemetryWriter(directoryURL: archiveStore.directoryURL)
+        self.telemetryDebugEnabled = telemetryDebugEnabled
         self.now = now
         locationSource.delegate = self
     }
@@ -55,6 +73,11 @@ final class RunSessionViewModel: ObservableObject {
         guard state == .ready else { return }
         perform { try orchestrator.start(at: now()) }
         locationSource.start()
+        // 抓「跑步进行态」的后台开关快照：真实源反映 manager，测试源如实为 false。
+        backgroundSnapshot = (
+            allows: locationSource.allowsBackgroundLocationUpdates,
+            pauses: locationSource.pausesLocationUpdatesAutomatically
+        )
     }
 
     func pause() {
@@ -70,12 +93,16 @@ final class RunSessionViewModel: ObservableObject {
     func finish() {
         guard state.isActive else { return }
         do {
-            if try orchestrator.finish(at: now()) != nil {
+            let record = try orchestrator.finish(at: now())
+            if record != nil {
                 didSave = true
                 savedCount += 1
             }
             apply(state: orchestrator.state, metrics: orchestrator.metrics)
             locationSource.stop()
+            if let record {
+                injectTelemetry(for: record)
+            }
         } catch {
             errorMessage = Self.describe(error)
         }
@@ -142,6 +169,55 @@ final class RunSessionViewModel: ObservableObject {
         self.metrics = metrics
     }
 
+    /// 跑次落盘后 additive 注入遥测；失败不改变归档结果，只作为自证缺失。
+    private func injectTelemetry(for record: RunRecord) {
+        let status = authorizationProbe.authorizationStatus
+        let accuracy = authorizationProbe.accuracyAuthorization
+        let telemetry = RunTelemetry(
+            authorizationStatus: RunTelemetryAuthorization(
+                name: status.rawValue,
+                rawValue: status.clRawValue
+            ),
+            accuracyAuthorization: RunTelemetryAuthorization(
+                name: accuracy.rawValue,
+                rawValue: accuracy.clRawValue
+            ),
+            allowsBackgroundLocationUpdates: backgroundSnapshot?.allows
+                ?? locationSource.allowsBackgroundLocationUpdates,
+            pausesLocationUpdatesAutomatically: backgroundSnapshot?.pauses
+                ?? locationSource.pausesLocationUpdatesAutomatically,
+            announcements: announcementRecorder.snapshot()
+        )
+        do {
+            try telemetryWriter.inject(
+                telemetry: telemetry,
+                sources: sampleSources,
+                recordID: record.id,
+                defaultSource: locationSource.sampleSource
+            )
+        } catch {
+            // 遥测是 additive 自证，注入失败不改变跑次归档与 UI。
+        }
+        if telemetryDebugEnabled {
+            telemetrySummary = Self.summary(for: telemetry)
+        }
+    }
+
+    static func summary(for telemetry: RunTelemetry) -> String {
+        let announcements = telemetry.announcements.map { entry in
+            let duck = entry.categoryOptions.contains("duckOthers") ? "true" : "false"
+            return "\(entry.text)|duckOthers=\(duck)"
+                + "|otherAudioPlaying=\(entry.isOtherAudioPlaying)"
+                + "|secondaryAudioSilenced=\(entry.secondaryAudioShouldBeSilencedHint)"
+        }.joined(separator: ";")
+        return "authorizationStatus={name=\(telemetry.authorizationStatus.name)"
+            + ",rawValue=\(telemetry.authorizationStatus.rawValue)}"
+            + " accuracy={name=\(telemetry.accuracyAuthorization.name)"
+            + ",rawValue=\(telemetry.accuracyAuthorization.rawValue)}"
+            + " allowsBackground=\(telemetry.allowsBackgroundLocationUpdates)"
+            + " announcements=[\(announcements)]"
+    }
+
     private static func describe(_ error: Error) -> String {
         if let error = error as? RunCoreError {
             return error.description
@@ -152,6 +228,7 @@ final class RunSessionViewModel: ObservableObject {
 
 extension RunSessionViewModel: RunLocationSourceDelegate {
     func locationSource(_ source: RunLocationProviding, didProduce sample: RunSample) {
+        sampleSources[sample.timestamp.timeIntervalSince1970] = source.sampleSource
         ingest(sample)
     }
 

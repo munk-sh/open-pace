@@ -85,6 +85,7 @@ fi
 # 最后拆成「单测 → UI」两次 xcodebuild test，共用派生数据与聚合硬超时。
 sim_udid=""
 app_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePace.app"
+ui_runner_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePaceUITests-Runner.app"
 log_dir=".build/logs"
 unit_log="$log_dir/xcodebuild-unit.log"
 ui_log="$log_dir/xcodebuild-ui.log"
@@ -126,14 +127,16 @@ prepare_simulator_for_ui_tests() {
   # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
   xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
 
-  echo "info: 阶段 xcodebuild-build：构建 App 供安装与授权（派生数据 ${derived_data}）"
-  if ! xcodebuild build \
+  # build-for-testing：一次构建 App + 单测包 + UI Runner，后续两次执行都用
+  # test-without-building，避免 xcodebuild test 重装 App 把已预置的 TCC 授权清掉。
+  echo "info: 阶段 xcodebuild-build：构建 App 与测试包（build-for-testing，派生数据 ${derived_data}）"
+  if ! xcodebuild build-for-testing \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
     -derivedDataPath "$derived_data" \
     CODE_SIGNING_ALLOWED=NO; then
-    echo "test-ios: 阶段 xcodebuild-build 失败：构建 App 失败（模拟器 ${sim_udid}）" >&2
+    echo "test-ios: 阶段 xcodebuild-build 失败：构建 App 与测试包失败（模拟器 ${sim_udid}）" >&2
     exit 1
   fi
 
@@ -146,22 +149,55 @@ prepare_simulator_for_ui_tests() {
     echo "test-ios: 阶段 simulator-install 失败：simctl install 安装 $bundle_id 失败（模拟器 ${sim_udid}）" >&2
     exit 1
   fi
+  # UI Runner 必须预装：test-without-building 不会自动安装它（否则启动 xctrunner 失败）。
+  if [ ! -d "$ui_runner_path" ]; then
+    echo "test-ios: 阶段 simulator-install 失败：未找到 UI 测试 Runner ${ui_runner_path}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+  echo "info: 阶段 simulator-install：安装 UI Runner $ui_runner_path"
+  if ! xcrun simctl install "$sim_udid" "$ui_runner_path" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-install 失败：simctl install 安装 UI Runner 失败（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+
+  # 预热必须先于授权：首次安装的 bundle 需先被启动一次向 locationd 注册，
+  # 之后 `simctl privacy grant location-always` 才会真正生效（否则冷启动仍读未授权）。
+  echo "info: 阶段 simulator-warmup：启动并终止 App 一次完成预热与 locationd 注册"
+  if ! xcrun simctl launch "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-warmup 失败：simctl launch ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+  sleep 2
+  if ! xcrun simctl terminate "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-warmup 失败：simctl terminate ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
 
   echo "info: 阶段 simulator-privacy：预置定位授权（simctl privacy grant location ${bundle_id}）"
   if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
     echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）" >&2
     exit 1
   fi
+  # ac-tel-always：升级到「始终允许」，使 App 侧授权探针读回 authorizedAlways（rawValue 3）。
+  echo "info: 阶段 simulator-privacy：预置「始终允许」授权（simctl privacy grant location-always ${bundle_id}）"
+  if ! xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    exit 1
+  fi
+}
 
-  echo "info: 阶段 simulator-warmup：启动并终止 App 一次完成预热"
-  if ! xcrun simctl launch "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-warmup 失败：simctl launch ${bundle_id}（模拟器 ${sim_udid}）" >&2
-    exit 1
-  fi
-  if ! xcrun simctl terminate "$sim_udid" "$bundle_id" >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-warmup 失败：simctl terminate ${bundle_id}（模拟器 ${sim_udid}）" >&2
-    exit 1
-  fi
+# ac-tel-always：xcodebuild 每次 test-without-building 都会把 App 重装到新的 Bundle
+# 容器，而 locationd 的 TCC 记录与容器路径绑定，预置授权会随之失效；既有 UI 用例也可能
+# 把授权降级为 whenInUse。故在 UI 调用全程后台轮询已安装容器并幂等重申 location-always，
+# 保证探针在跑次结束时刻读回 authorizedAlways（rawValue 3）。
+refresh_location_always_until_stopped() {
+  local stop_file="$1"
+  while [ ! -e "$stop_file" ]; do
+    if xcrun simctl get_app_container "$sim_udid" "$bundle_id" app >/dev/null 2>&1; then
+      xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1 || true
+    fi
+    sleep 2
+  done
 }
 
 # 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）：超时先 TERM 再 KILL，
@@ -204,9 +240,9 @@ test_with_xcodebuild() {
   local started_at="$SECONDS"
   # 第一次调用：单元测试（-only-testing:PurePaceTests）；日志与 Executed 摘要先落盘。
   local unit_status=0
-  echo "info: xcodebuild test -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${xcodebuild_timeout}s，日志 ${unit_log}）"
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${xcodebuild_timeout}s，日志 ${unit_log}）"
   run_with_watchdog "$xcodebuild_timeout" "$unit_log" \
-    xcodebuild test \
+    xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
@@ -230,11 +266,29 @@ test_with_xcodebuild() {
     echo "test-ios: 阶段 xcodebuild-ui 失败：单测已耗尽 ${xcodebuild_timeout}s 聚合硬超时（模拟器 ${sim_udid}）" >&2
     return 124
   fi
+  # test-without-building 仍可能重装宿主 App，从而清掉 TCC 授权；UI 前重装 Runner 并
+  # 重申「始终允许」，保证 ac-tel-always 的 authorizedAlways（rawValue 3）可机器成立。
+  if [ -d "$ui_runner_path" ]; then
+    xcrun simctl install "$sim_udid" "$ui_runner_path" >/dev/null 2>&1 || true
+  fi
+  echo "info: 阶段 simulator-privacy：UI 前重申定位授权（location + location-always ${bundle_id}）"
+  if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    return 1
+  fi
+  if ! xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1; then
+    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）" >&2
+    return 1
+  fi
   # 第二次调用：UI 测试（-only-testing:PurePaceUITests），由 -uiTestLocation 确定性测试源驱动。
+  local tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
+  rm -f "$tcc_stop_file"
+  refresh_location_always_until_stopped "$tcc_stop_file" &
+  local tcc_refresher_pid=$!
   local ui_status=0
-  echo "info: xcodebuild test -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${remaining}s，日志 ${ui_log}）"
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${remaining}s，日志 ${ui_log}）"
   run_with_watchdog "$remaining" "$ui_log" \
-    xcodebuild test \
+    xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
@@ -244,6 +298,9 @@ test_with_xcodebuild() {
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \
     CODE_SIGNING_ALLOWED=NO || ui_status=$?
+  touch "$tcc_stop_file"
+  wait "$tcc_refresher_pid" 2>/dev/null || true
+  rm -f "$tcc_stop_file"
   cat "$ui_log" 2>/dev/null || true
   echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true

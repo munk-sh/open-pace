@@ -15,6 +15,24 @@ enum RunStorage {
             .appendingPathComponent("Exports", isDirectory: true)
     }
 
+    /// App 沙盒 `Documents/Runs/`，跑次归档唯一落点。
+    static func archiveDirectory(fileManager: FileManager = .default) -> URL {
+        documentsDirectory(fileManager: fileManager)
+            .appendingPathComponent("Runs", isDirectory: true)
+    }
+
+#if DEBUG
+    /// 仅 DEBUG 且显式传 `-uiTestResetArchive` 时清空归档与导出目录，保证 UI 用例容器隔离。
+    static func resetArchiveIfRequested(
+        arguments: [String] = CommandLine.arguments,
+        fileManager: FileManager = .default
+    ) {
+        guard arguments.contains("-uiTestResetArchive") else { return }
+        try? fileManager.removeItem(at: archiveDirectory(fileManager: fileManager))
+        try? fileManager.removeItem(at: exportDirectory(fileManager: fileManager))
+    }
+#endif
+
     static func makeExporter(fileManager: FileManager = .default) -> RunGPXExporter {
         RunGPXExporter(directoryURL: exportDirectory(fileManager: fileManager))
     }
@@ -25,11 +43,11 @@ enum RunStorage {
         let documents = documentsDirectory(fileManager: fileManager)
         let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        let archiveDirectory = documents.appendingPathComponent("Runs", isDirectory: true)
+        let runsURL = archiveDirectory(fileManager: fileManager)
         let checkpointURL = caches.appendingPathComponent("active-run.jsonl")
         return (
             checkpoint: RunCheckpointStore(fileURL: checkpointURL),
-            archive: RunArchiveStore(directoryURL: archiveDirectory),
+            archive: RunArchiveStore(directoryURL: runsURL),
             exporter: RunGPXExporter(directoryURL: exportDirectory(fileManager: fileManager))
         )
     }
