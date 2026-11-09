@@ -15,7 +15,7 @@
 ## 构建身份与档位
 
 - **(a) Debug UI-test 构建**：`xcodebuild test` 产出的 Debug 构建；`-uiTestLocation` 确定性源仅 `#if DEBUG` 可用。
-  bundle id `com.chaxiu.purepace`，实际版本 / commit 以每次 `report.md`「构建身份」段为准。
+  bundle id `sh.munk.purepace`，实际版本 / commit 以每次 `report.md`「构建身份」段为准。
 - **(b) Release 候选包**：zip sha256 `7258d2e3f7984ef2557278bd1fcdd1eea5db1f34a4d549dc8071d7afcd5b9d8f`，
   commit `8db1a167`。若实际驱动的 Release 构建与候选 zip 非同一二进制，`report.md` 必须显式标注
   「实际驱动构建 ≠ 候选包二进制」，不得宣称「候选包已验证」。
@@ -24,7 +24,7 @@
 
 ## 批次 A1：核心闭环 · Debug 可断言（`--phase=audio`）
 
-证据来源类型统一为 **Debug 可断言**，构建身份统一为 **(a) Debug UI-test 构建**（bundle `com.chaxiu.purepace`，实际 commit 见 `report.md`）。
+证据来源类型统一为 **Debug 可断言**，构建身份统一为 **(a) Debug UI-test 构建**（bundle `sh.munk.purepace`，实际 commit 见 `report.md`）。
 
 | 断言项 | 判点（通过条件） | 证据来源类型与构建身份 | 具体取值路径 |
 |---|---|---|---|
