@@ -24,23 +24,34 @@ struct ContentView: View {
         exporter = stores.exporter
         _settings = StateObject(wrappedValue: settings)
         let locationSource: RunLocationProviding
+        let telemetryDebugEnabled: Bool
 #if DEBUG
+        // UI 用例容器隔离（仅 `-uiTestResetArchive` 时清空归档/导出）。
+        RunStorage.resetArchiveIfRequested()
         // 仅 DEBUG 且显式传 `-uiTestLocation` 时使用确定性测试定位源；
         // 生产与 Release 构建仍走真实定位数据源（RunLocationSource）。
         if CommandLine.arguments.contains("-uiTestLocation") {
             locationSource = RunTestLocationSource()
+            telemetryDebugEnabled = true
         } else {
             locationSource = RunLocationSource()
+            telemetryDebugEnabled = false
         }
 #else
         locationSource = RunLocationSource()
+        telemetryDebugEnabled = false
 #endif
+        let recorder = AnnouncementTelemetryRecorder()
         _runModel = StateObject(
             wrappedValue: RunSessionViewModel(
                 checkpointStore: stores.checkpoint,
                 archiveStore: stores.archive,
                 locationSource: locationSource,
-                announcementsEnabled: settings.isEnabled
+                announcements: SpeechAnnouncementSpeaker(telemetry: recorder),
+                announcementsEnabled: settings.isEnabled,
+                announcementRecorder: recorder,
+                authorizationProbe: SystemAuthorizationProbe(),
+                telemetryDebugEnabled: telemetryDebugEnabled
             )
         )
     }

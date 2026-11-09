@@ -22,6 +22,8 @@ private final class AudioSessionSpy: AudioSessionControlling {
     var category: AVAudioSession.Category = .ambient
     var mode: AVAudioSession.Mode = .default
     var categoryOptions: AVAudioSession.CategoryOptions = []
+    var isOtherAudioPlaying: Bool = false
+    var secondaryAudioShouldBeSilencedHint: Bool = false
 
     var activations: [ActivationCall] { activationCalls.filter(\.active) }
     var deactivations: [ActivationCall] { activationCalls.filter { !$0.active } }
@@ -44,11 +46,25 @@ private final class AudioSessionSpy: AudioSessionControlling {
 
 private final class SpeechSynthesizerSpy: SpeechSynthesizing {
     private(set) var spoken: [String] = []
+    private(set) var startedCount = 0
+    private var onStart: (() -> Void)?
     private var onFinish: ((Bool) -> Void)?
 
-    func speak(_ text: String, onFinish: @escaping (Bool) -> Void) {
+    func speak(
+        _ text: String,
+        onStart: @escaping () -> Void,
+        onFinish: @escaping (_ cancelled: Bool) -> Void
+    ) {
         spoken.append(text)
+        self.onStart = onStart
         self.onFinish = onFinish
+    }
+
+    func start() {
+        startedCount += 1
+        let callback = onStart
+        onStart = nil
+        callback?()
     }
 
     func finish(cancelled: Bool = false) {
@@ -142,15 +158,65 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertTrue(synthesizer.spoken[1].contains("第 2 公里"))
     }
 
+    // MARK: - 音频遥测自证
+
+    func testTelemetryRecordsDuckContractStartFinishAndDeactivation() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let speaker = makeSpeaker(session: session, synthesizer: synthesizer, telemetry: recorder)
+
+        speaker.speak(makeCommand(splitIndex: 1))
+        synthesizer.start()
+        synthesizer.finish()
+
+        XCTAssertEqual(synthesizer.startedCount, 1, "起始回调必须被调用")
+        let entries = recorder.snapshot()
+        XCTAssertEqual(entries.count, 1)
+        guard let entry = entries.first else { return }
+        XCTAssertEqual(entry.splitIndex, 1)
+        XCTAssertTrue(entry.text.contains("第 1 公里"))
+        XCTAssertEqual(entry.category, "playback")
+        XCTAssertEqual(entry.mode, "spokenAudio")
+        XCTAssertTrue(entry.categoryOptions.contains("duckOthers"))
+        XCTAssertTrue(entry.sessionActivated, "起播时下发了会话激活")
+        XCTAssertTrue(entry.sessionDeactivated, "结束后恰好一次会话停用")
+        XCTAssertTrue(entry.duckRevoked, "结束后 duck 撤销")
+        XCTAssertFalse(entry.cancelled)
+        XCTAssertNotNil(entry.finishedAt)
+        XCTAssertLessThanOrEqual(entry.startedAt, entry.finishedAt ?? .greatestFiniteMagnitude)
+    }
+
+    func testTelemetryMarksCancelledButStillDeactivates() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let speaker = makeSpeaker(session: session, synthesizer: synthesizer, telemetry: recorder)
+
+        speaker.speak(makeCommand(splitIndex: 2))
+        synthesizer.start()
+        synthesizer.finish(cancelled: true)
+
+        let entries = recorder.snapshot()
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.cancelled, true)
+        XCTAssertEqual(entries.first?.sessionDeactivated, true)
+        XCTAssertEqual(session.deactivations.count, 1)
+    }
+
     // MARK: - helpers
 
     private func makeSpeaker(
         session: AudioSessionSpy,
-        synthesizer: SpeechSynthesizerSpy
+        synthesizer: SpeechSynthesizerSpy,
+        telemetry: AnnouncementTelemetryRecording? = nil,
+        now: @escaping () -> Date = { Date() }
     ) -> SpeechAnnouncementSpeaker {
         SpeechAnnouncementSpeaker(
             audioSession: AudioSessionAdapter(controller: session, observesInterruptions: false),
-            synthesizer: synthesizer
+            synthesizer: synthesizer,
+            telemetry: telemetry,
+            now: now
         )
     }
 
