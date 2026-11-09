@@ -24,7 +24,7 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 - ac-export-options-content: 生成的 `ExportOptions.plist` 实际包含 `app-store-connect`、`3X4J53U6RY`、`automatic`、`uploadSymbols` 为 `false`；导出命令同时含 `-exportArchive` 与 `-exportOptionsPlist`。
 - ac-version-and-build-wiring: 归档脚本经 `scripts/version.sh` 取 `MARKETING_VERSION`、经 `BUILD_NUMBER`（缺省 1）取 `CURRENT_PROJECT_VERSION` 并以 xcodebuild 命令行覆盖；`ios/project.yml` 未被修改。
 - ac-artifacts-outside-repo-and-checksums: 默认输出目录为 `${TMPDIR}/purepace-dist/<version>-<build>` 且支持 `OUT_DIR` 覆盖，归档/导出不向仓库内写产物；结束逻辑含 `.app` 与 `.app.dSYM` 复制、zip 打包、`shasum -a 256`（缺失回退 `sha256sum`）以及 zip/app/dSYM 路径与 sha256 打印。
-- ac-release-gate-wired: `.munk/code-gates.json` 新增 `lint-ios-release` 门且 `command` 为 `bash scripts/check-ios-release.sh`，门数 24；`scripts/check-ios-scripts.sh` 的门数断言同步为 24 且该门仍通过。
+- ac-release-gate-wired: `.munk/code-gates.json` 新增 `lint-ios-release` 门且 `command` 为 `bash scripts/check-ios-release.sh`，门数 24（该项交付当时的快照；当前本地拓扑为 22 门，见 `ios-ci-stability`）；`scripts/check-ios-scripts.sh` 的门数断言与本域 `check-ios-release.sh` 断言现同步为 22 且该门仍通过。
 - ac-release-gate-self-tests: `scripts/check-ios-release.sh` 含负向自检（缺 env 时归档脚本非零退出且无值泄露、`DRY_RUN=1` 输出脱敏），失败非零退出、全通过退出 0。
 - ac-runbook-complete: Runbook 含前置（ASC App 记录存在性检查命令、三件凭据的绝对路径与环境变量说明、人在场要求）、执行步骤、证据归档清单（zip/app/dSYM 的 sha256、`xcodebuild -version`、commit）、反范围（不 push tag、不建 Release、不在仓内写 `.p8` / `.env`），命令示例一律使用 `$ASC_KEY_PATH` 等占位符。
 - ac-no-network-or-workflow-changes: 不执行任何 App Store Connect 上传/记录创建；`.github/workflows/*` 触发条件与内容不变；不引入 fastlane 依赖。
@@ -49,7 +49,7 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 - 门禁口径：新增门 `command` 必须单一 argv（无 `&&`、`|`、`;`、重定向），多步断言封装进 `scripts/check-ios-release.sh`；`scripts/check-ios-scripts.sh` 只改门数相关两处（帮助文案与 `-ne 24` 判定），不改其它断言。
 - 脚本契约：`#!/usr/bin/env bash` + `set -euo pipefail` + `--help` 退出 0 含「用法」+ 未知参数退出 2；路径以 `BASH_SOURCE` 推导的仓库根为基准；参数展开一律 `${var}`（macOS bash 3.2 与 `check-shell-expansion.sh` 卫生口径）。
 - Runbook 口径：只给可离线复述的 `xcrun altool --list-apps` / ASC API 只读说明，上传与记录创建明确写为人的写操作；不得出现任何真实凭据值或根 `VERSION` 字面值。
-- 门数现状：本域落地后 `.munk/code-gates.json` 为 24 门；其它域交付证明里出现的门数为当轮快照，不回写。
+- 门数现状：本域落地时为 24 门；`wi_intake_11dc6b68d0c7555d` 起本地门拓扑收敛为 22 门（`test-ios` = `--unit-only`，两条模拟器重腿移出本地阻断，权威覆盖回 CI `ios.yml`），本域 `check-ios-release.sh` 的门数断言随之同步 22；其它域交付证明里出现的门数为当轮快照，不回写。
 
 ## 最近交付证明
 

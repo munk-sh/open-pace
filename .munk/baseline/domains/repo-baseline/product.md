@@ -11,7 +11,7 @@
 - `scripts/version.sh`：无参保持单行版本输出；`--tools` 追加根 `VERSION` 与 Xcode / Swift / JDK / Gradle 摘要，工具缺失显式标注「未就绪」，不报错、不伪造版本。Gradle 行**离线解析** `android/gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl`（`gradle-<x.y[.z]>-{bin,all}.zip` → `x.y[.z]`），**不调用 `android/gradlew`、不启动 JVM、不触网**。
 - `scripts/build-ios.sh` / `scripts/test-ios.sh`：按 `ios/PurePace.xcodeproj`（或 `ios/project.yml` + 本机 `xcodegen`）可用性自动分支。工程可用走 `xcodebuild build|test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16'`（派生数据落 `.build/ios`）；不可用输出 `blocked:` 原因并降级真实执行 `swift build|test --package-path ios/Core`，以该命令退出码为准。
 - `scripts/check-ios-scripts.sh`：上述三脚本的静态契约断言（`bash -n`、`set -euo pipefail`、`--help` 退出 0、未知参数退出 2、无版本字面值、无伪造成功行、含 xcodebuild/destination 契约字面量）；并断言 `version.sh` 正文不含 `gradlew` 且必读 `gradle-wrapper.properties`，Gradle 期望值**独立**从 wrapper properties 推导（不回写 `version.sh`，避免同源恒真），含沙箱反例自检。
-- `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加；`check-shell-expansion` 与 `verify-ios-sim-runtime`（模拟器三链路编排，编排口径见 `ios-shell` 域）为 append-only 追加，既有门 id/command 逐字不变。
+- `.munk/code-gates.json`：真实可执行门 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `build-ios-core` / `build-ios` / `test-ios-core` / `test-ios` / `test`；`test` 仍为 `bash scripts/check-baseline.sh`。Android build/test 门由 Android 骨架子项追加，`check-shell-expansion` 为 append-only 追加，既有门 id/command 逐字不变。本地门拓扑现为 22 门且只留快而确定腿：`test-ios` 固定 `bash scripts/test-ios.sh --unit-only`，模拟器重腿 `verify-ios-sim-runtime` / `verify-ios-ui-e2e` 移出本地阻断（脚本保留，权威覆盖 = `.github/workflows/ios.yml` 全量 `test-ios.sh`），此收敛为 Owner 批准的拓扑调整，非门禁放宽。
 - `scripts/check-shell-expansion.sh` + `check-shell-expansion` 门：变量展开卫生静态门，扫描 `scripts/**/*.sh`、`android/**` 的 shell 文件（含无扩展名 `android/gradlew`）与 `.github/workflows/*.yml|*.yaml` 的非注释行，禁止裸 `$var` 紧跟非 ASCII 字节；本域持有该门的范围/豁免/退出码契约，跨域脚本（Android、shared、CI 侧）只做 `${var}` 包裹，不改入口语义与退出码。
 
 ## 验收
@@ -48,8 +48,8 @@
 - ac-no-fake-evidence: 脚本、门禁与 README 输出/文案不出现「CI 通过」「真机已验证」；工程缺失时不得输出 `BUILD SUCCEEDED` 或伪造的 XCTest 通过行。
 - ac-scan-zero-hits: 对上述扫描范围的非注释行，`$标识符` 紧跟非 ASCII 字节的展开命中数为 0；`grep` 与门脚本两种口径结果一致。
 - ac-shell-expansion-wrap-only: 全部命中改为 `${var}` 形式且变量名/语义不变（纯加花括号，除 workflow 该行允许的必要引号修正）；`android/gradlew` 逐字节未改，其注释内命中仍存在并被豁免。
-- ac-gate-registered: `.munk/code-gates.json` 含 `id` 为 `check-shell-expansion`、`cwd` 为 `.`、`command` 恰为 `bash scripts/check-shell-expansion.sh` 的门；JSON 可解析且 `version=1`、门 id 唯一、门集合只增不减。
-- ac-prior-gates-unchanged: 既有门的 `id` 与 `command` 逐字未变；新增门一律 append-only，不删除、不重排、不改写（`description` 可追加说明）。
+- ac-gate-registered: `.munk/code-gates.json` 含 `id` 为 `check-shell-expansion`、`cwd` 为 `.`、`command` 恰为 `bash scripts/check-shell-expansion.sh` 的门；JSON 可解析且 `version=1`、门 id 唯一、门集合只增不减（唯一例外：`verify-ios-sim-runtime` / `verify-ios-ui-e2e` 两条模拟器重腿于 `wi_intake_11dc6b68d0c7555d` 移出本地阻断，见 `ios-ci-stability` 域）。
+- ac-prior-gates-unchanged: 既有门的 `id` 与 `command` 逐字未变；新增门一律 append-only，不删除、不重排、不改写（`description` 可追加说明）。例外仅限上条的本地重腿移出，且须在 `ios-ci-stability` 域留痕、由 `check-ios-scripts.sh` 的拓扑断言锁死。
 - ac-gate-clean-run: `bash scripts/check-shell-expansion.sh` 在真实仓库退出 0 并逐条 `[PASS]`。
 - ac-gate-self-test-positive: 内置自检构造含 `${var}中文` 的样本，判定为通过（不误报）。
 - ac-gate-self-test-negative: 内置自检构造含 `$var中文` 的样本，判定为命中并使门非零退出（证明断言非恒真）。

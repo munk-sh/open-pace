@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS 侧另有 ios/Core SwiftPM 包的真实 build/test 门与结构断言门（零第三方依赖、无业务实现、无写死版本）；ios/RunCore 跑步域纯逻辑包同样有 lint（结构/边界断言，含 --self-test 反例自检）、build 与 test 真实执行门，以及 iOS 空壳工程的 XcodeGen 结构断言（check-ios-shell）与 iOS 构建/测试脚本契约断言（check-ios-scripts），build-ios / test-ios 真实执行（工程可用时走 xcodebuild，缺失时显式 blocked 并降级 SwiftPM）。Android 侧 lint-android 执行 scripts/check-android.sh 结构/契约断言（含反例自检），lint-android-workflow 执行 scripts/check-android-workflow.sh 校验 .github/workflows/android.yml 的 YAML 解析与结构/复用/负向自检断言，build-android / test-android 经统一脚本真实执行 assembleDebug 与 testDebugUnitTest（额外校验非空 APK 与两类用例各 ≥1，强度不低于直连 gradle）。",
+  "description": "PurePace 协作基线门禁：lint 做 shell 语法检查，test 真实执行 scripts/check-baseline.sh 结构断言。iOS 侧另有 ios/Core SwiftPM 包的真实 build/test 门与结构断言门（零第三方依赖、无业务实现、无写死版本）；ios/RunCore 跑步域纯逻辑包同样有 lint（结构/边界断言，含 --self-test 反例自检）、build 与 test 真实执行门，以及 iOS 空壳工程的 XcodeGen 结构断言（check-ios-shell）与 iOS 构建/测试脚本契约断言（check-ios-scripts），build-ios 真实执行 xcodebuild 构建；test-ios 本地门跑 --unit-only（PurePaceTests 快而确定的单测腿，工程不可用时显式 blocked 并降级 SwiftPM），全量单测+UI 由 .github/workflows/ios.yml 的 test 步权威承载，verify-ios-sim-runtime / verify-ios-ui-e2e 两条模拟器重腿只做持锁串行的本地旁证、不作本地阻断。Android 侧 lint-android 执行 scripts/check-android.sh 结构/契约断言（含反例自检），lint-android-workflow 执行 scripts/check-android-workflow.sh 校验 .github/workflows/android.yml 的 YAML 解析与结构/复用/负向自检断言，build-android / test-android 经统一脚本真实执行 assembleDebug 与 testDebugUnitTest（额外校验非空 APK 与两类用例各 ≥1，强度不低于直连 gradle）。",
   "gates": [
     {
       "id": "lint",
@@ -80,7 +80,7 @@
     {
       "id": "test-ios",
       "cwd": ".",
-      "command": "bash scripts/test-ios.sh"
+      "command": "bash scripts/test-ios.sh --unit-only"
     },
     {
       "id": "build-android",
@@ -111,16 +111,6 @@
       "id": "check-shell-expansion",
       "cwd": ".",
       "command": "bash scripts/check-shell-expansion.sh"
-    },
-    {
-      "id": "verify-ios-sim-runtime",
-      "cwd": ".",
-      "command": "bash scripts/verify-ios-sim-runtime.sh"
-    },
-    {
-      "id": "verify-ios-ui-e2e",
-      "cwd": ".",
-      "command": "bash scripts/verify-ios-ui-e2e.sh"
     }
   ]
 }
