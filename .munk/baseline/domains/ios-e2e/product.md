@@ -1,58 +1,54 @@
 # Domain: ios-e2e
 
-PurePace iOS 端到端取证域：在既有真实链路（Run 页 → 结束归档 → History → RunDetail → 导出 GPX → ShareLink）之上补齐「模拟器 + 代码层」的一次性取证——用 `xcrun simctl location` 注入真实 CoreLocation、定向跑一条真实 UI 用例、从 App 真实沙盒容器读取跑次 JSON 与导出 GPX、用独立 `python3` 标准库解析逐字段对齐，产出机读报告与截图证据。不改产品逻辑与 RunCore 契约；不产出真机结论。
+PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 → History → 详情 → 导出 GPX → 系统分享）之上，用一条 XCUITest 全链路用例加干净容器级机器断言，把「开始 → 结束 → 导出 GPX」的验收从人手点击变成可重复执行的自证。定位走 `-uiTestLocation` DEBUG 确定性测试源（真实 CoreLocation 由 `verify-ios-sim-runtime` 承担）；不改产品逻辑与 RunCore 契约；不产出真机结论。
 
 ## 范围
 
-- `scripts/verify-ios-ui-e2e.sh`：`#!/usr/bin/env bash`、`set -euo pipefail`、`--help` 退出 0 且含「用法」、未知参数退出 2、以 `BASH_SOURCE` 推导仓库根、可重复执行。编排：`scripts/sync-ios-version.sh` 同步版本 → XcodeGen/现有工程生成（复用 `scripts/build-ios.sh` 判定口径，不手写 `project.pbxproj`）→ `xcodebuild` 构建安装到 `iPhone 16` / `iOS 18.6`（`com.chaxiu.purepace`）→ `simctl uninstall` 保证空容器 + `simctl location clear` 清残留 → `simctl location <udid> start --speed=3 --interval=1` 注入 ≥20 km 长航点（`trap` 清理）→ 只跑 `-only-testing:PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory`，`-resultBundlePath` 落 `.build/verify-ios-ui-e2e/` → `simctl get_app_container` 读真实容器断言 → 内嵌 `python3`（仅标准库，不 import App/RunCore 源码、不复用 `GPXCodec`）独立解析 → 写 `report.json` 与截图。
-- `ios/PurePaceUITests/RunFlowUITests.swift`：点击 `runDetail.share` 后在有界等待内断言系统分享面板/活动视图真实出现（`ActivityListView` / sheet / `Copy` / `拷贝` / `Save to Files` / `存储到“文件”`），随后经关闭按钮或下滑关闭回到详情页；在「结束 / 历史 / 详情 / 分享」四节点各保存固定名称 `XCTAttachment` 截图（`e2e-finish` / `e2e-history` / `e2e-detail` / `e2e-share`，`lifetime = .keepAlways`），不使用固定 `sleep`。
-- `.build/verify-ios-ui-e2e/report.json` 与截图：含 `ok`（布尔）、`caliber` 固定「模拟器 + 代码层」、模拟器 `udid`/`name`/`runtime`、每步实际值、容器/导出/解析数值、`screenshots[]`、`failures[]`（含 `failureReason`）；截图经 `xcresulttool export attachments` 按 `manifest.json` 名称映射导出为 PNG。
-- `docs/evidence/stage3-e2e/`：每次运行覆盖写入本次产物副本——报告摘要、独立解析结果、4 张截图副本（`report.json` / `external-parse.json` / `summary.md` / `screenshots/*.png`）。
-- 门禁：`.munk/code-gates.json` 追加单一 argv 门 `verify-ios-ui-e2e`（`bash scripts/verify-ios-ui-e2e.sh`），既有门 id 与 `command` 不变；`scripts/check-ios-scripts.sh` 的 `targets` / `strict_targets` 纳入新脚本，使 shebang / 严格模式 / `BASH_SOURCE` / `--help` / 未知参数退出码被 lint 覆盖。
+- `ios/PurePaceUITests/RunFlowUITests.swift`（4 条 UI 用例）：新增独立全链路用例 `testStartFinishExportGPXArtifact`，单次执行内完成「开始 → 首个真实样本增长 → 结束（已保存）→ History 选中本次记录 → 详情 → 导出（完成态含 `.gpx`、无失败态）→ 点分享 → 有界等待系统活动视图出现 → 用例自行关闭 → 回详情」。按「开始前行数 N → 结束后 N+1」「降序首行即本次记录」取数，不依赖全局恰 1 条；四节点固定附件名 `e2e-finish` / `e2e-history` / `e2e-detail` / `e2e-share`（`.keepAlways`）；无 `Thread.sleep`/固定 `sleep`，分享出现 ≤20s、关闭 ≤10s 均为有界等待。
+- `scripts/verify-ios-ui-e2e.sh`：`#!/usr/bin/env bash`、`set -euo pipefail`、以 `BASH_SOURCE` 推导仓库根、`--help` 退出 0、未知参数退出 2、可重复执行。编排：版本同步 → 工程生成 → 构建安装 → `simctl uninstall` 干净容器 → 只跑上述新用例（`-only-testing`，恰 1 条跑次，`-resultBundlePath` 落 `.build/verify-ios-ui-e2e/`）→ 真实容器断言；正文不得出现 `simctl location`。
+- 容器断言：`Documents/Runs` 恰 1 个 `.json`（`formatVersion == 1`、`distance > 0`、`samples` 非空、`activeDuration > 0`、`startedAt < endedAt`）；`Documents/Exports` 至少 1 个 `.gpx`，字节数 > 0、文件名忽略大小写包含该跑次 `id`（UUID）；`xmllint --noout` 退出 0、根元素 `{http://www.topografix.com/GPX/1/1}gpx`、`version="1.1"`。
+- 内嵌 `python3`（仅标准库，不 import App/RunCore 源码、不复用 `GPXCodec`）独立解析：`trkpt` 数严格 == `samples` 数；GPX 时间跨度与记录时间跨度绝对差 ≤1s；首末 `trkpt` 与对应样本时间差各 ≤1s；首末经纬度差 ≤1e-6。任一不等即非零退出并记录实际值与期望值。
+- 证据：`.build/verify-ios-ui-e2e/report.json` 与 `export-evidence.json`（含 `recordId` / `gpxFile` / `sha256`（64 hex）/ `bytes` / `trkptCount` / `sampleCount` / `timeSpanSeconds` / `timeSpanDeltaSeconds` / `ok`），默认只写 `.build/`；显式 `--refresh-evidence` 才覆盖 `docs/evidence/stage3-e2e/`（报告、导出证据、解析结果、4 张截图副本）。成败路径都留下证据文件（前置失败补写 `ok=false`）。
+- 门禁定位：`.munk/code-gates.json` 保持 22 门；`verify-ios-ui-e2e` 是按需执行的持锁串行本地旁证、不作本地阻断，权威绿为 `.github/workflows/ios.yml` 同 commit run（回执须引真实 run id + headSha）。`lint-ios-shell` 断言 4 条 UI 用例、`func testStartFinishExportGPXArtifact` 存在、`XCTAssert` ≥112，并对「删除新用例」反例判红。
+- `README.md`：新增「跑步链路验收自动化」小节，写明新用例名、本机定向跑命令、干净容器断言入口、证据路径、真机执行命令（`-destination id=00008101-001C701E0A68001E`），并把人工清单收敛为两件。
 
 ## 验收
 
-- ac-script-contract: 脚本存在且 `bash -n` 通过，首行 `#!/usr/bin/env bash`、含 `set -euo pipefail` 与 `BASH_SOURCE` 推导仓库根；`--help` 退出 0 且输出含「用法」；未知参数退出 2。
-- ac-script-idempotent: 任意 cwd 执行均以仓库根为基准；连续两次运行不因残留失败（运行前清空 `.build/verify-ios-ui-e2e/`、卸载 App、`location clear`），`trap` 在成功与失败路径都执行 `simctl location <udid> clear`。
-- ac-simulator-target: 固定 `iPhone 16` / `iOS 18.6` destination 与 `com.chaxiu.purepace`；模拟器缺失或 boot 失败时非零退出并在 `report.json` 的 `failures[]` 写明原因，不静默跳过、不降级为通过。
-- ac-empty-container-before-run: 测试前 `simctl uninstall` 后 `get_app_container` 取不到 `Documents/Runs` 下任何跑次文件（或容器不存在），保证「恰 1 条」来自本次运行。
-- ac-real-location-injection: 用 `simctl location <udid> start --speed=3 --interval=1` 注入 ≥20 km 长航点；脚本内不出现 `--harness direct`、launch-arg 假流、`shared/fixtures` 或任何夹具路径。
-- ac-single-run-archived: 测试后容器 `Documents/Runs` 恰 1 个 `.json`；`formatVersion == 1`、`distance > 0`、`samples` 非空、`activeDuration > 0`、`startedAt < endedAt`，实际值写入 `report.json`。
-- ac-export-gpx-valid: 容器 `Documents/Exports` 至少 1 个 `.gpx` 且字节数 > 0；`xmllint --noout` 退出 0；根元素 `gpx` 且 `version="1.1"`、`xmlns="http://www.topografix.com/GPX/1/1"`。
-- ac-external-parse-consistency: 内嵌 `python3` 独立解析器输出 `trkpt` 数 == 跑次 `samples` 数；首末 `trkpt` `<time>` 与 `samples` 首末 `timestamp` 绝对差 ≤1 s；首末 `lat`/`lon` 与对应采样绝对差 ≤1e-6；任一不等即非零退出并记录实际值与期望值。
-- ac-share-sheet-asserted: 点击 `runDetail.share` 后在有界等待内断言系统分享面板/活动视图出现，随后关闭；不使用 `Thread.sleep`/固定 `sleep`，该用例在门禁中真实通过。
-- ac-screenshots: 四个节点各产出一张固定名称 `XCTAttachment` 截图；脚本用 `xcresulttool export attachments` 导出后断言 4 张 PNG 存在且字节数 > 0，并复制到 `.build/verify-ios-ui-e2e/screenshots/` 与 `docs/evidence/stage3-e2e/screenshots/`。
-- ac-report-json: `.build/verify-ios-ui-e2e/report.json` 为合法 JSON，含 `ok`、`caliber` = 「模拟器 + 代码层」、模拟器 `udid`/`name`/`runtime`、各步骤实际值、容器与导出解析数值、`screenshots[]`、`failures[]`；任一步失败时 `ok == false`、`failureReason` 非空且脚本退出非零。
-- ac-evidence-docs: `docs/evidence/stage3-e2e/` 存在报告摘要、独立解析结果与 4 张截图副本；文案只出现「模拟器 + 代码层」「模拟器链路通过」「导出逐字段对齐通过」，不出现「真机已验证」「实听通过」「阶段 2 已通过」「阶段 3 已通过」。
-- ac-no-fabrication: 脚本不 `echo`/`printf` 任何 `BUILD SUCCEEDED`/`TEST SUCCEEDED` 伪造成功行；导出与跑次证据只来自 `get_app_container` 读出的真实文件，不读 `shared/fixtures`、不用内存字符串冒充。
-- ac-gates-preserved: `.munk/code-gates.json` 追加 `verify-ios-ui-e2e`（单一 argv），既有门 id 与 `command` 完全不变；`lint-ios-shell` / `lint-ios-scripts` / `build-ios` / `test-ios` / `verify-ios-ui-e2e` 全绿。
+- ac-ui-case-exists-and-runs: `RunFlowUITests.swift` 存在方法名以 `testStartFinishExport` 开头的用例且按字母序排在 `testRunPauseResumeFinishAndHistory` 之后；`-only-testing:PurePaceUITests/RunFlowUITests/<新用例>` 可执行；源码不含 `Thread.sleep`/`sleep(`。
+- ac-full-flow-no-human: 单次执行内完成「开始 → 首个样本增长 → 结束 → 已保存 → History 选中本次记录 → 详情 → 导出 → 分享面板出现 → 自行关闭 → 回详情」，不依赖外部人手点击；分享出现 ≤20s、关闭 ≤10s 均为有界等待。
+- ac-export-gpx-in-container: `simctl uninstall` 后的干净容器执行新用例后，`Documents/Exports/` 至少有 1 个本次新 `.gpx`，字节数 > 0，文件名包含本次 `.json` 记录 `id` 的 UUID 字符串（忽略大小写）。
+- ac-gpx-1-1-parse: 该 `.gpx` 经 `xmllint --noout` 退出 0；根元素 `{http://www.topografix.com/GPX/1/1}gpx` 且 `version == "1.1"`。
+- ac-trkpt-equals-samples: `trkpt` 数严格等于对应跑次 JSON `samples` 长度（0 差异；现有导出 1:1 全量写入，不做有意过滤）。
+- ac-time-span-matches: `samples[-1].timestamp - samples[0].timestamp` 与 GPX `lastTrkpt.time - firstTrkpt.time` 绝对差 ≤1.0s；首末 `trkpt` 与对应样本绝对时间差各 ≤1.0s。
+- ac-evidence-artifact: 每次运行写出 `export-evidence.json`，字段至少含 `recordId`、`gpxFile`、`sha256`（64 位十六进制）、`trkptCount`、`sampleCount`、`timeSpanSeconds`、`ok`；stdout 打印路径；任一断言失败时 `ok == false` 且脚本非零退出。
+- ac-e2e-leg-topology: `verify-ios-ui-e2e` 不新增本地阻断门，保持「持锁串行本地旁证 + `ios.yml` 权威」口径；脚本执行的是新全链路用例并完成上述容器断言，不是仅本地手动的旁路脚本。
+- ac-existing-suites-preserved: 既有 3 条 UI 用例逐条保留、断言不减；`PurePaceTests` 全量单测不删不弱化；`check-ios-shell.sh` 的 `XCTAssert` 阈值只升不降。
+- ac-device-runnable: 新用例只依赖 XCUITest + `-uiTestLocation` DEBUG 门控，不使用模拟器专属 API；README 给出真机可执行命令；本项不连接真机。
+- ac-docs-manual-checklist: README 明确「人手清单只剩两件：改系统定位授权、按电源键锁屏」，并说明开始/结束/选记录/滚动/导出/分享由用例覆盖。
+- ac-no-product-change: `ios/PurePace/**` 产品源码、`ios/RunCore/**`、`ios/Core/**`、`ios/project.yml`、`VERSION`、导出/持久化/CoreLocation/AudioSession 契约零改动；不加种子数据；不新增第三方运行时或脚本依赖（仅 bash / xcrun / xcodebuild / xmllint / python3 标准库）。
+- ac-gates-green: 本地 `.munk/code-gates.json` 全量绿（含 `lint-ios-shell`、`lint-ios-scripts`），回执给出新用例名、断言落点、证据文件路径与实跑输出摘要。
 
 ## 非目标
 
-- 不做真机验证、不产出真机结论、不做锁屏/后台连续定位、音乐 duck、TTS 实听（一律 `pending: 待人现场`，属阶段 4 硬门）。
-- 不改 App 产品逻辑与 RunCore 契约：不改归档/导出/播报/度量实现，不改 GPX 字段顺序与命名规则，不改 UI 布局与无障碍标识语义（只新增 UI 测试断言与截图）。
-- 不做 Android、不改 `.github/workflows/*` 的触发条件/权限/步骤语义，不推 tag、不动 Release。
-- 不新增第三方运行时或脚本依赖（只用 bash、xcrun、xcodebuild、xmllint、python3 标准库）。
-- 不做 CI 产物上传、不做截图比对/视觉回归、不做报告可视化页面。
-- 不重跑或替代 `verify-ios-sim-runtime` 的三条 Harness 链路；不删除/降级现有门。
-- 不创建或修改 Host 托管文件（`goal.md`、`handoff.md`、`now.md`、`product.json`、`close-proposal.json`）。
+- 不在本项连接或执行真机；不产出真机容器断言或「真机已验证」结论；真机锁屏/后台连续定位仍为 `pending: 待人现场`。
+- 不改导出业务逻辑、GPX 编码器、文件名规则、持久化契约与 CoreLocation/AudioSession；不向业务流程加种子数据。
+- 不降门、不删或弱化既有单测与 3 条 UI 用例；不为让用例通过而放宽断言或加入无限 sleep。
+- 不引入 WDA 以外的验收判据；不改 `.github/workflows` 触发条件与步骤语义；不推 tag、不动 Release。
+- 不做截图视觉回归、CI 产物上传、Android 侧改动；A 授权遥测 / B 音频机器自证已拆至独立工作项，本域不含。
 
 ## 实现约束
 
-- **复用现有脚本口径**：destination `platform=iOS Simulator,name=iPhone 16,OS=18.6`、`bundle_id="com.chaxiu.purepace"`、`.build/` 产物目录、退出码 0/1/2 语义沿用 `scripts/test-ios.sh` 与 `scripts/verify-ios-sim-runtime.sh`，不另造第二套模拟器选择逻辑。
-- **定向用例**：`-only-testing:PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory`；`testAnnouncementTogglePersistsAcrossRelaunch` 不在本门内跑（其 terminate/relaunch 与「恰 1 条跑次」断言冲突）。
-- **定位注入时序**：先 boot 并 uninstall，再 `location start`，然后 `xcodebuild test`；航点总长 ≥20 km（3 m/s 下 ≥110 min 窗口），不依赖固定 `sleep` 判成功；`trap` 同时清理 location 与临时结果包残留。
-- **容器读取**：只认 `simctl get_app_container <udid> com.chaxiu.purepace data` 下的 `Documents/Runs/*.json` 与 `Documents/Exports/*.gpx`，不用 `.build/ios/Build/Products` 或测试宿主沙盒代替。
-- **RunRecord JSON 事实**（只读对齐，勿改产品侧）：文件名 `<UTC yyyyMMdd'T'HHmmss'Z'>-<uuid>.json`，键 `formatVersion`/`id`/`startedAt`/`endedAt`/`distance`/`activeDuration`/`splits`/`samples`；`startedAt`/`endedAt`/`samples[].timestamp` 为 Unix epoch 秒（Double），非 ISO8601；GPX 侧 `<time>` 为 ISO8601 UTC。
-- **外部解析器**：`python3` heredoc/内联，只用 `json`、`xml.etree.ElementTree`、`datetime`、`argparse` 等标准库；命名空间用 `{http://www.topografix.com/GPX/1/1}` 匹配；失败必须给出实际值与期望值并非零退出。
-- **截图导出**：`XCTAttachment(name:)` 名称固定、`lifetime = .keepAlways`；脚本按 `xcresulttool export attachments` 的 `manifest.json` 映射名称到文件，不靠文件名猜顺序；4 张缺失即失败。
-- **分享面板断言**：优先 `app.otherElements["ActivityListView"]`，备选 `app.sheets.firstMatch` / 分享动作按钮；断言后点关闭恢复详情页。
-- **门禁与 lint 同步**：`check-ios-scripts.sh` 的 `targets` 与 `strict_targets` 追加 `verify-ios-ui-e2e.sh`（只增不减）；不改放宽 import/夹具/占位断言。
-- **证据目录**：`docs/evidence/stage3-e2e/` 每次运行覆盖写入（幂等），内容必须是本次运行产物副本。
-- **口径**：报告、摘要、提交信息只写「模拟器 + 代码层」「模拟器链路通过」，不写「真机已验证」「阶段 2/3 已通过」。
+- **文件锚点**：只改 `ios/PurePaceUITests/RunFlowUITests.swift`、`scripts/verify-ios-ui-e2e.sh`、`scripts/check-ios-shell.sh`、`README.md`；必要时同步 `scripts/check-ios-scripts.sh` 中仅与 verify 脚本契约相关的断言。禁止改 `ios/PurePace/**` 与 `ios/RunCore/**`。
+- **用例命名与顺序**：新方法名须按 XCTest 字母序排在 `testRunPauseResumeFinishAndHistory` 之后（推荐 `testStartFinishExportGPXArtifact`），避免新跑次破坏既有用例「启动时 History 为空、结束后恰 1 条」的前提。
+- **定向执行**：`-only-testing` 改为新用例；干净容器断言仍为「恰 1 条跑次」，故该门只跑新用例，不并发跑其它会产生跑次的用例；构建/安装/预热/授权与串行锁沿用 main 口径。
+- **事实口径**：跑次 JSON 文件名 `<UTC yyyyMMdd'T'HHmmss'Z'>-<uuid>.json`，键 `id` 为 UUID 字符串；`startedAt`/`endedAt`/`samples[].timestamp` 为 Unix epoch 秒（Double）；GPX `<time>` 为 ISO8601 UTC；`RunGPXExporter` 全量映射 `samples` → `GPXTrack.points`，故 `trkpt == samples` 严格相等。
+- **证据目录**：默认只写 `.build/verify-ios-ui-e2e/`（不 churn 仓库证据）；`--refresh-evidence` 才覆盖 `docs/evidence/stage3-e2e/`；`sha256` 由 `python3 hashlib` 对真实导出字节计算。
+- **分享面板断言**：优先 `ActivityListView`，备选 `app.sheets.firstMatch` / 分享动作按钮；关闭按钮在系统远程视图内时用归一化坐标点击，失败再下滑兜底；断言与关闭都不使用固定 sleep。
+- **门禁与 lint 同步**：`check-ios-shell.sh` 用例数 4、`XCTAssert` 阈值 ≥112、负例自检覆盖「删除新用例」；`check-ios-scripts.sh` 的 22 门计数与 `verify-ios-ui-e2e` 契约不得改坏。
+- **口径**：报告、摘要、提交信息只写「模拟器 + 代码层」；不写「真机已验证」「阶段 3 已通过」。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_7f42ce11f04623e8（2026-11-09，pass）
-- 交付：新增 `scripts/verify-ios-ui-e2e.sh`（770 行，编排版本同步 → 工程生成 → 构建安装 → 空容器 → 长航点注入 → 定向真实 UI 用例 → 真实容器断言 → 内嵌 `python3` 独立解析 → `report.json` + 截图证据）；`RunFlowUITests` 补分享面板有界断言与 4 节点截图；`.munk/code-gates.json` 追加单一 argv 门 `verify-ios-ui-e2e`，`check-ios-scripts.sh` 的 `targets`/`strict_targets` 纳入新脚本；`docs/evidence/stage3-e2e/` 落本次副本（`report.json` / `external-parse.json` / `summary.md` / 4 张 PNG）。
-- 实测：`code_gates` 全绿（含 `lint-ios-scripts` / `lint-ios-shell` / `build-ios` / `test-ios` / `verify-ios-ui-e2e`）；容器恰 1 条跑次、GPX 通过 `xmllint`、外部解析 `trkpt`/`samples` 逐字段对齐。口径：模拟器链路通过、导出逐字段对齐通过；真机与 TTS 实听仍为 `pending: 待人现场`。
+- workItemId: wi_intake_e3d410ae1741d8d8（2026-11-09，pass）
+- 交付：`RunFlowUITests.swift` 新增 `testStartFinishExportGPXArtifact`（全链路开始/结束/选记录/详情/导出/分享/回详情，4 张固定截图）；`scripts/verify-ios-ui-e2e.sh` 改为定向该用例并扩展容器断言（导出行 UUID 绑定、时间跨度对齐）与 `export-evidence.json`（sha256 等），失败路径补写 `ok=false`；`check-ios-shell.sh` 用例数 3→4、`XCTAssert` 阈值升至 112、新增「删除新用例」反例；`README.md` 新增跑步链路验收自动化小节与两件人工清单。
+- 实测：实跑证据 `.build/verify-ios-ui-e2e/export-evidence.json` `ok=true`，`recordId 49D20EE4-…E405DB`、`trkptCount 4 == sampleCount 4`、`timeSpanDeltaSeconds 0.0`、`sha256` 64 hex；本地 22 门全绿（`lint-ios-shell` / `lint-ios-scripts` 等）。口径：模拟器 + 代码层；重 UI e2e 权威绿以 `ios.yml` 同 commit run 为准；真机仍为 `pending: 待人现场`。

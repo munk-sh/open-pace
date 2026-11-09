@@ -756,10 +756,12 @@ PY
     out="$out 缺少 $ui;"
   else
     grep -Fq -- '-uiTestLocation' "$ui" || out="$out RunFlowUITests 未传 -uiTestLocation 启动参数;"
+    grep -Fq 'func testStartFinishExportGPXArtifact' "$ui" \
+      || out="$out RunFlowUITests 缺少全链路导出用例 testStartFinishExportGPXArtifact;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    [ "$test_count" -eq 3 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 3）;"
-    [ "$assert_count" -ge 68 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥68）;"
+    [ "$test_count" -eq 4 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 4）;"
+    [ "$assert_count" -ge 112 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥112）;"
   fi
   if [ ! -f "$run_source" ]; then
     out="$out 缺少 $run_source;"
@@ -813,12 +815,16 @@ drop_assertions() {
 drop_ui_case() {
   sed -i '' '/func testAnnouncementTogglePersistsAcrossRelaunch/d' "$1/ios/PurePaceUITests/RunFlowUITests.swift"
 }
+drop_export_ui_case() {
+  sed -i '' '/func testStartFinishExportGPXArtifact/d' "$1/ios/PurePaceUITests/RunFlowUITests.swift"
+}
 
 ui_source_selftest "ac-ui-test-location-source" no_debug_guard
 ui_source_selftest "ac-ui-test-location-arg" drop_launch_arg
 ui_source_selftest "ac-ui-test-source-debug-only" leak_test_source
 ui_source_selftest "ac-ui-assertions-intact" drop_assertions
 ui_source_selftest "ac-ui-test-count-intact" drop_ui_case
+ui_source_selftest "ac-ui-export-case-intact" drop_export_ui_case
 
 # ------------------------------------------------ 脚本与门禁真实执行
 problems=""
