@@ -46,4 +46,20 @@ bash scripts/version.sh --tools
 | Android 测试 | `bash scripts/test-android.sh` | 已就绪；真实执行 `testDebugUnitTest`，区分纯 JVM 与 Robolectric/Compose 两类用例各 ≥1 |
 | Android 脚本与结构断言 | `bash scripts/check-android.sh` | 已就绪；含 applicationId 单点、SDK/JDK、版本派生、wrapper 与门禁完整性断言 |
 
+## 跑步链路验收自动化
+
+全链路用例 `PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact` 自动完成「开始 → 结束 → 选中本次记录 → 详情 → 导出 GPX → 系统分享面板 → 回详情」，不依赖人工点击，也不使用固定 sleep。导出产物与跑次 JSON 的机器断言由 `scripts/verify-ios-ui-e2e.sh` 在干净容器上执行；按公司验证分层裁决，这条重 UI E2E 的权威绿是 `ios.yml` 同 commit run（结论必须引真实 run id + headSha），本地 `code_gates` 不再以它阻断：
+
+| 用途 | 入口 |
+|---|---|
+| 本机定向跑新用例 | `xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,name=iPhone 16,OS=18.6" -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact CODE_SIGNING_ALLOWED=NO` |
+| 干净容器 + 容器级断言（本地可手动跑，非本地阻断门） | `bash scripts/verify-ios-ui-e2e.sh` |
+| 真机执行（由公司排窗，本仓库不自动跑） | `xcodebuild test -destination id=00008101-001C701E0A68001E -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact` |
+
+证据默认写 `.build/verify-ios-ui-e2e/export-evidence.json`，字段含 `recordId` / `gpxFile` / `sha256` / `trkptCount` / `sampleCount` / `timeSpanSeconds` / `ok`；显式 `--refresh-evidence` 时另复制到 `docs/evidence/stage3-e2e/export-evidence.json`。断言口径：GPX 为 1.1 且可解析、`trkpt` 数 == `samples` 数、时间跨度差与首末时间差均 ≤1s，结论只写「模拟器 + 代码层」。
+
+**人手清单只剩两件**：改系统定位授权、按电源键锁屏。开始 / 结束 / 选记录 / 滚动 / 导出 / 分享全部由用例覆盖。
+
+A 授权遥测 / B 音频机器自证 → 已拆至独立工作项，本项不含。
+
 门禁定义在 [`.munk/code-gates.json`](./.munk/code-gates.json)：含 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `lint-ios-shell` / `lint-android` / `build-ios-core` / `build-ios` / `build-android` / `test-ios-core` / `test-ios` / `test-android` / `test` / `check-shared`；`test` 真实执行 `scripts/check-baseline.sh`，iOS build/test 在工程不可用时显式 `blocked:` 并降级到 `ios/Core` 的 SwiftPM 命令，Android build/test 经统一脚本真实执行 `assembleDebug` / `testDebugUnitTest`。

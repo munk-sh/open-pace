@@ -7,7 +7,8 @@ final class RunFlowUITests: XCTestCase {
     /// 授权弹窗按钮文案（系统英文/中文）。
     private static let locationAllowLabels = [
         "Allow While Using App", "Allow Once", "Allow", "Always Allow",
-        "使用 App 期间允许", "允许一次", "始终允许"
+        "Change to Always Allow",
+        "使用 App 期间允许", "允许一次", "始终允许", "允许改为始终允许"
     ]
     /// 首个真实定位样本的快速探针上限（秒）：注入若未投递样本，≤10s 即失败并落诊断，
     /// 不再用 60s 静默等待掩盖链路问题。真实样本通常在注入后 1-2s 内到达。
@@ -268,17 +269,14 @@ final class RunFlowUITests: XCTestCase {
 
         // 播报开关可能被前序用例关闭；本用例经真实 UI 归一为开启，保证公里播报会发生。
         enableAnnouncements(app)
-
         let start = app.buttons["run.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
         start.tap()
-
         XCTAssertTrue(
             waitUntil(timeout: 30) { self.distanceKilometers(distance.label) >= 1.0 },
             "快速确定源未在预算内跨过 1 km 边界，当前 \(distance.label)"
         )
         attachScreenshot(app, name: "telemetry-kilometer")
-
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
@@ -304,6 +302,127 @@ final class RunFlowUITests: XCTestCase {
             "遥测缺少 secondaryAudioShouldBeSilencedHint：\(summary)"
         )
         attachScreenshot(app, name: "telemetry-finish")
+    }
+
+    /// 全链路导出自证：开始 → 结束 → 选中本次记录 → 详情 → 导出 GPX → 系统分享面板 → 回到详情。
+    /// 与 `testRunPauseResumeFinishAndHistory` 相互独立：以「开始前记录行数 N → 结束后 N+1」取本次记录，
+    /// 最新一行（按 startedAt 降序的首行）即本次记录，不依赖容器全局恰 1 条。
+    func testStartFinishExportGPXArtifact() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestLocation"]
+        addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
+            for label in Self.locationAllowLabels {
+                let button = alert.buttons[label]
+                if button.exists {
+                    button.tap()
+                    return true
+                }
+            }
+            return false
+        }
+        app.launch()
+        allowLocationIfNeeded()
+
+        let distance = app.staticTexts["run.distance"]
+        let elapsed = app.staticTexts["run.elapsed"]
+        XCTAssertTrue(distance.waitForExistence(timeout: 30), "跑步页缺少距离读数")
+        XCTAssertTrue(elapsed.exists, "跑步页缺少时长读数")
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "缺少 Tab 栏")
+        let historyTab = tabBar.buttons["History"]
+        XCTAssertTrue(historyTab.waitForExistence(timeout: 10), "缺少 History Tab")
+
+        // 记录开始前已有行数 N；本次结束后应变为 N+1，且降序首行即本次新记录。
+        historyTab.tap()
+        let rows = app.descendants(matching: .any).matching(identifier: "history.row")
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { rows.count > 0 || app.staticTexts["history.empty"].exists },
+            "History 列表未加载完成"
+        )
+        let baselineCount = rows.count
+        XCTAssertTrue(app.tabBars.buttons["Run"].waitForExistence(timeout: 10), "缺少 Run Tab")
+        app.tabBars.buttons["Run"].tap()
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
+        start.tap()
+        let startedDistance = distance.label
+        let startedElapsed = elapsed.label
+        let firstSampleArrived = waitForFirstLocationSample(
+            distance: distance,
+            baseline: startedDistance,
+            timeout: firstSampleProbeTimeout
+        )
+        if !firstSampleArrived {
+            attachLocationDiagnostics(
+                app,
+                distance: distance,
+                elapsed: elapsed,
+                baseline: startedDistance
+            )
+        }
+        XCTAssertTrue(
+            firstSampleArrived,
+            "开始后 \(Int(firstSampleProbeTimeout))s 内距离没有随真实定位样本从 \(startedDistance) 变化"
+        )
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { elapsed.label != startedElapsed },
+            "开始后时长没有随真实采样增长"
+        )
+        let finish = app.buttons["run.finish"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
+        finish.tap()
+        XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少「已保存」反馈")
+        attachScreenshot(app, name: "e2e-finish")
+
+        historyTab.tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 20) { rows.count == baselineCount + 1 },
+            "结束后 History 应从 \(baselineCount) 条增至 \(baselineCount + 1) 条，实际 \(rows.count) 条"
+        )
+        XCTAssertFalse(app.staticTexts["history.empty"].exists, "有记录时不应显示空态")
+        attachScreenshot(app, name: "e2e-history")
+
+        // 列表按 startedAt 降序，首行即本次新记录。
+        let row = rows.firstMatch
+        XCTAssertTrue(row.exists, "History 缺少本次记录行")
+        row.tap()
+
+        let detailRoot = app.descendants(matching: .any).matching(identifier: "runDetail.root").firstMatch
+        XCTAssertTrue(detailRoot.waitForExistence(timeout: 10), "点击历史行后未进入跑次详情")
+        XCTAssertTrue(app.staticTexts["runDetail.startedAt"].waitForExistence(timeout: 5), "详情缺少开始时间")
+        XCTAssertTrue(app.staticTexts["runDetail.distance"].exists, "详情缺少总距离")
+        attachScreenshot(app, name: "e2e-detail")
+
+        let exportButton = app.buttons["runDetail.export"]
+        XCTAssertTrue(exportButton.waitForExistence(timeout: 5), "详情缺少导出按钮")
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "runDetail.exported").count,
+            0,
+            "落盘前不得出现导出完成态"
+        )
+        exportButton.tap()
+
+        let exported = app.staticTexts["runDetail.exported"]
+        XCTAssertTrue(exported.waitForExistence(timeout: 10), "导出后缺少完成态文本")
+        XCTAssertTrue(exported.label.hasSuffix(".gpx"), "完成态必须包含 .gpx 文件名，实际 \(exported.label)")
+        let share = app.descendants(matching: .any).matching(identifier: "runDetail.share").firstMatch
+        XCTAssertTrue(share.waitForExistence(timeout: 10), "落盘后缺少系统分享入口")
+        XCTAssertFalse(app.staticTexts["runDetail.exportFailed"].exists, "导出成功后不应显示失败态")
+
+        // 真实点击分享入口后，系统活动视图必须出现；有界等待，不用固定 sleep。
+        share.tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 20) { shareSheetPresent(app) },
+            "点击分享后系统分享面板/活动视图未出现"
+        )
+        attachScreenshot(app, name: "e2e-share")
+
+        // 分享面板必须由用例自行关闭并回到详情（有界等待，无固定 sleep）：
+        // 关闭按钮位于系统远程视图内，按面板右上角归一化坐标点击，失败再下滑兜底。
+        XCTAssertTrue(dismissShareSheet(app), "系统分享面板未能在有界等待内自行关闭")
+        XCTAssertFalse(shareSheetPresent(app), "分享面板应已消失")
+        XCTAssertTrue(detailRoot.waitForExistence(timeout: 10), "关闭分享面板后应回到跑次详情")
     }
 
     func testAnnouncementTogglePersistsAcrossRelaunch() {
@@ -396,6 +515,44 @@ final class RunFlowUITests: XCTestCase {
         add(attachment)
     }
 
+    /// 系统分享面板/活动视图是否可见（固定标识与本地化动作按钮的并集）。
+    private func shareSheetPresent(_ app: XCUIApplication) -> Bool {
+        app.otherElements["ActivityListView"].exists
+            || app.sheets.firstMatch.exists
+            || app.buttons["Copy"].exists
+            || app.buttons["拷贝"].exists
+            || app.buttons["Save to Files"].exists
+            || app.buttons["存储到“文件”"].exists
+    }
+
+    /// 有界关闭系统分享面板：远程视图内的关闭按钮无法按 label 查询，先按面板右上角固定归一化
+    /// 坐标点击关闭（X），失败再从面板内部下滑；整段关闭预算 ≤10s，返回面板是否已消失。
+    private func dismissShareSheet(_ app: XCUIApplication) -> Bool {
+        if !shareSheetPresent(app) {
+            return true
+        }
+        let deadline = Date().addingTimeInterval(10)
+        let sheet = app.otherElements["ActivityListView"]
+        // 系统分享面板的关闭按钮位于远程容器内，只能相对面板坐标点击（右上角 X）。
+        if sheet.exists {
+            sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.08)).tap()
+            if waitUntil(timeout: 3) { !shareSheetPresent(app) } {
+                return true
+            }
+            // 兜底：从面板内部向下拖动关闭。
+            let start = sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        } else {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+            from.press(forDuration: 0.1, thenDragTo: to)
+        }
+        // 剩余预算内继续观察，总关闭判定不超过 10s。
+        let remaining = max(1, deadline.timeIntervalSinceNow)
+        return waitUntil(timeout: remaining) { !shareSheetPresent(app) }
+    }
+
     /// 首样本探针失败时把可观测状态写入 xcresult；App 侧授权与样本计数由
     /// `scripts/test-ios.sh` 回读容器内 `location-diagnostics.log` 输出到脚本日志。
     private func attachLocationDiagnostics(
@@ -442,48 +599,45 @@ final class RunFlowUITests: XCTestCase {
     }
 
     /// 非阻塞扫描一次定位授权弹窗并放行，供首个样本等待循环复用（不消耗整段等待预算）。
-    private func dismissLocationAlertsIfPresent() {
+    /// 返回是否点掉了弹窗；无弹窗返回 false。
+    @discardableResult
+    private func dismissLocationAlertsIfPresent() -> Bool {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let app = XCUIApplication()
         for label in Self.locationAllowLabels {
             let springboardButton = springboard.buttons[label]
             if springboardButton.exists {
                 springboardButton.tap()
-                return
+                return true
             }
             let springboardAlertButton = springboard.alerts.firstMatch.buttons[label]
             if springboardAlertButton.exists {
                 springboardAlertButton.tap()
-                return
+                return true
             }
             let appAlertButton = app.alerts.firstMatch.buttons[label]
             if appAlertButton.exists {
                 appAlertButton.tap()
-                return
+                return true
             }
         }
+        return false
     }
 
-    /// 授权兜底：TCC 已由脚本预置时无弹窗；干净设备上仍要在有界窗口内处理 SpringBoard 弹窗。
+    /// 授权兜底：`scripts/test-ios.sh` 预置 while-using 授权，`verify-ios-ui-e2e.sh` 在空容器上
+    /// 走中断监听兜底；两条路径都可能有系统弹窗。此处只做有界兜底，扫描不到弹窗立即返回，
+    /// 不空转到超时（弹窗存在时首轮即按文案放行并返回）。
     private func allowLocationIfNeeded() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let deadline = Date().addingTimeInterval(10)
+        let app = XCUIApplication()
+        let deadline = Date().addingTimeInterval(8)
         while Date() < deadline {
-            for label in Self.locationAllowLabels {
-                let button = springboard.buttons[label]
-                if button.exists {
-                    button.tap()
-                    return
-                }
+            if dismissLocationAlertsIfPresent() {
+                return
             }
-            if springboard.alerts.firstMatch.exists {
-                for label in Self.locationAllowLabels {
-                    let button = springboard.alerts.firstMatch.buttons[label]
-                    if button.exists {
-                        button.tap()
-                        return
-                    }
-                }
+            // 没有任何授权弹窗：兜底立即结束，不消耗等待预算。
+            if !springboard.alerts.firstMatch.exists && !app.alerts.firstMatch.exists {
+                return
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
