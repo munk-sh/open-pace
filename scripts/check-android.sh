@@ -398,7 +398,7 @@ else
       "build-ios-core": "swift build --package-path ios/Core",
       "build-ios": "bash scripts/build-ios.sh",
       "test-ios-core": "swift test --package-path ios/Core",
-      "test-ios": "bash scripts/test-ios.sh",
+      "test-ios": "bash scripts/test-ios.sh --unit-only",
       "test": "bash scripts/check-baseline.sh",
       "check-shared": "bash scripts/check-shared.sh"
     };

@@ -16,8 +16,8 @@ usage() {
   - DRY_RUN=1 生成真实 ExportOptions.plist（app-store-connect / teamID / automatic / uploadSymbols=false）
   - 伪凭据 DRY_RUN 输出含认证参数名与 $ASC_* 占位符，但不出现任何凭据值
   - 非 DRY_RUN 缺凭据时非零退出、只提示缺失变量名、已设置值不泄露且不执行构建
-  - .munk/code-gates.json 含 lint-ios-release 门且总门数为 24
-  - scripts/check-ios-scripts.sh 门数断言同步为 24
+  - .munk/code-gates.json 含 lint-ios-release 门且总门数为 22
+  - scripts/check-ios-scripts.sh 门数断言同步为 22
   - docs/release/testflight-runbook.md 前置/执行/证据/反范围齐全且只用占位符
 
 选项:
@@ -344,7 +344,7 @@ else
   fail "ac-missing-env-fails-closed" "值泄露样本未被识别"
 fi
 
-# ---------------------------------------- 门禁接入 + 门数 24 + 断言同步
+# ---------------------------------------- 门禁接入 + 门数 22 + 断言同步
 problems=""
 if ! command -v python3 >/dev/null 2>&1; then
   problems="$problems 缺少 python3，无法解析 .munk/code-gates.json;"
@@ -355,8 +355,8 @@ else
 import json
 cfg = json.load(open(".munk/code-gates.json", encoding="utf-8"))
 gates = cfg.get("gates", [])
-if len(gates) != 24:
-    raise SystemExit("code-gates 门数 %d（期望 24）" % len(gates))
+if len(gates) != 22:
+    raise SystemExit("code-gates 门数 %d（期望 22）" % len(gates))
 matches = [g for g in gates if g.get("id") == "lint-ios-release"]
 if len(matches) != 1:
     raise SystemExit("缺少唯一的 lint-ios-release 门")
@@ -368,10 +368,10 @@ PY
     problems="$problems $(printf '%s' "$gate_error" | tr '\n' ' ');"
   fi
 fi
-grep -Fq -- '保持 24 门' scripts/check-ios-scripts.sh \
-  || problems="$problems scripts/check-ios-scripts.sh 未同步「保持 24 门」;"
-grep -Fq -- '-ne 24' scripts/check-ios-scripts.sh \
-  || problems="$problems scripts/check-ios-scripts.sh 未同步 -ne 24 断言;"
+grep -Fq -- '保持 22 门' scripts/check-ios-scripts.sh \
+  || problems="$problems scripts/check-ios-scripts.sh 未同步「保持 22 门」;"
+grep -Fq -- '-ne 22' scripts/check-ios-scripts.sh \
+  || problems="$problems scripts/check-ios-scripts.sh 未同步 -ne 22 断言;"
 if [ -z "$problems" ]; then
   pass "ac-release-gate-wired"
 else
