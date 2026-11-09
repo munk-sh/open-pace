@@ -91,7 +91,7 @@ validate_packages() {
     if [ -z "$block" ]; then
       problems="$problems packages 段为空;"
     fi
-    printf '%s\n' "$block" | grep -Fq 'path: RunCore' \
+    grep -Fq 'path: RunCore' <<< "$block" \
       || problems="$problems packages 未声明 path: RunCore;"
     local unauthorized
     unauthorized="$(printf '%s\n' "$block" | grep -Ev '^[[:space:]]*(#.*)?$|^[[:space:]]*[A-Za-z0-9_.-]+:[[:space:]]*$|^[[:space:]]*path:[[:space:]]*RunCore[[:space:]]*$' || true)"
@@ -187,9 +187,9 @@ validate_location_config() {
   if [ -z "$spec_modes" ]; then
     problems="$problems project.yml 缺少 info.properties.UIBackgroundModes 数组;"
   else
-    printf '%s\n' "$spec_modes" | grep -Eq '^[[:space:]]*-[[:space:]]*location[[:space:]]*$' \
+    grep -Eq '^[[:space:]]*-[[:space:]]*location[[:space:]]*$' <<< "$spec_modes" \
       || problems="$problems project.yml UIBackgroundModes 数组未含 location;"
-    printf '%s\n' "$spec_modes" | grep -Eq '^[[:space:]]*-[[:space:]]*audio[[:space:]]*$' \
+    grep -Eq '^[[:space:]]*-[[:space:]]*audio[[:space:]]*$' <<< "$spec_modes" \
       || problems="$problems project.yml UIBackgroundModes 数组未含 audio;"
   fi
 
@@ -209,9 +209,9 @@ validate_location_config() {
     if [ -z "$plist_modes" ]; then
       problems="$problems $plist_file 缺少 UIBackgroundModes 数组;"
     else
-      printf '%s\n' "$plist_modes" | grep -Fq '<string>location</string>' \
+      grep -Fq '<string>location</string>' <<< "$plist_modes" \
         || problems="$problems $plist_file 的 UIBackgroundModes 未含 location;"
-      printf '%s\n' "$plist_modes" | grep -Fq '<string>audio</string>' \
+      grep -Fq '<string>audio</string>' <<< "$plist_modes" \
         || problems="$problems $plist_file 的 UIBackgroundModes 未含 audio;"
     fi
   fi
@@ -770,7 +770,7 @@ ui_location_source_problems() {
   else
     grep -Fq -- '-uiTestLocation' "$content" || out="$out ContentView 未按 -uiTestLocation 门控;"
     debug_block="$(awk '/^#if DEBUG/{flag=1;next}/^#else/{flag=0}/^#endif/{flag=0}flag' "$content")"
-    printf '%s' "$debug_block" | grep -Fq -- 'RunTestLocationSource' \
+    grep -Fq -- 'RunTestLocationSource' <<< "$debug_block" \
       || out="$out ContentView 的 DEBUG 分支未注入测试定位源;"
     # 任何 RunTestLocationSource 引用都必须落在 #if DEBUG 区域内（含 #else 分支不得引用）。
     if ! python3 - "$content" <<'PY'

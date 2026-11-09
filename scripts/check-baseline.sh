@@ -93,7 +93,7 @@ else
   version_value="$(tr -d '\r\n' < VERSION)"
   if [ -z "$version_value" ]; then
     problems="$problems 内容为空;"
-  elif ! printf '%s' "$version_value" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  elif ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' <<< "$version_value"; then
     problems="$problems 不匹配 ^[0-9]+\.[0-9]+\.[0-9]+$;"
   fi
   if [ -z "$problems" ]; then
@@ -192,14 +192,14 @@ else
     problems="$problems 测试金字塔节为空;"
   else
     for needle in "ios/Core" "swift test" "android/app/src/test" "PurePaceUITests" "XCUITest" "swift test --filter" "xcodebuild test -only-testing:" "./gradlew testDebugUnitTest --tests" "scripts/test-ios.sh" "scripts/test-android.sh"; do
-      if ! printf '%s' "$pyramid" | grep -Fq -- "$needle"; then
+      if ! grep -Fq -- "$needle" <<< "$pyramid"; then
         problems="$problems 缺少 '$needle';"
       fi
     done
-    if ! printf '%s' "$pyramid" | grep -Eqi 'junit'; then
+    if ! grep -Eqi 'junit' <<< "$pyramid"; then
       problems="$problems 缺少 JUnit 说明;"
     fi
-    if ! printf '%s' "$pyramid" | grep -Eqi 'robolectric|compose ui test'; then
+    if ! grep -Eqi 'robolectric|compose ui test' <<< "$pyramid"; then
       problems="$problems 缺少 Robolectric 或 Compose UI test 说明;"
     fi
   fi
@@ -229,7 +229,7 @@ else
     fi
   done
   for name in $on_disk; do
-    if ! printf '%s\n' "$routed" | grep -Fxq -- "$name"; then
+    if ! grep -Fxq -- "$name" <<< "$routed"; then
       problems="$problems 磁盘 skill '$name' 未在 AGENTS.md 路由表登记;"
     fi
   done

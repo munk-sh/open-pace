@@ -67,6 +67,14 @@
 - ac-strict-mode-kept: 脚本仍为 `#!/usr/bin/env bash` 且正文含 `set -euo pipefail`，`bash -n scripts/check-ios-scripts.sh` 通过。
 - ac-diff-scope-lint-gate: 本轮改动仅含 `scripts/check-ios-scripts.sh`；`.munk/code-gates.json` 仍 22 门、`.github/workflows/**`、`ios/` / `android/` / `shared/` 业务源码、`VERSION`、`README.md` 均无改动。
 - ac-local-fast-gates-green: 本地 `code_gates` 快腿全绿，至少覆盖 `lint`、`lint-ios-scripts`、`check-shell-expansion`、`lint-ios-workflow`、`test`（`bash scripts/check-baseline.sh`）；重 UI E2E 腿不在本地阻断。
+- ac-no-grep-pipe-sites: 7 个脚本（`check-ios-release.sh` / `check-ios-shell.sh` / `check-baseline.sh` / `check-android.sh` / `check-ios-workflow.sh` / `check-android-workflow.sh` / `version.sh`）中，`printf … | grep` 与「`| grep -q/-Fq` 类提前退出消费者」的管道判定点数量为 0（改造前分别为 10/6/5/3/1/1/1 处，含 release `:247` 的文件管道 1 处）；逐文件复核口径为 `grep -nE 'printf[^|]*\|[[:space:]]*grep'` 与 `grep -nE '\|[[:space:]]*grep[[:space:]]+-[A-Za-z]*[qF]'`。`||` 并列的直连文件 grep 与 `grep -Ev`（无 `-q`、消费全量输入、原就带 `|| true`）不属判定管道。
+- ac-here-string-form: 每个原管道判定点改为 `grep … <<< "$var"` 形式；`check-ios-release.sh:247` 的 `grep -A1 file | grep -Fq` 改为先用 `$(grep -A1 …)` 完整捕获再 here-string 喂 `grep -Fq`（消除首个 grep 的 SIGPIPE 面）。
+- ac-error-mode-preserved: 各文件 `set -euo pipefail` 出现次数与改造前一致（release=3、android=3、其余=1）；改造点未新增 `|| true`、未引入 retry、未出现 `set +e`，退出码未被吞。
+- ac-output-identical: 同一棵树上逐脚本改造前后各跑一遍，`^\[PASS\]` / `^\[FAIL\]` 行序列与末尾 `N 项断言，M 项失败` 汇总行逐行完全一致，退出码一致（release/shell/baseline/android/ios-workflow/android-workflow 六脚本）。
+- ac-twenty-run-stable: 7 个脚本各自连跑 20 次，每次 stdout/stderr 与退出码完全一致（`version.sh` 以「stdout+退出码」为一致口径）。
+- ac-version-script: `scripts/version.sh` 改动仅限 `:65` 的管道判定；`bash scripts/version.sh` 裸输出仍等于根 `VERSION`；空值/非 `x.y.z` 错误路径仍以原文案 `exit 1`；连跑 20 次恒同；交付摘要单列处置、影响面与验证方式。
+- ac-exec-bits: 交付后 7 个文件 git mode 均为 `100755`；`check-ios-release.sh` 由 `100644` 恢复为 `100755`，其余 6 个保持 `100755` 不变。
+- ac-scope-only-7: 代码改动 `git diff --name-only` 仅含上述 7 个文件；`.github/**`、`.munk/code-gates.json`、其他脚本未改动；断言文案与判定语义零改动。
 
 ## 非目标
 
@@ -97,8 +105,9 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_4b73c3cfc61ebbba（2026-11-09，pass）
-- 交付：`scripts/check-ios-scripts.sh` 中 11 处 `printf '%s' … | grep -Fq/-Fxq/-Eq` 改为 here-string 等价写法，另 1 处 `printf | sed | head -n 1`（`gradle_expected`）改为 `sed … <<<"$gradle_url"`；单文件改动（12 行进出）。既有断言数量、名称、顺序、期望值与退出码全部不变，`grep -Fxq` 的整行全等语义保留。
-- 根因：远端 ios run 42585856042 的 lint job 偶发 `printf: write error: Broken pipe` 导致 `ac-ios-scripts-help` 伪红（main@`8db1a167` 同 job 转绿即证非业务回归），修复后该竞态不再存在。
-- 验证：`scripts/check-ios-scripts.sh` → `25 项断言，0 项失败` / `ios scripts OK`；20 连跑 20/20 exit 0，合并 stderr 中 `write error` 0 次；`grep -n "printf .*| *grep"` 无输出；负向实测缺目标串 exit 1、`Xcode: 26.31` 不等于 `Xcode: 26.3`（全等语义保持）；`scripts/check-baseline.sh` → `11 项断言，0 项失败`。
-- 边界：`check-baseline.sh` / `check-ios-release.sh` / `check-ios-shell.sh` / `version.sh` 等兄弟脚本的同类模式按 PRD 非目标**不扩面**，仍保持原写法（同类潜在伪红留给后续独立项）。
+- workItemId: wi_intake_588bc60ee11d98cc（2026-11-09，pass）
+- 交付：`check-ios-release.sh`（10 处 `printf|grep` + `:247` 的文件管道）、`check-ios-shell.sh`（6 处）、`check-baseline.sh`（5 处）、`check-android.sh`（3 处）、`check-ios-workflow.sh` / `check-android-workflow.sh`（各 1 处）、`version.sh`（`:65` 1 处）统一改为 here-string 判定；`check-ios-release.sh` 可执行位由 `100644` 恢复为 `100755`。断言数量/名称/顺序/期望值/文案与退出码零改动。
+- 根因：`set -euo pipefail` 下 `printf | grep -q` 命中后 grep 提前退出，写端收 SIGPIPE(141) 被 pipefail 透传，判定随机反转产生偶发伪红（上一项已单点修 `check-ios-scripts.sh`，本项清剩余 7 个文件）。
+- 验证：7 脚本当前树全绿——release 17/0、shell 17/0、baseline 11/0、android 15/0、ios-workflow OK、android-workflow OK，`bash scripts/version.sh` 输出与根 `VERSION` 一致（rc=0）；`grep -nE 'printf[^|]*\|[[:space:]]*grep'` 与 `| grep -q/-Fq` 口径逐文件复核无判定管道残留。
+- 边界：`grep -Ev` 全量消费管道（`check-ios-shell.sh:97`，原带 `|| true`）与 `||` 并列的直连文件 grep 非判定点，按零语义改动原则不动。
+

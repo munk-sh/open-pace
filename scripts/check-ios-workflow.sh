@@ -252,7 +252,7 @@ assert_rejected() {
   else
     rc=$?
   fi
-  if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -Fq -- "[FAIL] $expected_id"; then
+  if [ "$rc" -ne 0 ] && grep -Fq -- "[FAIL] $expected_id" <<< "$out"; then
     printf '[PASS] ac-workflow-structural-gate (%s 被拒绝)\n' "$label"
   else
     printf '[FAIL] ac-workflow-structural-gate: %s 未被拒绝（rc=%s，期望失败项 %s）\n' "$label" "$rc" "$expected_id"

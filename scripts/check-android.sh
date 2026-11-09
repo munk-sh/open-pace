@@ -125,7 +125,7 @@ for name in $android_scripts; do
   help_out="$(bash "scripts/$name" --help 2>&1)" && help_rc=0 || help_rc=$?
   if [ "$help_rc" -ne 0 ]; then
     problems="$problems scripts/$name --help 退出 $help_rc;"
-  elif ! printf '%s' "$help_out" | grep -Fq -- "用法"; then
+  elif ! grep -Fq -- "用法" <<< "$help_out"; then
     problems="$problems scripts/$name --help 输出缺少「用法」;"
   fi
   bash "scripts/$name" --definitely-invalid >/dev/null 2>&1 && bad_rc=0 || bad_rc=$?
@@ -457,7 +457,7 @@ else
 fi
 if [ "$negative_rc" -eq 0 ]; then
   negative_problems="$negative_problems 注入第二个 applicationId 未 FAIL;"
-elif ! printf '%s' "$negative_out" | grep -Fq -- '[FAIL] ac-check-android-application-id'; then
+elif ! grep -Fq -- '[FAIL] ac-check-android-application-id' <<< "$negative_out"; then
   negative_problems="$negative_problems 注入第二个 applicationId 未命中 ac-check-android-application-id FAIL;"
 fi
 
@@ -474,7 +474,7 @@ else
 fi
 if [ "$negative_rc" -eq 0 ]; then
   negative_problems="$negative_problems 注入 compileSdk=35 未 FAIL;"
-elif ! printf '%s' "$negative_out" | grep -Fq -- '[FAIL] ac-check-android-sdk-jdk'; then
+elif ! grep -Fq -- '[FAIL] ac-check-android-sdk-jdk' <<< "$negative_out"; then
   negative_problems="$negative_problems 注入 compileSdk=35 未命中 ac-check-android-sdk-jdk FAIL;"
 fi
 
