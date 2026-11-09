@@ -59,6 +59,14 @@
 - ac-workflow-expansion-only: `.github/workflows/android.yml` 的卫生改动仅限 echo 行的变量包裹（必要引号亦仅此一行），`bash scripts/check-android-workflow.sh` 仍退出 0。
 - ac-regression-green: 既有 `check-*` 结构门（baseline / android / android-workflow / ios-core / ios-scripts / ios-shell / ios-workflow / ios-run-core）全部退出 0。
 - ac-script-contract-preserved: 被修脚本的 `--help` 退出 0 且含「用法」、未知参数退出 2、`blocked:` 降级与退出码语义不变。
+- ac-ios-scripts-help-green: `bash scripts/check-ios-scripts.sh` exit 0，输出含 `[PASS] ac-ios-scripts-help`，全量 `[FAIL]` 计数为 0（既有 25 项断言、0 项失败）。
+- ac-version-tools-still-green: 同一次运行中 `ac-version-tools-no-gradlew`、`ac-version-tools-report`、`ac-version-tools-idempotent` 均 PASS，`VERSION` / `Xcode` / `Swift` / `JDK` / `Gradle`（含「未就绪」降级分支）判定期望值与改前完全一致。
+- ac-signpipe-free-20x: 连续执行 `bash scripts/check-ios-scripts.sh` 20 次全部 exit 0，合并 stderr 中 `write error: Broken pipe` / `printf: write error` 出现次数均为 0。
+- ac-no-printf-grep-pipe: `grep -n "printf .*| *grep" scripts/check-ios-scripts.sh` 无输出；`printf` 不再作为「消费者可能提前退出」的管道写端。
+- ac-fail-path-preserved: 改写后的判定在目标串缺失时仍返回非零（同一判定喂入不含目标串的输入实测 exit 1）；不得用 `|| true`、`set +e`、`continue-on-error` 或删断言换取绿灯。
+- ac-strict-mode-kept: 脚本仍为 `#!/usr/bin/env bash` 且正文含 `set -euo pipefail`，`bash -n scripts/check-ios-scripts.sh` 通过。
+- ac-diff-scope-lint-gate: 本轮改动仅含 `scripts/check-ios-scripts.sh`；`.munk/code-gates.json` 仍 22 门、`.github/workflows/**`、`ios/` / `android/` / `shared/` 业务源码、`VERSION`、`README.md` 均无改动。
+- ac-local-fast-gates-green: 本地 `code_gates` 快腿全绿，至少覆盖 `lint`、`lint-ios-scripts`、`check-shell-expansion`、`lint-ios-workflow`、`test`（`bash scripts/check-baseline.sh`）；重 UI E2E 腿不在本地阻断。
 
 ## 非目标
 
@@ -69,6 +77,7 @@
 - 不做任何业务功能（跑步页、计时、播报、历史、导出）、不做视觉设计、不申请真实定位权限。
 - 不做真机签名 / TestFlight / 分发凭据；不新建或修改 git remote；不声称任何 CI 执行或通过。
 - 不做版本自增/发布流水线、不写多语言框架、不引入任何跨端框架。
+- 修某个 `check-*.sh` 的判定写法时不做跨脚本 drive-by 扩面：除 PRD 明确列入本次范围的单个文件外，兄弟脚本（`check-baseline.sh` / `check-ios-release.sh` / `check-ios-shell.sh` / `version.sh` 等）即便存在同类模式也不得顺手改写，同类清理需另开工作项。
 
 ## 实现约束
 
@@ -84,10 +93,12 @@
 - 门自身会被自己扫描：`check-shell-expansion.sh` 源码不得出现裸 `$var` + 非 ASCII 的字面组合（正则用 `[^ -~]` 一类 ASCII 取反类表达）；自检样本必须落在 `mktemp -d` 临时目录，不在仓库内落地 `.sh` 夹具。
 - 版本探测口径：`--tools` 的 Gradle 行只读 `<repo_root>/android/gradle/wrapper/gradle-wrapper.properties`（路径以脚本自身推导的仓库根为基准，任意 cwd 一致），解析只用 bash/sed/grep；不启动 JVM、不触网、不依赖 Gradle 缓存与 `android/gradlew`。静态断言不得复用 `version.sh` 的解析逻辑（否则恒真）。
 - 新脚本仍受 `check-baseline.sh` 约束：不得写死根 `VERSION` 字面值，遵循 `#!/usr/bin/env bash` + `set -euo pipefail` + `--help`/未知参数退出 2 的既有脚本契约。
+- 静态断言判定口径（防 SIGPIPE 伪红）：`check-*` 脚本里「长字符串交给可能提前退出的消费者（`grep -q` / `head -n 1`）」一律不得用 `printf '%s' "$var" | <consumer>`——消费者命中即关闭读端，写端收 SIGPIPE（141），`set -euo pipefail` 下整条管道随机判失败。等价写法：here-string `grep -Fq -- "…" <<<"$var"` 或 bash 内建匹配 `[[ "$out" == *"…"* ]]` / `[[ "$out" =~ … ]]`（bash 3.2 兼容）。`grep -Fxq` 的「整行全等」语义与 `-F`/`-E` 的正则 vs 字面量语义必须逐条保持，不得降级为子串匹配。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_829cd75d36d5bb39（2026-11-08，pass）
-- 交付：`scripts/version.sh` 的 `--tools` Gradle 行改为离线解析 `android/gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl`，彻底移除 `android/gradlew` 调用（干净 runner 上不再触发 Gradle 分发包下载，消除 504 导致的「Gradle: 未就绪」误判）；`scripts/check-ios-scripts.sh` 新增「无 `gradlew` / 必读 wrapper properties / 期望值独立推导」静态断言与沙箱反例自检。输出格式、行序、退出码、`--help`/无参契约一律不变。
-- 验证：`bash scripts/version.sh --tools` 输出 `Gradle: 8.14.3`（与 wrapper properties 一致，`android/gradlew` 不参与）；`code_gates` 全绿；`.munk/code-gates.json` 22 门 id/command 未变。
-- 边界：Android `gradlew` 脚本层有界重试口径与 stub 反例落在 `android-shell` 域；本轮 `--tools` 不再探测 `android/gradlew`，`android-shell` 域相应契约已同步更新。
+- workItemId: wi_intake_4b73c3cfc61ebbba（2026-11-09，pass）
+- 交付：`scripts/check-ios-scripts.sh` 中 11 处 `printf '%s' … | grep -Fq/-Fxq/-Eq` 改为 here-string 等价写法，另 1 处 `printf | sed | head -n 1`（`gradle_expected`）改为 `sed … <<<"$gradle_url"`；单文件改动（12 行进出）。既有断言数量、名称、顺序、期望值与退出码全部不变，`grep -Fxq` 的整行全等语义保留。
+- 根因：远端 ios run 42585856042 的 lint job 偶发 `printf: write error: Broken pipe` 导致 `ac-ios-scripts-help` 伪红（main@`8db1a167` 同 job 转绿即证非业务回归），修复后该竞态不再存在。
+- 验证：`scripts/check-ios-scripts.sh` → `25 项断言，0 项失败` / `ios scripts OK`；20 连跑 20/20 exit 0，合并 stderr 中 `write error` 0 次；`grep -n "printf .*| *grep"` 无输出；负向实测缺目标串 exit 1、`Xcode: 26.31` 不等于 `Xcode: 26.3`（全等语义保持）；`scripts/check-baseline.sh` → `11 项断言，0 项失败`。
+- 边界：`check-baseline.sh` / `check-ios-release.sh` / `check-ios-shell.sh` / `version.sh` 等兄弟脚本的同类模式按 PRD 非目标**不扩面**，仍保持原写法（同类潜在伪红留给后续独立项）。
