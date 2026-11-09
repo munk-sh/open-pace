@@ -1,0 +1,108 @@
+{
+  "ok": true,
+  "phase": "audit",
+  "meta": {
+    "phase": "audit",
+    "udid": "00008101-001C701E0A68001E",
+    "bundleId": "com.chaxiu.purepace",
+    "configuration": "Release",
+    "startedAt": "2026-11-09T10:23:06Z",
+    "script": "scripts/verify-ios-device-flow.sh",
+    "commit": "a45922265e38",
+    "commitFull": "a45922265e38b73d98396c83b8b792861b13574c",
+    "deviceModel": "iPhone 12 Pro Max",
+    "productType": "iPhone13,4",
+    "iosVersion": "18.7.8",
+    "osBuild": "22H352",
+    "deviceName": "iPhone",
+    "candidatePath": "/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/products/codebase_19e8ad47434ff059/artifacts/candidates/PurePace-Release-0.1.0-20261109T084100Z.zip",
+    "candidateSha256": "7258d2e3f7984ef2557278bd1fcdd1eea5db1f34a4d549dc8071d7afcd5b9d8f",
+    "candidateBytes": 407275,
+    "testCase": "testAuditFirstScreenAndTabs",
+    "appVersion": "0.1.0",
+    "appBundleVersion": "1",
+    "finishedAt": "2026-11-09T10:23:34Z",
+    "ok": true
+  },
+  "checks": [
+    {
+      "name": "audit-screenshot-audit-runview.png",
+      "ok": true,
+      "detail": "截图 audit-runview.png 存在且非空",
+      "evidence": "audit-runview.png"
+    },
+    {
+      "name": "audit-screenshot-audit-run-tab.png",
+      "ok": true,
+      "detail": "截图 audit-run-tab.png 存在且非空",
+      "evidence": "audit-run-tab.png"
+    },
+    {
+      "name": "audit-screenshot-audit-history.png",
+      "ok": true,
+      "detail": "截图 audit-history.png 存在且非空",
+      "evidence": "audit-history.png"
+    },
+    {
+      "name": "audit-screenshot-audit-settings.png",
+      "ok": true,
+      "detail": "截图 audit-settings.png 存在且非空",
+      "evidence": "audit-settings.png"
+    },
+    {
+      "name": "audit-ax-audit-runview.ax.json",
+      "ok": true,
+      "detail": "可及树 audit-runview.ax.json 存在且非空",
+      "evidence": "audit-runview.ax.json"
+    },
+    {
+      "name": "audit-ax-audit-run-tab.ax.json",
+      "ok": true,
+      "detail": "可及树 audit-run-tab.ax.json 存在且非空",
+      "evidence": "audit-run-tab.ax.json"
+    },
+    {
+      "name": "audit-ax-audit-history.ax.json",
+      "ok": true,
+      "detail": "可及树 audit-history.ax.json 存在且非空",
+      "evidence": "audit-history.ax.json"
+    },
+    {
+      "name": "audit-ax-audit-settings.ax.json",
+      "ok": true,
+      "detail": "可及树 audit-settings.ax.json 存在且非空",
+      "evidence": "audit-settings.ax.json"
+    },
+    {
+      "name": "audit-ax-audit-detail.ax.json",
+      "ok": true,
+      "detail": "可及树 audit-detail.ax.json 存在且非空",
+      "evidence": "audit-detail.ax.json"
+    },
+    {
+      "name": "audit-runview-five-metrics",
+      "ok": true,
+      "detail": "五读数位: run.distance=PASS, run.elapsed=PASS, run.currentPace=PASS, run.averagePace=PASS, run.splits=PASS",
+      "evidence": "audit-runview.png / audit-runview.ax.json"
+    },
+    {
+      "name": "audit-three-tabs",
+      "ok": true,
+      "detail": "Run/History/Settings 逐项: run=PASS, history=PASS, settings=PASS",
+      "evidence": "audit-run-tab.png / audit-history.png / audit-settings.png"
+    },
+    {
+      "name": "audit-detail-gpx-entry",
+      "ok": true,
+      "detail": "runDetail.export exists=True hittable=True 归档可用=True",
+      "evidence": "audit-detail.png / audit-detail.ax.json / audit-result.json"
+    },
+    {
+      "name": "audit-build-identity",
+      "ok": true,
+      "detail": "实际驱动构建 bundle com.chaxiu.purepace / 配置 Release / commit a45922265e38；与候选 zip 的同一性未解包比对，按口径显式标注",
+      "evidence": "report.md"
+    }
+  ],
+  "failures": []
+}

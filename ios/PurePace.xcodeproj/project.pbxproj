@@ -26,6 +26,7 @@
 		4285B22F8606CCAF879A4F88 /* AudioSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */; };
 		46DF9C233E17672F3A124131 /* HarnessRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */; };
 		47D8E9D40C1B127FE9E2E985 /* HarnessStreamParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8567782533C16822A84A70 /* HarnessStreamParser.swift */; };
+		494BF388C35D3915FF3ADCE1 /* DeviceFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */; };
 		4E53875F48834DC17122A3A3 /* AudioSessionAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */; };
 		4FF2BFB3A4B2DD2F23F05E8C /* HarnessResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */; };
 		5F0EB03A10C58F30D3457944 /* HarnessDirectRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */; };
@@ -87,6 +88,7 @@
 		3F8567782533C16822A84A70 /* HarnessStreamParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessStreamParser.swift; sourceTree = "<group>"; };
 		3F8D643743AA04C984A3978E /* RunTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunTelemetryTests.swift; sourceTree = "<group>"; };
 		4022B4F31A31C90183669928 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFlowUITests.swift; sourceTree = "<group>"; };
 		443E2D1C92BE7DC4628598B6 /* RunExportStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunExportStateTests.swift; sourceTree = "<group>"; };
 		48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessResumeTests.swift; sourceTree = "<group>"; };
 		4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionAdapter.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 		BE117B21B1CFF0C0193AE588 /* PurePaceUITests */ = {
 			isa = PBXGroup;
 			children = (
+				42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */,
 				BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */,
 			);
 			path = PurePaceUITests;
@@ -394,6 +397,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				494BF388C35D3915FF3ADCE1 /* DeviceFlowUITests.swift in Sources */,
 				AB63DB59C7CAF4EF2DB33284 /* RunFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
