@@ -10,17 +10,19 @@ usage() {
 测试 iOS 侧产物，按工程可用性自动选择分支：
   - 分支 A（工程可用）：先执行 scripts/sync-ios-version.sh 由根 VERSION 生成
     ios/Config/Version.xcconfig；ios/PurePace.xcodeproj 存在，或 ios/project.yml
-    存在且本机有 xcodegen 可从 spec 生成工程时，执行
-    xcodebuild test -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6'，
-    派生数据写入 .build/ios，scheme 同时运行 PurePaceTests（XCTest）与 PurePaceUITests（XCUITest）。
+    存在且本机有 xcodegen 可从 spec 生成工程时，在 bootstatus 之后拆成两次
+    xcodebuild test（共用 .build/ios 派生数据）：
+      1) -only-testing:PurePaceTests（日志 .build/logs/xcodebuild-unit.log，Executed 摘要先落盘）
+      2) -only-testing:PurePaceUITests（日志 .build/logs/xcodebuild-ui.log）
+    UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
+    simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
     测试前按固定顺序准备模拟器状态：bootstatus 等待设备可用 → simctl uninstall 清容器 →
     构建并安装 App → simctl privacy grant location 预置定位授权（授权只对已安装 bundle 生效，
-    且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热 →
-    每秒一次 xcrun simctl location <udid> set <lat>,<lon> 直线推进注入真实 CoreLocation
-    （不用 start 路线回放：hosted runner 上实测不投递样本），测试结束在 trap 中停止循环并 clear。
-    xcodebuild test 带测试执行预算（-test-timeouts-enabled / -default-test-execution-time-allowance /
-    -maximum-test-execution-time-allowance）与进程级硬超时（bash 看门狗，不依赖 GNU timeout），
-    单次 attempt 静默等待 ≤600s；超时后非零退出并打印超时阶段与已执行的测试摘要。
+    且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热。
+    两次 xcodebuild test 都带测试执行预算（-test-timeouts-enabled / -default-test-execution-time-allowance /
+    -maximum-test-execution-time-allowance）与进程级硬超时（bash 看门狗，不依赖 GNU timeout）；
+    单次 attempt 的聚合硬超时 ≤600s，超时后非零退出并打印超时阶段与已执行的测试摘要。
+    任一调用失败脚本非零退出，单测结论先于 UI 输出且不被 UI 失败覆盖。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
   - 两个分支都会追加执行 swift test --package-path ios/RunCore（跑步域纯逻辑包）；
@@ -30,7 +32,7 @@ usage() {
   -h, --help   显示本帮助并退出 0
 
 环境变量:
-  IOS_XCODEBUILD_TIMEOUT  xcodebuild test 的硬超时秒数，默认 600（≤600，压住 AX 初始化静默等待）
+  IOS_XCODEBUILD_TIMEOUT  xcodebuild test 的聚合硬超时秒数，默认 600（≤600，压住 AX 初始化静默等待）
 
 退出码:
   0    测试通过，或工程缺失但降级的 swift test 真实通过（输出含 blocked:）
@@ -76,27 +78,17 @@ if [ -f scripts/sync-ios-version.sh ]; then
   bash scripts/sync-ios-version.sh
 fi
 
-# XCUITest 的真实定位链路：固定 iPhone 16 / iOS 18.6；bootstatus 等待设备完全可用，
-# 卸载清容器 → 构建安装 App → simctl privacy 预置定位授权 → 启动预热 → 注入航点，
-# 最后带硬超时跑 xcodebuild test。测试结束在 trap 中 clear，不用 launch-arg 假流替代。
+# XCUITest 的定位链路：UI 用例由 `-uiTestLocation` 门控的 DEBUG 确定性测试源驱动，
+# 不再依赖 hosted runner 的隐藏式 simulator 定位投递；真实 CoreLocation 覆盖由
+# scripts/verify-ios-sim-runtime.sh 的门禁承担。固定 iPhone 16 / iOS 18.6；bootstatus
+# 等待设备完全可用，卸载清容器 → 构建安装 App → simctl privacy 预置定位授权 → 启动预热，
+# 最后拆成「单测 → UI」两次 xcodebuild test，共用派生数据与聚合硬超时。
 sim_udid=""
-location_started=0
-location_pid=""
 app_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePace.app"
 log_dir=".build/logs"
-xcodebuild_log="$log_dir/xcodebuild-test.log"
+unit_log="$log_dir/xcodebuild-unit.log"
+ui_log="$log_dir/xcodebuild-ui.log"
 xcodebuild_timeout="${IOS_XCODEBUILD_TIMEOUT:-600}"
-cleanup_location() {
-  if [ -n "$location_pid" ]; then
-    kill -TERM "$location_pid" >/dev/null 2>&1 || true
-    wait "$location_pid" >/dev/null 2>&1 || true
-    location_pid=""
-  fi
-  if [ "$location_started" -eq 1 ] && [ -n "$sim_udid" ]; then
-    xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup_location EXIT
 
 select_simulator() {
   xcrun simctl list devices available --json 2>/dev/null | python3 -c '
@@ -117,7 +109,7 @@ sys.exit(1)
 wait_for_simulator_boot() {
   sim_udid="$(select_simulator || true)"
   if [ -z "$sim_udid" ]; then
-    echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法注入真实定位" >&2
+    echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法运行 UI 测试" >&2
     exit 1
   fi
   echo "info: 使用模拟器 $sim_udid 注入 CoreLocation 更新"
@@ -172,61 +164,6 @@ prepare_simulator_for_ui_tests() {
   fi
 }
 
-# 确定性真实定位注入：每秒一次 `simctl location <udid> set` 沿直线推进。
-# hosted runner 上 `simctl location start --speed --interval` 虽 exit 0 却不投递样本（见
-# .munk/runs/run_intake_c3e9dcf5599c9324/root-cause.md），改用逐秒 set 让 CoreLocation
-# 持续产生离散更新；循环在 trap 中停止并 clear，保留真实 CoreLocation 链路。
-start_location_injection() {
-  xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
-  location_started=1
-  # 基准坐标 37.334900,-122.009000；纬度每秒 +0.000090 度（约 10 m/s）。
-  local base_lon="-122.009000"
-  local lat_micro=37334900
-  local step_micro=90
-  local lat_int=$((lat_micro / 1000000))
-  local lat_frac=$((lat_micro % 1000000))
-  local coord=""
-  printf -v coord '%d.%06d,%s' "$lat_int" "$lat_frac" "$base_lon"
-  if ! xcrun simctl location "$sim_udid" set "$coord" >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-location 失败：xcrun simctl location set ${coord} 注入失败（模拟器 ${sim_udid}）" >&2
-    exit 1
-  fi
-  echo "info: location-injection udid=${sim_udid} start=${coord} step_lat_deg=0.000090 interval=1s"
-  # 后台循环：每秒推进坐标；上限 1200 次（20 分钟）覆盖整个测试窗口并保证有界退出。
-  (
-    local tick=0
-    while [ "$tick" -lt 1200 ]; do
-      sleep 1
-      tick=$((tick + 1))
-      lat_micro=$((lat_micro + step_micro))
-      lat_int=$((lat_micro / 1000000))
-      lat_frac=$((lat_micro % 1000000))
-      printf -v coord '%d.%06d,%s' "$lat_int" "$lat_frac" "$base_lon"
-      xcrun simctl location "$sim_udid" set "$coord" >/dev/null 2>&1 || true
-    done
-  ) &
-  location_pid=$!
-}
-
-# App 侧定位诊断（仅模拟器，DEBUG/测试路径）：把授权状态与样本计数写入 App 容器
-# Documents/location-diagnostics.log；测试结束后回读到脚本日志，供失败取证。
-dump_location_diagnostics() {
-  local container=""
-  local diag_file=""
-  container="$(xcrun simctl get_app_container "$sim_udid" "$bundle_id" data 2>/dev/null || true)"
-  if [ -z "$container" ]; then
-    echo "info: location-diagnostics: 无可读 App 容器（模拟器 ${sim_udid}）"
-    return 0
-  fi
-  diag_file="$container/Documents/location-diagnostics.log"
-  if [ -f "$diag_file" ]; then
-    echo "info: location-diagnostics: ${diag_file}（udid=${sim_udid}）"
-    cat "$diag_file" 2>/dev/null || true
-  else
-    echo "info: location-diagnostics: 未找到 ${diag_file}（App 可能在测试前被卸载或未启动）"
-  fi
-}
-
 # 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）：超时先 TERM 再 KILL，
 # 打印超时阶段与已执行测试摘要，返回 124；正常退出时透传子进程退出码。
 run_with_watchdog() {
@@ -258,30 +195,64 @@ run_with_watchdog() {
   return "$wait_status"
 }
 
+# 单测/UI 两次 xcodebuild test 的公共前置说明：
+# 两次调用各自落盘日志（xcodebuild-unit.log / xcodebuild-ui.log），共享聚合硬超时。
 test_with_xcodebuild() {
   wait_for_simulator_boot
   prepare_simulator_for_ui_tests
-  start_location_injection
-  echo "info: xcodebuild test -scheme $scheme -destination '$destination'（硬超时 ${xcodebuild_timeout}s，日志 ${xcodebuild_log}）"
-  local xcodebuild_status=0
-  run_with_watchdog "$xcodebuild_timeout" "$xcodebuild_log" \
+  echo "info: location-source=deterministic(-uiTestLocation)（真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 覆盖）"
+  local started_at="$SECONDS"
+  # 第一次调用：单元测试（-only-testing:PurePaceTests）；日志与 Executed 摘要先落盘。
+  local unit_status=0
+  echo "info: xcodebuild test -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${xcodebuild_timeout}s，日志 ${unit_log}）"
+  run_with_watchdog "$xcodebuild_timeout" "$unit_log" \
     xcodebuild test \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
     -derivedDataPath "$derived_data" \
+    -only-testing:PurePaceTests \
     -test-timeouts-enabled YES \
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \
-    CODE_SIGNING_ALLOWED=NO || xcodebuild_status=$?
-  cat "$xcodebuild_log" 2>/dev/null || true
-  dump_location_diagnostics
-  if [ "$xcodebuild_status" -eq 124 ]; then
-    echo "test-ios: 阶段 xcodebuild-test 失败：超过 ${xcodebuild_timeout}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
-  elif [ "$xcodebuild_status" -ne 0 ]; then
-    echo "test-ios: 阶段 xcodebuild-test 失败：xcodebuild test 退出 ${xcodebuild_status}（模拟器 ${sim_udid}）" >&2
+    CODE_SIGNING_ALLOWED=NO || unit_status=$?
+  cat "$unit_log" 2>/dev/null || true
+  # 单测摘要必须先于 UI 调用输出：UI 失败不得覆盖单测结论。
+  echo "info: PurePaceTests 摘要（先于 UI 落盘：${unit_log}）："
+  grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$unit_log" 2>/dev/null | tail -n 10 || true
+  if [ "$unit_status" -ne 0 ]; then
+    echo "test-ios: 阶段 xcodebuild-unit 失败：PurePaceTests 退出 ${unit_status}（模拟器 ${sim_udid}）" >&2
+    return "$unit_status"
   fi
-  return "$xcodebuild_status"
+  # 两次调用共享单次 attempt 的聚合硬超时（≤600s），UI 不得单独突破预算。
+  local remaining=$((xcodebuild_timeout - (SECONDS - started_at)))
+  if [ "$remaining" -le 0 ]; then
+    echo "test-ios: 阶段 xcodebuild-ui 失败：单测已耗尽 ${xcodebuild_timeout}s 聚合硬超时（模拟器 ${sim_udid}）" >&2
+    return 124
+  fi
+  # 第二次调用：UI 测试（-only-testing:PurePaceUITests），由 -uiTestLocation 确定性测试源驱动。
+  local ui_status=0
+  echo "info: xcodebuild test -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${remaining}s，日志 ${ui_log}）"
+  run_with_watchdog "$remaining" "$ui_log" \
+    xcodebuild test \
+    -project "$project_path" \
+    -scheme "$scheme" \
+    -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
+    -derivedDataPath "$derived_data" \
+    -only-testing:PurePaceUITests \
+    -test-timeouts-enabled YES \
+    -default-test-execution-time-allowance 300 \
+    -maximum-test-execution-time-allowance 540 \
+    CODE_SIGNING_ALLOWED=NO || ui_status=$?
+  cat "$ui_log" 2>/dev/null || true
+  echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
+  grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true
+  if [ "$ui_status" -eq 124 ]; then
+    echo "test-ios: 阶段 xcodebuild-ui 失败：超过 ${remaining}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
+  elif [ "$ui_status" -ne 0 ]; then
+    echo "test-ios: 阶段 xcodebuild-ui 失败：xcodebuild test 退出 ${ui_status}（模拟器 ${sim_udid}）" >&2
+  fi
+  return "$ui_status"
 }
 
 # RunCore 是纯逻辑 SwiftPM 包，两个分支都真实执行；包缺失时显式 blocked 不伪造成功。

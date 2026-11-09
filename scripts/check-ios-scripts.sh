@@ -14,8 +14,11 @@ usage() {
     退出 0 且含「用法」，未知参数退出 2
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
-  - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → xcodebuild test（顺序可断言），
-    且带 bash 看门狗硬超时、启动预热，不依赖 macOS 缺失的 GNU timeout
+  - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 两次 xcodebuild test，
+    单测/UI 日志分文件、各带测试预算参数，主脚本不含 simctl 定位注入，且带 bash 看门狗硬超时（≤600s）
+  - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，门禁仍在
+  - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
+  - .munk/code-gates.json 保持 23 门
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
@@ -171,9 +174,9 @@ else
   fail "ac-test-ios-xcodebuild-path" "$problems"
 fi
 
-# ---------------- test-ios.sh 模拟器前置状态契约：bootstatus → 安装 → 授权 → 测试 + 硬超时
+# ------------- test-ios.sh 模拟器前置状态契约：bootstatus → 安装 → 授权 → 单测/UI 拆分执行 + 硬超时
 test_ios_preparation_problems() {
-  local file="$1" out="" install_line="" privacy_line="" test_line=""
+  local file="$1" out="" install_line="" privacy_line="" unit_line="" ui_line=""
   if [ ! -f "$file" ]; then
     printf '缺少 %s;' "$file"
     return 0
@@ -187,32 +190,50 @@ test_ios_preparation_problems() {
     "simctl terminate" \
     "run_with_watchdog" \
     "IOS_XCODEBUILD_TIMEOUT" \
-    'location "$sim_udid" set' \
+    "-only-testing:PurePaceTests" \
+    "-only-testing:PurePaceUITests" \
     "-test-timeouts-enabled YES" \
     "-default-test-execution-time-allowance" \
     "-maximum-test-execution-time-allowance"; do
     grep -Fq -- "$needle" "$file" || out="$out 缺少 '$needle';"
   done
-  # 只看真实命令调用行：帮助文本里也有同样字样，不能作为顺序锚点。
+  # 安装 → 授权 → 首次 xcodebuild test 的顺序锚点。
   install_line="$(grep -nF -- 'xcrun simctl install' "$file" | head -n 1 | cut -d: -f1 || true)"
   privacy_line="$(grep -nF -- 'xcrun simctl privacy' "$file" | head -n 1 | cut -d: -f1 || true)"
-  test_line="$(grep -nF -- 'xcodebuild test \' "$file" | head -n 1 | cut -d: -f1 || true)"
-  if [ -z "$install_line" ] || [ -z "$privacy_line" ] || [ -z "$test_line" ]; then
-    out="$out 缺少 install/privacy/xcodebuild test 顺序锚点;"
+  unit_line="$(grep -nE -- '^[[:space:]]*-only-testing:PurePaceTests[[:space:]]*\\?[[:space:]]*$' "$file" | head -n 1 | cut -d: -f1 || true)"
+  ui_line="$(grep -nE -- '^[[:space:]]*-only-testing:PurePaceUITests[[:space:]]*\\?[[:space:]]*$' "$file" | head -n 1 | cut -d: -f1 || true)"
+  if [ -z "$install_line" ] || [ -z "$privacy_line" ] || [ -z "$unit_line" ] || [ -z "$ui_line" ]; then
+    out="$out 缺少 install/privacy/-only-testing:PurePaceTests/-only-testing:PurePaceUITests 顺序锚点;"
   elif [ "$install_line" -ge "$privacy_line" ]; then
     out="$out simctl privacy 必须排在 simctl install 之后（install=${install_line} privacy=${privacy_line}）;"
-  elif [ "$privacy_line" -ge "$test_line" ]; then
-    out="$out simctl privacy 必须排在 xcodebuild test 之前（privacy=${privacy_line} test=${test_line}）;"
+  elif [ "$privacy_line" -ge "$unit_line" ]; then
+    out="$out simctl privacy 必须排在单测调用之前（privacy=${privacy_line} unit=${unit_line}）;"
+  elif [ "$unit_line" -ge "$ui_line" ]; then
+    out="$out 单测调用必须先于 UI 调用（unit=${unit_line} ui=${ui_line}）;"
   fi
+  # UI 测试不得再依赖 simctl 的隐藏式定位投递：脚本正文出现任何 simctl location 都判失败。
+  if grep -Fq -- "simctl location" "$file"; then
+    out="$out test-ios.sh 出现 simctl location（UI 测试应走 -uiTestLocation 确定性测试源）;"
+  fi
+  # 两次 xcodebuild test 调用都必须带三个测试执行预算参数。
+  local budget_count=""
+  for needle in \
+    "-test-timeouts-enabled YES" \
+    "-default-test-execution-time-allowance 300" \
+    "-maximum-test-execution-time-allowance 540"; do
+    budget_count="$(grep -Fc -- "$needle" "$file" 2>/dev/null || true)"
+    [ -n "$budget_count" ] || budget_count=0
+    [ "$budget_count" -ge 2 ] || out="$out '$needle' 出现 ${budget_count} 次（单测/UI 各需 1 次）;"
+  done
+  # 单测/UI 两次调用的日志必须分文件。
+  for needle in "xcodebuild-unit.log" "xcodebuild-ui.log"; do
+    grep -Fq -- "$needle" "$file" || out="$out 缺少分文件日志 '$needle';"
+  done
   # macOS runner 没有 GNU timeout：硬超时必须是 bash 看门狗（kill），不能用 timeout 命令。
   if grep -Eq '(^|[^[:alnum:]_])timeout[[:space:]]+[0-9]' "$file"; then
     out="$out test-ios.sh 依赖 GNU timeout（macOS runner 无该命令），应使用 bash 看门狗 + kill;"
   fi
-  # 定位注入必须逐秒 set 直线推进；start 路线回放在 hosted runner 上不投递样本。
-  if grep -Fq -- 'location "$sim_udid" start' "$file"; then
-    out="$out test-ios.sh 仍用 simctl location start 路线回放，应改为每秒 location set;"
-  fi
-  # 单次 attempt 静默等待硬上限 ≤600s。
+  # 单次 attempt 聚合硬上限 ≤600s。
   local timeout_default=""
   timeout_default="$(sed -n 's/.*IOS_XCODEBUILD_TIMEOUT:-\([0-9][0-9]*\).*/\1/p' "$file" | head -n 1 || true)"
   if [ -z "$timeout_default" ]; then
@@ -243,16 +264,49 @@ else
 fi
 rm -rf "$prep_sandbox"
 
-# 反例自检：残留 start 路线回放（hosted runner 不投递样本）必须被识别。
+# 反例自检：UI 路径残留 simctl 定位注入（隐藏式投递）必须被识别。
 start_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-start.XXXXXX")"
 cp scripts/test-ios.sh "$start_sandbox/test-ios.sh"
-printf '%s\n' 'xcrun simctl location "$sim_udid" start --speed=3 --interval=1 37.3349,-122.0090 37.5200,-122.0090' >> "$start_sandbox/test-ios.sh"
+printf '%s\n' 'xcrun simctl location "$sim_udid" set 37.3349,-122.0090' >> "$start_sandbox/test-ios.sh"
 if [ -n "$(test_ios_preparation_problems "$start_sandbox/test-ios.sh")" ]; then
-  pass "ac-test-ios-set-loop-injection (self-test)"
+  pass "ac-test-ios-no-simctl-location (self-test)"
 else
-  fail "ac-test-ios-set-loop-injection" "残留 start 路线回放的违规样本未被识别"
+  fail "ac-test-ios-no-simctl-location" "残留 simctl 定位注入的违规样本未被识别"
 fi
 rm -rf "$start_sandbox"
+
+# 反例自检：交换单测/UI 调用顺序必须被识别。
+order_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-order.XXXXXX")"
+python3 - "$order_sandbox/test-ios.sh" <<'PY'
+import sys
+src = open("scripts/test-ios.sh", encoding="utf-8").read()
+unit = "    -only-testing:PurePaceTests \\\n"
+ui = "    -only-testing:PurePaceUITests \\\n"
+swapped = src.replace(unit, "@@UNIT@@").replace(ui, unit).replace("@@UNIT@@", ui)
+open(sys.argv[1], "w", encoding="utf-8").write(swapped)
+PY
+if [ -n "$(test_ios_preparation_problems "$order_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-unit-before-ui (self-test)"
+else
+  fail "ac-test-ios-unit-before-ui" "单测/UI 顺序颠倒的违规样本未被识别"
+fi
+rm -rf "$order_sandbox"
+
+# 反例自检：删掉 UI 调用的测试预算参数必须被识别。
+budget_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-budget.XXXXXX")"
+python3 - "$budget_sandbox/test-ios.sh" <<'PY'
+import sys
+src = open("scripts/test-ios.sh", encoding="utf-8").read()
+# 只删 UI 调用块里的一处 -test-timeouts-enabled，保留单测块那一处。
+idx = src.rindex("-test-timeouts-enabled YES")
+open(sys.argv[1], "w", encoding="utf-8").write(src[:idx] + src[idx + len("-test-timeouts-enabled YES"):])
+PY
+if [ -n "$(test_ios_preparation_problems "$budget_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-budget-params (self-test)"
+else
+  fail "ac-test-ios-budget-params" "缺少 UI 测试预算参数的违规样本未被识别"
+fi
+rm -rf "$budget_sandbox"
 
 # 反例自检：看门狗默认超时 >600s 必须被识别。
 timeout_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-timeout.XXXXXX")"
@@ -263,6 +317,86 @@ else
   fail "ac-test-ios-watchdog-budget" "看门狗 1800s 的违规样本未被识别"
 fi
 rm -rf "$timeout_sandbox"
+
+# ---------------- verify-ios-sim-runtime.sh 真实 CoreLocation 注入不得被误删
+sim_runtime_problems() {
+  local file="$1" out=""
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  grep -Fq -- '"location", udid, "set"' "$file" || out="$out 缺少 1Hz simctl location set 真实注入;"
+  grep -Fq -- 'simctl location "${udid}" clear' "$file" || out="$out 缺少 simctl location clear 清理;"
+  printf '%s' "$out"
+}
+problems="$(sim_runtime_problems scripts/verify-ios-sim-runtime.sh)"
+grep -Fq -- '"verify-ios-sim-runtime"' .munk/code-gates.json \
+  || problems="$problems .munk/code-gates.json 缺少 verify-ios-sim-runtime 门;"
+if [ -z "$problems" ]; then
+  pass "ac-real-corelocation-gate-kept"
+else
+  fail "ac-real-corelocation-gate-kept" "$problems"
+fi
+
+# 反例自检：删掉真实 simctl location set 注入行必须被识别。
+sim_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-simrt.XXXXXX")"
+python3 - "$sim_sandbox/verify-ios-sim-runtime.sh" <<'PY'
+import sys
+src = open("scripts/verify-ios-sim-runtime.sh", encoding="utf-8").read()
+needle = '["xcrun", "simctl", "location", udid, "set", "%.7f,%.7f" % (latitude, longitude)]'
+open(sys.argv[1], "w", encoding="utf-8").write(src.replace(needle, "[]"))
+PY
+if [ -n "$(sim_runtime_problems "$sim_sandbox/verify-ios-sim-runtime.sh")" ]; then
+  pass "ac-real-corelocation-gate-kept (self-test)"
+else
+  fail "ac-real-corelocation-gate-kept" "删除真实注入行的违规样本未被识别"
+fi
+rm -rf "$sim_sandbox"
+
+# ---------------- verify-ios-ui-e2e.sh 证据目录默认无 churn
+ui_e2e_evidence_problems() {
+  local file="$1" out=""
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  grep -Fq -- '--refresh-evidence' "$file" || out="$out 缺少 --refresh-evidence 开关;"
+  grep -Fq -- 'evidence_dir="${work_dir}/evidence"' "$file" || out="$out 默认证据目录不在 .build/ 下;"
+  if grep -Fq -- "simctl location" "$file"; then
+    out="$out verify-ios-ui-e2e.sh 仍调用 simctl location（UI 应走确定性测试源）;"
+  fi
+  printf '%s' "$out"
+}
+problems="$(ui_e2e_evidence_problems scripts/verify-ios-ui-e2e.sh)"
+if [ -z "$problems" ]; then
+  pass "ac-e2e-evidence-default-no-churn"
+else
+  fail "ac-e2e-evidence-default-no-churn" "$problems"
+fi
+
+# 反例自检：删掉 --refresh-evidence 开关后必须被识别。
+e2e_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-e2e.XXXXXX")"
+sed 's/--refresh-evidence/--legacy-evidence-flag/g' scripts/verify-ios-ui-e2e.sh > "$e2e_sandbox/verify-ios-ui-e2e.sh"
+if [ -n "$(ui_e2e_evidence_problems "$e2e_sandbox/verify-ios-ui-e2e.sh")" ]; then
+  pass "ac-e2e-evidence-default-no-churn (self-test)"
+else
+  fail "ac-e2e-evidence-default-no-churn" "缺少 --refresh-evidence 的违规样本未被识别"
+fi
+rm -rf "$e2e_sandbox"
+
+# ---------------- .munk/code-gates.json 门数不得增删
+problems=""
+gate_count="$(python3 -c 'import json; print(len(json.load(open(".munk/code-gates.json"))["gates"]))' 2>/dev/null || true)"
+if [ -z "$gate_count" ]; then
+  problems="$problems 无法解析 .munk/code-gates.json gates;"
+elif [ "$gate_count" -ne 23 ]; then
+  problems="$problems code-gates 门数 ${gate_count}（期望 23）;"
+fi
+if [ -z "$problems" ]; then
+  pass "ac-code-gates-count"
+else
+  fail "ac-code-gates-count" "$problems"
+fi
 
 # ------------------------------- 降级分支不伪造成功行（不 echo BUILD/TEST SUCCEEDED）
 problems=""

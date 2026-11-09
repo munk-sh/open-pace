@@ -1,8 +1,8 @@
 import XCTest
 
-/// 真实链路 UI 测试：依赖 `scripts/test-ios.sh` 在测试前用
-/// `xcrun simctl location <udid> set <lat>,<lon>` 每秒直线推进注入 CoreLocation 更新。
-/// 不使用 launch-arg 假流、不内置样例、不以固定 sleep 作为成功判据。
+/// 真实链路 UI 测试：跑步会话由启动参数 `-uiTestLocation` 注入的确定性测试定位源驱动
+/// （仅 DEBUG 生效），不依赖 simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由
+/// `scripts/verify-ios-sim-runtime.sh` 的门禁承担。不内置样例、不以固定 sleep 作为成功判据。
 final class RunFlowUITests: XCTestCase {
     /// 授权弹窗按钮文案（系统英文/中文）。
     private static let locationAllowLabels = [
@@ -19,6 +19,8 @@ final class RunFlowUITests: XCTestCase {
 
     func testRunPauseResumeFinishAndHistory() {
         let app = XCUIApplication()
+        // 确定性测试定位源（仅 DEBUG 生效）：不依赖 hosted runner 的 simulator 定位投递。
+        app.launchArguments += ["-uiTestLocation"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
