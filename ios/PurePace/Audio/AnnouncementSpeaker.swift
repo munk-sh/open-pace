@@ -7,14 +7,19 @@ protocol AnnouncementSpeaking: AnyObject {
     func speak(_ command: AnnouncementCommand)
 }
 
-/// 最小语音合成接缝：一次 `speak` + 结束/取消回调，生产实现包装 `AVSpeechSynthesizer`。
+/// 最小语音合成接缝：一次 `speak` + 起始/结束/取消回调，生产实现包装 `AVSpeechSynthesizer`。
 protocol SpeechSynthesizing: AnyObject {
-    func speak(_ text: String, onFinish: @escaping (_ cancelled: Bool) -> Void)
+    func speak(
+        _ text: String,
+        onStart: @escaping () -> Void,
+        onFinish: @escaping (_ cancelled: Bool) -> Void
+    )
 }
 
-/// 生产实现：把一条短句交给系统合成器，并在结束或取消时回调。
+/// 生产实现：把一条短句交给系统合成器，并在开始/结束或取消时回调。
 final class AVSpeechSynthesizing: NSObject, SpeechSynthesizing, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
+    private var onStart: (() -> Void)?
     private var onFinish: ((Bool) -> Void)?
 
     override init() {
@@ -22,9 +27,20 @@ final class AVSpeechSynthesizing: NSObject, SpeechSynthesizing, AVSpeechSynthesi
         synthesizer.delegate = self
     }
 
-    func speak(_ text: String, onFinish: @escaping (_ cancelled: Bool) -> Void) {
+    func speak(
+        _ text: String,
+        onStart: @escaping () -> Void,
+        onFinish: @escaping (_ cancelled: Bool) -> Void
+    ) {
+        self.onStart = onStart
         self.onFinish = onFinish
         synthesizer.speak(AVSpeechUtterance(string: text))
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        let callback = onStart
+        onStart = nil
+        callback?()
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
@@ -36,6 +52,7 @@ final class AVSpeechSynthesizing: NSObject, SpeechSynthesizing, AVSpeechSynthesi
     }
 
     private func finish(cancelled: Bool) {
+        onStart = nil
         let callback = onFinish
         onFinish = nil
         callback?(cancelled)
@@ -66,16 +83,22 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
     private let injectedSynthesizer: SpeechSynthesizing?
     private lazy var synthesizer: SpeechSynthesizing = injectedSynthesizer ?? AVSpeechSynthesizing()
     private let text: (AnnouncementCommand) -> String
+    private let telemetry: AnnouncementTelemetryRecording?
+    private let now: () -> Date
     private var lastDelivered: CommandKey?
 
     init(
         audioSession: AudioSessionAdapter = AudioSessionAdapter(),
         synthesizer: SpeechSynthesizing? = nil,
-        text: @escaping (AnnouncementCommand) -> String = AnnouncementText.sentence(for:)
+        telemetry: AnnouncementTelemetryRecording? = nil,
+        text: @escaping (AnnouncementCommand) -> String = AnnouncementText.sentence(for:),
+        now: @escaping () -> Date = { Date() }
     ) {
         self.audioSession = audioSession
         self.injectedSynthesizer = synthesizer
+        self.telemetry = telemetry
         self.text = text
+        self.now = now
     }
 
     func speak(_ command: AnnouncementCommand) {
@@ -83,14 +106,40 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
         guard lastDelivered != key else { return }
         lastDelivered = key
 
+        var sessionActivated = false
         do {
-            try audioSession.beginAnnouncement()
+            sessionActivated = try audioSession.beginAnnouncement()
         } catch {
             // 会话激活失败不打断跑次；合成结束后停用调用仍由协调器按真实状态幂等处理。
         }
 
-        synthesizer.speak(text(command)) { [weak self] _ in
-            try? self?.audioSession.endAnnouncement()
-        }
+        let sentence = text(command)
+        let context = audioSession.announcementContext(sessionActivated: sessionActivated)
+        let splitIndex = command.splitIndex
+        telemetry?.recordStarted(
+            splitIndex: splitIndex,
+            text: sentence,
+            startedAt: now(),
+            context: context
+        )
+
+        synthesizer.speak(sentence, onStart: { [weak self] in
+            self?.telemetry?.recordSpeechDidStart(splitIndex: splitIndex, startedAt: self?.now() ?? Date())
+        }, onFinish: { [weak self] cancelled in
+            guard let self else { return }
+            var sessionDeactivated = false
+            do {
+                sessionDeactivated = try self.audioSession.endAnnouncement()
+            } catch {
+                sessionDeactivated = false
+            }
+            self.telemetry?.recordFinished(
+                splitIndex: splitIndex,
+                finishedAt: self.now(),
+                cancelled: cancelled,
+                sessionDeactivated: sessionDeactivated,
+                duckRevoked: sessionDeactivated
+            )
+        })
     }
 }

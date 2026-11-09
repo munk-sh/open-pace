@@ -612,7 +612,7 @@ fi
 
 # ------------------------------------------------ 真实跑步 UI
 problems=""
-live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/History/RunExportState.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift"
+live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Run/RunTelemetry.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/Location/RunTestLocationSource.swift ios/PurePace/Location/SystemAuthorizationProbe.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/History/RunExportState.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift ios/PurePace/Audio/AudioSessionAdapter.swift ios/PurePace/Audio/AnnouncementTelemetry.swift"
 for file in $live_sources; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
 done
@@ -634,7 +634,7 @@ if [ -z "$problems" ]; then
   grep -Fq 'RunSessionOrchestrator' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未持有 RunSessionOrchestrator;"
   grep -Fq 'orchestrator.metrics' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未从编排器读取 metrics;"
   # 无障碍标识（测试契约）
-  for id in run.distance run.elapsed run.currentPace run.averagePace run.splits run.start run.pause run.resume run.finish run.saved; do
+  for id in run.distance run.elapsed run.currentPace run.averagePace run.splits run.start run.pause run.resume run.finish run.saved run.telemetry; do
     grep -Fq "\"$id\"" ios/PurePace/Run/RunView.swift || problems="$problems 缺少无障碍标识 $id;"
   done
   # 播报偏好必须接线到 ViewModel 与真实播报器
@@ -679,7 +679,7 @@ fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift ios/PurePaceTests/AudioSessionAdapterTests.swift ios/PurePaceTests/RunTelemetryTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
@@ -691,7 +691,7 @@ if [ -z "$problems" ]; then
   done
   grep -Fq 'XCUIApplication' "$ui_tests" || problems="$problems XCUITest 未使用 XCUIApplication;"
   grep -Fq 'app.launch()' "$ui_tests" || problems="$problems XCUITest 未启动 App;"
-  for id in run.start run.pause run.resume run.finish run.saved history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty runDetail.export runDetail.exported runDetail.share runDetail.exportFailed settings.announcementToggle; do
+  for id in run.start run.pause run.resume run.finish run.saved run.telemetry history.row runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty runDetail.export runDetail.exported runDetail.share runDetail.exportFailed settings.announcementToggle; do
     grep -Fq "\"$id\"" "$ui_tests" || problems="$problems XCUITest 未断言 $id;"
   done
   if grep -Eq '(Thread\.sleep|sleep\()' "$ui_tests"; then
@@ -758,7 +758,7 @@ PY
     grep -Fq -- '-uiTestLocation' "$ui" || out="$out RunFlowUITests 未传 -uiTestLocation 启动参数;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    [ "$test_count" -eq 2 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 2）;"
+    [ "$test_count" -eq 3 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 3）;"
     [ "$assert_count" -ge 68 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥68）;"
   fi
   if [ ! -f "$run_source" ]; then

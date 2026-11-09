@@ -253,6 +253,45 @@ if run_files:
             "timestamp": last.get("timestamp"),
         }
 
+    # additive 遥测自证：telemetry 顶层对象 + samples[].source（确定源路径全为 simulated）
+    telemetry = record.get("telemetry")
+    if not isinstance(telemetry, dict) or not telemetry:
+        problems.append("telemetry 顶层对象缺失")
+        telemetry = {}
+    else:
+        authorization = telemetry.get("authorizationStatus")
+        if not isinstance(authorization, dict) or "name" not in authorization or "rawValue" not in authorization:
+            problems.append("telemetry.authorizationStatus 缺少 name/rawValue")
+        else:
+            run_summary["authorizationStatus"] = authorization
+            if authorization.get("name") != "authorizedAlways":
+                problems.append(
+                    "telemetry.authorizationStatus.name 应为 authorizedAlways，实际 %r"
+                    % authorization.get("name")
+                )
+            if authorization.get("rawValue") != 3:
+                problems.append(
+                    "telemetry.authorizationStatus.rawValue 应为 3，实际 %r"
+                    % authorization.get("rawValue")
+                )
+        accuracy = telemetry.get("accuracyAuthorization")
+        if not isinstance(accuracy, dict) or "name" not in accuracy or "rawValue" not in accuracy:
+            problems.append("telemetry.accuracyAuthorization 缺少 name/rawValue")
+        for key in ("allowsBackgroundLocationUpdates", "pausesLocationUpdatesAutomatically"):
+            if not isinstance(telemetry.get(key), bool):
+                problems.append("telemetry.%s 应为布尔，实际 %r" % (key, telemetry.get(key)))
+        if not isinstance(telemetry.get("announcements"), list):
+            problems.append("telemetry.announcements 应为数组")
+
+    sources = [sample.get("source") for sample in samples]
+    run_summary["sampleSources"] = sorted({str(source) for source in sources})
+    if len(sources) != len(samples) or any(source not in ("device", "simulated") for source in sources):
+        problems.append("samples[].source 应全为 device/simulated，实际 %r" % run_summary["sampleSources"])
+    if any(source != "simulated" for source in sources):
+        problems.append(
+            "确定性测试源路径 samples[].source 应全为 simulated，实际 %r" % run_summary["sampleSources"]
+        )
+
 gpx_files = sorted(glob.glob(os.path.join(exports_dir, "*.gpx")))
 exports = []
 if not gpx_files:
@@ -721,6 +760,19 @@ ios_gate_lock_prepare_simulator() {
   return 0
 }
 
+# ac-tel-always：xcodebuild test-without-building 会把 App 重装到新的 Bundle 容器，
+# locationd 的 TCC 记录与容器路径绑定，预置授权会随之失效。故在 UI 调用全程后台轮询
+# 已安装容器并幂等重申 location-always，保证探针在读回时刻为 authorizedAlways（rawValue 3）。
+refresh_location_always_until_stopped() {
+  local stop_file="$1"
+  while [ ! -e "$stop_file" ]; do
+    if xcrun simctl get_app_container "$sim_udid" "$bundle_id" app >/dev/null 2>&1; then
+      xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1 || true
+    fi
+    sleep 2
+  done
+}
+
 main() {
   if ! command -v xcrun >/dev/null 2>&1 || ! command -v xcodebuild >/dev/null 2>&1 \
     || ! command -v python3 >/dev/null 2>&1 || ! command -v xmllint >/dev/null 2>&1; then
@@ -793,30 +845,74 @@ PY
     fail_step "build" "scripts/build-ios.sh 非零退出（日志 $work_dir/build.log）"
     return 1
   fi
+  # build-for-testing 产出 UI Runner；后续用 test-without-building 执行，
+  # 避免 xcodebuild test 重装 App 把预置的 TCC 授权清掉。
+  if ! xcodebuild build-for-testing \
+    -project "$project_path" \
+    -scheme "$scheme" \
+    -destination "$destination" \
+    -derivedDataPath "$derived_data" \
+    CODE_SIGNING_ALLOWED=NO >"$work_dir/build-for-testing.log" 2>&1; then
+    fail_step "build" "xcodebuild build-for-testing 非零退出（日志 $work_dir/build-for-testing.log）"
+    return 1
+  fi
   app_path="$(find "$derived_data/Build/Products" -type d -name 'PurePace.app' -print -quit 2>/dev/null || true)"
   if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
     fail_step "build" "构建脚本未产出 PurePace.app（$derived_data/Build/Products）"
     return 1
   fi
-  record_step "build" true "构建产物 $app_path"
-
-  if ! xcrun simctl install "$sim_udid" "$app_path" >/dev/null 2>&1; then
-    fail_step "install" "simctl install 失败（${app_path}）"
+  ui_runner_path="$(find "$derived_data/Build/Products" -type d -name 'PurePaceUITests-Runner.app' -print -quit 2>/dev/null || true)"
+  if [ -z "$ui_runner_path" ] || [ ! -d "$ui_runner_path" ]; then
+    fail_step "build" "build-for-testing 未产出 PurePaceUITests-Runner.app（$derived_data/Build/Products）"
     return 1
   fi
-  record_step "install" true "已安装 $bundle_id 到 $sim_udid"
+  record_step "build" true "构建产物 ${app_path}（Runner ${ui_runner_path}）"
 
   # 空容器：先 uninstall，再断言 Documents/Runs 无跑次文件，保证「恰 1 条」来自本次。
   xcrun simctl terminate "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
   xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
   assert_empty_container || return 1
 
+  # 安装 App 与 UI Runner（test-without-building 不会自动安装 Runner）。
+  if ! xcrun simctl install "$sim_udid" "$app_path" >/dev/null 2>&1; then
+    fail_step "install" "simctl install 失败（${app_path}）"
+    return 1
+  fi
+  if ! xcrun simctl install "$sim_udid" "$ui_runner_path" >/dev/null 2>&1; then
+    fail_step "install" "simctl install UI Runner 失败（${ui_runner_path}）"
+    return 1
+  fi
+  record_step "install" true "已安装 $bundle_id 与 UI Runner 到 $sim_udid"
+
+  # 预热必须先于授权：首次安装的 bundle 需先被启动一次向 locationd 注册，
+  # 之后 `simctl privacy grant location-always` 才会真正生效。
+  xcrun simctl launch "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
+  sleep 2
+  xcrun simctl terminate "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
+
+  # ac-tel-always：预置「始终允许」定位授权（TCC keyed by bundle id）。App 由本步安装后
+  # 不再被 xcodebuild 重装，授权得以保留，App 侧授权探针读回 authorizedAlways（rawValue 3）。
+  echo "info: 阶段 simulator-privacy：预置 location-always（${bundle_id}）"
+  if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
+    fail_step "simulator-privacy" "xcrun simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）"
+    return 1
+  fi
+  if ! xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1; then
+    fail_step "simulator-privacy" "xcrun simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）"
+    return 1
+  fi
+  record_step "simulator-privacy" true "simctl privacy grant location-always（authorizedAlways，rawValue 3）"
+
   # UI 流由启动参数 -uiTestLocation 门控的 DEBUG 确定性测试源驱动，不依赖 simulator
   # 定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 的门禁承担。
   record_step "location-source" true "确定性测试源 -uiTestLocation（真实 CoreLocation 由 verify-ios-sim-runtime 覆盖）"
 
   # 只跑真实流程用例，避免播报开关用例的 terminate/relaunch 干扰「恰 1 条跑次」。
-  xcodebuild test \
+  tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
+  rm -f "$tcc_stop_file"
+  refresh_location_always_until_stopped "$tcc_stop_file" &
+  tcc_refresher_pid=$!
+  xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
     -destination "$destination" \
@@ -825,6 +921,9 @@ PY
     -resultBundlePath "$result_bundle" \
     CODE_SIGNING_ALLOWED=NO >"$xcode_log" 2>&1
   xcode_status=$?
+  touch "$tcc_stop_file"
+  wait "$tcc_refresher_pid" 2>/dev/null || true
+  rm -f "$tcc_stop_file"
   if [ "$xcode_status" -ne 0 ]; then
     tail_output="$(tail -n 40 "$xcode_log" 2>/dev/null || true)"
     printf '%s\n' "$tail_output" >&2

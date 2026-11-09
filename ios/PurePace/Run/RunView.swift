@@ -44,6 +44,16 @@ struct RunView: View {
                         .accessibilityIdentifier("run.saved")
                 }
 
+#if DEBUG
+                if let summary = viewModel.telemetrySummary {
+                    Text(summary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("run.telemetry")
+                }
+#endif
+
                 controls
 
                 Spacer()

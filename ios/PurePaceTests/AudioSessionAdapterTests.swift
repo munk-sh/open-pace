@@ -22,6 +22,8 @@ private final class AudioSessionSpy: AudioSessionControlling {
     var category: AVAudioSession.Category = .ambient
     var mode: AVAudioSession.Mode = .default
     var categoryOptions: AVAudioSession.CategoryOptions = []
+    var isOtherAudioPlaying: Bool = false
+    var secondaryAudioShouldBeSilencedHint: Bool = false
 
     var activations: [ActivationCall] { activationCalls.filter(\.active) }
     var deactivations: [ActivationCall] { activationCalls.filter { !$0.active } }

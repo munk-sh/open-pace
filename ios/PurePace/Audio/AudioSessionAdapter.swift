@@ -10,6 +10,10 @@ protocol AudioSessionControlling: AnyObject {
     var category: AVAudioSession.Category { get }
     var mode: AVAudioSession.Mode { get }
     var categoryOptions: AVAudioSession.CategoryOptions { get }
+    /// 是否有其它 App 正在播放音频（只读，如实记录，不做断言）。
+    var isOtherAudioPlaying: Bool { get }
+    /// 系统是否建议压低次要音频（只读，如实记录，不做断言）。
+    var secondaryAudioShouldBeSilencedHint: Bool { get }
 
     func setCategory(
         _ category: AVAudioSession.Category,
@@ -31,6 +35,8 @@ final class AVAudioSessionController: AudioSessionControlling {
     var category: AVAudioSession.Category { session.category }
     var mode: AVAudioSession.Mode { session.mode }
     var categoryOptions: AVAudioSession.CategoryOptions { session.categoryOptions }
+    var isOtherAudioPlaying: Bool { session.isOtherAudioPlaying }
+    var secondaryAudioShouldBeSilencedHint: Bool { session.secondaryAudioShouldBeSilencedHint }
 
     func setCategory(
         _ category: AVAudioSession.Category,
@@ -114,14 +120,35 @@ final class AudioSessionAdapter: NSObject {
     /// 当前纯逻辑会话状态（供测试与调试读取，不参与平台调用）。
     var state: AudioSessionState { coordinator.state }
 
-    /// 播报开始：幂等激活（重复调用只产生一次 `setActive(true)`）。
-    func beginAnnouncement() throws {
-        try perform(coordinator.activate())
+    /// 播报时刻的音频环境快照（`sessionActivated` 由调用方按真实下发结果传入）。
+    func announcementContext(sessionActivated: Bool) -> AnnouncementAudioContext {
+        AnnouncementAudioContext(
+            category: Self.categoryLiteral(controller.category),
+            mode: Self.modeLiteral(controller.mode),
+            categoryOptions: Self.optionLiterals(controller.categoryOptions),
+            isOtherAudioPlaying: controller.isOtherAudioPlaying,
+            secondaryAudioShouldBeSilencedHint: controller.secondaryAudioShouldBeSilencedHint,
+            sessionActivated: sessionActivated
+        )
+    }
+
+    /// 播报开始：幂等激活（重复调用只产生一次 `setActive(true)`）。返回是否真实下发平台调用。
+    @discardableResult
+    func beginAnnouncement() throws -> Bool {
+        let action = coordinator.activate()
+        let performed = Self.performsPlatformCall(action)
+        try perform(action)
+        return performed
     }
 
     /// 播报结束：仅在确实处于激活态时停用一次，选项取自配置的 `deactivationOptions`。
-    func endAnnouncement() throws {
-        try perform(coordinator.deactivate())
+    /// 返回是否真实下发平台调用（即 duck 撤销/会话恢复是否发生）。
+    @discardableResult
+    func endAnnouncement() throws -> Bool {
+        let action = coordinator.deactivate()
+        let performed = Self.performsPlatformCall(action)
+        try perform(action)
+        return performed
     }
 
     /// 测试与系统通知共用的处理入口：投递真实 `AVAudioSession.interruptionNotification`。
@@ -141,6 +168,49 @@ final class AudioSessionAdapter: NSObject {
 
     @objc private func interruptionDidOccur(_ notification: Notification) {
         handleInterruption(notification: notification)
+    }
+
+    private static func performsPlatformCall(_ action: AudioSessionAction) -> Bool {
+        if case .none = action { return false }
+        return true
+    }
+
+    private static func categoryLiteral(_ category: AVAudioSession.Category) -> String {
+        switch category {
+        case .playback: return "playback"
+        case .playAndRecord: return "playAndRecord"
+        case .ambient: return "ambient"
+        case .soloAmbient: return "soloAmbient"
+        case .multiRoute: return "multiRoute"
+        case .record: return "record"
+        default: return category.rawValue
+        }
+    }
+
+    private static func modeLiteral(_ mode: AVAudioSession.Mode) -> String {
+        switch mode {
+        case .default: return "default"
+        case .spokenAudio: return "spokenAudio"
+        case .measurement: return "measurement"
+        case .moviePlayback: return "moviePlayback"
+        case .videoRecording: return "videoRecording"
+        case .voiceChat: return "voiceChat"
+        case .voicePrompt: return "voicePrompt"
+        case .gameChat: return "gameChat"
+        case .videoChat: return "videoChat"
+        default: return mode.rawValue
+        }
+    }
+
+    private static func optionLiterals(_ options: AVAudioSession.CategoryOptions) -> [String] {
+        var literals: [String] = []
+        if options.contains(.duckOthers) { literals.append("duckOthers") }
+        if options.contains(.mixWithOthers) { literals.append("mixWithOthers") }
+        if options.contains(.interruptSpokenAudioAndMixWithOthers) {
+            literals.append("interruptSpokenAudioAndMixWithOthers")
+        }
+        if options.contains(.allowBluetoothA2DP) { literals.append("allowBluetoothA2DP") }
+        return literals
     }
 
     private func perform(_ action: AudioSessionAction) throws {

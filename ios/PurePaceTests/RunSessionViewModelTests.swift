@@ -9,6 +9,9 @@ final class RunSessionViewModelTests: XCTestCase {
         private(set) var authorization: RunLocationAuthorization = .authorizedWhenInUse
         private(set) var startCount = 0
         private(set) var stopCount = 0
+        var sampleSource: RunSampleSource = .device
+        var allowsBackgroundLocationUpdates: Bool = false
+        var pausesLocationUpdatesAutomatically: Bool = false
 
         func start() {
             startCount += 1
