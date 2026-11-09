@@ -21,7 +21,7 @@ usage() {
     且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热。
     两次 xcodebuild test 都带测试执行预算（-test-timeouts-enabled / -default-test-execution-time-allowance /
     -maximum-test-execution-time-allowance）与进程级硬超时（bash 看门狗，不依赖 GNU timeout）；
-    单次 attempt 的聚合硬超时 ≤600s，超时后非零退出并打印超时阶段与已执行的测试摘要。
+    单测/UI 两腿各有独立硬超时（默认 600s）；UI 腿可用预算低于最小阈值时明确失败，超时后非零退出并打印超时阶段与已执行的测试摘要。
     任一调用失败脚本非零退出，单测结论先于 UI 输出且不被 UI 失败覆盖。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
@@ -34,13 +34,19 @@ usage() {
   -h, --help   显示本帮助并退出 0
 
 环境变量:
-  IOS_XCODEBUILD_TIMEOUT  xcodebuild test 的聚合硬超时秒数，默认 600（≤600，压住 AX 初始化静默等待）
+  IOS_XCODEBUILD_TIMEOUT  xcodebuild test 每腿（单测/UI 各一份）的硬超时秒数，默认 600（≤600，压住 AX 初始化静默等待）
+  PUREPACE_IOS_UI_MIN_BUDGET_SECONDS
+                           UI 腿最小可用预算秒数，默认 300；可用预算低于该值时明确失败
+  PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS
+                           step 级总预算秒数（CI 由 ios.yml 注入 2700）；与下面的起点同时存在时生效
+  PUREPACE_IOS_STEP_STARTED_AT
+                           step 起始 epoch 秒；UI 可用预算再取 min(单腿预算, step 剩余)
 
 退出码:
   0    测试通过，或工程缺失但降级的 swift test 真实通过（输出含 blocked:）
   1    工程存在但真实测试失败，或降级 swift test 失败
   2    参数非法
-  124  xcodebuild test 触发硬超时（看门狗已强制终止）
+  124  xcodebuild test 触发硬超时，或 UI 腿可用预算低于最小阈值（看门狗已强制终止/未起跑）
 EOF
 }
 
@@ -88,7 +94,7 @@ fi
 # 不再依赖 hosted runner 的隐藏式 simulator 定位投递；真实 CoreLocation 覆盖由
 # scripts/verify-ios-sim-runtime.sh 的门禁承担。固定 iPhone 16 / iOS 18.6；bootstatus
 # 等待设备完全可用，卸载清容器 → 构建安装 App → simctl privacy 预置定位授权 → 启动预热，
-# 最后拆成「单测 → UI」两次 xcodebuild test，共用派生数据与聚合硬超时。
+# 最后拆成「单测 → UI」两次 xcodebuild test，共用派生数据但预算按腿独立。
 sim_udid=""
 app_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePace.app"
 ui_runner_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePaceUITests-Runner.app"
@@ -96,6 +102,54 @@ log_dir=".build/logs"
 unit_log="$log_dir/xcodebuild-unit.log"
 ui_log="$log_dir/xcodebuild-ui.log"
 xcodebuild_timeout="${IOS_XCODEBUILD_TIMEOUT:-600}"
+# 单测腿 / UI 腿各自独立预算（各一份 IOS_XCODEBUILD_TIMEOUT，默认 600s）；
+# 不再用「单测已耗时」从 UI 预算里扣减。UI 腿另有最小可用预算阈值。
+unit_budget="$xcodebuild_timeout"
+ui_budget="$xcodebuild_timeout"
+ui_min_budget="${PUREPACE_IOS_UI_MIN_BUDGET_SECONDS:-300}"
+step_budget_seconds="${PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS:-}"
+step_started_at="${PUREPACE_IOS_STEP_STARTED_AT:-}"
+
+# step 级剩余预算（秒）；两个 env 缺失或非法时不约束（输出空串）。
+step_budget_remaining() {
+  case "${step_budget_seconds}" in
+    ""|*[!0-9]*) return 0 ;;
+  esac
+  case "${step_started_at}" in
+    ""|*[!0-9]*) return 0 ;;
+  esac
+  local now elapsed remaining
+  now="$(date +%s)"
+  elapsed=$((now - step_started_at))
+  if [ "$elapsed" -lt 0 ]; then
+    elapsed=0
+  fi
+  remaining=$((step_budget_seconds - elapsed))
+  if [ "$remaining" -lt 0 ]; then
+    remaining=0
+  fi
+  printf '%s' "$remaining"
+}
+
+# UI 腿可用预算：min(单腿预算, step 剩余)；step env 缺失时不约束。
+ui_leg_budget() {
+  local available="$ui_budget" step_left=""
+  step_left="$(step_budget_remaining)"
+  if [ -n "$step_left" ] && [ "$step_left" -lt "$available" ]; then
+    available="$step_left"
+  fi
+  printf '%s' "$available"
+}
+
+# UI 可用预算低于最小阈值时打印一行并返回 0（调用方据此失败退出 124）。
+ui_budget_insufficient() {
+  local available="$1"
+  if [ "$available" -lt "$ui_min_budget" ]; then
+    echo "test-ios: 承载层预算不足：UI 腿可用 ${available}s < 最小阈值 ${ui_min_budget}s" >&2
+    return 0
+  fi
+  return 1
+}
 
 # 同机跨 worktree iOS 门串行化锁：固定目录 /tmp/purepace-ios-gate.lock。
 # mkdir 原子取锁；PUREPACE_IOS_GATE_LOCK_HELD=1 表示会话层已持锁，本脚本直接重入不重复加锁。
@@ -339,7 +393,7 @@ run_with_watchdog() {
 }
 
 # 单测/UI 两次 xcodebuild test 的公共前置说明：
-# 两次调用各自落盘日志（xcodebuild-unit.log / xcodebuild-ui.log），共享聚合硬超时。
+# 两次调用各自落盘日志（xcodebuild-unit.log / xcodebuild-ui.log），预算按腿独立。
 test_with_xcodebuild() {
   ios_gate_lock_acquire || exit $?
   # 取锁后先等待其它 worktree 的 xcodebuild/simctl 归零，再清场（有并发时禁止 shutdown/erase）。
@@ -347,11 +401,10 @@ test_with_xcodebuild() {
   wait_for_simulator_boot
   prepare_simulator_for_ui_tests
   echo "info: location-source=deterministic(-uiTestLocation)（真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 覆盖）"
-  local started_at="$SECONDS"
   # 第一次调用：单元测试（-only-testing:PurePaceTests）；日志与 Executed 摘要先落盘。
   local unit_status=0
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${xcodebuild_timeout}s，日志 ${unit_log}）"
-  run_with_watchdog "$xcodebuild_timeout" "$unit_log" \
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${unit_budget}s，日志 ${unit_log}）"
+  run_with_watchdog "$unit_budget" "$unit_log" \
     xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
@@ -375,10 +428,10 @@ test_with_xcodebuild() {
     echo "info: unit-only 模式：跳过 PurePaceUITests（本地旁证，权威看 .github/workflows/ios.yml）"
     return 0
   fi
-  # 两次调用共享单次 attempt 的聚合硬超时（≤600s），UI 不得单独突破预算。
-  local remaining=$((xcodebuild_timeout - (SECONDS - started_at)))
-  if [ "$remaining" -le 0 ]; then
-    echo "test-ios: 阶段 xcodebuild-ui 失败：单测已耗尽 ${xcodebuild_timeout}s 聚合硬超时（模拟器 ${sim_udid}）" >&2
+  # 单测腿与 UI 腿预算按腿独立（各一份，默认 600s）；step 预算生效时 UI 再取 min(单腿预算, step 剩余)。
+  local ui_available=""
+  ui_available="$(ui_leg_budget)"
+  if ui_budget_insufficient "$ui_available"; then
     return 124
   fi
   # test-without-building 仍可能重装宿主 App，从而清掉 TCC 授权；UI 前重装 Runner 并
@@ -401,8 +454,8 @@ test_with_xcodebuild() {
   refresh_location_always_until_stopped "$tcc_stop_file" &
   local tcc_refresher_pid=$!
   local ui_status=0
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${remaining}s，日志 ${ui_log}）"
-  run_with_watchdog "$remaining" "$ui_log" \
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
+  run_with_watchdog "$ui_available" "$ui_log" \
     xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
@@ -420,7 +473,7 @@ test_with_xcodebuild() {
   echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true
   if [ "$ui_status" -eq 124 ]; then
-    echo "test-ios: 阶段 xcodebuild-ui 失败：超过 ${remaining}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
+    echo "test-ios: 阶段 xcodebuild-ui 失败：超过 ${ui_available}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
   elif [ "$ui_status" -ne 0 ]; then
     echo "test-ios: 阶段 xcodebuild-ui 失败：xcodebuild test 退出 ${ui_status}（模拟器 ${sim_udid}）" >&2
   fi
