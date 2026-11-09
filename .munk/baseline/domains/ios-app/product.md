@@ -5,7 +5,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 ## 范围
 
 - `ios/PurePace/ContentView.swift`：`TabView` 收敛为 Run / History / Settings 三项（`Log` 删除）；非 Harness 启动直落 Run 页，0 秒可用，无登录/引导/样例加载；`@StateObject` 持有播报偏好存储并注入两个子页面。
-- `ios/PurePace/Location/RunLocationSource.swift`：`CLLocationManager` 唯一 App 侧采点入口（`.fitness` / `desiredAccuracyBest` / `distanceFilter = kCLDistanceFilterNone` / `pausesLocationUpdatesAutomatically = false` / 不自动暂停）；`.notDetermined` 时请求「使用期间」授权，授权后自动继续，拒绝时显示诚实等待态。
+- `ios/PurePace/Location/RunLocationSource.swift`：`CLLocationManager` 唯一 App 侧采点入口（`.fitness` / `desiredAccuracyBest` / `distanceFilter = kCLDistanceFilterNone` / `pausesLocationUpdatesAutomatically = false` / 不自动暂停）；授权与采集经可注入 seam（`RunLocationManaging` / `RunLocationManagerHandler`，生产实现 `SystemLocationManager` 包装真实 `CLLocationManager`，测试注入桩）；`.notDetermined` 时请求「使用期间」授权，已 WhenInUse 时再发起一次「始终允许」升级请求；跑步进行态置 `allowsBackgroundLocationUpdates = true` 并在结束/停止/失权时复位为 `false`；`WhenInUse` 降级态由 `authorization.backgroundCapable == false` + `backgroundDegradationHint` 明示，拒绝时显示诚实等待态。
 - `ios/PurePace/Run/`：`RunSessionViewModel`（主线程可观测，持有 `RunSessionOrchestrator` + `RunCheckpointStore` + `RunArchiveStore` + 播报器，delegate 采样 → `ingest`，start/pause/resume/finish → 编排器动作，`RunSessionUpdate.announcements` 逐条转播报器，播报开关经 `setAnnouncementsEnabled` 同步编排器）、`RunView` 单页 UI（距离、活跃时长、当前/平均配速、已完成分段数 + 开始/暂停/恢复/结束互斥按钮 + 结束「已保存」反馈）、`RunFormatting` 纯函数格式化、`RunStorage` 沙盒路径（`Documents/Runs/` 归档 + `Caches/` checkpoint，路径由 ViewModel 注入）。
 - `ios/PurePace/History/HistoryView.swift`：读 `RunArchiveStore.list()`，空态 `history.empty` + `history.runAgain` 入口；有记录按 `startedAt` 倒序展示真实日期/距离/时长，并补本行平均配速（只由 `RunPace(distance:duration:)` 从 `record.distance` + `record.activeDuration` 派生，`RunFormatting.paceText` 格式化，派生为 `nil` 时用 `RunFormatting.emptyPace`）；行可点击进入详情。
 - `ios/PurePace/History/RunDetailView.swift` + `RunDetailContent.swift`：行点击进入的跑次详情（起止时间、总距离、活跃时长、平均配速、全部分段序号 + 分段配速）；`RunDetailContent` 只把被点击的 `RunRecord`（含 `splits`）映射为展示字符串与分段行数组，视图零逻辑，`splits` 为空时显示 `runDetail.splits` 标题 + `runDetail.splitsEmpty` 诚实空态。
@@ -14,8 +14,8 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - `ios/PurePace/Settings/AnnouncementSettingsStore.swift`：`@MainActor final class ... : ObservableObject`，构造注入 `UserDefaults`（默认 `.standard`），单一常量键 + 默认 `true`，`isEnabled` / `setEnabled(_:)` 读写同一键。
 - `ios/PurePace/Settings/SettingsView.swift`：渲染真实「每公里语音播报」`Toggle`（无障碍标识 `settings.announcementToggle`），无「暂无可配置项」/`settings.empty`，无示例数值与 `Stepper`/`Slider`。
 - `ios/PurePace/Audio/AnnouncementSpeaker.swift`：`AnnouncementSpeaking` 协议 + `SpeechSynthesizing` 最小合成接缝 + `SpeechAnnouncementSpeaker`（`AVSpeechSynthesizer` + 既有 `AudioSessionAdapter`）；顺序固定「激活会话 → 一次 speak → 结束/取消回调停用」，文案为仅依赖 Foundation 的纯函数（含公里序号与用时）。
-- `ios/PurePaceTests/`：`RunSessionViewModelTests`（编排器一致性、暂停冻结、恢复锚点、结束单条归档、播报开关关断零播报/重开不补播/暂停结束静默）、`RunFormattingTests`（格式化纯函数，含配速/分段文本）、`RunDetailContentTests`（`RunRecord` → 详情展示映射与分段行）、`RunExportStateTests`（临时目录真实落盘、`.gpx` 回读逐点对齐、重复导出不覆盖、空采样失败不新增文件、`Documents/Exports` 目录推导）、`AnnouncementSettingsStoreTests`（默认开启、持久化、键唯一）、`AnnouncementSpeakerTests`（speak 次数/文案、会话激活停用序列、取消路径、无命令零调用）；`ios/PurePaceUITests/RunFlowUITests.swift`：真实定位注入下的全流程断言（含 History 行配速 → 详情 → 起止时间与分段区域 → 导出 → 完成态/分享入口）与 Settings 开关可见 + 重启保持。
-- `scripts/check-ios-shell.sh`：真实 UI 结构断言（文件清单含全部真实源文件与测试落点、无障碍标识清单、History/Settings 诚实态、Run 无 `Timer` 假计时、Settings 必须有 `Toggle` 且禁止示例数值与 `Stepper`/`Slider`、导出必须经 `RunGPXExporter` 且目录由 `RunStorage` 构造、App 源码仅禁 `shared/fixtures`/样例引用与 `.tcx`）+ `validate_no_fixture_data` 正负自检（`.gpx` 扩展名字面量合法，引用夹具即失败）+ `CoreLocation` 仅 `Harness/` 与 `Location/` 双作用域正负反例 + Settings 断言正负自检。
+- `ios/PurePaceTests/`：`RunSessionViewModelTests`（编排器一致性、暂停冻结、恢复锚点、结束单条归档、播报开关关断零播报/重开不补播/暂停结束静默）、`RunLocationSourceTests`（注入 `RunLocationManaging` 桩驱动授权迁移、跑步态后台开关、Always 升级一次性、降级提示、后台恢复 ingest 连续性、bundle 内 `UIBackgroundModes` 读回）、`RunFormattingTests`（格式化纯函数，含配速/分段文本）、`RunDetailContentTests`（`RunRecord` → 详情展示映射与分段行）、`RunExportStateTests`（临时目录真实落盘、`.gpx` 回读逐点对齐、重复导出不覆盖、空采样失败不新增文件、`Documents/Exports` 目录推导）、`AnnouncementSettingsStoreTests`（默认开启、持久化、键唯一）、`AnnouncementSpeakerTests`（speak 次数/文案、会话激活停用序列、取消路径、无命令零调用）；`ios/PurePaceUITests/RunFlowUITests.swift`：真实定位注入下的全流程断言（含 History 行配速 → 详情 → 起止时间与分段区域 → 导出 → 完成态/分享入口）与 Settings 开关可见 + 重启保持。
+- `scripts/check-ios-shell.sh`：真实 UI 结构断言（文件清单含全部真实源文件与测试落点、无障碍标识清单、History/Settings 诚实态、Run 无 `Timer` 假计时、Settings 必须有 `Toggle` 且禁止示例数值与 `Stepper`/`Slider`、导出必须经 `RunGPXExporter` 且目录由 `RunStorage` 构造、App 源码仅禁 `shared/fixtures`/样例引用与 `.tcx`）+ `validate_no_fixture_data` 正负自检（`.gpx` 扩展名字面量合法，引用夹具即失败）+ `CoreLocation` 仅 `Harness/` 与 `Location/` 双作用域正负反例 + Settings 断言正负自检 + `validate_location_config` 增加非空 `INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription` 断言 + `validate_background_location_source` 断言后台开关置位/复位、Always 升级、`backgroundCapable`、`backgroundDegradationHint` 与 `run.backgroundDegraded`（各带单点破坏反例自检）。
 - `scripts/test-ios.sh`：测试前 boot iPhone 16 / iOS 18.6 并 `xcrun simctl location start --speed=3 --interval=1` 注入 ≥20 km 直线航点，`trap` 收尾 `clear`；设备/runtime 缺失显式失败。
 
 ## 验收
@@ -66,6 +66,15 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - ac-gates-green: `bash scripts/check-ios-shell.sh`（lint-ios-shell）、`bash scripts/build-ios.sh`（build-ios）、`bash scripts/test-ios.sh`（test-ios）均退出 0；`.munk/code-gates.json` 门 id 集合仍为既有 22 个；`swift test --package-path ios/RunCore` 与 `swift test --package-path ios/Core` 不回归。
 - ac-ui-flow-e2e: `bash scripts/test-ios.sh` 在 iPhone 16 / iOS 18.6 模拟器真实 `simctl location` 注入下，XCUITest 依次断言：开始时距离与时长从零起、运行时二者发生变化、暂停后 4 秒内距离文本不变且当前配速为空、恢复后距离再次增长、结束后出现 `run.saved`、History 出现且仅出现 1 条记录；全程不存在的样例卡片、不使用固定 `sleep` 作为成功判据。
 - ac-auth-tolerated: 定位授权弹窗在「首次未授权」与「已授权」两种初始状态下，UI 测试均能继续到真实数据增长，不因系统弹窗失败。
+- ac-plist-background-mode: `ios/PurePace/Info.plist` 与 `ios/project.yml` 都声明 background mode `location`；`check-ios-shell.sh` 的 `validate_location_config` 断言通过，缺 plist / 后台模式非 `location` / 用途说明为空的反例仍判失败。
+- ac-bg-enabled-while-running: 会话进入跑步进行态（`start()` 后已授权）时，定位管理器 `allowsBackgroundLocationUpdates == true` 且 `pausesLocationUpdatesAutomatically == false`。
+- ac-bg-disabled-after-stop: 调用 `stop()`（结束/停止）或授权失效后 `allowsBackgroundLocationUpdates == false`，且不再继续后台更新。
+- ac-always-request-path: 授权为 `notDetermined` 时走 `requestWhenInUseAuthorization`；已 WhenInUse 且未获 Always 时走 `requestAlwaysAuthorization` 升级路径（同一实例只发起一次），且 `project.yml` 声明非空 `INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription`。
+- ac-wheninuse-degraded-visible: 仅授予 WhenInUse 时授权状态对外带降级标记（`backgroundCapable == false`），`backgroundDegradationHint` 非空，Run 页渲染 `run.backgroundDegraded` 提示；进程不 crash、不静默无提示。
+- ac-auth-transitions-injectable: 注入 `RunLocationManaging` 桩可驱动授权变化，XCTest 覆盖 `notDetermined → authorizedWhenInUse → authorizedAlways` 与 `denied`/`restricted` 分支，每次变化都回调 delegate；生产默认使用真实 `CLLocationManager` 包装（`SystemLocationManager` 强引用 manager 且 delegate 绑定到自身）。
+- ac-bg-ingest-continuous: 模拟锁屏/进后台/进程挂起后恢复（重叠时间窗与重复投递）时，ingest 最终样本无重复、无丢失段落，与既有 checkpoint 重启恢复结果一致；不重写持久化格式。
+- ac-ios-local-gates-green: `bash scripts/build-ios.sh` + `bash scripts/test-ios.sh`（`xcodebuild build` / `xcodebuild test`）全绿并输出 `** TEST SUCCEEDED **`，`check-ios-shell.sh`、`check-ios-scripts.sh` 等 iOS 相关门全绿，`.munk/code-gates.json` 门数不减、既有门语义不放宽。
+- ac-delivery-artifacts: Delivery 阶段产出候选 zip 与可执行 `sha256` 校验值，供真机硬门绑定（不构成真机验收结论）。
 
 ## 非目标
 
@@ -79,7 +88,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - 不做 `scripts/verify-ios-ui-e2e.sh` 与新增端到端门禁（波 3）；只保证既有 `test-ios` 门绿。
 - 不改 `ios/RunCore`、`ios/Core`、`ios/PurePace/Harness/` 的源码与契约；不改 Android、`shared/`、`.github/workflows/*`；不推 tag、不动 Release。
 - 不做视觉设计系统 / 自定义 token / 主题；沿用系统语义色、系统控件与 Dynamic Type。
-- 不做真机验证、锁屏连续定位、音乐 duck 与 TTS 实听（`pending: 待人现场`）。
+- 不做真机验证与真机锁屏连续定位验收（`pending: 待人现场`）；后台/Always 只交付代码层能力、配置声明与模拟器/单测断言，不写「真机后台定位可用」类结论。
 
 ## 实现约束
 
@@ -92,6 +101,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - 详情导航与数据源：用视图式 `NavigationLink { RunDetailView(record:exporter:) } label: { row }`，不要求 `RunRecord` 新增 `Hashable`；详情只读 `record.startedAt` / `endedAt` / `distance` / `activeDuration` / `splits`，平均配速只 `RunPace(distance:duration:)`、分段配速只 `split.pace`，禁止 App 侧重算距离、重切分段或按 elapsed 自造数值。
 - 导出复用与薄层：导出必须走 `RunGPXExporter(directoryURL:).export(record)`，文件名/去重由 Core 的 `RunRecordNaming` 决定，App 侧不自造命名；导出目录只由 `RunStorage.exportDirectory(fileManager:)` 推导（`Documents/Exports/`），可注入 `FileManager` 指向临时目录；状态与落盘校验放 `RunExportState`（纯类型，可单测），`RunDetailView` 只做按钮绑定、`ShareLink(item:)` 渲染与状态展示，不在 View 内拼 GPX 内容。
 - 定位注入是 XCUITest 唯一真实链路：`scripts/test-ios.sh` 选 UDID 并 boot，`xcrun simctl location start --speed=3 --interval=1 <p1> <p2>`（航点总长 ≥ 20 km）后跑 `xcodebuild test`，`trap` 中 `simctl location clear`；禁止用 `--harness direct --stream` 假流替代。
+- 后台/Always 定位约束：授权请求与采集只经 `RunLocationManaging` seam（生产 `SystemLocationManager` 自任 delegate 并强引用 manager），测试注入桩；`allowsBackgroundLocationUpdates` 仅在跑步进行态为 `true`，`stop()`/失权必须复位为 `false`；`CoreLocation` 仍只允许出现在 `Harness/` 与 `Location/`；实机后台行为不在代码层承诺。
 - 授权处理：测试内用 SpringBoard 弹窗或 interruption monitor 点击「使用 App 期间允许」；弹窗缺失时继续执行而非失败。
 - 无障碍标识为稳定测试契约：`run.distance`、`run.elapsed`、`run.currentPace`、`run.averagePace`、`run.splits`、`run.start`、`run.pause`、`run.resume`、`run.finish`、`run.saved`、`history.empty`、`history.runAgain`、`history.row`、`runDetail.root`、`runDetail.startedAt`、`runDetail.endedAt`、`runDetail.distance`、`runDetail.activeDuration`、`runDetail.averagePace`、`runDetail.splits`（含分段条数摘要）、`runDetail.splitRow`、`runDetail.splitsEmpty`、`runDetail.export`、`runDetail.exported`（成功态文本含文件名）、`runDetail.share`、`runDetail.exportFailed`、`settings.announcementToggle`；标识写成字符串字面量，距离文本含单位可比较字符串变化，配速空态用固定占位（`RunFormatting.emptyPace` = `--`），开关值断言用 `value as? String` 的 `"1"`/`"0"`。
 - 门禁写法：不新增门、不改 `.munk/code-gates.json`；`check-ios-shell.sh` 保持真实脚本断言（`grep -Fq 'xcodebuild test'` 等）并保留 `--self-test` 反例自检，`Location/` 加入 import 允许表并补「其它目录出现 CoreLocation 判失败」反例；Settings 段改为「必须有 `Toggle` + `settings.announcementToggle`、禁止示例数值与 `Stepper`/`Slider`」并补对应正负自检；夹具禁令抽为 `validate_no_fixture_data`（禁 `shared/fixtures` / `sample*.gpx` / `.tcx`，允许真实导出用 `.gpx` 扩展名）并补正反例，导出侧补「必须经 `RunGPXExporter`、目录由 `RunStorage` 构造」正向断言，不得退化为通配允许表。
@@ -99,7 +109,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 
 ## 最近交付证明
 
-- workItemId: wi_ws_c27dd79d1ae31478（2026-11-09，pass）
-- 交付：详情页补齐「导出 GPX + 系统分享」——`RunStorage` 新增 `documentsDirectory` / `exportDirectory`（`Documents/Exports/`，可注入 `FileManager`）与 `makeExporter`，`makeStores` 返回 `exporter` 并经 `ContentView` → `HistoryView` → `RunDetailView(record:exporter:)` 注入；新增 `History/RunExportState`，只调 `RunGPXExporter(directoryURL:).export(record)` 写真实归档采样，落盘后校验 `.gpx` 扩展名 + 文件存在 + 字节数 > 0 才置成功态，空采样/写盘失败一律失败态；`RunDetailView` 仅绑定 `runDetail.export` / `runDetail.exported` / `ShareLink`（`runDetail.share`）/ `runDetail.exportFailed`，未引入 UIKit、不注册清理动作。
-- 门禁与测试同步：`check-ios-shell.sh` `live_sources` 与标识清单纳入 `RunExportState.swift` 及 4 个导出标识，新增「`RunGPXExporter(directoryURL: exportDirectory` / `exporter.export(record)` / `isLandedGPXFile` / `stores.exporter` / `exporter: exporter`」正向断言；原「App 源码出现 `.gpx` 即失败」收窄为 `validate_no_fixture_data`（仅禁 `shared/fixtures` / `sample*.gpx` / `.tcx`）并补 1 正 1 负自检。新增 `RunExportStateTests`（临时目录真实文件、`GPXCodec.read` 逐点回读、二次导出不覆盖、空采样失败、`Documents/Exports` 推导），`RunFlowUITests` 在既有流程末尾补导出 → `.gpx` 文件名 + 分享入口断言（无固定 `sleep`）。
-- 实测：`code_gates` 22 门全绿（含 `lint-ios-shell` / `build-ios` / `test-ios` / `test-ios-run-core`），门 id 与 `command` 逐字未变；`ios/RunCore` 契约与 import 允许表零改动。结论口径：模拟器链路通过、导出逐字段对齐通过（App 内回读）；外部解析与容器内取证留待波 3，TTS 实听/真机仍为 `pending: 待人现场`。
+- workItemId: wi_intake_6b267814f7d23323（2026-11-09，pass）
+- 交付：`RunLocationSource` 拆出可注入 seam（`RunLocationManaging` / `RunLocationManagerHandler`，生产 `SystemLocationManager` 包装真实 `CLLocationManager` 并自任 delegate），跑步进行态 `beginUpdating()` 置 `allowsBackgroundLocationUpdates = true`，`endUpdating()`（stop / 失权）复位为 `false`；`start()` 在 `notDetermined` 请求 WhenInUse、已 WhenInUse 时每实例一次 `requestAlwaysAuthorization` 升级；`RunLocationAuthorization` 新增 `backgroundCapable` 与 `backgroundDegradationHint`，`RunView` 渲染 `run.backgroundDegraded` 提示；`project.yml` 补 `INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription`，既有 `UIBackgroundModes: location` 保留。
+- 门禁与测试同步：`check-ios-shell.sh` 新增 `validate_background_location_source`（后台开关置位/复位、Always 升级、`backgroundCapable`、`backgroundDegradationHint`、`run.backgroundDegraded`）+ 4 个单点破坏反例自检，`validate_location_config` 增加 Always 用途说明非空断言与空值反例，`unit_tests` 纳入 `RunLocationSourceTests`。新增 8 例：plist 后台模式读回、跑步态后台开关、stop/失权复位、notDetermined 先 WhenInUse、WhenInUse 升级一次性、授权迁移与降级提示、denied/restricted、后台恢复 ingest 无重复无丢段。
+- 实测：`code_gates` 23 门全绿（含 `lint-ios-shell` / `build-ios` / `test-ios` / `test-ios-run-core`）；`test-ios` 单元 131 例 0 失败（含 8 例新增）+ UI 2 例通过、两段均 `** TEST SUCCEEDED **`；`ios/RunCore`、`ios/PurePace/Harness/` 与 import 允许表零改动，门数与 command 未变。结论口径：模拟器与代码层契约通过；真机锁屏连续定位、授权 Always 实机路径仍为 `pending: 待人现场`（未做真机验收）。

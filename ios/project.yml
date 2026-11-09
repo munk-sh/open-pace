@@ -55,6 +55,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         # 定位用途说明与后台定位模式仅为配置声明；真机后台行为不在代码层承诺范围内。
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "PurePace 在跑步过程中使用定位来记录路线、距离与配速。"
+        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "PurePace 需要「始终允许」定位权限，以便在锁屏或切到后台时继续记录跑步路线与配速。"
         INFOPLIST_KEY_UIBackgroundModes: location
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
