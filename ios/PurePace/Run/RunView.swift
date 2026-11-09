@@ -29,6 +29,14 @@ struct RunView: View {
                         .multilineTextAlignment(.center)
                 }
 
+                if let hint = viewModel.authorization.backgroundDegradationHint {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("run.backgroundDegraded")
+                }
+
                 if viewModel.didSave {
                     Text("已保存")
                         .font(.headline)

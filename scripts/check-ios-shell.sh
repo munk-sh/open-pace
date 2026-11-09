@@ -159,6 +159,18 @@ validate_location_config() {
     fi
   fi
 
+  local always_usage_line
+  always_usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  if [ -z "$always_usage_line" ]; then
+    problems="$problems project.yml 缺少 INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription;"
+  else
+    local always_usage_value
+    always_usage_value="$(printf '%s' "${always_usage_line#*:}" | tr -d "[:space:]\"'")"
+    if [ -z "$always_usage_value" ]; then
+      problems="$problems INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription 为空;"
+    fi
+  fi
+
   local background_line
   background_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UIBackgroundModes:' "$spec_file" 2>/dev/null | head -n 1 || true)"
   if [ -z "$background_line" ]; then
@@ -178,6 +190,38 @@ validate_location_config() {
   fi
 
   printf '%s' "$problems"
+}
+
+# RunLocationSource 后台/Always 采集静态契约（含可注入 seam + 降级提示标识）。
+validate_background_location_source() {
+  local root="$1"
+  local out=""
+  local run_source="$root/ios/PurePace/Location/RunLocationSource.swift"
+  local run_view="$root/ios/PurePace/Run/RunView.swift"
+
+  if [ ! -f "$run_source" ]; then
+    printf '缺少 %s;' "$run_source"
+    return 0
+  fi
+  local needle
+  for needle in \
+    'allowsBackgroundLocationUpdates = true' \
+    'allowsBackgroundLocationUpdates = false' \
+    'pausesLocationUpdatesAutomatically = false' \
+    'requestWhenInUseAuthorization' \
+    'requestAlwaysAuthorization' \
+    'backgroundCapable' \
+    'backgroundDegradationHint'; do
+    grep -Fq -- "$needle" "$run_source" || out="$out RunLocationSource 缺少 '$needle';"
+  done
+
+  if [ ! -f "$run_view" ]; then
+    out="$out 缺少 $run_view;"
+  elif ! grep -Fq -- '"run.backgroundDegraded"' "$run_view"; then
+    out="$out RunView 缺少后台定位降级提示标识;"
+  fi
+
+  printf '%s' "$out"
 }
 
 # Harness 文件清单与「无内置样例/夹具数据」静态断言。
@@ -248,6 +292,36 @@ validate_no_fixture_data() {
   printf '%s' "$problems"
 }
 
+# 后台定位源码自检：复制真实源码后做单点破坏，验证断言非恒真。
+background_source_selftest() {
+  local label="$1" mutate="$2" sandbox="" out=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-bg.XXXXXX")"
+  mkdir -p "$sandbox/ios/PurePace/Location" "$sandbox/ios/PurePace/Run"
+  cp ios/PurePace/Location/RunLocationSource.swift "$sandbox/ios/PurePace/Location/"
+  cp ios/PurePace/Run/RunView.swift "$sandbox/ios/PurePace/Run/"
+  "$mutate" "$sandbox"
+  out="$(validate_background_location_source "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "$label (self-test)"
+  else
+    fail "$label" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+drop_background_enable() {
+  sed -i '' '/allowsBackgroundLocationUpdates = true/d' "$1/ios/PurePace/Location/RunLocationSource.swift"
+}
+drop_background_reset() {
+  sed -i '' '/allowsBackgroundLocationUpdates = false/d' "$1/ios/PurePace/Location/RunLocationSource.swift"
+}
+drop_always_request() {
+  sed -i '' '/requestAlwaysAuthorization()/d' "$1/ios/PurePace/Location/RunLocationSource.swift"
+}
+drop_degraded_hint() {
+  sed -i '' '/run.backgroundDegraded/d' "$1/ios/PurePace/Run/RunView.swift"
+}
+
 run_self_test() {
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-ios-shell.XXXXXX")"
@@ -307,16 +381,18 @@ run_self_test() {
   check_fail "未知 import 反例" "$(validate_app_imports "$tmp_dir/app-bad-unknown")"
 
   # project.yml 定位配置正负反例
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-good.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n' > "$tmp_dir/location-no-background.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-usage.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: audio\n' > "$tmp_dir/location-no-mode.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-good.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n' > "$tmp_dir/location-no-background.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-usage.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: audio\n' > "$tmp_dir/location-no-mode.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-always-usage.yml"
   mkdir -p "$tmp_dir/PurePace"
   printf '<dict><key>UIBackgroundModes</key><array><string>location</string></array></dict>\n' > "$tmp_dir/PurePace/Info.plist"
   check_ok "定位配置正例" "$(validate_location_config "$tmp_dir/location-good.yml")"
   check_fail "缺后台定位模式反例" "$(validate_location_config "$tmp_dir/location-no-background.yml")"
   check_fail "用途说明为空反例" "$(validate_location_config "$tmp_dir/location-empty-usage.yml")"
   check_fail "后台模式非 location 反例" "$(validate_location_config "$tmp_dir/location-no-mode.yml")"
+  check_fail "Always 用途说明为空反例" "$(validate_location_config "$tmp_dir/location-empty-always-usage.yml")"
 
   # 承载 UIBackgroundModes 的基础 Info.plist 正负反例
   mkdir -p "$tmp_dir/location-no-plist"
@@ -327,6 +403,16 @@ run_self_test() {
   printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-bad-plist/project.yml"
   printf '<dict><key>UIBackgroundModes</key><array><string>audio</string></array></dict>\n' > "$tmp_dir/location-bad-plist/PurePace/Info.plist"
   check_fail "基础 Info.plist 非 location 反例" "$(validate_location_config "$tmp_dir/location-bad-plist/project.yml")"
+
+  # RunLocationSource 后台/Always 契约正负反例
+  mkdir -p "$tmp_dir/bg-source/ios/PurePace/Location" "$tmp_dir/bg-source/ios/PurePace/Run"
+  cp ios/PurePace/Location/RunLocationSource.swift "$tmp_dir/bg-source/ios/PurePace/Location/"
+  cp ios/PurePace/Run/RunView.swift "$tmp_dir/bg-source/ios/PurePace/Run/"
+  check_ok "后台定位源码正例" "$(validate_background_location_source "$tmp_dir/bg-source")"
+  background_source_selftest "ac-bg-source-background-enable" drop_background_enable
+  background_source_selftest "ac-bg-source-background-reset" drop_background_reset
+  background_source_selftest "ac-bg-source-always-upgrade" drop_always_request
+  background_source_selftest "ac-bg-source-degraded-hint" drop_degraded_hint
 
   # Harness 文件清单正负反例
   local harness_rel
@@ -508,6 +594,14 @@ else
   fi
 fi
 
+# ------------------------------------------------ 后台/Always 定位采集
+background_problems="$(validate_background_location_source .)"
+if [ -z "$background_problems" ]; then
+  pass "ac-background-location-source (Always 升级 + 跑步态后台开关 + 降级提示)"
+else
+  fail "ac-background-location-source" "$background_problems"
+fi
+
 # ------------------------------------------------ Harness 文件清单
 harness_problems="$(validate_harness_manifest ".")"
 if [ -z "$harness_problems" ]; then
@@ -585,7 +679,7 @@ fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
