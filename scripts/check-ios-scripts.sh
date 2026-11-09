@@ -119,7 +119,7 @@ for name in $strict_targets; do
   help_out="$(bash "scripts/$name" --help 2>&1)" && help_rc=0 || help_rc=$?
   if [ "$help_rc" -ne 0 ]; then
     problems="$problems scripts/$name --help 退出 $help_rc;"
-  elif ! printf '%s' "$help_out" | grep -Fq -- "用法"; then
+  elif ! grep -Fq -- "用法" <<<"$help_out"; then
     problems="$problems scripts/$name --help 输出缺少「用法」;"
   fi
   bash "scripts/$name" --definitely-invalid >/dev/null 2>&1 && bad_rc=0 || bad_rc=$?
@@ -512,7 +512,7 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
   if [ "$tools_rc" -ne 0 ]; then
     problems="$problems --tools 退出 $tools_rc;"
   else
-    printf '%s' "$tools_out" | grep -Fq -- "VERSION: $version_value" || problems="$problems --tools 缺少根 VERSION 行;"
+    grep -Fq -- "VERSION: $version_value" <<<"$tools_out" || problems="$problems --tools 缺少根 VERSION 行;"
 
     if command -v xcodebuild >/dev/null 2>&1; then
       xcode_expected="$(xcodebuild -version 2>/dev/null | sed -n 's/^Xcode \([0-9][0-9.]*\).*/\1/p' | head -n 1 || true)"
@@ -520,9 +520,9 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
       xcode_expected=""
     fi
     if [ -n "$xcode_expected" ]; then
-      printf '%s' "$tools_out" | grep -Fxq -- "Xcode: $xcode_expected" || problems="$problems Xcode 行与 xcodebuild -version 不一致（期望 ${xcode_expected}）;"
+      grep -Fxq -- "Xcode: $xcode_expected" <<<"$tools_out" || problems="$problems Xcode 行与 xcodebuild -version 不一致（期望 ${xcode_expected}）;"
     else
-      printf '%s' "$tools_out" | grep -Eq '^Xcode: 未就绪' || problems="$problems Xcode 行未标注未就绪;"
+      grep -Eq '^Xcode: 未就绪' <<<"$tools_out" || problems="$problems Xcode 行未标注未就绪;"
     fi
 
     if command -v swift >/dev/null 2>&1; then
@@ -531,32 +531,32 @@ if [ -f scripts/version.sh ] && [ -n "$version_value" ]; then
       swift_expected=""
     fi
     if [ -n "$swift_expected" ]; then
-      printf '%s' "$tools_out" | grep -Fxq -- "Swift: Apple Swift version $swift_expected" || problems="$problems Swift 行与 swift --version 不一致（期望 ${swift_expected}）;"
+      grep -Fxq -- "Swift: Apple Swift version $swift_expected" <<<"$tools_out" || problems="$problems Swift 行与 swift --version 不一致（期望 ${swift_expected}）;"
     else
-      printf '%s' "$tools_out" | grep -Eq '^Swift: 未就绪' || problems="$problems Swift 行未标注未就绪;"
+      grep -Eq '^Swift: 未就绪' <<<"$tools_out" || problems="$problems Swift 行未标注未就绪;"
     fi
 
     if command -v java >/dev/null 2>&1; then
       jdk_expected="$(java -version 2>&1 | sed -n 's/.*version "\([^"]*\)".*/\1/p' | head -n 1 || true)"
       if [ -n "$jdk_expected" ]; then
-        printf '%s' "$tools_out" | grep -Eq "^JDK: .*${jdk_expected}" || problems="$problems JDK 行与 java -version 不一致（期望含 ${jdk_expected}）;"
+        grep -Eq "^JDK: .*${jdk_expected}" <<<"$tools_out" || problems="$problems JDK 行与 java -version 不一致（期望含 ${jdk_expected}）;"
       else
-        printf '%s' "$tools_out" | grep -Eq '^JDK: 未就绪' || problems="$problems JDK 行未标注未就绪;"
+        grep -Eq '^JDK: 未就绪' <<<"$tools_out" || problems="$problems JDK 行未标注未就绪;"
       fi
     else
-      printf '%s' "$tools_out" | grep -Eq '^JDK: 未就绪' || problems="$problems JDK 行未标注未就绪;"
+      grep -Eq '^JDK: 未就绪' <<<"$tools_out" || problems="$problems JDK 行未标注未就绪;"
     fi
 
     gradle_wrapper="android/gradle/wrapper/gradle-wrapper.properties"
     gradle_expected=""
     if [ -f "$gradle_wrapper" ]; then
       gradle_url="$(sed -n 's/^distributionUrl[[:space:]]*=[[:space:]]*//p' "$gradle_wrapper" | tr -d '\r' | head -n 1)"
-      gradle_expected="$(printf '%s' "$gradle_url" | sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*\.zip$/\1/p' | head -n 1)"
+      gradle_expected="$(sed -n 's/.*gradle-\([0-9][0-9.]*\)-.*\.zip$/\1/p' <<<"$gradle_url")"
     fi
     if [ -n "$gradle_expected" ]; then
-      printf '%s' "$tools_out" | grep -Fxq -- "Gradle: $gradle_expected" || problems="$problems Gradle 行与 wrapper properties 推导值不一致（期望 ${gradle_expected}）;"
+      grep -Fxq -- "Gradle: $gradle_expected" <<<"$tools_out" || problems="$problems Gradle 行与 wrapper properties 推导值不一致（期望 ${gradle_expected}）;"
     else
-      printf '%s' "$tools_out" | grep -Eq '^Gradle: 未就绪' || problems="$problems 缺少 wrapper properties 时 Gradle 行未标注未就绪;"
+      grep -Eq '^Gradle: 未就绪' <<<"$tools_out" || problems="$problems 缺少 wrapper properties 时 Gradle 行未标注未就绪;"
     fi
 
     tools_out2="$(bash scripts/version.sh --tools 2>&1)" || true
