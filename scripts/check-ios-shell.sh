@@ -171,22 +171,49 @@ validate_location_config() {
     fi
   fi
 
-  local background_line
-  background_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UIBackgroundModes:' "$spec_file" 2>/dev/null | head -n 1 || true)"
-  if [ -z "$background_line" ]; then
-    problems="$problems project.yml 缺少 INFOPLIST_KEY_UIBackgroundModes;"
-  elif ! printf '%s' "$background_line" | grep -Fq 'location'; then
-    problems="$problems INFOPLIST_KEY_UIBackgroundModes 未声明 location;"
+  # ac-project-yml-no-duplicate-setting：INFOPLIST_KEY_UIBackgroundModes 是构建期标量覆盖，
+  # 会盖掉 info.properties 的数组声明，必须彻底移除。
+  if grep -Eq '^[[:space:]]*INFOPLIST_KEY_UIBackgroundModes:' "$spec_file" 2>/dev/null; then
+    problems="$problems project.yml 仍存在 INFOPLIST_KEY_UIBackgroundModes（会覆盖数组声明，必须删除）;"
   fi
 
-  # INFOPLIST_KEY_UIBackgroundModes 不被 Xcode 的 plist 生成器支持（数组键），
-  # 真正进产物的 UIBackgroundModes 必须由 spec 同目录下 xcodegen 生成的 Info.plist 承载。
+  # ac-project-yml-array-both：info.properties.UIBackgroundModes 必须是含 location 与 audio 的数组。
+  local spec_modes
+  spec_modes="$(awk '
+    /^[[:space:]]*UIBackgroundModes:[[:space:]]*$/ {flag=1; next}
+    flag && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {print; next}
+    flag {flag=0}
+  ' "$spec_file" 2>/dev/null || true)"
+  if [ -z "$spec_modes" ]; then
+    problems="$problems project.yml 缺少 info.properties.UIBackgroundModes 数组;"
+  else
+    printf '%s\n' "$spec_modes" | grep -Eq '^[[:space:]]*-[[:space:]]*location[[:space:]]*$' \
+      || problems="$problems project.yml UIBackgroundModes 数组未含 location;"
+    printf '%s\n' "$spec_modes" | grep -Eq '^[[:space:]]*-[[:space:]]*audio[[:space:]]*$' \
+      || problems="$problems project.yml UIBackgroundModes 数组未含 audio;"
+  fi
+
+  # UIBackgroundModes 是数组键，真正进产物的是 spec 同目录下、作为 INFOPLIST_FILE 的 Info.plist；
+  # 这里校验其数组本体同时含 location 与 audio（与 ac-built-plist-readback-both 对齐）。
   local plist_file
   plist_file="$(dirname "$spec_file")/PurePace/Info.plist"
   if [ ! -s "$plist_file" ]; then
     problems="$problems 缺少 $(dirname "$spec_file")/PurePace/Info.plist（UIBackgroundModes 必需）;"
-  elif ! grep -Fq 'UIBackgroundModes' "$plist_file" || ! grep -Fq 'location' "$plist_file"; then
-    problems="$problems $plist_file 未声明 UIBackgroundModes location;"
+  else
+    local plist_modes
+    plist_modes="$(awk '
+      /<key>[[:space:]]*UIBackgroundModes[[:space:]]*<\/key>/ {flag=1; next}
+      flag && /<\/array>/ {flag=0; next}
+      flag {print}
+    ' "$plist_file" 2>/dev/null || true)"
+    if [ -z "$plist_modes" ]; then
+      problems="$problems $plist_file 缺少 UIBackgroundModes 数组;"
+    else
+      printf '%s\n' "$plist_modes" | grep -Fq '<string>location</string>' \
+        || problems="$problems $plist_file 的 UIBackgroundModes 未含 location;"
+      printf '%s\n' "$plist_modes" | grep -Fq '<string>audio</string>' \
+        || problems="$problems $plist_file 的 UIBackgroundModes 未含 audio;"
+    fi
   fi
 
   printf '%s' "$problems"
@@ -380,29 +407,48 @@ run_self_test() {
   printf 'import UIKit\n' > "$tmp_dir/app-bad-unknown/Other.swift"
   check_fail "未知 import 反例" "$(validate_app_imports "$tmp_dir/app-bad-unknown")"
 
-  # project.yml 定位配置正负反例
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-good.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n' > "$tmp_dir/location-no-background.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-usage.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: audio\n' > "$tmp_dir/location-no-mode.yml"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-empty-always-usage.yml"
+  # project.yml 定位配置正负反例（数组声明 + 禁止重复 INFOPLIST_KEY_UIBackgroundModes）
+  local usage_block
+  usage_block='    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n'
+  local modes_both
+  modes_both='        UIBackgroundModes:\n          - location\n          - audio\n'
+  local modes_only_location
+  modes_only_location='        UIBackgroundModes:\n          - location\n'
+  local modes_only_audio
+  modes_only_audio='        UIBackgroundModes:\n          - audio\n'
+
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_both" > "$tmp_dir/location-good.yml"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n' "$usage_block" > "$tmp_dir/location-no-background.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: ""\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "始终允许定位用途说明"\n  PurePace:\n    info:\n      properties:\n%b' "$modes_both" > "$tmp_dir/location-empty-usage.yml"
+  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: ""\n  PurePace:\n    info:\n      properties:\n%b' "$modes_both" > "$tmp_dir/location-empty-always-usage.yml"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_only_location" > "$tmp_dir/location-no-audio.yml"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_only_audio" > "$tmp_dir/location-no-location.yml"
+  printf 'settings:\n  base:\n%b    INFOPLIST_KEY_UIBackgroundModes: location\n  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_both" > "$tmp_dir/location-duplicate-setting.yml"
+
   mkdir -p "$tmp_dir/PurePace"
-  printf '<dict><key>UIBackgroundModes</key><array><string>location</string></array></dict>\n' > "$tmp_dir/PurePace/Info.plist"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t\t<string>audio</string>\n\t</array>\n</dict>\n</plist>\n' > "$tmp_dir/PurePace/Info.plist"
   check_ok "定位配置正例" "$(validate_location_config "$tmp_dir/location-good.yml")"
-  check_fail "缺后台定位模式反例" "$(validate_location_config "$tmp_dir/location-no-background.yml")"
+  check_fail "缺 UIBackgroundModes 数组反例" "$(validate_location_config "$tmp_dir/location-no-background.yml")"
   check_fail "用途说明为空反例" "$(validate_location_config "$tmp_dir/location-empty-usage.yml")"
-  check_fail "后台模式非 location 反例" "$(validate_location_config "$tmp_dir/location-no-mode.yml")"
   check_fail "Always 用途说明为空反例" "$(validate_location_config "$tmp_dir/location-empty-always-usage.yml")"
+  check_fail "UIBackgroundModes 数组缺 audio 反例" "$(validate_location_config "$tmp_dir/location-no-audio.yml")"
+  check_fail "UIBackgroundModes 数组缺 location 反例" "$(validate_location_config "$tmp_dir/location-no-location.yml")"
+  check_fail "重复 INFOPLIST_KEY_UIBackgroundModes 反例" "$(validate_location_config "$tmp_dir/location-duplicate-setting.yml")"
 
   # 承载 UIBackgroundModes 的基础 Info.plist 正负反例
   mkdir -p "$tmp_dir/location-no-plist"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-no-plist/project.yml"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_both" > "$tmp_dir/location-no-plist/project.yml"
   check_fail "缺基础 Info.plist 反例" "$(validate_location_config "$tmp_dir/location-no-plist/project.yml")"
 
-  mkdir -p "$tmp_dir/location-bad-plist/PurePace"
-  printf 'settings:\n  base:\n    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "跑步定位用途说明"\n    INFOPLIST_KEY_UIBackgroundModes: location\n' > "$tmp_dir/location-bad-plist/project.yml"
-  printf '<dict><key>UIBackgroundModes</key><array><string>audio</string></array></dict>\n' > "$tmp_dir/location-bad-plist/PurePace/Info.plist"
-  check_fail "基础 Info.plist 非 location 反例" "$(validate_location_config "$tmp_dir/location-bad-plist/project.yml")"
+  mkdir -p "$tmp_dir/location-plist-no-audio/PurePace"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_both" > "$tmp_dir/location-plist-no-audio/project.yml"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t</array>\n</dict>\n</plist>\n' > "$tmp_dir/location-plist-no-audio/PurePace/Info.plist"
+  check_fail "基础 Info.plist 缺 audio 反例" "$(validate_location_config "$tmp_dir/location-plist-no-audio/project.yml")"
+
+  mkdir -p "$tmp_dir/location-plist-no-location/PurePace"
+  printf 'settings:\n  base:\n%b  PurePace:\n    info:\n      properties:\n%b' "$usage_block" "$modes_both" > "$tmp_dir/location-plist-no-location/project.yml"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>audio</string>\n\t</array>\n</dict>\n</plist>\n' > "$tmp_dir/location-plist-no-location/PurePace/Info.plist"
+  check_fail "基础 Info.plist 缺 location 反例" "$(validate_location_config "$tmp_dir/location-plist-no-location/project.yml")"
 
   # RunLocationSource 后台/Always 契约正负反例
   mkdir -p "$tmp_dir/bg-source/ios/PurePace/Location" "$tmp_dir/bg-source/ios/PurePace/Run"
@@ -588,7 +634,7 @@ if [ ! -f "$spec" ]; then
 else
   location_problems="$(validate_location_config "$spec")"
   if [ -z "$location_problems" ]; then
-    pass "ac-corelocation-config-declared (用途说明非空 + 后台模式 location)"
+    pass "ac-corelocation-config-declared (用途说明非空 + 后台模式 location + audio、无重复 setting)"
   else
     fail "ac-corelocation-config-declared" "$location_problems"
   fi

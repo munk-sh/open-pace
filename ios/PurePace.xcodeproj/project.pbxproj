@@ -36,6 +36,7 @@
 		6AEB23A67EF320D276F11DE4 /* RunTestLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75E899C8A1A37EBB3FBDBD /* RunTestLocationSource.swift */; };
 		705CBAEC44F719BA7B7DA310 /* AnnouncementSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */; };
 		855E0CE18DD960D7553B6BD7 /* RunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C128654102AD78C2EBB9A29 /* RunView.swift */; };
+		8AB6B76FED288FDB0A97F3D2 /* BackgroundModesPlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */; };
 		8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */; };
 		9D3E951B8CB63F021BD31C89 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12287FD1ADD03B7D645179B1 /* HistoryView.swift */; };
 		A2A403B86105C64D10718B6E /* RunDetailContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */; };
@@ -98,6 +99,7 @@
 		78DAD5BA8D4A54FFE4D1EA22 /* RunTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunTelemetry.swift; sourceTree = "<group>"; };
 		7D9351687C7F6A09A79DFD07 /* AnnouncementSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementSettingsStore.swift; sourceTree = "<group>"; };
 		803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessDirectRunTests.swift; sourceTree = "<group>"; };
+		83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundModesPlistTests.swift; sourceTree = "<group>"; };
 		84F52CE6745B637780DCF9BB /* RunLocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLocationSource.swift; sourceTree = "<group>"; };
 		8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFormatting.swift; sourceTree = "<group>"; };
 		90C6747A6B1939AD682A84E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -245,6 +247,7 @@
 				0CD80A9FA63B42CCADCC792B /* AnnouncementSettingsStoreTests.swift */,
 				EC84CF66D681B8CF6348DC59 /* AnnouncementSpeakerTests.swift */,
 				E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */,
+				83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */,
 				749E8A7A834548B0E911B3FA /* HarnessArgumentAndStatusTests.swift */,
 				803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */,
 				4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */,
@@ -402,6 +405,7 @@
 				340C65408F183E5E79EF76E1 /* AnnouncementSettingsStoreTests.swift in Sources */,
 				02864CDDB1743E1C1CFB943F /* AnnouncementSpeakerTests.swift in Sources */,
 				4E53875F48834DC17122A3A3 /* AudioSessionAdapterTests.swift in Sources */,
+				8AB6B76FED288FDB0A97F3D2 /* BackgroundModesPlistTests.swift in Sources */,
 				0388755EEE761D60657E1D73 /* HarnessArgumentAndStatusTests.swift in Sources */,
 				5F0EB03A10C58F30D3457944 /* HarnessDirectRunTests.swift in Sources */,
 				E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */,
@@ -600,7 +604,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = PurePace;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "PurePace 需要「始终允许」定位权限，以便在锁屏或切到后台时继续记录跑步路线与配速。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "PurePace 在跑步过程中使用定位来记录路线、距离与配速。";
-				INFOPLIST_KEY_UIBackgroundModes = location;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -622,7 +625,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = PurePace;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "PurePace 需要「始终允许」定位权限，以便在锁屏或切到后台时继续记录跑步路线与配速。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "PurePace 在跑步过程中使用定位来记录路线、距离与配速。";
-				INFOPLIST_KEY_UIBackgroundModes = location;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
