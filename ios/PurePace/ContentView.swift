@@ -23,11 +23,23 @@ struct ContentView: View {
         archiveStore = stores.archive
         exporter = stores.exporter
         _settings = StateObject(wrappedValue: settings)
+        let locationSource: RunLocationProviding
+#if DEBUG
+        // 仅 DEBUG 且显式传 `-uiTestLocation` 时使用确定性测试定位源；
+        // 生产与 Release 构建仍走真实定位数据源（RunLocationSource）。
+        if CommandLine.arguments.contains("-uiTestLocation") {
+            locationSource = RunTestLocationSource()
+        } else {
+            locationSource = RunLocationSource()
+        }
+#else
+        locationSource = RunLocationSource()
+#endif
         _runModel = StateObject(
             wrappedValue: RunSessionViewModel(
                 checkpointStore: stores.checkpoint,
                 archiveStore: stores.archive,
-                locationSource: RunLocationSource(),
+                locationSource: locationSource,
                 announcementsEnabled: settings.isEnabled
             )
         )

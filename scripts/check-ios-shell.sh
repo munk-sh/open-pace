@@ -610,6 +610,122 @@ else
   fail "ac-tests-present" "$problems"
 fi
 
+# ------------------------------------------------ UI 测试定位源（launch-arg + DEBUG 门控）
+ui_location_source_problems() {
+  local root="$1" out="" debug_block="" test_count="" assert_count=""
+  local test_source="$root/ios/PurePace/Location/RunTestLocationSource.swift"
+  local content="$root/ios/PurePace/ContentView.swift"
+  local ui="$root/ios/PurePaceUITests/RunFlowUITests.swift"
+  local run_source="$root/ios/PurePace/Location/RunLocationSource.swift"
+
+  if [ ! -f "$test_source" ]; then
+    out="$out 缺少 $test_source;"
+  else
+    grep -Fq -- '#if DEBUG' "$test_source" || out="$out 测试定位源缺少 #if DEBUG 门控;"
+    grep -Fq -- '#endif' "$test_source" || out="$out 测试定位源缺少 #endif;"
+    grep -Fq -- 'RunLocationProviding' "$test_source" || out="$out 测试定位源未实现 RunLocationProviding;"
+  fi
+  if [ ! -f "$content" ]; then
+    out="$out 缺少 $content;"
+  else
+    grep -Fq -- '-uiTestLocation' "$content" || out="$out ContentView 未按 -uiTestLocation 门控;"
+    debug_block="$(awk '/^#if DEBUG/{flag=1;next}/^#else/{flag=0}/^#endif/{flag=0}flag' "$content")"
+    printf '%s' "$debug_block" | grep -Fq -- 'RunTestLocationSource' \
+      || out="$out ContentView 的 DEBUG 分支未注入测试定位源;"
+    # 任何 RunTestLocationSource 引用都必须落在 #if DEBUG 区域内（含 #else 分支不得引用）。
+    if ! python3 - "$content" <<'PY'
+import sys
+
+path = sys.argv[1]
+stack = []
+violations = 0
+with open(path, encoding="utf-8") as handle:
+    for line in handle:
+        stripped = line.strip()
+        if stripped.startswith("#if"):
+            stack.append("debug" if stripped == "#if DEBUG" else "other")
+        elif stripped.startswith("#else"):
+            if stack and stack[-1] == "debug":
+                stack[-1] = "other"
+        elif stripped.startswith("#endif"):
+            if stack:
+                stack.pop()
+        elif "RunTestLocationSource" in line and "debug" not in stack:
+            violations += 1
+sys.exit(1 if violations else 0)
+PY
+    then
+      out="$out ContentView 在非 DEBUG 分支引用测试定位源;"
+    fi
+  fi
+  if [ ! -f "$ui" ]; then
+    out="$out 缺少 $ui;"
+  else
+    grep -Fq -- '-uiTestLocation' "$ui" || out="$out RunFlowUITests 未传 -uiTestLocation 启动参数;"
+    test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
+    assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
+    [ "$test_count" -eq 2 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 2）;"
+    [ "$assert_count" -ge 68 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥68）;"
+  fi
+  if [ ! -f "$run_source" ]; then
+    out="$out 缺少 $run_source;"
+  else
+    grep -Fq -- 'CLLocationManager' "$run_source" || out="$out RunLocationSource 生产定位契约被改;"
+    grep -Fq -- 'requestWhenInUseAuthorization' "$run_source" || out="$out RunLocationSource 授权契约被改;"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(ui_location_source_problems .)"
+if [ -z "$problems" ]; then
+  pass "ac-ui-test-location-source (launch-arg + DEBUG 门控)"
+else
+  fail "ac-ui-test-location-source" "$problems"
+fi
+
+# 反例自检：去掉测试源的 #if DEBUG / 删 launch arg / 生产分支引用测试源 / 删断言 / 删用例，
+# 每一种违规样本都必须被识别，证明断言非恒真。
+ui_source_selftest() {
+  local label="$1" mutate="$2" sandbox="" out=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-uisrc.XXXXXX")"
+  mkdir -p "$sandbox/ios/PurePace/Location" "$sandbox/ios/PurePaceUITests"
+  cp ios/PurePace/Location/RunTestLocationSource.swift "$sandbox/ios/PurePace/Location/"
+  cp ios/PurePace/Location/RunLocationSource.swift "$sandbox/ios/PurePace/Location/"
+  cp ios/PurePace/ContentView.swift "$sandbox/ios/PurePace/"
+  cp ios/PurePaceUITests/RunFlowUITests.swift "$sandbox/ios/PurePaceUITests/"
+  "$mutate" "$sandbox"
+  out="$(ui_location_source_problems "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "$label (self-test)"
+  else
+    fail "$label" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+no_debug_guard() {
+  sed -i '' '/#if DEBUG/d; /#endif/d' "$1/ios/PurePace/Location/RunTestLocationSource.swift"
+}
+drop_launch_arg() {
+  sed -i '' '/-uiTestLocation/d' "$1/ios/PurePaceUITests/RunFlowUITests.swift"
+}
+leak_test_source() {
+  printf '\n#if DEBUG\nlet leaked = RunTestLocationSource()\n#endif\n' >> "$1/ios/PurePace/ContentView.swift"
+  printf '\nfinal class LeakProbe { let source = RunTestLocationSource() }\n' >> "$1/ios/PurePace/ContentView.swift"
+}
+drop_assertions() {
+  sed -i '' '/XCTAssert/d' "$1/ios/PurePaceUITests/RunFlowUITests.swift"
+}
+drop_ui_case() {
+  sed -i '' '/func testAnnouncementTogglePersistsAcrossRelaunch/d' "$1/ios/PurePaceUITests/RunFlowUITests.swift"
+}
+
+ui_source_selftest "ac-ui-test-location-source" no_debug_guard
+ui_source_selftest "ac-ui-test-location-arg" drop_launch_arg
+ui_source_selftest "ac-ui-test-source-debug-only" leak_test_source
+ui_source_selftest "ac-ui-assertions-intact" drop_assertions
+ui_source_selftest "ac-ui-test-count-intact" drop_ui_case
+
 # ------------------------------------------------ 脚本与门禁真实执行
 problems=""
 for file in scripts/build-ios.sh scripts/test-ios.sh scripts/sync-ios-version.sh scripts/check-ios-shell.sh; do

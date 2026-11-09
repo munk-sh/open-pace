@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
-# 模拟器注入轨迹端到端取证：版本同步 → XcodeGen/现有工程 → 构建安装 → iPhone 16 / iOS 18.6
-# 模拟器 boot → uninstall 保证空容器 → simctl location 长航点注入 → 定向真实 UI 用例 →
-# 读取真实 App 容器断言跑次 JSON 与导出 GPX → 独立 python 标准库解析 → report.json 与截图证据。
+# 模拟器端到端取证：版本同步 → XcodeGen/现有工程 → 构建安装 → iPhone 16 / iOS 18.6
+# 模拟器 boot → uninstall 保证空容器 → 定向 UI 用例（由 launch-arg 门控的 DEBUG 确定性
+# 测试源驱动，不依赖 simulator 定位投递）→ 读取真实 App 容器断言跑次 JSON 与导出 GPX →
+# 独立 python 标准库解析 → report.json 与截图证据（默认只写 .build/）。
 # 口径：只写「模拟器 + 代码层」，不产出真机结论；不读任何夹具或样例数据，
-# 不用假流或内存字符串冒充导出与跑次。
+# 不用假流或内存字符串冒充导出与跑次。真实 CoreLocation 覆盖由 verify-ios-sim-runtime.sh 承担。
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-用法: scripts/verify-ios-ui-e2e.sh [--help]
+用法: scripts/verify-ios-ui-e2e.sh [--help] [--refresh-evidence]
 
 在 iPhone 16 / iOS 18.6 模拟器上跑一条真实端到端链路并产出机读报告与截图：
   1. 由根 VERSION 同步版本；工程缺失且本机有 xcodegen 时从 ios/project.yml 生成工程
      （复用 scripts/build-ios.sh 的判定口径，禁止手写 project.pbxproj）。
   2. xcodebuild 构建并安装到 iPhone 16 / iOS 18.6 模拟器（bundle id com.chaxiu.purepace）。
   3. xcrun simctl uninstall 清空容器并断言 Documents/Runs 无跑次文件。
-  4. xcrun simctl location <udid> start --speed=3 --interval=1 注入 ≥20 km 长航点。
+  4. 定位由启动参数 -uiTestLocation 门控的 DEBUG 确定性测试源覆盖（UI/导出对齐）；
+     真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 的门禁覆盖。
   5. 只跑 PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory 真实流程用例，
-     result bundle 写入 .build/verify-ios-ui-e2e/。trap 在退出时清理 location 注入。
+     result bundle 写入 .build/verify-ios-ui-e2e/。
   6. xcrun simctl get_app_container 读取真实容器：Documents/Runs 恰 1 条跑次
      （formatVersion == 1、distance > 0、samples 非空、activeDuration > 0、startedAt < endedAt），
      Documents/Exports 至少 1 个 .gpx 且 xmllint --noout 通过、根节点为 GPX 1.1。
   7. 内嵌 python3（仅标准库、不 import App/RunCore 源码）独立解析 GPX 与跑次 JSON，
-     核对 trkpt 数 == samples 数、首末时间差 ≤1 s、首末经纬度差 ≤1e-6。
-  8. 生成 .build/verify-ios-ui-e2e/report.json，并把报告、解析结果与 4 张截图副本
-     落到 docs/evidence/stage3-e2e/。
+      核对 trkpt 数 == samples 数、首末时间差 ≤1 s、首末经纬度差 ≤1e-6。
+  8. 生成 .build/verify-ios-ui-e2e/report.json 与同目录 evidence/ 证据副本；
+      只有显式 --refresh-evidence 才覆盖仓库 docs/evidence/stage3-e2e/。
 
 选项:
-  -h, --help   显示本帮助并退出 0
+  -h, --help            显示本帮助并退出 0
+  --refresh-evidence    额外把报告、解析结果与 4 张截图副本写入 docs/evidence/stage3-e2e/
 
 退出码:
   0  端到端链路全部通过（模拟器 + 代码层）
@@ -36,12 +39,16 @@ usage() {
 EOF
 }
 
+refresh_evidence=0
 case "${1:-}" in
   -h|--help)
     usage
     exit 0
     ;;
   "")
+    ;;
+  --refresh-evidence)
+    refresh_evidence=1
     ;;
   *)
     echo "verify-ios-ui-e2e: 未知参数 '$1'（使用 --help 查看用法）" >&2
@@ -69,7 +76,11 @@ project_path="ios/PurePace.xcodeproj"
 spec_path="ios/project.yml"
 derived_data=".build/ios"
 work_dir=".build/verify-ios-ui-e2e"
-evidence_dir="docs/evidence/stage3-e2e"
+# 默认只写 .build/，避免每次门禁都重写仓库证据目录；显式 --refresh-evidence 才覆盖仓库证据。
+evidence_dir="${work_dir}/evidence"
+if [ "$refresh_evidence" -eq 1 ]; then
+  evidence_dir="docs/evidence/stage3-e2e"
+fi
 result_bundle="${work_dir}/PurePaceE2E.xcresult"
 attachments_dir="${work_dir}/attachments"
 screenshots_dir="${work_dir}/screenshots"
@@ -83,20 +94,15 @@ screenshots_json="${work_dir}/screenshots.json"
 failures_file="${work_dir}/failures.txt"
 xcode_log="${work_dir}/xcodebuild-test.log"
 
-# 可重复执行：每次从干净的产物目录开始（幂等），证据目录同步覆盖写入。
-rm -rf "$work_dir" "$evidence_dir"
+# 可重复执行：每次从干净的产物目录开始（幂等）；仅在 --refresh-evidence 时覆盖仓库证据目录。
+rm -rf "$work_dir"
+if [ "$refresh_evidence" -eq 1 ]; then
+  rm -rf "$evidence_dir"
+fi
 mkdir -p "$work_dir" "$screenshots_dir" "$attachments_dir" "$evidence_dir" "$evidence_screenshots"
 : > "$failures_file"
 
 sim_udid=""
-location_started=0
-
-cleanup_location() {
-  if [ "$location_started" -eq 1 ] && [ -n "$sim_udid" ]; then
-    xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup_location EXIT
 
 record_step() {
   local name="$1" ok="$2" detail="$3"
@@ -606,6 +612,7 @@ summary_lines = [
     "# 阶段 3 端到端证据（模拟器 + 代码层）",
     "",
     "- 口径：模拟器 + 代码层",
+    "- 定位口径：UI/导出对齐由确定性测试源（-uiTestLocation）覆盖；真实 CoreLocation 由 verify-ios-sim-runtime 覆盖",
     "- 结论：%s" % ("模拟器链路通过" if ok else "模拟器链路未通过"),
     "- 模拟器：%s / %s（%s）"
     % (report["simulator"]["name"], report["simulator"]["runtime"], report["simulator"]["udid"]),
@@ -717,16 +724,9 @@ PY
   xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
   assert_empty_container || return 1
 
-  # 真实 CoreLocation：≥20 km 直线航点（37.3349,-122.0090 → 37.5200,-122.0090 约 20.6 km），
-  # 3 m/s、1 s 间隔，覆盖真实 UI 用例所需窗口；trap 在成功与失败路径都 clear。
-  xcrun simctl location "$sim_udid" clear >/dev/null 2>&1 || true
-  location_started=1
-  if ! xcrun simctl location "$sim_udid" start --speed=3 --interval=1 \
-    37.3349,-122.0090 37.5200,-122.0090 >/dev/null 2>&1; then
-    fail_step "location" "xcrun simctl location start 注入失败"
-    return 1
-  fi
-  record_step "location" true "已注入 ≥20 km 长航点（--speed=3 --interval=1）"
+  # UI 流由启动参数 -uiTestLocation 门控的 DEBUG 确定性测试源驱动，不依赖 simulator
+  # 定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 的门禁承担。
+  record_step "location-source" true "确定性测试源 -uiTestLocation（真实 CoreLocation 由 verify-ios-sim-runtime 覆盖）"
 
   # 只跑真实流程用例，避免播报开关用例的 terminate/relaunch 干扰「恰 1 条跑次」。
   xcodebuild test \

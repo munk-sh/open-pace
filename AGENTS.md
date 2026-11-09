@@ -63,6 +63,8 @@ bash scripts/check-baseline.sh
 
 L3（真机、锁屏定位、音频实听等）由 Product Ops 发起，不在本仓库脚本范围内。
 
+**CI 定位约定**：CI 的 UI 测试禁止依赖隐藏式 simulator 定位投递；UI 测试用 launch-arg 门控（`-uiTestLocation`，仅 DEBUG）的确定性测试源，真实 CoreLocation 覆盖放 `scripts/verify-ios-sim-runtime.sh`（模拟器）/真机门。
+
 ## Skill 路由（`.agents/skills/<name>`）
 
 官方 skill 以 `npx skills add <owner/repo@skill>` 安装到仓库内 `.agents/skills/`（禁止 `-g` / `--global`）。路由表与磁盘内容必须双向一致；新增或删除 skill 时同步更新本表。
