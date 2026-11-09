@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # iOS 脚本静态/契约断言（.munk/code-gates.json 的 lint-ios-scripts 门真实执行体）。
-# 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh / verify-ios-ui-e2e.sh 的
+# 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh / verify-ios-ui-e2e.sh /
+# verify-ios-sim-runtime.sh 的
 # bash 严格模式、参数契约、xcodebuild 分支字面量、降级分支、无写死版本、无伪造成功行；任一条失败即非零退出。
 set -euo pipefail
 
@@ -9,16 +10,18 @@ usage() {
 用法: scripts/check-ios-scripts.sh [--help]
 
 对 iOS 构建/测试/版本脚本做结构与契约断言并打印逐条结果：
-  - 五个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
-  - build-ios.sh / test-ios.sh / check-ios-scripts.sh / verify-ios-ui-e2e.sh 的 --help
+  - 六个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
+  - build-ios.sh / test-ios.sh / check-ios-scripts.sh / verify-ios-ui-e2e.sh /
+    verify-ios-sim-runtime.sh 的 --help
     退出 0 且含「用法」，未知参数退出 2
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 两次 xcodebuild test，
     单测/UI 日志分文件、各带测试预算参数，主脚本不含 simctl 定位注入，且带 bash 看门狗硬超时（≤600s）
-  - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，门禁仍在
+  - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，脚本契约仍在
   - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
-  - .munk/code-gates.json 保持 24 门
+  - .munk/code-gates.json 保持 22 门：本地只留快而确定腿（重 UI 门不作本地阻断），
+    test-ios 本地门固定为 --unit-only，全量单测+UI 权威落点为 .github/workflows/ios.yml
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
@@ -70,8 +73,8 @@ fail() {
   printf '[FAIL] %s: %s\n' "$1" "$2"
 }
 
-targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh"
-strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh"
+targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
+strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
 
 # ------------------------------------------------- 脚本存在、语法与严格模式
 problems=""
@@ -330,8 +333,12 @@ sim_runtime_problems() {
   printf '%s' "$out"
 }
 problems="$(sim_runtime_problems scripts/verify-ios-sim-runtime.sh)"
-grep -Fq -- '"verify-ios-sim-runtime"' .munk/code-gates.json \
-  || problems="$problems .munk/code-gates.json 缺少 verify-ios-sim-runtime 门;"
+# 重腿不作本地阻断门，但真实模拟器覆盖的权威落点必须仍在 CI：ios.yml 跑全量 test-ios.sh。
+grep -Fq -- 'bash scripts/test-ios.sh' .github/workflows/ios.yml \
+  || problems="$problems .github/workflows/ios.yml 未运行全量 scripts/test-ios.sh（真实模拟器覆盖权威落点丢失）;"
+if grep -Fq -- '--unit-only' .github/workflows/ios.yml; then
+  problems="$problems .github/workflows/ios.yml 出现 --unit-only（CI 不得跳过 UI 腿）;"
+fi
 if [ -z "$problems" ]; then
   pass "ac-real-corelocation-gate-kept"
 else
@@ -384,18 +391,46 @@ else
 fi
 rm -rf "$e2e_sandbox"
 
-# ---------------- .munk/code-gates.json 门数不得增删
+# ---------------- .munk/code-gates.json 门数固定（本地只留快而确定腿，重 UI 腿移出阻断）
 problems=""
 gate_count="$(python3 -c 'import json; print(len(json.load(open(".munk/code-gates.json"))["gates"]))' 2>/dev/null || true)"
 if [ -z "$gate_count" ]; then
   problems="$problems 无法解析 .munk/code-gates.json gates;"
-elif [ "$gate_count" -ne 24 ]; then
-  problems="$problems code-gates 门数 ${gate_count}（期望 24）;"
+elif [ "$gate_count" -ne 22 ]; then
+  problems="$problems code-gates 门数 ${gate_count}（期望 22）;"
 fi
 if [ -z "$problems" ]; then
   pass "ac-code-gates-count"
 else
   fail "ac-code-gates-count" "$problems"
+fi
+
+# ---------------- 本地门拓扑：快腿必在、模拟器重腿不得本地阻断、test-ios 固定 unit-only
+problems=""
+topology="$(python3 -c '
+import json
+cfg = json.load(open(".munk/code-gates.json"))
+cmds = {g["id"]: g["command"] for g in cfg["gates"]}
+need = [
+    "lint", "lint-ios-core", "lint-ios-scripts", "lint-ios-release", "lint-ios-shell",
+    "lint-ios-workflow", "lint-ios-run-core", "lint-android", "lint-android-workflow",
+    "build-ios-core", "build-ios-run-core", "test-ios-core", "test-ios-run-core",
+    "test-ios", "build-android", "test-android", "test", "check-shared",
+    "check-gpx-export", "check-shell-expansion",
+]
+heavy = ["verify-ios-sim-runtime", "verify-ios-ui-e2e"]
+bad = ["缺少本地快腿 " + i for i in need if i not in cmds]
+bad += ["模拟器重腿 " + i + " 仍在本地阻断门中" for i in heavy if i in cmds]
+if cmds.get("test-ios") != "bash scripts/test-ios.sh --unit-only":
+    bad.append("test-ios 本地门必须为 bash scripts/test-ios.sh --unit-only（实际 " + str(cmds.get("test-ios")) + "）")
+print(";".join(bad))
+' 2>/dev/null || true)"
+if [ -z "$topology" ] && [ -n "$gate_count" ]; then
+  pass "ac-code-gates-local-topology"
+else
+  problems="$topology"
+  [ -z "$problems" ] && problems="无法解析 .munk/code-gates.json gates;"
+  fail "ac-code-gates-local-topology" "$problems"
 fi
 
 # ------------------------------- 降级分支不伪造成功行（不 echo BUILD/TEST SUCCEEDED）

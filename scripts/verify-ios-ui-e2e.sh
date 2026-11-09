@@ -677,6 +677,89 @@ sys.exit(0 if ok else 1)
 PY
 }
 
+# 同机跨 worktree iOS 门串行化锁：固定目录 /tmp/purepace-ios-gate.lock。
+# mkdir 原子取锁；PUREPACE_IOS_GATE_LOCK_HELD=1 表示会话层已持锁，本脚本直接重入不重复加锁。
+# 有界等待 1200s、每 30s 重试；锁目录无 pid 且 mtime >900s 视为陈旧可删；trap 保证退出释放。
+ios_gate_lock_dir="/tmp/purepace-ios-gate.lock"
+ios_gate_lock_held=0
+
+ios_gate_lock_release() {
+  if [ "${ios_gate_lock_held}" = "1" ] && [ "$(cat "${ios_gate_lock_dir}/pid" 2>/dev/null || true)" = "$$" ]; then
+    rm -rf "${ios_gate_lock_dir}"
+    echo "[lock] released pid=$$ dir=${ios_gate_lock_dir}"
+  fi
+}
+
+ios_gate_lock_acquire() {
+  if [ "${PUREPACE_IOS_GATE_LOCK_HELD:-0}" = "1" ]; then
+    echo "[lock] reentrant pid=$$ (PUREPACE_IOS_GATE_LOCK_HELD=1)"
+    return 0
+  fi
+  local waited=0 holder now mtime age stale
+  while :; do
+    if mkdir "${ios_gate_lock_dir}" 2>/dev/null; then
+      printf '%s\n' "$$" > "${ios_gate_lock_dir}/pid"
+      ios_gate_lock_held=1
+      export PUREPACE_IOS_GATE_LOCK_HELD=1
+      trap ios_gate_lock_release EXIT
+      echo "[lock] acquired pid=$$ waited=${waited}s dir=${ios_gate_lock_dir}"
+      return 0
+    fi
+    holder="$(cat "${ios_gate_lock_dir}/pid" 2>/dev/null || true)"
+    now="$(date +%s)"
+    mtime="$(stat -f %m "${ios_gate_lock_dir}" 2>/dev/null || stat -c %Y "${ios_gate_lock_dir}" 2>/dev/null || echo "${now}")"
+    age=$((now - mtime))
+    stale=0
+    if [ -z "${holder}" ]; then
+      stale=1
+    elif ! kill -0 "${holder}" 2>/dev/null; then
+      stale=1
+    fi
+    if [ "${stale}" = "1" ] && [ "${age}" -gt 900 ]; then
+      echo "[lock] stale pid=${holder:-<none>} age=${age}s, removing dir=${ios_gate_lock_dir}"
+      rm -rf "${ios_gate_lock_dir}"
+      continue
+    fi
+    if [ "${waited}" -ge 1200 ]; then
+      echo "[lock] timeout pid=$$ waited=${waited}s holder=${holder:-<none>}" >&2
+      return 3
+    fi
+    if [ "${waited}" -eq 0 ]; then
+      echo "[lock] waiting pid=$$ holder=${holder:-<none>}"
+    fi
+    sleep 30
+    waited=$((waited + 30))
+  done
+}
+
+# 取锁后先有界等待其它 worktree 的 xcodebuild/simctl 归零；有并发时禁止 shutdown/erase。
+ios_gate_lock_wait_quiescent() {
+  local waited=0 others
+  while :; do
+    others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e "^$$ " -e "^${PPID} " || true)"
+    if [ -z "${others}" ]; then
+      echo "[lock] quiescent pid=$$ waited=${waited}s"
+      return 0
+    fi
+    if [ "${waited}" -ge 600 ]; then
+      echo "[lock] timeout-quiescent pid=$$ waited=${waited}s" >&2
+      printf '%s\n' "${others}" >&2
+      return 4
+    fi
+    if [ "${waited}" -eq 0 ]; then
+      echo "[lock] waiting-quiescent pid=$$"
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+}
+
+ios_gate_lock_prepare_simulator() {
+  ios_gate_lock_wait_quiescent || return $?
+  xcrun simctl shutdown all >/dev/null 2>&1 || true
+  return 0
+}
+
 # ac-tel-always：xcodebuild test-without-building 会把 App 重装到新的 Bundle 容器，
 # locationd 的 TCC 记录与容器路径绑定，预置授权会随之失效。故在 UI 调用全程后台轮询
 # 已安装容器并幂等重申 location-always，保证探针在读回时刻为 authorizedAlways（rawValue 3）。
@@ -696,6 +779,10 @@ main() {
     fail_step "environment" "缺少必需命令（xcrun / xcodebuild / python3 / xmllint）"
     return 1
   fi
+
+  ios_gate_lock_acquire || exit $?
+  # 取锁后先等待其它 worktree 的 xcodebuild/simctl 归零，再清场（有并发时禁止 shutdown/erase）。
+  ios_gate_lock_prepare_simulator || exit $?
 
   # 版本真源：MARKETING_VERSION 只能来自根 VERSION。
   if ! bash scripts/sync-ios-version.sh >/dev/null; then
