@@ -89,7 +89,7 @@
 
 ## 实现约束
 
-- 冻结技术栈不得改选：iOS SwiftUI + XcodeGen（iOS 17.0 / Swift 6.2 / Xcode 26.3，仅系统框架，禁止第三方运行时依赖，禁止手写 `project.pbxproj`）；Android Gradle wrapper + Jetpack Compose（minSdk 26 / compileSdk 36 / JDK 21，applicationId 暂定 `com.chaxiu.purepace` 且只在一处 gradle property 定义）；Shared 只放 GPX 1.1 / TCX 夹具、字符串占位、SQLite `schema.sql` 等数据契约。禁止 RN / Flutter / CMP。
+- 冻结技术栈不得改选：iOS SwiftUI + XcodeGen（iOS 17.0 / Swift 6.2 / Xcode 26.3，仅系统框架，禁止第三方运行时依赖，禁止手写 `project.pbxproj`）；Android Gradle wrapper + Jetpack Compose（minSdk 26 / compileSdk 36 / JDK 21，applicationId 与 iOS bundle id 同为产品最终标识 `sh.munk.purepace`，只在一处 gradle property / `project.yml` 定义）；Shared 只放 GPX 1.1 / TCX 夹具、字符串占位、SQLite `schema.sql` 等数据契约。禁止 RN / Flutter / CMP。
 - 版本口径：`VERSION` 初始 `0.1.0` 一次定死；后续 iOS `MARKETING_VERSION`、Android `versionName`、`scripts/*.sh` 一律从 `VERSION` 派生。
 - skill 安装口径：只用 `npx skills find` / `npx skills add <owner/repo@skill>` 装到仓库内 `.agents/skills/`，禁止 `-g` / `--global`，禁止以 `git clone`、`curl | sh` 为主路径；装不上如实写明并让断言反映真实结果，不得放宽为「有任意 skill 即可」。
 - 文档口径：`AGENTS.md` 保持薄，只写事实与约定；`scripts/test-android.sh` 仍只能标注为「由 Android 骨架项补齐」的目标入口，不得声称已存在；iOS 三脚本状态按真实执行结果描述（含 `blocked:` 降级说明）。

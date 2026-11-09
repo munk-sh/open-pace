@@ -14,7 +14,7 @@ usage() {
 在 iPhone 16 / iOS 18.6 模拟器上跑一条真实端到端链路并产出机读报告与截图：
   1. 由根 VERSION 同步版本；工程缺失且本机有 xcodegen 时从 ios/project.yml 生成工程
      （复用 scripts/build-ios.sh 的判定口径，禁止手写 project.pbxproj）。
-  2. xcodebuild 构建并安装到 iPhone 16 / iOS 18.6 模拟器（bundle id com.chaxiu.purepace）。
+  2. xcodebuild 构建并安装到 iPhone 16 / iOS 18.6 模拟器（bundle id sh.munk.purepace）。
   3. xcrun simctl uninstall 清空容器并断言 Documents/Runs 无跑次文件。
   4. 定位由启动参数 -uiTestLocation 门控的 DEBUG 确定性测试源覆盖（UI/导出对齐）；
      真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 的门禁覆盖。
@@ -72,7 +72,7 @@ device_name="iPhone 16"
 runtime_id="com.apple.CoreSimulator.SimRuntime.iOS-18-6"
 runtime_name="iOS 18.6"
 destination="platform=iOS Simulator,name=iPhone 16,OS=18.6"
-bundle_id="com.chaxiu.purepace"
+bundle_id="sh.munk.purepace"
 scheme="PurePace"
 project_path="ios/PurePace.xcodeproj"
 spec_path="ios/project.yml"
@@ -690,7 +690,7 @@ report = {
         "name": device.get("name", "iPhone 16"),
         "udid": device.get("udid", ""),
         "runtime": device.get("runtime", "iOS 18.6"),
-        "bundleId": device.get("bundleId", "com.chaxiu.purepace"),
+        "bundleId": device.get("bundleId", "sh.munk.purepace"),
     },
     "steps": steps,
     "container": container,

@@ -138,7 +138,7 @@ ios_gate_lock_prepare_simulator() {
 ios_gate_lock_acquire || exit $?
 ios_gate_lock_prepare_simulator || exit $?
 
-bundle_id="com.chaxiu.purepace"
+bundle_id="sh.munk.purepace"
 device_name="iPhone 16"
 runtime_id="com.apple.CoreSimulator.SimRuntime.iOS-18-6"
 derived_data=".build/ios"

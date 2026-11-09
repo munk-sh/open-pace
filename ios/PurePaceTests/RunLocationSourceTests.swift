@@ -70,6 +70,21 @@ final class RunLocationSourceTests: XCTestCase {
             modes.contains("location"),
             "Info.plist 的 UIBackgroundModes 未含 location，实际：\(modes)"
         )
+        XCTAssertTrue(
+            modes.contains("audio"),
+            "Info.plist 的 UIBackgroundModes 未含 audio，实际：\(modes)"
+        )
+    }
+
+    // MARK: - ac-bundle-id-readback（bundle 读回）
+
+    func testInfoPlistBundleIdentifierIsFinalProductId() {
+        let actual = Bundle.main.bundleIdentifier ?? "<nil>"
+        XCTAssertEqual(
+            actual,
+            "sh.munk.purepace",
+            "构建产物 Info.plist 的 CFBundleIdentifier 读回值为 \(actual)，期望 sh.munk.purepace"
+        )
     }
 
     // MARK: - ac-bg-enabled-while-running / ac-bg-disabled-after-stop
