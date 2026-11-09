@@ -23,6 +23,11 @@
       "command": "bash scripts/check-ios-scripts.sh"
     },
     {
+      "id": "lint-ios-release",
+      "cwd": ".",
+      "command": "bash scripts/check-ios-release.sh"
+    },
+    {
       "id": "lint-ios-shell",
       "cwd": ".",
       "command": "bash scripts/check-ios-shell.sh"

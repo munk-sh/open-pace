@@ -38,6 +38,8 @@ bash scripts/version.sh --tools
 | 读取版本号与工具链摘要 | `bash scripts/version.sh --tools` | 已就绪（缺失工具显式标注未就绪） |
 | 仓库基线结构断言 | `bash scripts/check-baseline.sh` | 已就绪 |
 | iOS 脚本契约断言 | `bash scripts/check-ios-scripts.sh` | 已就绪 |
+| iOS 分发归档与导出 | `bash scripts/archive-ios.sh` | 已就绪；`DRY_RUN=1` 脱敏预演，产物仓外并输出 sha256 |
+| iOS 分发静态门 | `bash scripts/check-ios-release.sh` | 已就绪；校验归档脚本契约、脱敏、门禁接入与 Runbook |
 | iOS 构建 | `bash scripts/build-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift build` |
 | iOS 测试 | `bash scripts/test-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift test` |
 | Android 构建 | `bash scripts/build-android.sh` | 已就绪；真实执行 `assembleDebug` 并校验非空 APK 产物 |
