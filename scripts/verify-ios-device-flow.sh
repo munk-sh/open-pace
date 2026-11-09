@@ -40,7 +40,7 @@ usage() {
 
 环境变量:
   PUREPACE_DEVICE_UDID      覆盖目标设备 UDID
-  PUREPACE_BUNDLE_ID        被测 App bundle id（默认 com.chaxiu.purepace）
+  PUREPACE_BUNDLE_ID        被测 App bundle id（默认 sh.munk.purepace）
   PUREPACE_DEVELOPMENT_TEAM 签名团队（默认 3X4J53U6RY，仅命令行临时传入）
   PUREPACE_BACKGROUND_SECONDS  background 阶段后台窗口秒数（默认 330，允许 300–360）
   PUREPACE_CANDIDATE_ZIP    候选包 zip 路径（同 --candidate）
@@ -55,7 +55,7 @@ EOF
 phase=""
 candidate_path="${PUREPACE_CANDIDATE_ZIP:-}"
 device_udid="${PUREPACE_DEVICE_UDID:-00008101-001C701E0A68001E}"
-bundle_id="${PUREPACE_BUNDLE_ID:-com.chaxiu.purepace}"
+bundle_id="${PUREPACE_BUNDLE_ID:-sh.munk.purepace}"
 team_id="${PUREPACE_DEVELOPMENT_TEAM:-3X4J53U6RY}"
 background_seconds="${PUREPACE_BACKGROUND_SECONDS:-330}"
 

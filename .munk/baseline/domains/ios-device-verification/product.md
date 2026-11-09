@@ -24,6 +24,14 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - ac-matrix-core-loop-only: 清单只覆盖核心闭环与首屏审计三项；Info.plist 声明、单个开关、格式化、状态机、四态、阈值不得作为真机断言项（须指向单测/集成/模拟器层）。
 - ac-matrix-audit-items: 清单含候选包真机首屏审计三项（五读数位 / 三 Tab / 详情页 GPX 入口），每项判点与证据文件名规则明确。
 
+### 产品标识跟随（矩阵与脚本的构建身份）
+
+- ac-device-suite-bundle-id: `scripts/verify-ios-device-flow.sh` 的 usage 说明与 `bundle_id="${PUREPACE_BUNDLE_ID:-sh.munk.purepace}"` 默认值均为 `sh.munk.purepace`（该精确赋值表达式恰 1 处），`PUREPACE_BUNDLE_ID` / `PUREPACE_DEVICE_UDID` / `--device` 的 env 覆盖语义不变；`bash -n` 退出 0。
+- ac-device-suite-not-weakened: 脚本 `continue-on-error` 零命中、`set -euo pipefail` 仍在、`--phase` 三值（`audit|audio|background`）与 `pending: 待人现场` 文案仍在；bundle id 迁移只改 usage 与默认值两行，脚本断言、等待、退出码零改动。
+- ac-matrix-current-bundle-id: `docs/device-assertion-matrix.md` 的「构建身份与档位」(a) 段与批次 A1 说明写 `sh.munk.purepace` 且全文无旧 bundle id 字面量；三档标签与批次 A1/A2/B 三个标题保留。
+- ac-matrix-history-immutable: matrix (b) 段历史候选 `zip sha256 7258…` 与 `commit 8db1a167` 保持原样不改写，`pending: 待人现场` 表述仍在；`docs/evidence/**`、`artifacts/**` 历史证据零改动。
+- ac-legacy-bundle-id-grep-exempt-only: `git grep -n 'com\.chaxiu\.purepace' -- ios scripts docs` 命中仅 `docs/evidence/**`；`scripts/` 与 `docs/` 的非 `docs/evidence/` 路径零命中。
+
 ### `--phase=audit`（脚本第一产出）
 
 - ac-audit-output-layout: 每次运行在 `artifacts/device-audit/<UTC>/` 下落盘 ≥1 张 `.png`、≥1 份 `*.ax.json`、1 份 `report.md`；`report.md` 含三项审计逐项 PASS/FAIL 与对应证据文件名，所列文件真实存在且非空。
@@ -91,7 +99,6 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_0384603f3b8f1aec（2026-11-09，pass）
-- 交付：`docs/device-assertion-matrix.md`（105 行，三档来源 + 构建身份 + 批次 A1/A2/B/C + Release km 播报结论行 + 不进真机场语义 + pending 清单）；`scripts/verify-ios-device-flow.sh`（1128 行，三模式、`--help` / 未知参数契约、delegated `devicectl` + `xcodebuild test`、Mac 侧后台等待）；`ios/PurePaceUITests/DeviceFlowUITests.swift`（505 行，audit/audio/background 用例）；`docs/device-flow-usage.md`（用法与证据路径）。
-- 实测：真机 iPhone 12 Pro Max（UDID `00008101-001C701E0A68001E`，iOS 18.7.8 build 22H352）跑通 `--phase=audit`，最新成功场 `artifacts/device-audit/20261109T102534Z/` 结论「机器断言通过」：五读数位全 PASS、三 Tab 全 PASS、`runDetail.export` exists/hittable PASS；报告显式标注「实际驱动构建 ≠ 候选包二进制」（Release 构建 commit `a45922265e38`，未解包比对候选 zip），不宣称候选包已验证。
-- 待办：`--phase=audio` / `--phase=background` 正式场为 `pending: 待公司确认`（清单确认门），尚未产出正式场证据；批次 C 两条人耳判定与锁屏态补测按 needs-you 单点交回公司负责人。
+- workItemId: wi_intake_e97db968c68e4562（2026-11-10，pass）
+- 交付：设备取证套件跟随 `sh.munk.purepace`——`scripts/verify-ios-device-flow.sh` 只改 usage 说明与 `PUREPACE_BUNDLE_ID` 默认值两行（env 覆盖保留）；`docs/device-assertion-matrix.md` 的 (a) 段与批次 A1 说明换新 id，(b) 段历史候选 `7258…` / commit `8db1a167` 与 `pending: 待人现场` 原样保留。旧 id 全局命中收敛到 `docs/evidence/stage3-e2e/report.json` 2 条历史证据。
+- 边界：`docs/evidence/**`、`artifacts/**`、`ios/PurePaceUITests/**`、`ios/project.yml`、`.github/workflows/**` 零改动；三模式断言、等待与退出码未弱化。真机三档补测仍为 `pending: 待人现场`。
