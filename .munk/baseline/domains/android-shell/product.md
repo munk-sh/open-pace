@@ -22,7 +22,7 @@ PurePace Android 空壳工程域：以入库的 Gradle wrapper 驱动 `android/`
 - ac-min-sdk-26: 合并 manifest（`android/app/build/intermediates/merged_manifest/debug/**/AndroidManifest.xml` 或等价产物）`minSdkVersion` 为 26，且 `output-metadata.json` 的 minSdk 口径为 26。
 - ac-compile-sdk-36: `android/app/build.gradle.kts`（或统一版本目录）声明 `compileSdk = 36`，构建在本机已装 android-36 platform 上真实完成，非注释/被覆盖的声明。
 - ac-jdk-21: 声明 Java 21 编译目标（`compileOptions` + Kotlin `jvmToolchain(21)`），构建在 JDK 21 下成功；不出现写死的 JDK 绝对路径，`local.properties` 不提交且不含 `org.gradle.java.home`。
-- ac-application-id-single-source: 字面值 `com.chaxiu.purepace` 在 `android/`（排除 `build/`、`.gradle/`）只出现 1 次，位于 `android/gradle.properties` 单一 property；`app/build.gradle.kts` 通过该 property 取值赋给 `applicationId`/`namespace`，不重复写字面值。
+- ac-application-id-single-source: 字面值 `sh.munk.purepace` 在 `android/`（排除 `build/`、`.gradle/`）只出现 1 次，位于 `android/gradle.properties` 的 `PUREPACE_APPLICATION_ID` 单一 property，且与 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 取同一产品标识；`app/build.gradle.kts` 通过该 property 取值赋给 `applicationId`/`namespace`，不重复写字面值。
 - ac-version-name-from-version: `assembleDebug` 产物读到的 `versionName` 等于 `cat VERSION`；把根 `VERSION` 改成另一合法 `x.y.z` 后重跑 `assembleDebug`，`versionName` 随之变化；`android/` 源码与配置不出现该字面值。
 - ac-first-screen-placeholder-only: Compose 首屏可被断言到 `PurePace` 文案、≥1 句非空 tagline、Run/History/Log/Settings 4 个 Tab 占位标签；界面无列表项、示例跑步记录、示例热量数据或「演示/示例」数据源。
 - ac-no-business-logic: `src/main/AndroidManifest.xml` 不声明定位/后台位置/前台服务/录音等业务权限；`src/main` 无计时器、GPS/GPX/TCX 解析、音频/TTS、历史或导出实现（可留 TODO 注释）。
@@ -41,7 +41,7 @@ PurePace Android 空壳工程域：以入库的 Gradle wrapper 驱动 `android/`
 - ac-android-retry-success-path: stub 第 2 次尝试成功时，重试后脚本继续走原有成功路径（`build-android.sh` 校验 APK 产物；`test-android.sh` 校验 test-results XML 与用例计数），入口语义与既有断言不变。
 - ac-check-android-static-guards: `scripts/check-android.sh` 含上述静态断言与 `mktemp` 沙箱 stub 反例自检（非网络只试 1 次、网络失败恰 4 次、退出码语义、删除重试函数的违规样本必须 FAIL），离线、可重复、不污染仓库。
 - ac-script-help-and-strict: 三个脚本 `bash -n` 通过、首行为 `#!/usr/bin/env bash`、正文含 `set -euo pipefail`、以 `BASH_SOURCE` 推导仓库根（任意 cwd 一致）；`--help` 退出 0 且输出含「用法」；未知参数退出 2。
-- ac-check-android-application-id: `com.chaxiu.purepace` 在 `android/`（排除 `build/`、`.gradle/`）仅出现 1 次且位于 `android/gradle.properties` 单一 property；出现第 2 处即 FAIL。
+- ac-check-android-application-id: `sh.munk.purepace` 在 `android/`（排除 `build/`、`.gradle/`）仅出现 1 次且位于 `android/gradle.properties` 单一 property；出现第 2 处即 FAIL。门脚本的期望值、沙箱反例与夹具包名/XML 名同步为同一字面值，断言结构与 `--self-test` 逻辑不变。
 - ac-check-android-sdk-jdk: 断言 `compileSdk = 36`、`minSdk = 26`、Java/Kotlin 编译目标 21，且 `android/` 无写死 JDK 绝对路径、`local.properties` 未入库；不符即 FAIL。
 - ac-check-android-version: 断言 `versionName` 由仓库根 `VERSION` 派生（配置期读取、不缓存），`android/` 提交内容不出现 `cat VERSION` 字面值；不符即 FAIL。
 - ac-check-android-wrapper: 断言 `gradle-wrapper.jar` 为非空 jar、`distributionUrl` 指向固定版本（不含 `latest`/`+`/`SNAPSHOT`）；不符即 FAIL。
@@ -81,7 +81,7 @@ PurePace Android 空壳工程域：以入库的 Gradle wrapper 驱动 `android/`
 
 ## 最近交付证明
 
-- workItemId: wi_ws_829cd75d36d5bb39（2026-11-08，pass）
-- 交付：`scripts/build-android.sh` / `scripts/test-android.sh` 各自新增 `gradle_with_retry`，`assembleDebug` 与 `testDebugUnitTest` 均经其调用（函数体内唯一裸 `bash android/gradlew -p android <task>`）：仅网络/下载类失败重试，最多 4 次尝试、间隔 1s，非网络失败 1 次即原样透传退出码，`tee` 实时打印；`scripts/check-android.sh` 新增静态断言（唯一调用点在函数内、上限 4、网络特征清单）与 `mktemp` 沙箱 stub 反例（非网络 1 次、网络恰 4 次、退出码透传、删除函数必 FAIL）。
-- 验证：`code_gates` 22 门全绿；`lint-android`/`check-android.sh` 全断言 PASS；`build-android` 产 APK 与 `test-android` 用例计数路径语义未变（仅新增重试包裹）。
-- 风险标注：远端 `ios`/`android` workflow 的本次 headSha run 需推送后取真实 run id 与 conclusion 才能宣称绿，本地结果不作远端证据；`android/**` 零改动。
+- workItemId: wi_intake_65fc88c0d5adf474（2026-11-10，pass）
+- 交付：应用标识随产品最终标识同步为 `sh.munk.purepace`——只改 `android/gradle.properties` 的 `PUREPACE_APPLICATION_ID`（`namespace` 仍由同一 property 派生）+ `scripts/check-android.sh` 的期望字面值、沙箱反例与夹具包名/XML 名共 10 处；断言结构、`--self-test` 逻辑、Kotlin 包名（`dev.purepace`）与 `android/app/src/**` 全部零改动，业务行为无变化。
+- 实测：`code_gates` 全绿（`lint-android` / `build-android` / `test-android` 真实执行，APK 与用例计数路径语义未变）。
+- 风险标注：`applicationId` 改名后设备上旧包与新包并存，Play Console 需对应新记录（人侧动作，不在仓库范围）；若人侧决定暂不动 Android，回退为 1 行 property + 门期望值。

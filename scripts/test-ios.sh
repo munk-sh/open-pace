@@ -84,7 +84,7 @@ spec_path="$ios_dir/project.yml"
 derived_data=".build/ios"
 scheme="PurePace"
 destination="platform=iOS Simulator,name=iPhone 16,OS=18.6"
-bundle_id="com.chaxiu.purepace"
+bundle_id="sh.munk.purepace"
 
 # 版本派生：MARKETING_VERSION 只能来自根 VERSION（写 ios/Config/Version.xcconfig）。
 if [ -f scripts/sync-ios-version.sh ]; then

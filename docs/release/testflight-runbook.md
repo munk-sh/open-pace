@@ -6,7 +6,10 @@
 ## 前置
 
 - 一台已登录 Apple Developer 账号、装有 Xcode 的 Mac，且 Xcode 命令行工具可用：`xcodebuild -version` 能输出版本。
-- App Store Connect 中已存在 `com.chaxiu.purepace` 对应的 App 记录（本仓库不创建记录）。先用只读方式确认：
+- App Store Connect 中已存在 `sh.munk.purepace` 对应的 App 记录（本仓库不创建记录）。先用只读方式确认：
+  - 当前 bundle id 为 `sh.munk.purepace`，由 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 单点定义；
+    换 id 后需由人在 App Store Connect 新建或更新对应 App 记录，否则 TestFlight 无对应构建。此前构建记录里的旧
+    bundle id 属历史事实，保持原样。
   - `xcrun altool --list-apps`（本机已有 App Store Connect 凭据时）逐条核对 bundle id；或
   - 在 App Store Connect 网页 / ASC API 只读查询该 bundle id 的 App 记录是否存在。
   - 若不存在，先由人在 App Store Connect 手工创建，再继续本流程。

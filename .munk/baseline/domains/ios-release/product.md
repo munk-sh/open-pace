@@ -27,6 +27,7 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 - ac-release-gate-wired: `.munk/code-gates.json` 新增 `lint-ios-release` 门且 `command` 为 `bash scripts/check-ios-release.sh`，门数 24（该项交付当时的快照；当前本地拓扑为 22 门，见 `ios-ci-stability`）；`scripts/check-ios-scripts.sh` 的门数断言与本域 `check-ios-release.sh` 断言现同步为 22 且该门仍通过。
 - ac-release-gate-self-tests: `scripts/check-ios-release.sh` 含负向自检（缺 env 时归档脚本非零退出且无值泄露、`DRY_RUN=1` 输出脱敏），失败非零退出、全通过退出 0。
 - ac-runbook-complete: Runbook 含前置（ASC App 记录存在性检查命令、三件凭据的绝对路径与环境变量说明、人在场要求）、执行步骤、证据归档清单（zip/app/dSYM 的 sha256、`xcodebuild -version`、commit）、反范围（不 push tag、不建 Release、不在仓内写 `.p8` / `.env`），命令示例一律使用 `$ASC_KEY_PATH` 等占位符。
+- ac-runbook-current-bundle-id: `docs/release/testflight-runbook.md` 声明的当前 bundle id 为 `sh.munk.purepace`（指向 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 单点），并注明换 id 后需人侧在 App Store Connect 新建/更新对应 App 记录；历史构建记录里的旧 bundle id 保持原样不改写。
 - ac-no-network-or-workflow-changes: 不执行任何 App Store Connect 上传/记录创建；`.github/workflows/*` 触发条件与内容不变；不引入 fastlane 依赖。
 - ac-candidate-evidence-keys: Release 候选证据文件（`artifacts/candidates/Release-candidate-*.txt`）至少含 zip **绝对路径**、zip sha256、exec sha256、构建配置、签名身份、合入 main 的 commit sha，以及**构建产物 Info.plist 的 `UIBackgroundModes` 实际数组 dump**；因仅改 plist 的变更可能产出与旧包相同的 exec sha，候选验收键必须是 **zip sha256 + plist 实际数组**，不得单以 exec sha 区分新旧包。
 
@@ -53,7 +54,6 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_fbf182d98f650a1e（2026-11-09，pass）
-- 交付：新增 `scripts/archive-ios.sh`（xcodegen → archive → exportArchive，凭据仅环境变量、缺变量 fail-closed、`DRY_RUN=1` 脱敏预演、产物仓外 + zip + sha256/checksums.txt）、`scripts/check-ios-release.sh`（17 项断言含三类负向自检）、`docs/release/testflight-runbook.md`（前置/步骤/证据清单/反范围）；`.munk/code-gates.json` 追加单一 argv 门 `lint-ios-release`（24 门），`scripts/check-ios-scripts.sh` 门数断言同步 24；README 入口表补两行。
-- 验证：`DRY_RUN=1 bash scripts/archive-ios.sh` 退出 0 且只回显占位符命令、未执行 xcodebuild；`bash scripts/check-ios-release.sh` 17 项断言 0 失败（`ios release OK`）；本轮 `code_gates` 24 门全绿。
-- 边界：真实归档/导出/上传需人持本机 `.p8` 凭据执行，本轮未运行真实 archive，也未做任何 ASC 网络调用或远端 CI run；`ExportOptions` 的 `app-store-connect` 方法需在首次真实分发时由人确认。
+- workItemId: wi_intake_65fc88c0d5adf474（2026-11-10，pass）
+- 交付：Runbook 的当前 bundle id 表述换为 `sh.munk.purepace`，并注明换 id 后需人侧在 App Store Connect 新建/更新 App 记录、历史构建记录里的旧 id 属历史事实保持原样。`scripts/archive-ios.sh` / `check-ios-release.sh` / 门拓扑零改动。
+- 边界：真实归档、导出、TestFlight 上传与 ASC 记录变更仍需人持凭据执行；本轮未运行真实 archive 与 ASC 网络调用，候选包证据（zip sha256 + 产物 plist 实际值）待下次真机分发时产出。

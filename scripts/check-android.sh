@@ -217,15 +217,15 @@ check_android_structure() {
 
   # applicationId 单点
   problems=""
-  hits="$(grep -rIn --exclude-dir=build --exclude-dir=.gradle --exclude-dir=.kotlin -- 'com.chaxiu.purepace' "$android_dir" 2>/dev/null || true)"
+  hits="$(grep -rIn --exclude-dir=build --exclude-dir=.gradle --exclude-dir=.kotlin -- 'sh.munk.purepace' "$android_dir" 2>/dev/null || true)"
   count=0
   if [ -n "$hits" ]; then
     count="$(printf '%s\n' "$hits" | wc -l | tr -d ' ')"
   fi
-  [ "$count" -eq 1 ] || problems="$problems 字面值 com.chaxiu.purepace 在 android/ 出现 $count 次（期望 1，仅 gradle.properties）;"
+  [ "$count" -eq 1 ] || problems="$problems 字面值 sh.munk.purepace 在 android/ 出现 $count 次（期望 1，仅 gradle.properties）;"
   if [ -f "$android_dir/gradle.properties" ]; then
-    grep -Eq '^PUREPACE_APPLICATION_ID=com\.chaxiu\.purepace$' "$android_dir/gradle.properties" \
-      || problems="$problems android/gradle.properties 缺少唯一 PUREPACE_APPLICATION_ID=com.chaxiu.purepace 定义;"
+    grep -Eq '^PUREPACE_APPLICATION_ID=sh\.munk\.purepace$' "$android_dir/gradle.properties" \
+      || problems="$problems android/gradle.properties 缺少唯一 PUREPACE_APPLICATION_ID=sh.munk.purepace 定义;"
   else
     problems="$problems 缺少 android/gradle.properties;"
   fi
@@ -449,7 +449,7 @@ fi
 [ "$negative_rc" -eq 0 ] || negative_problems="$negative_problems 沙箱基线样本未通过结构断言（$negative_rc 项失败）;"
 
 # 反例 1：applicationId 字面值出现第二处
-printf '\nPUREPACE_APPLICATION_ID_ECHO=com.chaxiu.purepace\n' >> "$sandbox/android/gradle.properties"
+printf '\nPUREPACE_APPLICATION_ID_ECHO=sh.munk.purepace\n' >> "$sandbox/android/gradle.properties"
 if negative_out="$(check_android_structure "$sandbox" 2>&1)"; then
   negative_rc=0
 else
@@ -537,17 +537,17 @@ if [ "$task" = "assembleDebug" ]; then
   printf 'fake-apk\n' > android/app/build/outputs/apk/debug/app-debug.apk
 elif [ "$task" = "testDebugUnitTest" ]; then
   mkdir -p android/app/build/test-results/testDebugUnitTest
-  printf '%s\n' '<testsuite name="com.chaxiu.purepace.FakeJvmTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-com.chaxiu.purepace.FakeJvmTest.xml
-  printf '%s\n' '<testsuite name="com.chaxiu.purepace.FakeRobolectricTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-com.chaxiu.purepace.FakeRobolectricTest.xml
+  printf '%s\n' '<testsuite name="sh.munk.purepace.FakeJvmTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-sh.munk.purepace.FakeJvmTest.xml
+  printf '%s\n' '<testsuite name="sh.munk.purepace.FakeRobolectricTest" tests="1" failures="0" errors="0" skipped="0"></testsuite>' > android/app/build/test-results/testDebugUnitTest/TEST-sh.munk.purepace.FakeRobolectricTest.xml
 fi
 exit 0
 STUBGRADLE
 
-mkdir -p "$retry_root/android/app/src/test/java/com/chaxiu/purepace"
-printf '%s\n' 'package com.chaxiu.purepace' 'class FakeJvmTest' \
-  > "$retry_root/android/app/src/test/java/com/chaxiu/purepace/FakeJvmTest.kt"
-printf '%s\n' 'package com.chaxiu.purepace' '// RobolectricTestRunner' 'class FakeRobolectricTest' \
-  > "$retry_root/android/app/src/test/java/com/chaxiu/purepace/FakeRobolectricTest.kt"
+mkdir -p "$retry_root/android/app/src/test/java/sh/munk/purepace"
+printf '%s\n' 'package sh.munk.purepace' 'class FakeJvmTest' \
+  > "$retry_root/android/app/src/test/java/sh/munk/purepace/FakeJvmTest.kt"
+printf '%s\n' 'package sh.munk.purepace' '// RobolectricTestRunner' 'class FakeRobolectricTest' \
+  > "$retry_root/android/app/src/test/java/sh/munk/purepace/FakeRobolectricTest.kt"
 
 retry_counter="$retry_root/attempts.txt"
 
