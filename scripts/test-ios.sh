@@ -13,7 +13,8 @@ usage() {
     存在且本机有 xcodegen 可从 spec 生成工程时，在 bootstatus 之后拆成两次
     xcodebuild test（共用 .build/ios 派生数据）：
       1) -only-testing:PurePaceTests（日志 .build/logs/xcodebuild-unit.log，Executed 摘要先落盘）
-      2) -only-testing:PurePaceUITests（日志 .build/logs/xcodebuild-ui.log）
+      2) -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests（日志 .build/logs/xcodebuild-ui.log；
+         DeviceFlowUITests 只由 scripts/verify-ios-device-flow.sh 分阶段驱动，不进默认 CI UI 腿）
     UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
     simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
     测试前按固定顺序准备模拟器状态：bootstatus 等待设备可用 → simctl uninstall 清容器 →
@@ -449,12 +450,15 @@ test_with_xcodebuild() {
     return 1
   fi
   # 第二次调用：UI 测试（-only-testing:PurePaceUITests），由 -uiTestLocation 确定性测试源驱动。
+  # DeviceFlowUITests 是真机取证套件（由 scripts/verify-ios-device-flow.sh 分阶段单独驱动），
+  # 不进默认 CI UI 腿：无设备前置时会 4/4 确定性失败并撞满 600s 预算。此处显式排除，
+  # 重试路径复用同一脚本，因此两次 attempt 的选择器一致。
   local tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
   rm -f "$tcc_stop_file"
   refresh_location_always_until_stopped "$tcc_stop_file" &
   local tcc_refresher_pid=$!
   local ui_status=0
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
   run_with_watchdog "$ui_available" "$ui_log" \
     xcodebuild test-without-building \
     -project "$project_path" \
@@ -462,6 +466,7 @@ test_with_xcodebuild() {
     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
     -derivedDataPath "$derived_data" \
     -only-testing:PurePaceUITests \
+    -skip-testing:PurePaceUITests/DeviceFlowUITests \
     -test-timeouts-enabled YES \
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \
