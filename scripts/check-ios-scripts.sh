@@ -18,7 +18,7 @@ usage() {
     单测/UI 日志分文件、各带测试预算参数，主脚本不含 simctl 定位注入，且带 bash 看门狗硬超时（≤600s）
   - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，门禁仍在
   - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
-  - .munk/code-gates.json 保持 23 门
+  - .munk/code-gates.json 保持 24 门
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
@@ -389,8 +389,8 @@ problems=""
 gate_count="$(python3 -c 'import json; print(len(json.load(open(".munk/code-gates.json"))["gates"]))' 2>/dev/null || true)"
 if [ -z "$gate_count" ]; then
   problems="$problems 无法解析 .munk/code-gates.json gates;"
-elif [ "$gate_count" -ne 23 ]; then
-  problems="$problems code-gates 门数 ${gate_count}（期望 23）;"
+elif [ "$gate_count" -ne 24 ]; then
+  problems="$problems code-gates 门数 ${gate_count}（期望 24）;"
 fi
 if [ -z "$problems" ]; then
   pass "ac-code-gates-count"
