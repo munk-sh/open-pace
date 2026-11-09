@@ -18,19 +18,21 @@ usage() {
   3. xcrun simctl uninstall 清空容器并断言 Documents/Runs 无跑次文件。
   4. 定位由启动参数 -uiTestLocation 门控的 DEBUG 确定性测试源覆盖（UI/导出对齐）；
      真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 的门禁覆盖。
-  5. 只跑 PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory 真实流程用例，
-     result bundle 写入 .build/verify-ios-ui-e2e/。
+  5. 只跑 PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact 全链路导出用例
+     （开始 → 结束 → 选中本次记录 → 详情 → 导出 GPX → 分享面板），result bundle 写入
+     .build/verify-ios-ui-e2e/。
   6. xcrun simctl get_app_container 读取真实容器：Documents/Runs 恰 1 条跑次
      （formatVersion == 1、distance > 0、samples 非空、activeDuration > 0、startedAt < endedAt），
-     Documents/Exports 至少 1 个 .gpx 且 xmllint --noout 通过、根节点为 GPX 1.1。
+     Documents/Exports 至少 1 个 .gpx，文件名含该跑次 id（UUID），xmllint --noout 通过、
+     根节点为 GPX 1.1。
   7. 内嵌 python3（仅标准库、不 import App/RunCore 源码）独立解析 GPX 与跑次 JSON，
-      核对 trkpt 数 == samples 数、首末时间差 ≤1 s、首末经纬度差 ≤1e-6。
-  8. 生成 .build/verify-ios-ui-e2e/report.json 与同目录 evidence/ 证据副本；
-      只有显式 --refresh-evidence 才覆盖仓库 docs/evidence/stage3-e2e/。
+      核对 trkpt 数 == samples 数、时间跨度差 ≤1 s、首末时间差 ≤1 s、首末经纬度差 ≤1e-6。
+  8. 生成 .build/verify-ios-ui-e2e/report.json、export-evidence.json（含 sha256）与同目录
+      evidence/ 证据副本；只有显式 --refresh-evidence 才覆盖仓库 docs/evidence/stage3-e2e/。
 
 选项:
   -h, --help            显示本帮助并退出 0
-  --refresh-evidence    额外把报告、解析结果与 4 张截图副本写入 docs/evidence/stage3-e2e/
+  --refresh-evidence    额外把报告、导出证据、解析结果与 4 张截图副本写入 docs/evidence/stage3-e2e/
 
 退出码:
   0  端到端链路全部通过（模拟器 + 代码层）
@@ -86,6 +88,7 @@ attachments_dir="${work_dir}/attachments"
 screenshots_dir="${work_dir}/screenshots"
 evidence_screenshots="${evidence_dir}/screenshots"
 report_path="${work_dir}/report.json"
+export_evidence_path="${work_dir}/export-evidence.json"
 device_json="${work_dir}/device.json"
 steps_json="${work_dir}/steps.json"
 container_json="${work_dir}/container.json"
@@ -219,6 +222,8 @@ if run_files:
     samples = record.get("samples") or []
     run_summary.update(
         {
+            "file": os.path.basename(run_path),
+            "id": record.get("id"),
             "formatVersion": record.get("formatVersion"),
             "distance": record.get("distance"),
             "activeDuration": record.get("activeDuration"),
@@ -328,6 +333,20 @@ for path in gpx_files:
         problems.append("%s XML 解析失败: %s" % (entry["name"], exc))
     exports.append(entry)
 
+# 本次导出的 .gpx 必须与本次跑次 UUID 绑定（文件名忽略大小写包含记录 id）。
+record_id = run_summary.get("id")
+matched_gpx = [
+    path
+    for path in gpx_files
+    if record_id and str(record_id).lower() in os.path.basename(path).lower()
+]
+if not matched_gpx:
+    problems.append(
+        "Documents/Exports 缺少文件名含跑次 id（%r）的 .gpx，实际文件: %s"
+        % (record_id, [os.path.basename(path) for path in gpx_files])
+    )
+primary_path = matched_gpx[0] if matched_gpx else (gpx_files[0] if gpx_files else None)
+
 payload = {
     "ok": not problems,
     "problems": problems,
@@ -336,7 +355,8 @@ payload = {
     "exports": {
         "count": len(gpx_files),
         "files": exports,
-        "primary": os.path.basename(gpx_files[0]) if gpx_files else None,
+        "primary": os.path.basename(primary_path) if primary_path else None,
+        "matchedRunId": bool(matched_gpx),
     },
 }
 with open(out_path, "w", encoding="utf-8") as handle:
@@ -364,14 +384,15 @@ for problem in doc.get("problems", []):
 }
 
 parse_export_consistency() {
-  python3 - "$container_json" "$parse_json" <<'PY'
+  python3 - "$container_json" "$parse_json" "$export_evidence_path" <<'PY'
 import datetime
+import hashlib
 import json
 import os
 import sys
 import xml.etree.ElementTree as ET
 
-container_path, out_path = sys.argv[1], sys.argv[2]
+container_path, out_path, evidence_path = sys.argv[1], sys.argv[2], sys.argv[3]
 gpx_namespace = "http://www.topografix.com/GPX/1/1"
 with open(container_path, "r", encoding="utf-8") as handle:
     container = json.load(handle)
@@ -380,6 +401,7 @@ runs = container.get("runs") or {}
 exports = container.get("exports") or {}
 container_dir = container.get("containerPath") or ""
 primary = exports.get("primary")
+record_id = runs.get("id")
 problems = []
 
 first_sample = runs.get("firstSample") or {}
@@ -387,6 +409,7 @@ last_sample = runs.get("lastSample") or {}
 sample_count = runs.get("sampleCount")
 
 trkpts = []
+gpx_path = None
 if not primary:
     problems.append("缺少可解析的导出 GPX")
 else:
@@ -416,29 +439,64 @@ def epoch_seconds(text):
 
 
 result = {
+    "ok": False,
+    "caliber": "模拟器 + 代码层",
+    "recordId": record_id,
     "gpxFile": primary,
+    "sha256": None,
+    "bytes": None,
     "trkptCount": len(trkpts),
     "sampleCount": sample_count,
     "firstTimeDeltaSeconds": None,
     "lastTimeDeltaSeconds": None,
+    "sampleTimeSpanSeconds": None,
+    "gpxTimeSpanSeconds": None,
+    "timeSpanSeconds": None,
+    "timeSpanDeltaSeconds": None,
     "firstCoordinateDelta": None,
     "lastCoordinateDelta": None,
     "problems": problems,
 }
+
+if gpx_path and os.path.isfile(gpx_path):
+    with open(gpx_path, "rb") as handle:
+        digest = hashlib.sha256(handle.read()).hexdigest()
+    result["sha256"] = digest
+    result["bytes"] = os.path.getsize(gpx_path)
+    if len(digest) != 64:
+        problems.append("sha256 长度 %d != 64" % len(digest))
+else:
+    problems.append("导出 GPX 文件不存在: %r" % primary)
 
 if sample_count != len(trkpts):
     problems.append("trkpt 数 %d != samples 数 %r" % (len(trkpts), sample_count))
 
 if trkpts and first_sample and last_sample:
     try:
-        first_delta = abs(epoch_seconds(trkpts[0]["time"]) - float(first_sample["timestamp"]))
-        last_delta = abs(epoch_seconds(trkpts[-1]["time"]) - float(last_sample["timestamp"]))
-        result["firstTimeDeltaSeconds"] = first_delta
-        result["lastTimeDeltaSeconds"] = last_delta
+        sample_first = float(first_sample["timestamp"])
+        sample_last = float(last_sample["timestamp"])
+        gpx_first = epoch_seconds(trkpts[0]["time"])
+        gpx_last = epoch_seconds(trkpts[-1]["time"])
+        first_delta = abs(gpx_first - sample_first)
+        last_delta = abs(gpx_last - sample_last)
+        sample_span = sample_last - sample_first
+        gpx_span = gpx_last - gpx_first
+        span_delta = abs(sample_span - gpx_span)
+        result["firstTimeDeltaSeconds"] = round(first_delta, 3)
+        result["lastTimeDeltaSeconds"] = round(last_delta, 3)
+        result["sampleTimeSpanSeconds"] = round(sample_span, 3)
+        result["gpxTimeSpanSeconds"] = round(gpx_span, 3)
+        result["timeSpanSeconds"] = round(gpx_span, 3)
+        result["timeSpanDeltaSeconds"] = round(span_delta, 3)
         if first_delta > 1.0:
             problems.append("首个 trkpt 时间与 samples[0].timestamp 差 %.3f s > 1 s" % first_delta)
         if last_delta > 1.0:
             problems.append("末个 trkpt 时间与 samples[-1].timestamp 差 %.3f s > 1 s" % last_delta)
+        if span_delta > 1.0:
+            problems.append(
+                "GPX 时间跨度 %.3f s 与记录时间跨度 %.3f s 差 %.3f s > 1 s"
+                % (gpx_span, sample_span, span_delta)
+            )
     except Exception as exc:  # noqa: BLE001
         problems.append("时间对齐解析失败: %s" % exc)
 
@@ -461,6 +519,9 @@ result["ok"] = not problems
 with open(out_path, "w", encoding="utf-8") as handle:
     json.dump(result, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
+with open(evidence_path, "w", encoding="utf-8") as handle:
+    json.dump(result, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
 sys.exit(0 if not problems else 1)
 PY
   local status=$?
@@ -479,7 +540,7 @@ for problem in doc.get("problems", []):
 ' "$parse_json")
     return 1
   fi
-  record_step "external-parse" true "trkpt 数与采样数一致，首末时间与经纬度在容差内"
+  record_step "external-parse" true "trkpt 数与采样数一致，时间跨度与首末时间/经纬度在容差内，导出证据见 ${export_evidence_path}"
 }
 
 export_screenshots() {
@@ -594,6 +655,7 @@ steps = load("steps.json", [])
 device = load("device.json", {})
 container = load("container.json", {})
 external = load("parse.json", {})
+export_evidence = load("export-evidence.json", {})
 screenshots = load("screenshots.json", {})
 
 failures = []
@@ -613,12 +675,14 @@ ok = (
     and all(step.get("ok") for step in steps)
     and container.get("ok", False)
     and external.get("ok", False)
+    and export_evidence.get("ok", False)
     and screenshots.get("ok", False)
 )
 
 report = {
     "ok": ok,
     "caliber": "模拟器 + 代码层",
+    "deferredScope": "A 授权遥测 / B 音频机器自证 → 已拆至独立工作项，本项不含",
     "generatedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "script": "scripts/verify-ios-ui-e2e.sh",
     "destination": device.get("destination", "platform=iOS Simulator,name=iPhone 16,OS=18.6"),
@@ -631,6 +695,7 @@ report = {
     "steps": steps,
     "container": container,
     "externalParse": external,
+    "exportEvidence": export_evidence,
     "screenshots": screenshots.get("screenshots", []),
     "failures": failures,
 }
@@ -646,6 +711,10 @@ if external:
     with open(os.path.join(evidence_dir, "external-parse.json"), "w", encoding="utf-8") as handle:
         json.dump(external, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+if export_evidence:
+    with open(os.path.join(evidence_dir, "export-evidence.json"), "w", encoding="utf-8") as handle:
+        json.dump(export_evidence, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
 
 summary_lines = [
     "# 阶段 3 端到端证据（模拟器 + 代码层）",
@@ -653,10 +722,17 @@ summary_lines = [
     "- 口径：模拟器 + 代码层",
     "- 定位口径：UI/导出对齐由确定性测试源（-uiTestLocation）覆盖；真实 CoreLocation 由 verify-ios-sim-runtime 覆盖",
     "- 结论：%s" % ("模拟器链路通过" if ok else "模拟器链路未通过"),
+    "- 用例：RunFlowUITests/testStartFinishExportGPXArtifact（开始 → 结束 → 导出 GPX）",
     "- 模拟器：%s / %s（%s）"
     % (report["simulator"]["name"], report["simulator"]["runtime"], report["simulator"]["udid"]),
     "- destination：%s" % report["destination"],
     "- 导出逐字段对齐：%s" % ("导出逐字段对齐通过" if external.get("ok") else "导出逐字段对齐未通过"),
+    "- 跑次 id：%s" % export_evidence.get("recordId"),
+    "- 导出文件：%s（sha256 %s）" % (export_evidence.get("gpxFile"), export_evidence.get("sha256")),
+    "- trkpt / samples：%s / %s" % (export_evidence.get("trkptCount"), export_evidence.get("sampleCount")),
+    "- GPX 时间跨度：%s s（时间跨度差 %s s）"
+    % (export_evidence.get("timeSpanSeconds"), export_evidence.get("timeSpanDeltaSeconds")),
+    "- 拆分说明：A 授权遥测 / B 音频机器自证 → 已拆至独立工作项，本项不含",
     "- Runs 条数：%s" % container.get("runs", {}).get("count"),
     "- Exports 条数：%s" % container.get("exports", {}).get("count"),
     "- 截图：%s" % ", ".join(entry.get("file", "") for entry in report["screenshots"]),
@@ -907,7 +983,8 @@ PY
   # 定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 的门禁承担。
   record_step "location-source" true "确定性测试源 -uiTestLocation（真实 CoreLocation 由 verify-ios-sim-runtime 覆盖）"
 
-  # 只跑真实流程用例，避免播报开关用例的 terminate/relaunch 干扰「恰 1 条跑次」。
+  # 只跑全链路导出用例；干净容器下恰 1 条跑次，不与其它用例交错。
+  # 构建/安装/预热/授权与串行锁沿用 main 口径（test-without-building + TCC 保活）。
   tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
   rm -f "$tcc_stop_file"
   refresh_location_always_until_stopped "$tcc_stop_file" &
@@ -917,7 +994,7 @@ PY
     -scheme "$scheme" \
     -destination "$destination" \
     -derivedDataPath "$derived_data" \
-    -only-testing:PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory \
+    -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact \
     -resultBundlePath "$result_bundle" \
     CODE_SIGNING_ALLOWED=NO >"$xcode_log" 2>&1
   xcode_status=$?
@@ -930,7 +1007,7 @@ PY
     fail_step "ui-test" "xcodebuild test 退出 ${xcode_status}（日志 ${xcode_log}）"
     return 1
   fi
-  record_step "ui-test" true "RunFlowUITests/testRunPauseResumeFinishAndHistory 真实通过"
+  record_step "ui-test" true "RunFlowUITests/testStartFinishExportGPXArtifact 真实通过（开始 → 结束 → 导出 GPX）"
 
   probe_container || return 1
   parse_export_consistency || return 1
@@ -943,6 +1020,38 @@ main_status=$?
 write_report
 report_status=$?
 set -e
+
+# 证据契约：任何一次门禁运行都必须留下证据文件。若在导出解析前就失败（构建/UI/容器断言），
+# 这里补写 ok=false 的机读结论，避免 stdout 打印不存在的路径、也避免失败时没有证据可查。
+if [ ! -s "$export_evidence_path" ]; then
+  python3 - "$repo_root/$export_evidence_path" "$main_status" <<'PY'
+import json
+import sys
+
+path, status = sys.argv[1], sys.argv[2]
+payload = {
+    "ok": False,
+    "caliber": "模拟器 + 代码层",
+    "recordId": None,
+    "gpxFile": None,
+    "sha256": None,
+    "trkptCount": None,
+    "sampleCount": None,
+    "timeSpanSeconds": None,
+    "problems": [
+        "门禁在导出一致性解析前失败（main 退出码 %s），未产出 GPX 证据" % status
+    ],
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+PY
+fi
+
+printf 'verify-ios-ui-e2e: 导出证据 %s\n' "$repo_root/$export_evidence_path"
+if [ "$refresh_evidence" -eq 1 ]; then
+  printf 'verify-ios-ui-e2e: 仓库证据副本 %s\n' "$repo_root/docs/evidence/stage3-e2e/export-evidence.json"
+fi
 
 if [ "$report_status" -ne 0 ]; then
   printf 'verify-ios-ui-e2e: report.json 判定失败（%s）\n' "$report_path" >&2
