@@ -62,7 +62,7 @@ if [ -z "$version" ]; then
   exit 1
 fi
 
-if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' <<< "$version"; then
   echo "version: $version_file 内容不是 x.y.z 格式: $version" >&2
   exit 1
 fi

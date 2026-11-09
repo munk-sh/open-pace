@@ -88,7 +88,7 @@ if [ -f "$archive_script" ]; then
   help_out="$(bash "$archive_script" --help 2>&1)" && help_rc=0 || help_rc=$?
   if [ "$help_rc" -ne 0 ]; then
     problems="$problems --help 退出 $help_rc;"
-  elif ! printf '%s' "$help_out" | grep -Fq -- "用法"; then
+  elif ! grep -Fq -- "用法" <<< "$help_out"; then
     problems="$problems --help 输出缺少「用法」;"
   fi
   bash "$archive_script" --definitely-invalid >/dev/null 2>&1 && bad_rc=0 || bad_rc=$?
@@ -225,7 +225,7 @@ for needle in \
   "xcodebuild archive" \
   "-exportArchive" \
   "-destination 'generic/platform=iOS'"; do
-  printf '%s' "$dry_output" | grep -Fq -- "$needle" || problems="$problems 输出缺少 '$needle';"
+  grep -Fq -- "$needle" <<< "$dry_output" || problems="$problems 输出缺少 '$needle';"
 done
 [ ! -e "$sandbox/xcodegen.called" ] || problems="$problems DRY_RUN 实际调用了 xcodegen;"
 [ ! -e "$sandbox/xcodebuild.called" ] || problems="$problems DRY_RUN 实际调用了 xcodebuild;"
@@ -244,15 +244,16 @@ else
   for needle in "app-store-connect" "3X4J53U6RY" "<string>automatic</string>" "<key>uploadSymbols</key>"; do
     grep -Fq -- "$needle" "$export_options" || problems="$problems ExportOptions 缺少 '$needle';"
   done
-  if ! grep -A1 -F -- '<key>uploadSymbols</key>' "$export_options" | grep -Fq -- '<false/>'; then
+  upload_symbols_ctx="$(grep -A1 -F -- '<key>uploadSymbols</key>' "$export_options")"
+  if ! grep -Fq -- '<false/>' <<< "$upload_symbols_ctx"; then
     problems="$problems uploadSymbols 不是 false;"
   fi
   if command -v plutil >/dev/null 2>&1; then
     plutil -lint "$export_options" >/dev/null 2>&1 || problems="$problems ExportOptions.plist 不是合法 plist;"
   fi
 fi
-if printf '%s' "$dry_output" | grep -Fq -- "-exportArchive" \
-  && printf '%s' "$dry_output" | grep -Fq -- "-exportOptionsPlist"; then
+if grep -Fq -- "-exportArchive" <<< "$dry_output" \
+  && grep -Fq -- "-exportOptionsPlist" <<< "$dry_output"; then
   :
 else
   problems="$problems 导出命令缺少 -exportArchive / -exportOptionsPlist;"
@@ -267,13 +268,13 @@ fi
 redaction_problems() {
   local output="$1" out=""
   for needle in -authenticationKeyPath -authenticationKeyID -authenticationKeyIssuerID; do
-    printf '%s' "$output" | grep -Fq -- "$needle" || out="$out 输出缺少 $needle;"
+    grep -Fq -- "$needle" <<< "$output" || out="$out 输出缺少 $needle;"
   done
   for needle in '$ASC_KEY_PATH' '$ASC_KEY_ID' '$ASC_ISSUER_ID'; do
-    printf '%s' "$output" | grep -Fq -- "$needle" || out="$out 输出缺少占位符 $needle;"
+    grep -Fq -- "$needle" <<< "$output" || out="$out 输出缺少占位符 $needle;"
   done
   for needle in FAKEKEYID FAKE-ISSUER-UUID FAKE-KEY.p8; do
-    if printf '%s' "$output" | grep -Fq -- "$needle"; then
+    if grep -Fq -- "$needle" <<< "$output"; then
       out="$out 输出泄露凭据值 $needle;"
     fi
   done
@@ -322,9 +323,9 @@ fi
 problems=""
 [ "$missing_rc" -ne 0 ] || problems="$problems 缺凭据仍退出 0（应非零）;"
 missing_output="$(< "$missing_log")"
-printf '%s' "$missing_output" | grep -Fq -- "ASC_KEY_PATH" || problems="$problems 未提示缺失 ASC_KEY_PATH;"
-printf '%s' "$missing_output" | grep -Fq -- "ASC_ISSUER_ID" || problems="$problems 未提示缺失 ASC_ISSUER_ID;"
-if printf '%s' "$missing_output" | grep -Fq -- "SECRETID"; then
+grep -Fq -- "ASC_KEY_PATH" <<< "$missing_output" || problems="$problems 未提示缺失 ASC_KEY_PATH;"
+grep -Fq -- "ASC_ISSUER_ID" <<< "$missing_output" || problems="$problems 未提示缺失 ASC_ISSUER_ID;"
+if grep -Fq -- "SECRETID" <<< "$missing_output"; then
   problems="$problems 已设置凭据值 SECRETID 泄露到输出;"
 fi
 [ ! -e "$sandbox/xcodegen.called" ] || problems="$problems 缺凭据时仍调用了 xcodegen;"
