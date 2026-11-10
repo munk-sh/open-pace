@@ -658,7 +658,7 @@ fi
 
 # ------------------------------------------------ 真实跑步 UI
 problems=""
-live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Run/RunTelemetry.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/Location/RunTestLocationSource.swift ios/PurePace/Location/SystemAuthorizationProbe.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/History/RunExportState.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift ios/PurePace/Audio/AudioSessionAdapter.swift ios/PurePace/Audio/AnnouncementTelemetry.swift"
+live_sources="ios/PurePace/PurePaceApp.swift ios/PurePace/ContentView.swift ios/PurePace/Run/RunView.swift ios/PurePace/Run/RunSessionViewModel.swift ios/PurePace/Run/RunFormatting.swift ios/PurePace/Run/RunStorage.swift ios/PurePace/Run/RunTelemetry.swift ios/PurePace/Run/RunLifecycleTelemetry.swift ios/PurePace/Run/RunLaunchArguments.swift ios/PurePace/Location/RunLocationSource.swift ios/PurePace/Location/RunTestLocationSource.swift ios/PurePace/Location/SystemAuthorizationProbe.swift ios/PurePace/History/HistoryView.swift ios/PurePace/History/RunDetailView.swift ios/PurePace/History/RunDetailContent.swift ios/PurePace/History/RunExportState.swift ios/PurePace/Settings/SettingsView.swift ios/PurePace/Settings/AnnouncementSettingsStore.swift ios/PurePace/Audio/AnnouncementSpeaker.swift ios/PurePace/Audio/AudioSessionAdapter.swift ios/PurePace/Audio/AnnouncementTelemetry.swift"
 for file in $live_sources; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
 done
@@ -679,6 +679,22 @@ if [ -z "$problems" ]; then
   # 会话 ViewModel 必须经编排器取度量
   grep -Fq 'RunSessionOrchestrator' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未持有 RunSessionOrchestrator;"
   grep -Fq 'orchestrator.metrics' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 未从编排器读取 metrics;"
+  # 锁屏/前后台遥测：四条通知 + 包自报（设备侧唯一来源）
+  lifecycle_source="ios/PurePace/Run/RunLifecycleTelemetry.swift"
+  for event in protectedDataWillBecomeUnavailable protectedDataDidBecomeAvailable didEnterBackground willEnterForeground; do
+    grep -Fq "$event" "$lifecycle_source" || problems="$problems 生命周期遥测缺少事件 $event;"
+  done
+  grep -Fq 'RunLifecycleEvent' ios/PurePace/Run/RunTelemetry.swift || problems="$problems 遥测未内嵌 events;"
+  grep -Fq 'UIBackgroundModes' ios/PurePace/Run/RunTelemetry.swift || problems="$problems 包自报未读取 UIBackgroundModes;"
+  grep -Fq 'Bundle.main' ios/PurePace/Run/RunTelemetry.swift || problems="$problems 包自报未读运行中 Bundle.main;"
+  # autoStart 解析必须 Release 可编译（无 DEBUG 门）且由 ContentView 接线
+  launch_source="ios/PurePace/Run/RunLaunchArguments.swift"
+  grep -Fq -- '-autoStartRecording' "$launch_source" || problems="$problems autoStart 解析器缺少启动参数;"
+  if grep -Fq '#if DEBUG' "$launch_source"; then
+    problems="$problems autoStart 解析器被 DEBUG 门包裹（Release 不可用）;"
+  fi
+  grep -Fq 'autoStartRecordingEnabled' ios/PurePace/ContentView.swift || problems="$problems ContentView 未传入 autoStart 解析结果;"
+  grep -Fq 'didAutoStart' ios/PurePace/Run/RunSessionViewModel.swift || problems="$problems ViewModel 缺少 autoStart 一次性守卫;"
   # 无障碍标识（测试契约）
   for id in run.distance run.elapsed run.currentPace run.averagePace run.splits run.start run.pause run.resume run.finish run.saved run.telemetry; do
     grep -Fq "\"$id\"" ios/PurePace/Run/RunView.swift || problems="$problems 缺少无障碍标识 $id;"
@@ -725,7 +741,7 @@ fi
 
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift ios/PurePaceTests/AudioSessionAdapterTests.swift ios/PurePaceTests/RunTelemetryTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift ios/PurePaceTests/AudioSessionAdapterTests.swift ios/PurePaceTests/RunTelemetryTests.swift ios/PurePaceTests/RunLifecycleTelemetryTests.swift ios/PurePaceTests/RunLaunchArgumentsTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
