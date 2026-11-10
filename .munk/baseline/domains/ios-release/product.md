@@ -30,11 +30,14 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 - ac-runbook-current-bundle-id: `docs/release/testflight-runbook.md` 声明的当前 bundle id 为 `sh.munk.purepace`（指向 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 单点），并注明换 id 后需人侧在 App Store Connect 新建/更新对应 App 记录；历史构建记录里的旧 bundle id 保持原样不改写。
 - ac-no-network-or-workflow-changes: 不执行任何 App Store Connect 上传/记录创建；`.github/workflows/*` 触发条件与内容不变；不引入 fastlane 依赖。
 - ac-candidate-evidence-keys: Release 候选证据文件（`artifacts/candidates/Release-candidate-*.txt`）至少含 zip **绝对路径**、zip sha256、exec sha256、构建配置、签名身份、合入 main 的 commit sha，以及**构建产物 Info.plist 的 `UIBackgroundModes` 实际数组 dump**；因仅改 plist 的变更可能产出与旧包相同的 exec sha，候选验收键必须是 **zip sha256 + plist 实际数组**，不得单以 exec sha 区分新旧包。
-- ac-candidate-build-provenance: 候选包从默认分支 tip 的 worktree 产出——`ios/` 内 `xcodegen generate --spec project.yml`（`ios/PurePace.xcodeproj` 零 diff），再 `xcodebuild -configuration Release -destination 'generic/platform=iOS'` 且 `CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=3X4J53U6RY -allowProvisioningUpdates`；派生数据落 `.build/`（不进 git），zip 与记录落仓外 `<productDir>/artifacts/candidates/`。
-- ac-candidate-hashes-real: 记录中 `zipBytes` / `zipSha256` / `execBytes` / `execSha256` 均为对 zip 与 zip 内 `.app/PurePace` 实算值（`stat -f%z` / `shasum -a 256`），`zipSha256` 为 64 位小写十六进制且不等于历史包 `7258d2e3…`；记录不含 `TBD` / `<sha256>` / `PLACEHOLDER` 占位。
+- ac-candidate-build-provenance: 候选包从**已提交且工作树干净**的 commit 产出（构建时 `git status --porcelain` 为空；可为交付 worktree HEAD，不必等默认分支）——`ios/` 内 `xcodegen generate --spec project.yml`（`ios/PurePace.xcodeproj` 零 diff），再 `xcodebuild -configuration Release -destination 'generic/platform=iOS'` 且 `CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=3X4J53U6RY -allowProvisioningUpdates`；派生数据落 `.build/`（不进 git），`.app` 内无 `PurePace.debug.dylib`；zip 与记录落仓外 `<productDir>/artifacts/candidates/`；`commit` 与构建时 `git rev-parse HEAD` 完整一致，文件名用其前 7 位。
+- ac-candidate-hashes-real: 记录中 `zipBytes` / `zipSha256` / `execBytes` / `execSha256` 均为对 zip 与 zip 内 `.app/PurePace` 实算值（`stat -f%z` / `shasum -a 256`），`zipSha256` 为 64 位小写十六进制且不等于历史包 `7258d2e3…` 与 `81b9f2de…`；记录不含 `TBD` / `<sha256>` / `PLACEHOLDER` 占位。
 - ac-candidate-plist-readback: Info.plist 一律从解压后 `.app/Info.plist` 本体读回，记录可直接 grep 出 `CFBundleIdentifier=sh.munk.purepace`、`CFBundleShortVersionString=0.1.0`、`CFBundleVersion=1`、`MinimumOSVersion=17.0` 与 `UIBackgroundModes=["location","audio"]`（顺序可变，两项必含）。
 - ac-candidate-identity: 记录含 `buildConfig` 为 Release 且 `.app` 内无 `PurePace.debug.dylib`；`signingIdentity` 含 `Apple Development` 与 `Team 3X4J53U6RY`，`provisioningProfile` 非空，`commit` 与 `git rev-parse HEAD` 前 7 位一致（完整 sha 一并记录）；记录字段顺序与「验收键」口径行沿用既有 `Release-candidate-*.txt`。
 - ac-candidate-no-external-side-effects: 出包过程不 `git push`、不打 tag、不建 GitHub Release、不做 TestFlight / ASC 上传；`ios/project.yml` 与 `.github/workflows/*` 零改动（签名配置只走命令行），记录中真机三项仍为 `pending: 待人现场`。
+- ac-candidate-record-format: `Release-candidate-<shortsha>.txt` 字段顺序沿用既有记录（builtAt / commit / buildConfig / signingIdentity / provisioningProfile / scheme+target / zipPath / zipSha256 / zipBytes / execName / execSha256 / execBytes / infoPlist / codesign / 验收键 / iosCI / note）；`zipPath` 为绝对路径；`signingIdentity` 含 `Apple Development: Tao Zhu (H47755VBGF)` 与 `Team 3X4J53U6RY`。
+- ac-candidate-ci-honest: `iosCI` 只填真实取得的同 commit `ios.yml` run id，或明确写 `pending: 待同 commit ios.yml run 判定`；不得编造 run id，不得把未观测真机项写成 PASS。
+- ac-candidate-equivalence-after-merge: Delivery 合入默认分支后执行 `git diff --name-only <candidateCommit>..<newMainTip> -- ios shared android`；结果为空时按 `equivalence-667e1bc-vs-d6f46d9.txt` 格式写 `equivalence-<candidateShort>-vs-<mainShort>.txt`；非空（合并解决触及源码）则该候选作废，须从新 main tip 重出候选并重算双 sha，重出前不得把旧候选写成「新 main tip 候选」。
 
 ## 非目标
 
@@ -59,7 +62,7 @@ PurePace iOS 分发基线域：只交付「仓外产物、可静态校验、可�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_e97db968c68e4562（2026-11-10，pass）
-- 交付：从默认分支 tip `667e1bcf` 的 worktree 出首个「新 bundle id 已入包」的 Release 候选包 `PurePace-Release-0.1.0-20261109T171534Z.zip`（仓外，zipSha256 `81b9f2de…`，407647 B；exec sha256 `2f812d65…`，1490800 B），记录 `Release-candidate-667e1bc.txt` 按既有字段顺序落盘并含「验收键: zip sha256 + 设备安装后 bundle Info.plist 实际数组」口径行。
-- 实测：从解压 `.app/Info.plist` 读回 `CFBundleIdentifier=sh.munk.purepace`、`UIBackgroundModes=["location","audio"]`、0.1.0(1)、MinimumOSVersion 17.0；Release 构建无 debug dylib，签名 `Apple Development: Tao Zhu (H47755VBGF)` / Team `3X4J53U6RY`；`ios/PurePace.xcodeproj` 与 `ios/project.yml`、`.github/workflows/*` 零 diff，未 push / 未打 tag / 未上传 ASC。
-- 边界：真机侧验收（安装后从设备 bundle 读回 plist 并跑三档）仍为 `pending: 待人现场`；纯 plist 变更可能使 exec sha 与旧包相近，故候选验收键固定为 zip sha256 + 设备安装后 plist 实际数组。
+- workItemId: wi_intake_abacaa757ba3bd09（2026-11-10，pass）
+- 交付：从已提交且工作树干净的 worktree HEAD `1e7e653` 出 Release 候选 `PurePace-Release-0.1.0-20261110T011320Z.zip`（仓外，zipSha256 `43be04f3…`，413660 B；execSha256 `2378b720…`，1507136 B），记录 `Release-candidate-1e7e653.txt` 按既有字段顺序落盘，`commit` 为完整 sha；Release 配置无 `PurePace.debug.dylib`，签名 `Apple Development: Tao Zhu (H47755VBGF)` / Team `3X4J53U6RY`，`project.pbxproj` 由 xcodegen 生成。
+- 实测：解压 `.app/Info.plist` 读回 `CFBundleIdentifier=sh.munk.purepace`、`UIBackgroundModes=["location","audio"]`、0.1.0(1)、MinimumOSVersion 17.0；二进制含 `-releaseDeterministicLocation` 字符串（门控源已编译进 Release，默认关）；未 push / 未打 tag / 未上传 ASC，`ios/project.yml` 与 `.github/workflows/*` 零 diff。
+- 边界：`iosCI` 为 `pending: 待同 commit ios.yml run 判定`；真机三项仍为 `pending: 待人现场`。本候选 commit 为交付 worktree HEAD，合入默认分支后须补 `equivalence-1e7e653-vs-<newMainTip>.txt`；若合并解冲突触及 `ios/`、`shared/`、`android/` 源码，该候选作废并须从新 main tip 重出。
