@@ -1,13 +1,13 @@
 # 真机取证脚本（P0-2）
 
 对应脚本：`scripts/device-run.sh`（**需真机连接**，`--phase=plan` 无需设备）。
-既有三模式取证脚本 `scripts/verify-ios-device-flow.sh` 不在本项改动范围；本脚本是可复用底座，
-后续正式 run 改用它。
+audio step 只调用既有三模式取证脚本 `scripts/verify-ios-device-flow.sh --phase=audio`（Release 候选包 +
+`app`/`runner`/`none` 三遍）；run 内不手搓 `xcodebuild` / `devicectl` / `curl` 音频命令。
 
 ## 定位
 
 把真机取证散落的 `devicectl` / `xcodebuild` / `iproxy` / WDA HTTP 命令收敛为一个幂等入口，
-九个 phase 固定顺序：
+十个 phase 固定顺序：
 
 | # | phase | 职责 |
 |---|---|---|
@@ -16,12 +16,13 @@
 | 3 | `install` | 先查已装状态，已装则先 `devicectl device uninstall app` 再 `devicectl device install app`，记录 bundle id / version / build |
 | 4 | `launch` | `devicectl device process launch --terminate-existing`，有界等待首屏就绪（WDA source 可读 或 容器 `Documents/Runs` 出现） |
 | 5 | `tcc` | 可插拔授权 `--tcc=auto\|preset\|manual`，只提示 + 有界等待，不点坐标、不识别文案 |
-| 6 | `record` | 以 `-autoStartRecording` launch-arg 起记录（App 默认仍关），有界确认进入记录态 |
-| 7 | `lock` | WDA `POST /session/<id>/wda/lock`（body `{}`）+ `GET /session/<id>/wda/locked == true` 双证；解锁只做人工提示 + 轮询 |
-| 8 | `collect` | `devicectl device copy from --domain-type appDataContainer` 取 `Documents/Runs` / `Documents/Exports` / `Library/Caches/active-run.jsonl`，抽 telemetry，逐文件 sha256 |
-| 9 | `evidence` | 写 `summary.json` 与 `manifest-sha256.txt`，跑 EXIT trap 同款清理 |
+| 6 | `audio` | 只调用 `verify-ios-device-flow.sh --phase=audio --configuration=Release`（Release 候选包 + app/runner/none 三遍），证据收进 `audio/` 并写 `audio-step.json`；缺必备产物 fail-closed |
+| 7 | `record` | 以 `-autoStartRecording` launch-arg 起记录（App 默认仍关），有界确认进入记录态 |
+| 8 | `lock` | WDA `POST /session/<id>/wda/lock`（body `{}`）+ `GET /session/<id>/wda/locked == true` 双证；解锁只做人工提示 + 轮询 |
+| 9 | `collect` | `devicectl device copy from --domain-type appDataContainer` 取 `Documents/Runs` / `Documents/Exports` / `Library/Caches/active-run.jsonl`，抽 telemetry，逐文件 sha256 |
+| 10 | `evidence` | 写 `summary.json` 与 `manifest-sha256.txt`，跑 EXIT trap 同款清理 |
 
-`--phase=plan`（或 `--dry-run`）只打印计划：9 个 step id、每步将执行的命令模板、计划证据路径，
+`--phase=plan`（或 `--dry-run`）只打印计划：10 个 step id、每步将执行的命令模板、计划证据路径，
 退出 0；该模式不执行真实 `devicectl` / `xcodebuild` / `iproxy`。
 
 ## 用法
@@ -41,7 +42,7 @@ bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S erro
 
 | 选项 | 说明 |
 |---|---|
-| `--phase=<值>` | `plan\|all\|preflight\|wda\|install\|launch\|tcc\|record\|lock\|collect\|evidence`，缺省 `all` |
+| `--phase=<值>` | `plan\|all\|preflight\|wda\|install\|launch\|tcc\|audio\|record\|lock\|collect\|evidence`，缺省 `all` |
 | `--dry-run` | 等价 `--phase=plan` |
 | `--device=<udid>` | 目标真机，缺省 `00008101-001C701E0A68001E` |
 | `--candidate=<zip>` | 候选包；缺省唯一匹配 `artifacts/candidates/PurePace-Release-*.zip` |
@@ -66,7 +67,9 @@ bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S erro
 artifacts/device-run/<candidateKey>/
   summary.json
   manifest-sha256.txt
-  logs/{preflight,wda,install,launch,tcc,record,lock,collect,evidence}.log
+  logs/{preflight,wda,install,launch,tcc,audio,record,lock,collect,evidence}.log
+  audio/                       # audio phase 证据根（verify-ios-device-flow.sh --phase=audio）
+  audio/audio-step.json        # 证据目录 + 必备产物清单 + 候选 zip/exec sha256
   logs/wda.xcodebuild.log      # xcodebuild 完整输出
   logs/iproxy.log
   logs/cleanup.log
@@ -99,7 +102,7 @@ artifacts/device-run/<candidateKey>/
 - `mode`：`phase`、`tcc`、`status`（`ok|failed`）、`startedAt`、`finishedAt`。
 - `timings`：`wdaWarmupSeconds`（wda 起跑到 `/status` 200）、`runSeconds`（record 开始到 collect 结束，
   不含预热）、`totalSeconds`。
-- `steps[]`：9 个固定 id 各一次且顺序固定，每项含 `id`、`status`（`ok|skipped|failed|pending|planned`）、
+- `steps[]`：10 个固定 id 各一次且顺序固定，每项含 `id`、`status`（`ok|skipped|failed|pending|planned`）、
   `startedAt`、`finishedAt`、`durationSeconds`、`log`、`exitCode`、`error`。
 - `authorization`：`status` / `accuracy` / `source`，只来自 run JSON 的
   `telemetry.authorizationStatus.name` 与 `telemetry.accuracyAuthorization.name`。

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PurePace 真机取证单一入口（P0-2）。
-# 九个 phase 固定顺序：preflight → wda → install → launch → tcc → record → lock → collect → evidence。
+# 十个 phase 固定顺序：preflight → wda → install → launch → tcc → audio → record → lock → collect → evidence。
 # 证据固定落 artifacts/device-run/<candidateKey>/；中间解包 / xctestrun / probe 只进 .build/device-run/<candidateKey>/。
 # --phase=plan 无设备自证；真实设备连跑两次归 Owner 的设备 ops task，不在本脚本内宣称设备已验证。
 set -euo pipefail
@@ -9,8 +9,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 
 DEFAULT_DEVICE_UDID="00008101-001C701E0A68001E"
-PHASES="preflight wda install launch tcc record lock collect evidence"
-VALID_PHASES="plan all preflight wda install launch tcc record lock collect evidence"
+PHASES="preflight wda install launch tcc audio record lock collect evidence"
+VALID_PHASES="plan all preflight wda install launch tcc audio record lock collect evidence"
 AUTOSTART_FLAG="-autoStartRecording"
 WDA_BASE="http://127.0.0.1:8100"
 DEFAULT_TCC_WAIT_SECONDS=120
@@ -24,8 +24,8 @@ usage() {
 用法: scripts/device-run.sh [--phase=...] [选项]
 
 真机取证单一入口：把 devicectl / xcodebuild / iproxy / WDA HTTP 收敛为幂等脚本，
-证据固定落 artifacts/device-run/<candidateKey>/。九个 phase 固定顺序：
-  preflight  wda  install  launch  tcc  record  lock  collect  evidence
+证据固定落 artifacts/device-run/<candidateKey>/。十个 phase 固定顺序：
+  preflight  wda  install  launch  tcc  audio  record  lock  collect  evidence
 
 选项:
   --phase=<值>               取值 plan|all|<单个 phase>；缺省 all
@@ -444,6 +444,13 @@ print_plan() {
   printf '  command: sleep 5   # manual/preset 只做提示 + 有界等待，不点坐标、不识别文案\n'
   printf '  evidence: logs/tcc.log\n'
 
+  printf 'step=audio\n'
+  printf '  command: bash scripts/verify-ios-device-flow.sh --phase=audio --configuration=Release --candidate <candidate.zip> --device %s\n' "$device_udid"
+  printf '  command: audio 固定三遍 app（系统 Music 本地曲目）→ runner（正例）→ none（负对照），只经 verify 脚本\n'
+  printf '  evidence: audio/{meta.json,analysis.json,report.md,candidate-identity.json,duck-evidence.json}\n'
+  printf '  evidence: audio/audio-app/{music-source.json,track-metadata.json,announcements-*.json,audio-result.json}\n'
+  printf '  evidence: audio/audio-runner/ audio/audio-none/ audio/audio-step.json\n'
+
   printf 'step=record\n'
   printf '  command: xcrun devicectl device process launch --terminate-existing --device %s <bundle-id> -- %s\n' "$device_udid" "$AUTOSTART_FLAG"
   printf '  evidence: logs/record.log\n'
@@ -470,6 +477,8 @@ print_plan() {
   printf 'artifact: logs/install.log\n'
   printf 'artifact: logs/launch.log\n'
   printf 'artifact: logs/tcc.log\n'
+  printf 'artifact: logs/audio.log\n'
+  printf 'artifact: audio/\n'
   printf 'artifact: logs/record.log\n'
   printf 'artifact: logs/lock.log\n'
   printf 'artifact: logs/collect.log\n'
@@ -681,7 +690,7 @@ import os
 
 evidence = os.environ["SUMMARY_EVIDENCE_DIR"]
 state = os.environ["SUMMARY_STATE_DIR"]
-order = ["preflight", "wda", "install", "launch", "tcc", "record", "lock", "collect", "evidence"]
+order = ["preflight", "wda", "install", "launch", "tcc", "audio", "record", "lock", "collect", "evidence"]
 
 
 def read(path, default=""):
@@ -1420,6 +1429,143 @@ phase_tcc() {
   esac
 }
 
+# ----------------------------------------------------------------- audio phase
+# audio 必备产物清单：缺任一项 fail-closed（证据索引 audio-step.json 也按同一清单核对）。
+audio_required_artifacts() {
+  printf '%s\n' \
+    "meta.json" \
+    "analysis.json" \
+    "report.md" \
+    "candidate-identity.json" \
+    "duck-evidence.json" \
+    "audio-app/pass.json" \
+    "audio-app/music-source.json" \
+    "audio-app/track-metadata.json" \
+    "audio-app/audio-result.json" \
+    "audio-app/duck-evidence.json" \
+    "audio-runner/pass.json" \
+    "audio-runner/music-source.json" \
+    "audio-runner/audio-result.json" \
+    "audio-runner/duck-evidence.json" \
+    "audio-none/pass.json" \
+    "audio-none/music-source.json" \
+    "audio-none/audio-result.json" \
+    "audio-none/duck-evidence.json"
+}
+
+audio_announcement_gaps() {
+  local root="$1" pass="" file="" found=""
+  for pass in audio-app audio-runner audio-none; do
+    found=""
+    for file in "${root}/${pass}"/announcements-*.json; do
+      if [ -s "$file" ]; then
+        found="$file"
+        break
+      fi
+    done
+    if [ -z "$found" ]; then
+      printf ' %s/announcements-*.json' "$pass"
+    fi
+  done
+}
+
+audio_evidence_gaps() {
+  local root="$1" rel="" missing=""
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    if [ ! -s "${root}/${rel}" ]; then
+      missing="${missing} ${rel}"
+    fi
+  done <<EOF
+$(audio_required_artifacts)
+EOF
+  missing="${missing}$(audio_announcement_gaps "$root")"
+  printf '%s' "$missing"
+}
+
+write_audio_step_index() {
+  local root="$1"
+  local required=()
+  local rel=""
+  while IFS= read -r rel; do
+    [ -n "$rel" ] && required+=("$rel")
+  done <<EOF
+$(audio_required_artifacts)
+EOF
+  python3 - "$root/audio-step.json" "$root" "$candidate_path" "${state_dir}/candidate.json" \
+    "${required[@]}" <<'PY'
+import glob
+import json
+import os
+import sys
+
+out_path, root, candidate_path, candidate_json = sys.argv[1:5]
+required = sys.argv[5:]
+try:
+    with open(candidate_json, "r", encoding="utf-8") as handle:
+        candidate = json.load(handle)
+except Exception:
+    candidate = {}
+present = [rel for rel in required if os.path.isfile(os.path.join(root, rel)) and os.path.getsize(os.path.join(root, rel)) > 0]
+announcements = sorted(
+    os.path.relpath(path, root)
+    for path in glob.glob(os.path.join(root, "audio-*", "announcements-*.json"))
+)
+payload = {
+    "phase": "audio",
+    "configuration": "Release",
+    "grade": "release",
+    "evidenceDir": root,
+    "candidate": {
+        "path": candidate_path,
+        "zipSha256": candidate.get("zipSha256"),
+        "execSha256": candidate.get("execSha256"),
+    },
+    "requiredArtifacts": required,
+    "presentArtifacts": present,
+    "missingArtifacts": [rel for rel in required if rel not in present],
+    "announcementFiles": announcements,
+    "passes": ["audio-app", "audio-runner", "audio-none"],
+}
+with open(out_path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+print("audio-step.json missing=%d" % len(payload["missingArtifacts"]))
+PY
+}
+
+phase_audio() {
+  begin_step audio
+  ensure_preflight
+  load_bundle_id
+  local audio_root="${evidence_dir}/audio"
+  mkdir -p "$audio_root"
+  log "CMD: bash scripts/verify-ios-device-flow.sh --phase=audio --configuration=Release --candidate ${candidate_path} --device ${device_udid}"
+  log "evidence.root=${audio_root#"${repo_root}/"}"
+  if ! PUREPACE_EVIDENCE_DIR="$audio_root" bash "${script_dir}/verify-ios-device-flow.sh" \
+      --phase=audio \
+      --configuration=Release \
+      --candidate "$candidate_path" \
+      --device "$device_udid" >> "$CURRENT_LOG" 2>&1; then
+    local missing=""
+    missing="$(audio_evidence_gaps "$audio_root")"
+    log "audio 必备产物缺失:${missing:- <none>}"
+    fail_step "verify-ios-device-flow.sh --phase=audio 失败（缺失产物:${missing:- <none>}，日志 logs/audio.log）"
+  fi
+  local missing=""
+  missing="$(audio_evidence_gaps "$audio_root")"
+  if [ -n "$missing" ]; then
+    log "audio 必备产物缺失:${missing}"
+    fail_step "audio 证据不完整，缺:${missing}"
+  fi
+  write_audio_step_index "$audio_root" >> "$CURRENT_LOG" 2>&1
+  if [ ! -s "${audio_root}/audio-step.json" ]; then
+    fail_step "audio-step.json 未生成（${audio_root}/audio-step.json）"
+  fi
+  end_step ok
+  printf 'audio.evidence=%s\n' "${audio_root#"${repo_root}/"}"
+}
+
 # ---------------------------------------------------------------- record phase
 record_active_present() {
   local checkpoint="${state_dir}/probe/active-run.jsonl"
@@ -1745,6 +1891,10 @@ run_real_phase() {
     tcc)
       ensure_preflight
       phase_tcc
+      ;;
+    audio)
+      ensure_preflight
+      phase_audio
       ;;
     record)
       ensure_preflight

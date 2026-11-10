@@ -25,11 +25,11 @@ bash scripts/verify-ios-device-flow.sh --phase=tcc
 | 模式 | 构建 | 做什么 | 主要证据 |
 |---|---|---|---|
 | `--phase=audit` | Release | 首屏审计：五个读数位 / 三 Tab / 详情导出入口 | `audit-*.png`、`audit-*.ax.json`、`audit-result.json`、`report.md` |
-| `--phase=audio` | Debug + `-uiTestLocation` | 跨一次公里边界 + 音源在播（默认 runner 自播合成音）+ duck 遥测；同用例再跑一遍 `--music-strategy=none` 负对照 | `audio-*.png`、`run-*.json`、`announcements-*.json`、`music-source.json`、`.gpx`、`sha256.txt` |
+| `--phase=audio` | Release（候选包）+ `-releaseDeterministicLocation km-crossing` | 跨一次公里边界 + 固定三遍 `app`（系统 Music 本地曲目）→ `runner`（自播正例）→ `none`（负对照）+ duck 遥测；被测 App 必须是候选 zip 里的 `.app` | `audio-app/`、`audio-runner/`、`audio-none/`（各自 `pass.json` / `audio-result.json` / `music-source.json` / `announcements-*.json`）、`track-metadata.json`、`duck-evidence.json`、`candidate-identity.json`、`analysis.json`、`report.md` |
 | `--phase=background` | Release | 开跑 → 起音源 → `press(.home)` → Mac 侧等 5–6 分钟 → 回前台结束保存/历史/导出 | `background-*.png`、`run-*.json`、`announcements-*.json`、`active-run.jsonl`、`.gpx`、`sha256.txt` |
 | `--phase=tcc` | Debug（真实 CoreLocation） | TCC 授权：新装首启 → 首次弹窗 → Always 升级 → App 自报 `authorizedAlways` | `tcc-result.json`、`run-*.json`、`report.md` |
 
-音源由 `--music-strategy` 决定，默认 `runner`：
+音源由 `--music-strategy` 决定（仅对 `background` 生效），默认 `runner`：
 
 | 取值 | 音源 | 说明 |
 |---|---|---|
@@ -37,6 +37,8 @@ bash scripts/verify-ios-device-flow.sh --phase=tcc
 | `app` | `--music-bundle-id` 指定的 App（默认 `com.apple.Music`） | 需人工/设备已登录该 App，起播失败如实记 `false` |
 | `none` | 无音源（负对照） | `playerStarted == false`，duck 相关项记 `not-applicable`，不得记 pass |
 
+`--phase=audio` 固定按 `app → runner → none` 三遍执行，`--music-strategy` 对其无效
+（显式传入冲突值时按固定三遍执行并在 meta 记 `musicStrategyIgnored`）。
 `--music-bundle-id <id>` 仅对 `app` 策略生效。合成音源由 `scripts/gen-ios-test-audio.sh` 幂等生成
 （纯 Python 标准库，无网络），产物 ≤ 200 KB 且入库。
 
@@ -58,7 +60,7 @@ xcrun devicectl device process launch --device <udid> --terminate-existing sh.mu
 
 - flag 语法：`-releaseDeterministicLocation <scenario>`；当前唯一场景为 `km-crossing`——
   经度固定、纬度每 1.0 s 推进 20 m，从跑步开始后的首个位置锚点起约 50 步跨过 1 km，
-  因此 60–90 秒跑动内恰好跨一次公里边界。
+  因此 35–90 秒跑动内恰好跨一次公里边界（`activeDuration` 判据窗口 35–90s）。
 - 默认关：参数缺省、缺少取值、取值以 `-` 开头或场景名未知时，一律回真实 `RunLocationSource()`，
   确定性源不会被构造；正常用户启动路径没有任何注入入口。
 - 能力如实：样本 `sampleSource` 记为 `simulated`，授权快照为 `authorizedWhenInUse`，

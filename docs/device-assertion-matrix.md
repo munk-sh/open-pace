@@ -22,14 +22,16 @@
 - 同一结论表出现两种构建必须分行；本清单按阶段拆成 A1（Debug）/ A2（Release）/ B（Release）三张表。
 - 后台结论依赖「设备不锁屏」前提，只准写「切后台后进程存活 + 持续采样」，**不得**外推为「锁屏亦成立」。
 
-## 批次 A1：核心闭环 · Debug 可断言（`--phase=audio`）
+## 批次 A1：核心闭环 · audio 门（默认 Release 候选包；显式 `--configuration=Debug` 仍可断言）
 
-证据来源类型统一为 **Debug 可断言**，构建身份统一为 **(a) Debug UI-test 构建**（bundle `sh.munk.purepace`，实际 commit 见 `report.md`）。
+证据来源类型默认 **Release 候选包可断言**，构建身份为候选 zip 里的 `.app`（exec sha256 须与候选一致）；
+显式 `--configuration=Debug` 时整表改标 **Debug 可断言** / **(a) Debug UI-test 构建**（`-uiTestLocation`），
+且 `evidenceGrade=debug`，不可计入 V1 Release 门。下表取值路径两配置共用。
 
 | 断言项 | 判点（通过条件） | 证据来源类型与构建身份 | 具体取值路径 |
 |---|---|---|---|
 | 开跑进入进行态 | `startedAt` 存在且 `startedAt < endedAt`；`run.start` 点击后 `run.finish` 出现 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `Documents/Runs/run-*.json` 的 `startedAt`、`endedAt`；`audio-start.png` 中 `run.finish` 元素 |
-| 单次跑动有界且跨恰好一次公里边界 | 跑动时长 60–90 秒；`telemetry.announcements[]` 中 `splitIndex == 1` 的公里触发恰 1 条 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `activeDuration`、`telemetry.announcements[].splitIndex`、`.trigger` |
+| 单次跑动有界且跨恰好一次公里边界 | 跑动时长 35–90 秒（`km-crossing` 20 m/s 确定性源）；`telemetry.announcements[]` 中 `splitIndex == 1` 的公里触发恰 1 条 | Release 候选包可断言 / 候选 `.app`（Release 确定性源）；Debug 时 (a) | 跑次 JSON `activeDuration`、`telemetry.announcements[].splitIndex`、`.trigger` |
 | 跨公里播报触发 | 至少 1 条 `telemetry.announcements[]`，`splitIndex == 1` 且 `text` 含「第 1 公里」 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `telemetry.announcements[].splitIndex`、`telemetry.announcements[].text` |
 | 播报音频会话配置 | 播报条目含 `category`、`mode`、`categoryOptions`（含 `duckOthers`）；`sessionActivated == true`（= 真实下发 `setActive(true)`） | Debug 可断言 / (a) Debug UI-test 构建；Release 候选包可机器读回 `categoryOptions` / `sessionActivated`，听感只能人耳 | 跑次 JSON `telemetry.announcements[].category` / `.mode` / `.categoryOptions` / `.sessionActivated`；`announcements-*.json` 同名字段 |
 | duck 应用与恢复 | `categoryOptions` 含 `duckOthers`；`sessionActivated == true`（= 真实下发 `setActive(true)`）。`duckRevoked` / `sessionDeactivated` **只记实测值并标 `pending-classification: wi_intake_f76b858c0c2376f5`**，不判 pass/fail（定性结论未出前不得伪绿）。不得写重试计数（「盲重试 + 失败回滚 .active」已被公司否决） | Debug 可断言（配置项 + 实测记录）/ (a) Debug UI-test 构建；Release 候选包只能人耳（听感恢复） | 跑次 JSON `telemetry.announcements[].categoryOptions` / `.duckRevoked` / `.sessionActivated` / `.sessionDeactivated`；`audio-result.json`、`announcements-*.json` 同名字段；runner 侧 `music-source.json` 的 `playerStarted` / `isPlayingAtStart` / `currentTimeAtFinish` |
@@ -42,15 +44,21 @@
 
 ## 音源策略与正负对照（`--phase=audio`）
 
-- 音源策略参数：`--music-strategy=runner|app|none`（默认 `runner`）。`runner` = UITests target 自带
-  `Fixtures/runner-music-loop.wav`（≤200 KB、python3 标准库合成、确定性、零网络）由 runner 进程
-  `AVAudioPlayer` 循环自播，**无人操作**，对被测 App 就是他路音频；`app` = `--music-bundle-id <id>`
-  （默认常量 `com.apple.Music`）起外部 App；`none` = 不产生任何音源。
-- 正负对照：同一用例 `testAudioKilometerBoundaryWithMusic` 跑两遍——正例（默认 runner）与
-  `--music-strategy=none` 负对照，各自独立 result bundle（`DeviceFlow-audio-runner.xcresult` /
-  `DeviceFlow-audio-none.xcresult`）与证据子目录（`audio-runner/` / `audio-none/`）。
-  断言正例 `announcements[].isOtherAudioPlaying == true`、负例 `== false`，任一侧缺失或不符即失败；
-  两遍都落 runner 播放器状态（`playerStarted`、`isPlayingAtStart`、`currentTimeAtFinish`、起播/停止时刻、session 状态）。
+- `--phase=audio` 固定按 `app → runner → none` 三遍执行，一次产出全部证据；`--music-strategy` 只对
+  `background` 生效（audio 显式传冲突值时按固定三遍执行并在 meta 记 `musicStrategyIgnored`）。
+  - `app` 遍：系统 Music（`com.apple.Music`）已导入的本地曲目在播；证据必须落非空 `nowPlayingTitle`、
+    可解析时长（`durationText` 匹配 `\d{1,2}:\d{2}` 或 `durationSeconds > 0`）、`isLocalFile ∈ {true,false,unknown}`
+    与 `localFileBasis`；读不到元数据判 FAIL。
+  - `runner` 遍：UITests target 自带 `Fixtures/runner-music-loop.wav`（≤200 KB、python3 标准库合成、
+    确定性、零网络）由 runner 进程 `AVAudioPlayer` 循环自播，**无人操作**，对被测 App 就是他路音频。
+  - `none` 遍：不产生任何音源（负对照）。
+- 正负对照：三遍各自独立 result bundle（`DeviceFlow-audio-app.xcresult` / `-runner` / `-none`）与证据子目录
+  （`audio-app/` / `audio-runner/` / `audio-none/`）。`runner` 正例 `announcements[].isOtherAudioPlaying == true`
+  且 runner 自播可归因（asset 名/字节/sha256、`playerStarted=true`、`isPlayingAtStart=true`、
+  `playbackStartedAt < runStartedAt`、`currentTimeAtFinish > 0`）；`none` 负例 `== false`，任一侧缺失或不符即失败。
+- 候选包绑定：证据落 `candidatePath`、候选 zip sha256、候选 `.app` exec sha256 与实际被驱动 App exec sha256
+  （须一致，否则 FAIL）；缺 `--candidate` 且 `artifacts/candidates/PurePace-Release-*.zip` 缺失/多义时在跑用例前
+  fail-closed 退出。
 - 无音源场景（`strategy=none` 或 runner 未起播）：`isOtherAudioPlaying` 归因、`duckOthers` 生效、
   `duckRevoked`、`sessionActivated/sessionDeactivated` 一律记 `not-applicable`（含原因），不记 pass。
 - **自污染候选假设（结论）**：`isOtherAudioPlaying=true` 可能来自 `AVSpeechSynthesizer` 由系统语音进程播放。

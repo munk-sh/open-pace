@@ -53,6 +53,96 @@ enum MusicStrategy: String, CaseIterable {
     }
 }
 
+/// audio 阶段的确定性定位 launch-arg：按构建配置选择，Release 不得用 `-uiTestLocation`。
+///
+/// Debug UI-test 构建用 `-uiTestLocation`（`#if DEBUG` 门控的确定性源，可清空归档）；
+/// Release 候选包用 `-releaseDeterministicLocation km-crossing`（默认关，必须显式传）。
+enum AudioLaunchArguments {
+    static var current: [String] {
+#if DEBUG
+        return ["-uiTestLocation", "-uiTestResetArchive"]
+#else
+        return ["-releaseDeterministicLocation", "km-crossing"]
+#endif
+    }
+
+    static var configurationName: String {
+#if DEBUG
+        return "Debug"
+#else
+        return "Release"
+#endif
+    }
+}
+
+/// `app` 策略的曲目元数据探针：只读解析系统 Music 的可及树，标题/时长/本地文件三态 + 判定依据。
+///
+/// 解析是纯函数（输入 = `XCUIApplication.debugDescription` 文本），读不到标题/时长时返回空值，
+/// 脚本侧据此判 FAIL（不用 `unknown` 空过）。`isLocalFile` 无下载/云端标识时一律 `unknown`。
+enum MusicAppProbe {
+    static let durationPattern = #"\b\d{1,2}:\d{2}\b"#
+    static let labelPattern = #"label: '([^']+)'"#
+
+    private static let chromeLabels: Set<String> = [
+        "播放", "暂停", "上一首", "下一首", "随机播放", "重复", "AirPlay", "正在播放",
+        "Play", "Pause", "Next", "Previous", "Shuffle", "Repeat", "Now Playing",
+        "主页", "资料库", "广播", "搜索", "Home", "Library", "Radio", "Search",
+        "歌词", "Lyrics", "音量", "Volume",
+    ]
+    private static let downloadedMarkers = ["已下载", "Downloaded", "已经下载"]
+    private static let cloudMarkers = ["iCloud", "下载", "Download", "云端"]
+
+    static func parse(axDump: String, capturedAt: Double = Date().timeIntervalSince1970) -> [String: Any] {
+        var labels: [String] = []
+        for line in axDump.split(separator: "\n") {
+            let text = String(line)
+            guard let match = text.range(of: labelPattern, options: .regularExpression) else { continue }
+            let raw = String(text[match]).replacingOccurrences(of: "label: '", with: "")
+            let label = raw.hasSuffix("'") ? String(raw.dropLast()) : raw
+            let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                labels.append(trimmed)
+            }
+        }
+
+        let durationText = labels.first { $0.range(of: durationPattern, options: .regularExpression) != nil }
+        let durationSeconds = durationText.flatMap { value -> Double? in
+            let parts = value.split(separator: ":")
+            guard parts.count == 2,
+                  let minutes = Double(parts[0]),
+                  let seconds = Double(parts[1]) else { return nil }
+            return minutes * 60 + seconds
+        }
+        let title = labels.first { label in
+            !chromeLabels.contains(label)
+                && label.range(of: durationPattern, options: .regularExpression) == nil
+                && label.count >= 1
+        }
+
+        var localValue = "unknown"
+        var localBasis = "可及树未见下载/云端标识，无法判定是否本地文件（不据此宣称本地文件已验证）"
+        if downloadedMarkers.contains(where: { axDump.contains($0) }) {
+            localValue = "true"
+            localBasis = "可及树含下载态标识（已下载/Downloaded）"
+        } else if cloudMarkers.contains(where: { axDump.contains($0) }) {
+            localValue = "false"
+            localBasis = "可及树含云端/下载标识，判定非本地文件"
+        }
+
+        var payload: [String: Any] = [
+            "probe": "XCUIApplication(com.apple.Music) 可及树 + 截图",
+            "capturedAt": capturedAt,
+            "isLocalFile": localValue,
+            "localFileBasis": localBasis,
+            "titleBasis": "可及树 label 首个非控件文案",
+        ]
+        if let title { payload["nowPlayingTitle"] = title }
+        if let durationText { payload["durationText"] = durationText }
+        if let durationSeconds { payload["durationSeconds"] = durationSeconds }
+        return payload
+    }
+}
+
 /// runner 进程侧 `isOtherAudioPlaying` 快照：用于判定「播报期 true 是否可能来自自身 TTS 自污染」。
 ///
 /// 注意：runner 自己的播放不算 runner 的「他路音频」，所以此读数不能替代被测 App 的遥测字段；
