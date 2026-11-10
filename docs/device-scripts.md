@@ -14,8 +14,8 @@ audio step 只调用既有三模式取证脚本 `scripts/verify-ios-device-flow.
 | 1 | `preflight` | 核目标 UDID 在线且为物理机、候选 zip 与解包 `.app`（`Payload/*.app` 优先，其次根级 `*.app`）、期望 sha256、证据根 |
 | 2 | `wda` | 取 `WebDriverAgentRunner.xctestrun`，起 `xcodebuild test-without-building` 与 `iproxy -u <UDID> 8100:8100`（LOCAL:DEVICE），有界轮询 `GET /status` 200 并建 WDA session |
 | 3 | `install` | 先查已装状态，已装则先 `devicectl device uninstall app` 再 `devicectl device install app`，记录 bundle id / version / build |
-| 4 | `launch` | `devicectl device process launch --terminate-existing`，有界等待首屏就绪（WDA source 可读 或 容器 `Documents/Runs` 出现） |
-| 5 | `tcc` | 可插拔授权 `--tcc=auto\|preset\|manual`，只提示 + 有界等待，不点坐标、不识别文案 |
+| 4 | `launch` | `devicectl device process launch --terminate-existing`，有界等就绪：WDA session 的 `GET /session/<id>/source` 可读（`readiness=wda`）或 `devicectl device info processes` 设备进程表存在该 App 可执行文件（`readiness=devicectl-only`）；容器 `Documents/Runs` 探针只记 warning |
+| 5 | `tcc` | 可插拔授权 `--tcc=auto\|preset\|manual`，只提示 + 有界轮询 App 自报；`ok` 当且仅当自报 `authorizedAlways`，否则 `pending` 且非零退出 |
 | 6 | `audio` | 只调用 `verify-ios-device-flow.sh --phase=audio --configuration=Release`（Release 候选包 + app/runner/none 三遍），证据收进 `audio/` 并写 `audio-step.json`；缺必备产物 fail-closed |
 | 7 | `record` | 以 `-autoStartRecording` launch-arg 起记录（App 默认仍关），有界确认进入记录态 |
 | 8 | `lock` | WDA `POST /session/<id>/wda/lock`（body `{}`）+ `GET /session/<id>/wda/locked == true` 双证；解锁只做人工提示 + 轮询 |
@@ -29,7 +29,11 @@ audio step 只调用既有三模式取证脚本 `scripts/verify-ios-device-flow.
 否则接受根级 `*.app`（直接打包的 `.app`）。同一被选层出现多个 `.app`、或两种布局都没有 `.app` 时
 fail-closed，错误文案带候选 zip 路径与 `unpack/` 实际顶层条目。`audio` 身份绑定
 （`verify-ios-device-flow.sh` 的 `bind_candidate_identity`）用同一双布局与同一优先级。
-`--self-check` 用临时目录夹具覆盖「只有 `Payload` / 只有根级 / 两者并存取 `Payload` / 两者都无 / 同层多 `.app`」。
+`--self-check` 用确定性夹具覆盖：①布局 5 组（只有 `Payload` / 只有根级 / 两者并存取 `Payload` / 两者都无 / 同层多 `.app`）；
+②launch 就绪分类器（`wda=absent`+进程存在+探针不可读 → `devicectl-only`/`unreadable(warning)`；进程缺失 → `devicectl_unready`；WDA source 可读 → `wda`）；
+③tcc 判定（空 / `authorizedWhenInUse` / `authorizedOnce` / `denied` 均非 ok，`authorizedAlways` 才 ok）；
+④证据保留（临时证据根连续两次初始化后第一份 phase 日志仍在且两次日志同进 manifest）。
+夹具不调用 devicectl/xcodebuild/curl 设备路径、不 sleep 等待。
 
 ## 用法
 
@@ -41,7 +45,7 @@ bash scripts/device-run.sh --phase=all \
   --wda-xctestrun .build/device-run/<candidateKey>/WebDriverAgentRunner.xctestrun \
   --expect-zip-sha256 <hex> --expect-exec-sha256 <hex>
 bash scripts/device-run.sh --phase=collect        # 单跑一个 phase（前置 preflight 自动补齐）
-bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S error) + plan 自证 + 布局夹具
+bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S error) + plan/布局/launch/tcc/证据保留夹具
 ```
 
 选项：
@@ -57,7 +61,7 @@ bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S erro
 | `--wda-xctestrun=<path>` | WebDriverAgentRunner 的 `.xctestrun` |
 | `--tcc=<模式>` | `auto`（缺省）/`preset`/`manual`；非法值退出 2 |
 | `--tcc-wait-seconds=<n>` | `manual` / `auto` 回退等待上限，缺省 120 |
-| `--self-check` | 对 `scripts/device-*.sh` 逐个 `bash -n`（有 shellcheck 时 `-S error`），并自证 plan 幂等与 step 顺序 |
+| `--self-check` | 对 `scripts/device-*.sh` 逐个 `bash -n`（有 shellcheck 时 `-S error`），并自证 plan 幂等、布局解析、launch 就绪分类、tcc 判定与证据保留夹具 |
 
 环境变量（选项优先）：`PUREPACE_DEVICE_UDID`、`PUREPACE_CANDIDATE_ZIP`、
 `PUREPACE_EXPECT_ZIP_SHA256`、`PUREPACE_EXPECT_EXEC_SHA256`、`PUREPACE_WDA_XCTESTRUN`、
@@ -99,7 +103,7 @@ artifacts/device-run/<candidateKey>/
 ## summary.json
 
 顶层字段固定：`schemaVersion`、`candidateKey`、`candidate`、`device`、`mode`、`timings`、
-`steps`、`authorization`、`artifacts`、`pending`。
+`steps`、`launch`、`authorization`、`artifacts`、`pending`。
 
 - `candidate`：`path`、`zipSha256`、`execSha256`、`bundleId`、`version`、`build`、`pinned`、
   `expectedZipSha256`、`expectedExecSha256`。未提供期望 sha 时 `pinned=false` 且 expected 为 `null`，
@@ -109,9 +113,14 @@ artifacts/device-run/<candidateKey>/
 - `timings`：`wdaWarmupSeconds`（wda 起跑到 `/status` 200）、`runSeconds`（record 开始到 collect 结束，
   不含预热）、`totalSeconds`。
 - `steps[]`：10 个固定 id 各一次且顺序固定，每项含 `id`、`status`（`ok|skipped|failed|pending|planned`）、
-  `startedAt`、`finishedAt`、`durationSeconds`、`log`、`exitCode`、`error`。
+  `startedAt`、`finishedAt`、`durationSeconds`、`log`、`exitCode`、`error`；单 phase 调用时，
+  其它已落 phase 的状态按 state 中上一次结果原样呈现（不是本次调用的 `skipped`）。
+- `launch`：`readiness`（`wda|devicectl-only`，未就绪为空串）、`wda`（`present|absent`）、
+  `containerProbe`（`readable|empty|unreadable(warning)|skipped`）、`reason`（`""|wda_absent|devicectl_unready`）。
+  容器探针不可读（如 `CoreDeviceError error 7000`）只记 `unreadable(warning)`，不单独判 launch 失败。
 - `authorization`：`status` / `accuracy` / `source`，只来自 run JSON 的
-  `telemetry.authorizationStatus.name` 与 `telemetry.accuracyAuthorization.name`。
+  `telemetry.authorizationStatus.name` 与 `telemetry.accuracyAuthorization.name`；
+  从未观测到自报时三字段均为空串。
 - `artifacts[]`：`path`、`sha256`、`bytes`（不含 `summary.json` 与 manifest 自身）。
 - `pending[]`：需人现场确认的条目（如人工解锁超时）。
 
@@ -128,6 +137,11 @@ artifacts/device-run/<candidateKey>/
 ## 幂等口径
 
 - 同一候选包重复运行写同一证据根、同一组相对路径与字段，不产生带时间戳的兄弟目录。
+- 证据根不再按调用 `rm -rf` 整根重建：单 phase 调用只覆盖自身 `logs/<phase>.log` 与 state，
+  其它已落 phase 的日志与产物保留；`manifest-sha256.txt` 与 `summary.json` 的 `steps[]`
+  覆盖证据根内所有已落 phase。`state` 只在 `--phase=all` 重置。
+- `preflight` 每次调用都重跑（会话内只缓存本次调用的结果），不因 state 已持久化而跳过设备校验与
+  zip/exec 双 sha 身份绑定。
 - `install` 先查已装、已装则先卸，连续两次运行不因重复安装失败。
 - `wda` / `iproxy` 只复用或清理本脚本自己启动的实例；上次残留日志与新证据同路径覆盖写。
 - 允许每次变化：`startedAt` / `finishedAt` / `durationSeconds` / sha（内容随运行变化）。
@@ -136,14 +150,18 @@ artifacts/device-run/<candidateKey>/
 
 | 模式 | 行为 |
 |---|---|
-| `auto`（缺省） | `PUREPACE_TCC_HELPER` 可执行时调用它；否则回退到有界 `manual` 等待 |
-| `preset` | 假定已授权，只做校验不等待 |
-| `manual` | 打印单点提示，在 `--tcc-wait-seconds` 内有界等待 |
+| `auto`（缺省） | `PUREPACE_TCC_HELPER` 可执行时调用它（helper 成功也不等于授权通过）；否则转有界轮询 App 自报 |
+| `preset` | 不再假定已授权，仍需 App 自报，只跳过 helper/等待 |
+| `manual` | 打印单点提示，在 `--tcc-wait-seconds` 内有界轮询 App 自报 |
 
-三种模式都不使用像素坐标、坐标点击、OCR/截屏文字识别或「允许/Allow」文案匹配。
-授权结论只读 App 自报字段：收集中 run JSON 的 `telemetry.authorizationStatus.name`（期望
-`authorized*`）与 `telemetry.accuracyAuthorization.name`（期望 `fullAccuracy|reducedAccuracy`）；
-字段缺失或不是预期授权时 `steps[tcc]` 回填 `failed`，整体非零退出。脚本不写入、不修改遥测契约，
+三种模式都不使用像素坐标、坐标点击、OCR/截屏文字识别或「允许/Allow」文案匹配，也没有
+「盲等即 ok」分支；`manual wait progress` 只表示轮询窗口，不构成通过结论。
+
+`steps[tcc].status` **当且仅当** App 自报 `telemetry.authorizationStatus.name == authorizedAlways`
+（且 `telemetry.accuracyAuthorization.name` 为 `fullAccuracy|reducedAccuracy`）才是 `ok`。
+单跑 `--phase=tcc` 未取得自报时终态为 `pending` 且退出码非 0；`--phase=all` 下先记 `pending` 并继续，
+由 `collect` 以同一次收集到的自报字段终审（`authorizedAlways` → `ok`，否则 `failed` 且整体非零）。
+helper 缺失、helper 成功、`preset`、`authorizedWhenInUse` 等都不置 `ok`。脚本不写入、不修改遥测契约，
 不把 UI 文案或截图当授权证据。
 
 ## 与 P0-1 / P1-1 的边界
