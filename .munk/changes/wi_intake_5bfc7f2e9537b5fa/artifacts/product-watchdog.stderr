@@ -1,0 +1,9 @@
+test-ios: 阶段 xcodebuild-test 硬超时（1s），强制终止 PID 46968
+../../../../scripts/lib/ios-budget.sh: line 113: 46968 Terminated: 15          "$@" > "${out_log}" 2>&1
+test-ios: 产品用例失败：硬超时前已执行用例中已有 failed（摘要见下），归口产品用例失败，不计为承载层预算
+Test Case '-[PurePaceUITests.RunFlowUITests testX]' failed (0.1 seconds).
+Executed 1 test, with 1 failure (0 failures expected) in 0.2 (0.2) seconds
+test-ios: 硬超时：墙钟已用 1s ≥ 腿预算 1s（硬超时归因于已出现的失败用例）
+test-ios: 超时前已执行的测试摘要：
+Test Case '-[PurePaceUITests.RunFlowUITests testX]' started.
+Test Case '-[PurePaceUITests.RunFlowUITests testX]' failed (0.1 seconds).

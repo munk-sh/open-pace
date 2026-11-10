@@ -28,7 +28,8 @@ usage() {
   - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
   - .munk/code-gates.json 保持 22 门：本地只留快而确定腿（重 UI 门不作本地阻断），
     test-ios 本地门固定为 --unit-only，全量单测+UI 权威落点为 .github/workflows/ios.yml
-  - 分支判定基于 ios/PurePace.xcodeproj 存在性；降级分支输出 blocked: 且不输出伪造成功行
+  - 分支判定基于 ios/PurePace.xcodeproj 存在性；工程缺失时由 ios/project.yml + xcodegen 生成，
+    仍不可用才走降级分支输出 blocked: 且不输出伪造成功行
   - version.sh 无参输出等于根 VERSION，--tools 输出可核对且逐字节幂等
   - version.sh 不调用 gradlew，Gradle 版本离线取自 android/gradle/wrapper/gradle-wrapper.properties
   - 脚本与 README.md 不出现根 VERSION 字面值，不出现不实验收措辞
@@ -280,6 +281,7 @@ else
     "xcodebuild build" \
     "-scheme" \
     "ios/PurePace.xcodeproj" \
+    "xcodegen generate" \
     "swift build --package-path ios/Core" \
     "blocked:"; do
     grep -Fq -- "$needle" scripts/build-ios.sh || problems="$problems 缺少 '$needle';"
@@ -303,6 +305,7 @@ else
     "xcodebuild test" \
     "-scheme" \
     "ios/PurePace.xcodeproj" \
+    "xcodegen generate" \
     "swift test --package-path ios/Core" \
     "blocked:"; do
     grep -Fq -- "$needle" scripts/test-ios.sh || problems="$problems 缺少 '$needle';"

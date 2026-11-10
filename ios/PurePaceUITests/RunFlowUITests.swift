@@ -74,11 +74,14 @@ final class RunFlowUITests: XCTestCase {
         app.tabBars.buttons["Run"].tap()
         XCTAssertTrue(start.waitForExistence(timeout: 10), "返回跑步页后缺少开始按钮")
 
-        start.tap()
-
+        // 起点读数在 tap 之前取：此时跑步未开始，读数不受 1Hz 定位注入竞态影响。
+        // tap 之后再读距离会被首个样本抢跑（曾出现 "0.01 km" vs "0.00 km" 伪红）。
         let startedDistance = distance.label
         let startedElapsed = elapsed.label
         XCTAssertEqual(startedDistance, "0.00 km", "开跑起点距离必须为零")
+
+        start.tap()
+
         // 首样本探针：注入后 ≤10s 无真实样本即快速失败并落诊断，不再静默等 60s。
         // 期间持续处理定位授权弹窗：脚本预置的 TCC 可能被 xcodebuild 重新安装 App 清掉，
         // 弹窗出现在点击「开始」之后，必须在这里兜住，否则用例会一直看到 0.00 km。

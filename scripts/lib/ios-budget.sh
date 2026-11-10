@@ -70,6 +70,43 @@ ios_budget_message() {
     "${scope}" "${available}" "${threshold}" "${step_budget}" "${retry_reserve}" >&2
 }
 
+# 日志里是否已出现失败用例（超时归口的唯一判定，纯函数、无输出）：
+# 命中 `Test Case ... failed` 或 `Executed N tests, with M failures`（M ≥ 1）返回 0；
+# `with 0 failures` 与空日志均返回 1（只能归口承载层，不能吞掉真失败）。
+ios_log_has_failed_test_case() {
+  local log="$1"
+  if grep -Eq "Test Case .*failed" "${log}" 2>/dev/null; then
+    return 0
+  fi
+  grep -Eq "Executed [0-9]+ tests?, with [1-9][0-9]* failures?" "${log}" 2>/dev/null
+}
+
+# 超时归口的最终文案（看门狗与 scripts/test-ios.sh 的 124 分支共用同一判定）：
+# 有 failed 用例 → 产品用例失败；无 failed 用例 → 承载层预算/硬超时。
+#   $1 范围（如「UI 腿」）  $2 日志路径  $3 已用秒数  $4 腿预算秒数  $5 预算来源说明
+ios_timeout_classification_message() {
+  local scope="$1"
+  local log="$2"
+  local elapsed="$3"
+  local budget="$4"
+  local source="${5:-}"
+  if [ -n "${elapsed}" ]; then
+    elapsed="，墙钟已用 ${elapsed}s"
+  fi
+  if [ -n "${source}" ]; then
+    source="（来源：${source}；"
+  else
+    source="（"
+  fi
+  if ios_log_has_failed_test_case "${log}"; then
+    printf 'test-ios: 产品用例失败：%s 在 %ss 腿预算内硬超时前已出现失败用例%s %s归口产品用例失败，不计为承载层预算）\n' \
+      "${scope}" "${budget}" "${elapsed}" "${source}" >&2
+  else
+    printf 'test-ios: 承载层硬超时：%s 在 %ss 腿预算内未完成%s %s归口承载层预算，不计为产品用例）\n' \
+      "${scope}" "${budget}" "${elapsed}" "${source}" >&2
+  fi
+}
+
 # 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）：超时判定只看墙钟差额，
 # sleep 仅作轮询粒度（IOS_WATCHDOG_POLL_SECONDS，默认 1s）；超时先 TERM 再 KILL，
 # 打印超时阶段与已执行测试摘要后返回 124；正常退出时透传子进程退出码。
@@ -93,8 +130,15 @@ run_with_watchdog() {
       sleep 2
       kill -KILL "${command_pid}" >/dev/null 2>&1 || true
       wait "${command_pid}" >/dev/null 2>&1 || true
-      echo "test-ios: runner bootstrap 挂起：xcodebuild test 在 ${timeout_seconds}s 硬超时前未完成（未进入产品断言）" >&2
-      echo "test-ios: 承载层硬超时：墙钟已用 ${elapsed}s ≥ 腿预算 ${timeout_seconds}s，归口承载层预算/硬超时" >&2
+      if ios_log_has_failed_test_case "${out_log}"; then
+        # 同日志已出现 failed 用例：归口产品用例失败，不输出 infra_pattern 触发措辞（否则会误重试）。
+        echo "test-ios: 产品用例失败：硬超时前已执行用例中已有 failed（摘要见下），归口产品用例失败，不计为承载层预算" >&2
+        grep -E "Test Case .*failed|Executed [0-9]+ tests?, with [1-9][0-9]* failures?" "${out_log}" 2>/dev/null | tail -n 20 >&2 || true
+        echo "test-ios: 硬超时：墙钟已用 ${elapsed}s ≥ 腿预算 ${timeout_seconds}s（硬超时归因于已出现的失败用例）" >&2
+      else
+        echo "test-ios: runner bootstrap 挂起：xcodebuild test 在 ${timeout_seconds}s 硬超时前未完成（未进入产品断言）" >&2
+        echo "test-ios: 承载层硬超时：墙钟已用 ${elapsed}s ≥ 腿预算 ${timeout_seconds}s，归口承载层预算/硬超时" >&2
+      fi
       echo "test-ios: 超时前已执行的测试摘要：" >&2
       grep -E "Test Case .*(started|passed|failed)|Executed [0-9]+ tests" "${out_log}" 2>/dev/null | tail -n 40 >&2 || true
       cat "${out_log}" 2>/dev/null || true

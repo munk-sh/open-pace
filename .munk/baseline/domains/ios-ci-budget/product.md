@@ -10,6 +10,7 @@
 - `scripts/check-ios-scripts.sh`：追加「预算单测必须随 `lint-ios-scripts` 门执行」的正向/负向断言（沙箱注入 `waited=$((waited + 1))` 的违规样本必须被识别为失败）。门禁清单与门数（22）不动。
 - env 契约：`PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS`（默认 2700，与 45min 对齐）、`PUREPACE_IOS_RETRY_RESERVE_SECONDS`（默认 900）、`PUREPACE_IOS_UI_MIN_BUDGET_SECONDS`（默认 300）、`IOS_XCODEBUILD_TIMEOUT`（单腿上界，默认 600）、`IOS_WATCHDOG_POLL_SECONDS`（默认 1，仅轮询粒度）、`PUREPACE_IOS_STEP_STARTED_AT`（step 起始 epoch）；非法值一律回落默认。
 - 必须保留的原文特征串：`阶段 xcodebuild-test 硬超时`、`runner bootstrap 挂起`（`ios.yml` 的 `infra_pattern` 依赖它们触发一次承载层重试），并在同一路径追加承载层/预算口径说明。
+- 超时归口**条件分类**（本项）：库内纯函数 `ios_log_has_failed_test_case <log>` 匹配 `Test Case .*failed` 与 `Executed [0-9]+ tests?, with [1-9][0-9]* failures?`（`with 0 failures` 不命中）；`run_with_watchdog` 超时分支与 `scripts/test-ios.sh` 单测腿/UI 腿两处 124 分支共用 `ios_timeout_classification_message`——同日志已有 failed 用例则归口「产品用例失败」、**不**输出 `runner bootstrap 挂起`；无 failed 才走原 infra 归口并保留原文。超时判定（墙钟差额）、退出码 124 与子进程退出码透传、三级预算算术一律不变。
 
 ## 验收
 
@@ -30,6 +31,11 @@
 - ac-leg-budget-bounded-by-attempt: 单测腿与 UI 腿硬超时均取 `min(600, 该次 attempt 剩余)`；attempt 剩余 200s → 两腿均 200s；UI 且 200 < 300（ui_min）→ 判预算不足并 124，而非产品失败。
 - ac-env-overridable: `PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS` 与 `PUREPACE_IOS_RETRY_RESERVE_SECONDS` 均可覆盖，单测 step=3600 / reserve=1200 → attempt=2400；非数字回落默认。
 - ac-timeout-message-preserved: 超时路径保留 `……阶段 xcodebuild-test 硬超时……`、`……runner bootstrap 挂起……` 原文，并在同一路径追加承载层/预算口径说明。
+- ac-timeout-classification-by-summary: 硬超时分支按同日志测试摘要分类——日志含 `Test Case .*failed` 或 `Executed N tests, with M failures`（M ≥ 1）时输出产品用例失败归口、点名 failed 用例/失败数，输出**不含**「未进入产品断言」；无 failed 时保留「runner bootstrap 挂起」原文并追加承载层预算口径。两分支都打印「阶段 xcodebuild-test 硬超时」与「超时前已执行的测试摘要」，返回值仍 124。
+- ac-timeout-classification-pure-fn: `ios_log_has_failed_test_case` 为库内可单测纯函数，命中 `Test Case .*failed` 与 `Executed N tests?, with [1-9][0-9]* failures?`；空日志与 `with 0 failures` 不命中（既有空日志 infra 用例继续通过）。
+- ac-classification-reused-by-caller: `scripts/test-ios.sh` 单测腿与 UI 腿两处 124 分支均调用 `ios_timeout_classification_message`（命中数 ≥ 2），同一日志不出现「产品用例失败」与「归口承载层预算」并存；`return 124` 未改。
+- ac-timeout-exit-code-passthrough: 超时仍返回 124；非超时子进程退出码原样透传（`exit 65` → 65）；无 `|| true` / `continue-on-error` / `allowed-failure` 吞退出码。
+- ac-budget-defaults-not-raised: `IOS_XCODEBUILD_TIMEOUT` 默认仍 600s、attempt 预算仍 2700 − 900 = 1800s；不调预算的依据（run `42755648335` attempt1 587s / UI 腿 497s，600s 上限余量 103s）与样例日志、看门狗实际输出路径写入本域交付证明与交付回执。
 - ac-tests-runnable-deterministic: `bash scripts/tests/test-ios-budget.sh` 可独立运行、失败非零退出、不依赖模拟器/Xcode/网络、用伪造时钟保持确定性、单次 <10s，并被 `bash scripts/check-ios-scripts.sh`（`lint-ios-scripts` 门）调用以纳入本地 `code_gates`，且门禁清单不变。
 - ac-scope-freeze: `.github/workflows/ios.yml`（45min timeout、900s 重试门槛、`infra_pattern`）、`.munk/code-gates.json`（仍 22 门）、`ios/`、`shared/`、`android/` 零改动；无 skip / continue-on-error / allowed-failure / 删断言 / 删腿 / 新增门腿；两次 `xcodebuild test` 的 `-only-testing` 选择器与 `-skip-testing:PurePaceUITests/DeviceFlowUITests` 不变。测试确定性修正只落在 `scripts/tests/test-ios-budget.sh`（必要时对 `scripts/lib/ios-budget.sh` 做不改判定语义的最小测试辅助）；产品 App 源码、`.github/workflows/**`、`scripts/verify-ios-*`、门禁定义零改动。
 - ac-unit-leg-unchanged: 本地 `bash scripts/test-ios.sh --unit-only` 仍真实执行 `-only-testing:PurePaceTests`，退出码语义（0/1/2/124）不变，且不出现伪造 `TEST SUCCEEDED` 行。
@@ -56,8 +62,8 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_80055cf54243aa39（2026-11-10，pass）
-- 交付：消除 `scripts/tests/test-ios-budget.sh` 冻结时钟用例（`ac-watchdog-not-iteration-counted`）的伪红。伪造时钟新增 gated 语义——第 N 次取时（`frozen_release_after=8`）`touch` `${work_dir}/fake-release`，子进程由 `bash -c 'sleep 0.3'` 改为轮询等待该 release 文件后退出；断言由「`reads > 6`」改为「`reads >= N`」，成为与机器速度无关的确定性下界。断言只增不删（`rc=0`、「无 waited 计数」、超时特征串、退出码透传、预算算术全部保留），门限未下调（N=8 > 原 6 次轮询意图）。
-- 根因（推翻旧假设）：原下界由「子进程真实睡 0.3s ÷ 单轮实际开销」推导，是机器速度函数；CI runner 约 60ms/轮时只有 5 次读取，`lint-ios-scripts` 假失败后 test/build 全 skipped。被测属性本身未坏（同一 run 已 PASS 的 `rc=0` 与无 waited 计数即证明看门狗不按轮询计数判超时）。
-- 验证：本 worktree `code_gates` 已通过（含 `lint-ios-scripts` 内的预算单测与其沙箱反例自检——注入 `waited=$((waited + 1))` 仍 FAIL）；连跑 20 次一致性与耗时结论见本轮交付回执；CI 侧 run 由 guard 观测，未取到不写「CI 已通过」。
-- 零改动：`scripts/lib/ios-budget.sh`、`scripts/test-ios.sh`、`scripts/check-ios-scripts.sh`、`.github/workflows/**`、`.munk/code-gates.json`（22 门）、`ios/`、`shared/`、`android/`、业务源码与版本号。
+- workItemId: wi_intake_5bfc7f2e9537b5fa（2026-11-10，pass）
+- 交付：超时归口条件分类——`scripts/lib/ios-budget.sh` 新增 `ios_log_has_failed_test_case`（`Test Case .*failed` / `Executed N tests?, with [1-9][0-9]* failures?`，`with 0 failures` 不命中）与 `ios_timeout_classification_message`；`run_with_watchdog` 超时分支有 failed 即归口「产品用例失败」且不输出 `runner bootstrap 挂起`，无 failed 才走原 infra 归口；`scripts/test-ios.sh` 两处 124 分支复用同一判定文案。超时判定（墙钟差额）、退出码语义与预算算术零改动。
+- 证据：`artifacts/failed-sample.log` 经 `run_with_watchdog 1` 复现 rc=124、stderr 含产品失败归口且不含「未进入产品断言」（`product-watchdog.stderr`）；空日志对照保留 infra 原文（`infra-watchdog.stderr`）。`bash scripts/tests/test-ios-budget.sh` 39 项 0 失败、`check-ios-scripts.sh` 29 项 0 失败、`bash -n` 全绿。
+- 预算依据（不抬高）：run `42755648335` attempt1 587s / UI 腿 497s，600s 上限余量 103s；attempt 预算仍 1800s。
+- 零改动：`.github/workflows/**`、`.munk/code-gates.json`（22 门）、`ios/PurePace/**`、`shared/`、`android/`、业务源码与版本号。

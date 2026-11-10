@@ -135,6 +135,84 @@ else
   fail "ac-timeout-message-preserved" "超时路径未追加承载层预算/硬超时口径"
 fi
 
+# ------------------------- ac-timeout-product-failure：同日志有 failed 用例 → 产品失败归口
+failed_seed="${work_dir}/failed-case-seed.log"
+empty_log="${work_dir}/empty.log"
+: > "${empty_log}"
+printf "Test Case '-[PurePaceUITests.RunFlowUITests testX]' started.\nTest Case '-[PurePaceUITests.RunFlowUITests testX]' failed (0.1 seconds).\nExecuted 1 test, with 1 failure (0 failures expected) in 0.2 (0.2) seconds\n" > "${failed_seed}"
+if ios_log_has_failed_test_case "${failed_seed}"; then
+  pass "ac-timeout-product-failure (判定：Test Case failed 命中)"
+else
+  fail "ac-timeout-product-failure" "ios_log_has_failed_test_case 未命中 Test Case failed 样例"
+fi
+if ios_log_has_failed_test_case "${empty_log}"; then
+  fail "ac-timeout-product-failure" "空日志被误判为含 failed 用例"
+else
+  pass "ac-timeout-product-failure (判定：空日志不含 failed)"
+fi
+zero_failure_log="${work_dir}/zero-failure.log"
+printf "Executed 3 tests, with 0 failures (0 unexpected) in 1.0 (1.0) seconds\n" > "${zero_failure_log}"
+if ios_log_has_failed_test_case "${zero_failure_log}"; then
+  fail "ac-timeout-product-failure" "「with 0 failures」被误判为失败用例"
+else
+  pass "ac-timeout-product-failure (判定：with 0 failures 不命中)"
+fi
+executed_failure_log="${work_dir}/executed-failure.log"
+printf "Executed 2 tests, with 1 failure (0 unexpected) in 1.0 (1.0) seconds\n" > "${executed_failure_log}"
+if ios_log_has_failed_test_case "${executed_failure_log}"; then
+  pass "ac-timeout-product-failure (判定：Executed N tests, with 1 failure 命中)"
+else
+  fail "ac-timeout-product-failure" "ios_log_has_failed_test_case 未命中 Executed 失败样例"
+fi
+# 走真实 run_with_watchdog 超时分支（伪造时钟）：子进程把 failed 样例写进被看守日志后挂起。
+failed_watch_log="${work_dir}/failed-watch.log"
+reset_fake_clock fake 0
+failed_watch_rc=0
+run_with_watchdog 10 "${failed_watch_log}" \
+  bash -c 'cat "$1" >> "$2"; sleep 30' _ "${failed_seed}" "${failed_watch_log}" \
+  2>"${work_dir}/failed-watch.err" || failed_watch_rc=$?
+assert_eq "ac-timeout-product-failure (rc=124)" 124 "${failed_watch_rc}"
+failed_watch_err="$(cat "${work_dir}/failed-watch.err" 2>/dev/null || true)"
+if grep -Fq -- "未进入产品断言" <<<"${failed_watch_err}"; then
+  fail "ac-timeout-product-failure" "含 failed 用例时仍输出 infra 触发措辞「未进入产品断言」"
+else
+  pass "ac-timeout-product-failure (不含「未进入产品断言」)"
+fi
+if grep -Fq -- "产品用例失败" <<<"${failed_watch_err}" \
+  && grep -Fq -- "testX" <<<"${failed_watch_err}" \
+  && grep -Fq -- "with 1 failure" <<<"${failed_watch_err}"; then
+  pass "ac-timeout-product-failure (点名 failed 用例与失败数)"
+else
+  fail "ac-timeout-product-failure" "产品失败归口未点名 failed 用例/失败数：${failed_watch_err}"
+fi
+if grep -Fq -- "阶段 xcodebuild-test 硬超时" <<<"${failed_watch_err}" \
+  && grep -Fq -- "超时前已执行的测试摘要" <<<"${failed_watch_err}"; then
+  pass "ac-timeout-product-failure (保留硬超时与摘要行)"
+else
+  fail "ac-timeout-product-failure" "产品失败归口缺少硬超时/摘要行：${failed_watch_err}"
+fi
+
+# ------------------------- ac-classification-reused-by-caller：124 文案复用同一分类
+cls_infra="$(ios_timeout_classification_message "UI 腿" "${empty_log}" 601 600 "attempt 预算 1800s" 2>&1)"
+cls_product="$(ios_timeout_classification_message "UI 腿" "${failed_seed}" 601 600 "attempt 预算 1800s" 2>&1)"
+if grep -Fq -- "承载层硬超时" <<<"${cls_infra}" && grep -Fq -- "归口承载层预算" <<<"${cls_infra}"; then
+  pass "ac-classification-reused-by-caller (无 failed → 承载层预算)"
+else
+  fail "ac-classification-reused-by-caller" "无 failed 的 124 文案未归口承载层预算：${cls_infra}"
+fi
+if grep -Fq -- "产品用例失败" <<<"${cls_product}" && ! grep -Fq -- "归口承载层预算" <<<"${cls_product}"; then
+  pass "ac-classification-reused-by-caller (有 failed → 产品用例失败)"
+else
+  fail "ac-classification-reused-by-caller" "有 failed 的 124 文案未归口产品用例失败：${cls_product}"
+fi
+caller_reuse_count="$(grep -Fc -- "ios_timeout_classification_message" scripts/test-ios.sh 2>/dev/null || true)"
+[ -n "${caller_reuse_count}" ] || caller_reuse_count=0
+if [ "${caller_reuse_count}" -ge 2 ]; then
+  pass "ac-classification-reused-by-caller (test-ios.sh 两处 124 分支复用，count=${caller_reuse_count})"
+else
+  fail "ac-classification-reused-by-caller" "scripts/test-ios.sh 复用 ios_timeout_classification_message ${caller_reuse_count} 次（期望 ≥2）"
+fi
+
 # ---------------- ac-watchdog-not-iteration-counted：时钟冻结不按轮询次数判超时
 # 读次数下界由测试侧确定性放行驱动：冻结时钟在第 N 次取时时创建 release 文件，
 # 子进程见到后正常退出；run_with_watchdog 每轮先取时再 sleep，故 reads ≥ N 必然成立，

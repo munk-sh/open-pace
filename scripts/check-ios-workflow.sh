@@ -17,10 +17,15 @@ usage() {
   - install 幂等安装 xcodegen 并准备 iPhone 16 + iOS 18.6 模拟器
   - lint 独立调用 scripts/check-baseline.sh、check-ios-core.sh、check-ios-scripts.sh、check-ios-shell.sh
   - test/build 复用 scripts/test-ios.sh、scripts/build-ios.sh，且对 blocked: 输出显式 exit 1
+  - drift 步骤位于 install 之后：由 xcodegen 按 ios/project.yml 重建工程，断言
+    git ls-files 无 project.pbxproj、PurePace shared scheme 存在且 xcodebuild -list 可见
   - test 步骤设置 timeout-minutes（≤45），仅承载层不稳定特征允许最多 1 次有界重试
   - workflow 内无第二套 xcodebuild test/build、无根 VERSION 字面值、无不实措辞
   - 自测：改错 runs-on / 删除 test 步骤 / 去掉 push 触发 / 去掉 blocked 失败口径 /
     去掉 test 硬超时 / 去掉承载层重试特征 / 重试次数改成 3 时脚本非零退出
+  - 自测：删除 drift 步骤、去掉 drift 索引断言、去掉 drift scheme 断言、
+    drift 改用 git diff 时脚本非零退出；并用桩 xcodegen/xcodebuild/git 实跑 drift 体，
+    证明 tracked pbxproj / scheme 缺失 / scheme 未列出三种篡改都会真实失败
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -179,6 +184,31 @@ blocked_ok = test_run.include?('blocked:') && test_run.match?(/exit\s+1/) &&
 report(blocked_ok, 'ac-ci-fails-on-blocked-degradation',
        'test/build 未对 blocked: 输出显式 exit 1')
 
+# drift 步骤：工程由 ios/project.yml 生成 + 索引事实 + scheme 事实，三条断言都必须非空可执行。
+step_names = steps.map { |s| step_name.call(s) }
+drift_index = step_names.index('drift')
+install_index = step_names.index('install')
+drift_step = drift_index.nil? ? nil : steps[drift_index]
+drift_run = drift_step.is_a?(Hash) ? drift_step['run'].to_s : ''
+drift_missing = []
+drift_missing << 'xcodegen generate' unless drift_run.include?('xcodegen generate')
+drift_missing << 'ios/project.yml' unless drift_run.include?('ios/project.yml')
+drift_missing << 'git ls-files' unless drift_run.include?('git ls-files')
+drift_missing << 'project.pbxproj' unless drift_run.include?('project.pbxproj')
+drift_missing << 'xcschemes/PurePace.xcscheme' unless drift_run.include?('xcschemes/PurePace.xcscheme')
+drift_missing << 'xcodebuild -list' unless drift_run.include?('xcodebuild -list')
+drift_missing << 'exit 1' unless drift_run.match?(/exit\s+1/)
+drift_after_install = !drift_index.nil? && !install_index.nil? && drift_index > install_index
+report(drift_missing.empty? && drift_after_install, 'ac-ci-drift-step-present',
+       "drift 步骤缺少: #{drift_missing.join('、')}；位于 install 之后: #{drift_after_install}")
+
+# 非空转：不得用 ignored 文件的 git diff 当断言，也不得混入第二套 xcodebuild test/build。
+# 只看可执行行（注释里解释「不能用 git diff」不算违规）。
+drift_code = drift_run.lines.reject { |l| l.strip.start_with?('#') }.join
+drift_vacuous = drift_code.include?('git diff') || drift_code.match?(/xcodebuild\s+(test|build)\b/)
+report(!drift_vacuous, 'ac-ci-drift-not-vacuous',
+       'drift 步骤依赖 ignored 文件的 git diff 或混入第二套 xcodebuild test/build')
+
 test_step = steps.find { |s| step_name.call(s) == 'test' }
 timeout_minutes = test_step.is_a?(Hash) ? test_step['timeout-minutes'] : nil
 timeout_ok = timeout_minutes.is_a?(Integer) && timeout_minutes.positive? && timeout_minutes <= 45
@@ -295,6 +325,116 @@ assert_rejected "去掉看门狗超时重试特征" "$tmp_dir/no-watchdog-retry.
 
 sed 's/run_attempt 2 /run_attempt 3 /' "$WORKFLOW" > "$tmp_dir/unbounded-retry.yml"
 assert_rejected "重试次数被改成 3" "$tmp_dir/unbounded-retry.yml" "ac-test-bounded-retry"
+
+awk '
+  /^      - name: drift$/ { skip = 1 }
+  skip && /^      - name: lint$/ { skip = 0 }
+  !skip { print }
+' "$WORKFLOW" > "$tmp_dir/no-drift.yml"
+assert_rejected "删除 drift 步骤" "$tmp_dir/no-drift.yml" "ac-ci-drift-step-present"
+
+sed '/git ls-files/d' "$WORKFLOW" > "$tmp_dir/drift-no-index.yml"
+assert_rejected "去掉 drift 索引断言" "$tmp_dir/drift-no-index.yml" "ac-ci-drift-step-present"
+
+sed '/xcschemes\/PurePace.xcscheme/d' "$WORKFLOW" > "$tmp_dir/drift-no-scheme.yml"
+assert_rejected "去掉 drift scheme 断言" "$tmp_dir/drift-no-scheme.yml" "ac-ci-drift-step-present"
+
+awk '{ print } /^          # 断言 2：索引事实/ { print "          git diff --stat" }' \
+  "$WORKFLOW" > "$tmp_dir/drift-uses-diff.yml"
+assert_rejected "drift 改用 git diff" "$tmp_dir/drift-uses-diff.yml" "ac-ci-drift-not-vacuous"
+
+# ------------------------------------------------- drift 断言非恒真的可复现自测
+# 取出 drift 步骤的 run，放进带桩 xcodegen/xcodebuild/git 的沙箱实跑：
+# 正向样本必须通过，篡改 tracked pbxproj / scheme 缺失 / scheme 未列出必须失败。
+extract_drift_run() {
+  ruby -ryaml - "$1" <<'RUBY'
+# encoding: utf-8
+require 'yaml'
+raw = File.read(ARGV[0], encoding: 'UTF-8')
+doc = YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(raw) : YAML.load(raw)
+jobs = doc.is_a?(Hash) ? doc['jobs'] : nil
+job = jobs.is_a?(Hash) ? jobs.values.first : nil
+steps = job.is_a?(Hash) && job['steps'].is_a?(Array) ? job['steps'] : []
+step = steps.find { |s| s.is_a?(Hash) && s['name'].to_s == 'drift' }
+abort('缺少 drift 步骤') if step.nil?
+run = step['run'].to_s
+abort('drift 步骤 run 为空') if run.strip.empty?
+print run
+RUBY
+}
+
+drift_dir="$tmp_dir/drift"
+mkdir -p "$drift_dir/bin" "$drift_dir/ios"
+if extract_drift_run "$WORKFLOW" > "$drift_dir/drift-step.sh"; then
+  cat > "$drift_dir/bin/xcodegen" <<'STUB'
+#!/usr/bin/env bash
+# 桩：模拟 xcodegen generate；DRIFT_STUB_NO_SCHEME=1 时不生成 shared scheme。
+if [ "${DRIFT_STUB_NO_SCHEME:-}" = "1" ]; then
+  mkdir -p ios/PurePace.xcodeproj
+  exit 0
+fi
+mkdir -p ios/PurePace.xcodeproj/xcshareddata/xcschemes
+printf '<Scheme name="PurePace"/>\n' > ios/PurePace.xcodeproj/xcshareddata/xcschemes/PurePace.xcscheme
+exit 0
+STUB
+  cat > "$drift_dir/bin/xcodebuild" <<'STUB'
+#!/usr/bin/env bash
+# 桩：模拟 xcodebuild -list；DRIFT_STUB_NO_LISTED_SCHEME=1 时不列出 PurePace。
+printf 'Information about project "PurePace":\n    Targets:\n\n        PurePace\n\n    Schemes:\n\n'
+if [ "${DRIFT_STUB_NO_LISTED_SCHEME:-}" = "1" ]; then
+  printf '        Other\n'
+else
+  printf '        PurePace\n'
+fi
+exit 0
+STUB
+  cat > "$drift_dir/bin/git" <<'STUB'
+#!/usr/bin/env bash
+# 桩：模拟 git ls-files；DRIFT_STUB_TRACKED_PBXPROJ=1 时返回一条 tracked pbxproj。
+if [ "${DRIFT_STUB_TRACKED_PBXPROJ:-}" = "1" ]; then
+  printf 'ios/PurePace.xcodeproj/project.pbxproj\n'
+fi
+exit 0
+STUB
+  chmod +x "$drift_dir/bin/xcodegen" "$drift_dir/bin/xcodebuild" "$drift_dir/bin/git"
+
+  run_drift_body() {
+    local tracked="$1" no_scheme="$2" no_listed="$3" out rc
+    out="$(cd "$drift_dir" \
+      && DRIFT_STUB_TRACKED_PBXPROJ="$tracked" \
+         DRIFT_STUB_NO_SCHEME="$no_scheme" \
+         DRIFT_STUB_NO_LISTED_SCHEME="$no_listed" \
+         PATH="$drift_dir/bin:$PATH" \
+         bash "$drift_dir/drift-step.sh" 2>&1)"
+    rc=$?
+    printf '%s' "$out"
+    return "$rc"
+  }
+
+  if run_drift_body "" "" "" >/dev/null 2>&1; then
+    printf '[PASS] ac-ci-drift-not-vacuous (self-test: 正向样本通过)\n'
+  else
+    printf '[FAIL] ac-ci-drift-not-vacuous: self-test 正向样本意外失败\n'
+    self_test_failures=$((self_test_failures + 1))
+  fi
+
+  assert_drift_rejected() {
+    local label="$1" tracked="$2" no_scheme="$3" no_listed="$4"
+    if run_drift_body "$tracked" "$no_scheme" "$no_listed" >/dev/null 2>&1; then
+      printf '[FAIL] ac-ci-drift-not-vacuous: self-test %s 未被拒绝\n' "$label"
+      self_test_failures=$((self_test_failures + 1))
+    else
+      printf '[PASS] ac-ci-drift-not-vacuous (self-test: %s 被拒绝)\n' "$label"
+    fi
+  }
+
+  assert_drift_rejected "tracked pbxproj 非空" "1" "" ""
+  assert_drift_rejected "生成后 scheme 缺失" "" "1" ""
+  assert_drift_rejected "xcodebuild -list 未列出 PurePace" "" "" "1"
+else
+  printf '[FAIL] ac-ci-drift-not-vacuous: 无法从 workflow 提取 drift 步骤\n'
+  self_test_failures=$((self_test_failures + 1))
+fi
 
 if [ "$self_test_failures" -ne 0 ]; then
   echo "check-ios-workflow: 负向自测失败 $self_test_failures 项" >&2
