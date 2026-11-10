@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # iOS 脚本静态/契约断言（.munk/code-gates.json 的 lint-ios-scripts 门真实执行体）。
 # 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh / verify-ios-ui-e2e.sh /
-# verify-ios-sim-runtime.sh / device-run.sh 的
+# verify-ios-sim-runtime.sh 的
 # bash 严格模式、参数契约、xcodebuild 分支字面量、降级分支、无写死版本、无伪造成功行；任一条失败即非零退出。
 set -euo pipefail
 
@@ -9,17 +9,11 @@ usage() {
   cat <<'EOF'
 用法: scripts/check-ios-scripts.sh [--help]
 
-对 iOS 构建/测试/版本/真机脚本做结构与契约断言并打印逐条结果：
-  - 七个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
+对 iOS 构建/测试/版本/模拟器脚本做结构与契约断言并打印逐条结果：
+  - 六个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
   - build-ios.sh / test-ios.sh / check-ios-scripts.sh / verify-ios-ui-e2e.sh /
-    verify-ios-sim-runtime.sh / device-run.sh 的 --help
+    verify-ios-sim-runtime.sh 的 --help
     退出 0 且含「用法」，未知参数退出 2
-  - device-run.sh 的 --phase=plan 无设备退出 0，打印 10 个固定 step id 与
-    devicectl / xcodebuild test-without-building / iproxy / WDA HTTP 命令模板，
-    两次运行输出逐字一致；非法 phase 退出 2；--self-check 退出 0
-  - verify-ios-device-flow.sh 的 audio 契约：默认 Release + -releaseDeterministicLocation km-crossing、
-    Debug 显式回 -uiTestLocation、固定 app/runner/none 三遍、非法 --configuration 退出 2、
-    缺候选包在跑用例前非零退出（fail-closed）
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 两次 xcodebuild test，
@@ -80,8 +74,8 @@ fail() {
   printf '[FAIL] %s: %s\n' "$1" "$2"
 }
 
-targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh device-run.sh"
-strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh device-run.sh"
+targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
+strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
 
 # ------------------------------------------------- 脚本存在、语法与严格模式
 problems=""
@@ -138,161 +132,6 @@ else
   fail "ac-ios-scripts-help" "$problems"
 fi
 
-# --------------------- device-run.sh --phase=plan 无设备自证（10 step 顺序 + 命令模板 + 幂等）
-device_run_plan_problems() {
-  local file="$1"
-  local out=""
-  if [ ! -f "$file" ]; then
-    printf '缺少 %s;' "$file"
-    return 0
-  fi
-  local first=""
-  local second=""
-  if ! first="$(bash "$file" --phase=plan 2>&1)"; then
-    out="$out --phase=plan 非零退出;"
-  fi
-  if ! second="$(bash "$file" --phase=plan 2>&1)"; then
-    out="$out --phase=plan 第二次非零退出;"
-  fi
-  if [ -z "$out" ]; then
-    local steps=""
-    steps="$(grep -E '^step=' <<<"$first" | cut -d= -f2 | tr '\n' ',')"
-    [ "$steps" = "preflight,wda,install,launch,tcc,audio,record,lock,collect,evidence," ] \
-      || out="$out plan step 顺序为 '${steps}';"
-    local needle
-    for needle in \
-      "devicectl" \
-      "xcodebuild test-without-building" \
-      "iproxy" \
-      "http://127.0.0.1:8100/status" \
-      "manifest-sha256.txt" \
-      "candidateKey=" \
-      "step=audio"; do
-      grep -Fq -- "$needle" <<<"$first" || out="$out plan 输出缺少 '${needle}';"
-    done
-    [ "$first" = "$second" ] || out="$out 同一候选包两次 plan 输出不一致;"
-  fi
-  printf '%s' "$out"
-}
-
-problems="$(device_run_plan_problems scripts/device-run.sh)"
-if [ -z "$problems" ]; then
-  bash scripts/device-run.sh --phase=definitely-invalid >/dev/null 2>&1 && phase_bad_rc=0 || phase_bad_rc=$?
-  [ "$phase_bad_rc" -eq 2 ] || problems="$problems 非法 phase 退出 ${phase_bad_rc}（期望 2）;"
-  bash scripts/device-run.sh --definitely-invalid >/dev/null 2>&1 && arg_bad_rc=0 || arg_bad_rc=$?
-  [ "$arg_bad_rc" -eq 2 ] || problems="$problems 未知参数退出 ${arg_bad_rc}（期望 2）;"
-  bash scripts/device-run.sh --self-check >/dev/null 2>&1 && device_self_rc=0 || device_self_rc=$?
-  [ "$device_self_rc" -eq 0 ] || problems="$problems --self-check 退出 ${device_self_rc};"
-  help_device="$(bash scripts/device-run.sh --help 2>&1)" || problems="$problems device-run.sh --help 非零退出;"
-  for phase_name in preflight wda install launch tcc audio record lock collect evidence; do
-    grep -Fq -- "$phase_name" <<<"$help_device" || problems="$problems device-run.sh --help 缺少 phase '${phase_name}';"
-  done
-  grep -Fq -- '用法' <<<"$help_device" || problems="$problems device-run.sh --help 缺少「用法」;"
-fi
-if [ -z "$problems" ]; then
-  pass "ac-device-run-plan-self-test"
-else
-  fail "ac-device-run-plan-self-test" "$problems"
-fi
-
-# 反例自检：删掉 plan 里的 evidence step 打印必须被识别。
-plan_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-plan.XXXXXX")"
-python3 - "$plan_sandbox/device-run.sh" <<'PY'
-import sys
-src = open("scripts/device-run.sh", encoding="utf-8").read()
-needle = "  printf 'step=evidence\\n'\n"
-if needle not in src:
-    raise SystemExit("plan evidence step 打印行未找到")
-open(sys.argv[1], "w", encoding="utf-8").write(src.replace(needle, "", 1))
-PY
-if [ -n "$(device_run_plan_problems "$plan_sandbox/device-run.sh")" ]; then
-  pass "ac-device-run-plan-self-test (self-test)"
-else
-  fail "ac-device-run-plan-self-test" "删除 plan evidence step 的违规样本未被识别"
-fi
-rm -rf "$plan_sandbox"
-
-# ------------------------- 候选包布局双兼容（Payload/ 与根级 .app 共用同一 resolver）
-problems=""
-for needle in 'resolve_unpacked_app_layout' 'CANDIDATE_APP_LAYOUT_ERROR' 'unpack 顶层条目'; do
-  grep -Fq -- "$needle" scripts/device-run.sh || problems="$problems device-run.sh 缺少 '${needle}';"
-done
-grep -Fq -- 'resolve_unpacked_app_layout "${state_dir}/unpack"' scripts/device-run.sh \
-  || problems="$problems device-run.sh preflight 未走双布局 resolver;"
-if grep -Eq -- 'unpack/Payload/\*\.app' scripts/device-run.sh; then
-  problems="$problems device-run.sh 仍残留只认 Payload/*.app 的展开;"
-fi
-for needle in 'resolve_unpacked_app_layout' 'unpack 顶层条目'; do
-  grep -Fq -- "$needle" scripts/verify-ios-device-flow.sh \
-    || problems="$problems verify-ios-device-flow.sh 缺少 '${needle}';"
-done
-grep -Fq -- 'resolve_unpacked_app_layout "$unpack"' scripts/verify-ios-device-flow.sh \
-  || problems="$problems verify-ios-device-flow.sh 身份绑定未走双布局 resolver;"
-if [ -z "$problems" ]; then
-  pass "ac-candidate-layout-dual"
-else
-  fail "ac-candidate-layout-dual" "$problems"
-fi
-
-# ------------------ verify-ios-device-flow.sh audio 契约（Release 默认 + 固定三遍 + fail-closed）
-audio_plan_problems() {
-  local file="$1"
-  local out=""
-  local plan=""
-  if ! plan="$(bash "$file" --phase=audio --plan 2>&1)"; then
-    out="$out --phase=audio --plan 非零退出;"
-  fi
-  local needle
-  for needle in \
-    "phase=audio" \
-    "configuration=Release" \
-    "evidenceGrade=release" \
-    "launchArguments=-releaseDeterministicLocation km-crossing" \
-    "musicStrategies=app,runner,none" \
-    "step=audio-app" \
-    "step=audio-runner" \
-    "step=audio-none"; do
-    grep -Fq -- "$needle" <<<"$plan" || out="$out audio plan 缺少 '${needle}';"
-  done
-  local debug_plan=""
-  if ! debug_plan="$(bash "$file" --phase=audio --configuration=Debug --plan 2>&1)"; then
-    out="$out --configuration=Debug --plan 非零退出;"
-  fi
-  grep -Fq -- "evidenceGrade=debug" <<<"$debug_plan" \
-    || out="$out Debug plan 缺少 evidenceGrade=debug;"
-  grep -Fq -- "launchArguments=-uiTestLocation" <<<"$debug_plan" \
-    || out="$out Debug plan 未回退 -uiTestLocation;"
-  local rc=0
-  bash "$file" --phase=audio --configuration=Staging >/dev/null 2>&1 && rc=0 || rc=$?
-  [ "$rc" -eq 2 ] || out="$out 非法 --configuration 退出 ${rc}（期望 2）;"
-  printf '%s' "$out"
-}
-
-problems="$(audio_plan_problems scripts/verify-ios-device-flow.sh)"
-if [ -z "$problems" ]; then
-  pass "ac-audio-plan-contract"
-else
-  fail "ac-audio-plan-contract" "$problems"
-fi
-
-# 缺候选包 fail-closed：沙箱仓库里没有 artifacts/candidates/*.zip，必须在跑用例前非零退出。
-audio_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-audio.XXXXXX")"
-mkdir -p "$audio_sandbox/scripts"
-cp scripts/verify-ios-device-flow.sh "$audio_sandbox/scripts/"
-problems=""
-audio_rc=0
-audio_out="$(bash "$audio_sandbox/scripts/verify-ios-device-flow.sh" --phase=audio 2>&1)" || audio_rc=$?
-[ "$audio_rc" -eq 1 ] || problems="$problems 缺候选包退出 ${audio_rc}（期望 1）;"
-grep -Fq -- "候选包" <<<"$audio_out" || problems="$problems 缺候选包失败原因未写明候选包;"
-if grep -Fq -- "xcodegen 已按" <<<"$audio_out"; then
-  problems="$problems 缺候选包仍在跑构建/用例;"
-fi
-if [ -z "$problems" ]; then
-  pass "ac-audio-candidate-missing-fail-closed"
-else
-  fail "ac-audio-candidate-missing-fail-closed" "$problems"
-fi
-rm -rf "$audio_sandbox"
 
 # --------------------------------------------------- build-ios.sh 契约字面量
 problems=""

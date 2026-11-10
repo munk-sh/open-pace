@@ -3,8 +3,7 @@ import XCTest
 
 /// 模拟器可跑的音源自证：资产 / UITests bundle 后台音频声明 / 策略解析 / runner 播放器状态。
 ///
-/// 该用例不进 `DeviceFlowUITests`（`scripts/test-ios.sh` 只跳过 DeviceFlow 真机套件），
-/// 默认 UI 腿会执行。模拟器无法观测的 app 侧语义（`isOtherAudioPlaying` 归因、真实 duck、
+/// 默认 UI 腿（`-only-testing:PurePaceUITests`）会执行。模拟器无法观测的 app 侧语义（`isOtherAudioPlaying` 归因、真实 duck、
 /// `duckRevoked`、`sessionDeactivated`）一律记 `simulatorNotApplicable`，不伪绿。
 final class MusicSourceSelfCheckUITests: XCTestCase {
     private static let expectedAssetMaxBytes = 204_800
