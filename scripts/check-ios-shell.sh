@@ -385,7 +385,35 @@ validate_design_tokens() {
     grep -Fq "$section" "$token_file" || problems="$problems Token 缺少 ${section};"
   done
   grep -Eq 'minTapTarget: CGFloat = 44' "$token_file" || problems="$problems minTapTarget 必须为 44;"
-  grep -Fq 'supportsDarkMode' "$token_file" || problems="$problems Token 未为深色模式留位;"
+  grep -Fq 'supportsDarkMode = true' "$token_file" \
+    || problems="$problems 深色模式必须开启（supportsDarkMode = true）;"
+
+  # 语义色必须 light/dark 成对：两侧计数一致且至少一组。
+  local light_count dark_count
+  light_count="$(grep -oE 'light:' "$token_file" | wc -l | tr -d ' ')"
+  dark_count="$(grep -oE 'dark:' "$token_file" | wc -l | tr -d ' ')"
+  if [ "$light_count" -lt 1 ] || [ "$light_count" != "$dark_count" ]; then
+    problems="$problems 语义色 light/dark 未成对（light=${light_count} dark=${dark_count}）;"
+  fi
+
+  # 字面色值 / 零散字体修饰符：扫描四个视图 + ContentView + Design 下非 token 真源的组件文件。
+  local style_files="$run_view $history_view $settings_view $detail_view $content_view"
+  local design_file
+  for design_file in "$root"/ios/PurePace/Design/*.swift; do
+    [ -f "$design_file" ] || continue
+    [ "$design_file" = "$token_file" ] && continue
+    style_files="$style_files $design_file"
+  done
+
+  local hits
+  for file in $style_files; do
+    hits="$(grep -nE 'Color\(|Color\.|UIColor|#colorLiteral|\.foregroundStyle\(\.[A-Za-z]' "$file" || true)"
+    [ -z "$hits" ] \
+      || problems="$problems ${file#"$root"/} 含字面色值: $(printf '%s' "$hits" | tr '\n' ' ');"
+    hits="$(grep -nE '\.font\(\.|\.fontWeight\(|\.fontDesign\(|\.lineSpacing\([0-9]' "$file" || true)"
+    [ -z "$hits" ] \
+      || problems="$problems ${file#"$root"/} 含零散字体修饰符: $(printf '%s' "$hits" | tr '\n' ' ');"
+  done
 
   # 三屏不得出现样式字面量，且必须引用 token 与最小触控尺寸。
   for file in "$run_view" "$history_view" "$settings_view"; do
@@ -402,6 +430,63 @@ validate_design_tokens() {
   grep -Fq 'DesignTokens.Typography.primaryValue' "$run_view" || problems="$problems 跑步页未用 primaryValue 字号;"
   grep -Fq 'DesignTokens.Typography.caption' "$run_view" || problems="$problems 跑步页次信息未用 caption 字号;"
   grep -Fq 'DesignTokens.Colors.secondary' "$history_view" || problems="$problems 历史页次信息未用次要色;"
+
+  # 四层结构：hero display → 次级指标 → 提示 → 底部 accent 主操作。
+  grep -Fq 'safeAreaInset(edge: .bottom)' "$run_view" \
+    || problems="$problems 跑步页主操作未底部锚定（safeAreaInset）;"
+  grep -Fq 'DesignTokens.Colors.accent' "$run_view" || problems="$problems 跑步页未引用品牌主色 accent;"
+
+  # 三态视觉：记录中 accent / 暂停 warning / 保存 success（改错一行必须判红）。
+  grep -Fq 'case .running: return DesignTokens.Colors.accent' "$run_view" \
+    || problems="$problems 记录态未用 accent;"
+  grep -Fq 'case .paused: return DesignTokens.Colors.warning' "$run_view" \
+    || problems="$problems 暂停态未用 warning;"
+  grep -Fq 'if viewModel.didSave { return DesignTokens.Colors.success }' "$run_view" \
+    || problems="$problems 保存态未用 success;"
+
+  # 卡片面：历史列表与跑次详情统一 surface / Radius.card / separator，且不退回系统 grouped 默认观感。
+  local card_token
+  for file in "$history_view" "$detail_view"; do
+    for card_token in 'DesignTokens.Colors.surface' 'DesignTokens.Radius.card' 'DesignTokens.Colors.separator'; do
+      grep -Fq "$card_token" "$file" \
+        || problems="$problems ${file#"$root"/} 缺少卡片 token $card_token;"
+    done
+    if grep -Eq '\.listStyle\(\.(insetGrouped|grouped)\)' "$file"; then
+      problems="$problems ${file#"$root"/} 仍使用系统 grouped 列表观感;"
+    fi
+  done
+
+  # 等宽数字：跑步页 ≥3（距离 / 主值 / 次值），历史行与详情各 ≥1。
+  local mono_count
+  mono_count="$(grep -c 'monospacedDigit()' "$run_view" || true)"
+  [ "$mono_count" -ge 3 ] || problems="$problems 跑步页等宽数字少于 3 处（实际 ${mono_count}）;"
+  mono_count="$(grep -c 'monospacedDigit()' "$history_view" || true)"
+  [ "$mono_count" -ge 1 ] || problems="$problems 历史行缺少等宽数字;"
+  mono_count="$(grep -c 'monospacedDigit()' "$detail_view" || true)"
+  [ "$mono_count" -ge 1 ] || problems="$problems 详情数值缺少等宽数字;"
+
+  # 可及 identifier 集合冻结：固定 33 项，逐项比对且总数必须相等。
+  local expected_ids expected_count actual_ids actual_count
+  expected_ids="history.empty history.row history.runAgain run.averagePace run.backgroundDegraded run.currentPace run.distance run.elapsed run.finish run.pause run.resume run.saved run.splits run.start run.telemetry run.viewHistory runDetail.activeDuration runDetail.averagePace runDetail.distance runDetail.endedAt runDetail.export runDetail.exportFailed runDetail.exported runDetail.root runDetail.share runDetail.splitRow runDetail.splits runDetail.splitsEmpty runDetail.startedAt settings.announcementToggle tab.history tab.run tab.settings"
+  actual_ids="$( {
+    grep -rhoE --include='*.swift' \
+      'accessibilityIdentifier\("(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"\)' \
+      "$root/ios/PurePace" 2>/dev/null || true
+    grep -rhoE --include='*.swift' \
+      'identifier: "(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"' \
+      "$root/ios/PurePace" 2>/dev/null || true
+  } | sed -E 's/.*"([^"]*)".*/\1/' | LC_ALL=C sort -u | tr '\n' ' ' | sed -e 's/ $//')"
+  expected_count="$(printf '%s\n' $expected_ids | wc -l | tr -d ' ')"
+  actual_count="$(printf '%s\n' $actual_ids | wc -l | tr -d ' ')"
+  if [ "$expected_count" != "33" ]; then
+    problems="$problems 冻结 identifier 清单必须为 33 项（实际 ${expected_count}）;"
+  fi
+  if [ "$actual_count" != "$expected_count" ]; then
+    problems="$problems 可及 identifier 数量必须为 ${expected_count}（实际 ${actual_count}: ${actual_ids}）;"
+  fi
+  if [ "$actual_ids" != "$expected_ids" ]; then
+    problems="$problems 可及 identifier 集合与冻结清单不一致（实际: ${actual_ids}）;"
+  fi
 
   # 关键文案必须走 L10n 键（真实值在 Localizable.xcstrings，见 validate_localization）。
   local key
@@ -786,6 +871,48 @@ run_self_test() {
   printf '\nprivate let demoEntry = Button("示例跑次") {}\n' \
     >> "$design_bad/ios/PurePace/ContentView.swift"
   check_fail "demo/示例入口反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-literal-color"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicColor = EmptyView().foregroundStyle(Color.red)\n' \
+    >> "$design_bad/ios/PurePace/Settings/SettingsView.swift"
+  check_fail "字面色值反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-scattered-font"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicFont = EmptyView().font(.system(size: 12))\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailView.swift"
+  check_fail "零散字体修饰符反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-dark-off"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/supportsDarkMode = true/supportsDarkMode = false/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail "深色模式关闭反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-no-surface"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/DesignTokens\.Colors\.surface/DesignTokens.Colors.background/g' \
+    "$design_bad/ios/PurePace/History/HistoryView.swift"
+  check_fail "移除卡片 surface 引用反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-wrong-running-tint"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/case \.running: return DesignTokens\.Colors\.accent/case .running: return DesignTokens.Colors.warning/' \
+    "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "记录态改错为 warning 反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-renamed-id"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/accessibilityIdentifier("run\.start")/accessibilityIdentifier("run.started")/' \
+    "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "identifier 重命名反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-extra-id"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let extraEntry = Button("扩展") {}\n.accessibilityIdentifier("run.extra")\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "identifier 追加反例" "$(validate_design_tokens "$design_bad")"
 
   if [ "$failures" -ne 0 ]; then
     exit 1

@@ -22,6 +22,7 @@ struct RunView: View {
             }
             // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
             .overlay(alignment: .bottom) { telemetryOverlay }
+            .background(DesignTokens.Colors.background)
             .navigationTitle(L10n.runNavigationTitle)
             // 主操作固定底部控制区：安全区上方、TabBar 之上，三态共用同一锚点。
             .safeAreaInset(edge: .bottom) {
@@ -30,19 +31,58 @@ struct RunView: View {
                     .padding(.vertical, DesignTokens.Spacing.sm)
                     .frame(maxWidth: .infinity)
                     .background(DesignTokens.Colors.surface)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(DesignTokens.Colors.separator)
+                            .frame(height: DesignTokens.Stroke.hairline)
+                    }
             }
             .onAppear { viewModel.onAppear() }
         }
+        .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.run")
     }
 
     // MARK: - 指标内容块
 
-    /// 三态共用的指标内容块（含提示/保存文案），整体居中而不只居中前四块。
+    /// 三态共用的四层内容块：hero 距离 → 次级指标 → 提示 → （底部）主操作。
     private var metricsContent: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
             distanceHero
+            metricsPanel
+            hintLayer
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity)
+    }
 
+    /// 第一层：hero 距离，全屏最大字号；底色随三态变化。
+    private var distanceHero: some View {
+        VStack(spacing: DesignTokens.Spacing.xxs) {
+            Text(viewModel.distanceText)
+                .font(DesignTokens.Typography.display)
+                .foregroundStyle(stateTint)
+                .monospacedDigit()
+                .accessibilityIdentifier("run.distance")
+            Text(L10n.runMetricDistance)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .background(
+            stateSoft,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.panel)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.panel)
+                .stroke(DesignTokens.Colors.separator)
+        }
+    }
+
+    /// 第二层：surface 卡片面里的时长 / 当前配速（primaryValue）与平均配速 / 分段（caption）。
+    private var metricsPanel: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
             HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
                 primaryMetric(
                     title: L10n.runMetricTime,
@@ -56,6 +96,10 @@ struct RunView: View {
                 )
             }
 
+            Rectangle()
+                .fill(DesignTokens.Colors.separator)
+                .frame(height: DesignTokens.Stroke.hairline)
+
             HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
                 secondaryMetric(
                     title: L10n.runMetricAverage,
@@ -68,31 +112,16 @@ struct RunView: View {
                     identifier: "run.splits"
                 )
             }
-
-            if let message = statusMessage {
-                Text(message)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            if let hint = viewModel.authorization.backgroundDegradationHint {
-                Text(hint)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.warning)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("run.backgroundDegraded")
-            }
-
-            if viewModel.didSave {
-                Text(L10n.runStatusSaved)
-                    .font(DesignTokens.Typography.title)
-                    .foregroundStyle(DesignTokens.Colors.success)
-                    .accessibilityIdentifier("run.saved")
-            }
         }
-        .padding(DesignTokens.Spacing.md)
-        .frame(maxWidth: .infinity)
+        .padding(DesignTokens.Spacing.sm)
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator)
+        }
     }
 
     /// DEBUG 门控的遥测诊断摘要（非用户可见文案），不参与指标区居中。
@@ -111,22 +140,29 @@ struct RunView: View {
 #endif
     }
 
-    // MARK: - 主信息
+    // MARK: - 三态视觉
 
-    private var distanceHero: some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            Text(viewModel.distanceText)
-                .font(DesignTokens.Typography.display)
-                .foregroundStyle(DesignTokens.Colors.primary)
-                .monospacedDigit()
-                .accessibilityIdentifier("run.distance")
-            Text(L10n.runMetricDistance)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
+    /// 记录中 accent / 暂停 warning / 保存 success / 未开始 primary。
+    private var stateTint: Color {
+        if viewModel.didSave { return DesignTokens.Colors.success }
+        switch viewModel.state {
+        case .running: return DesignTokens.Colors.accent
+        case .paused: return DesignTokens.Colors.warning
+        default: return DesignTokens.Colors.primary
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignTokens.Spacing.sm)
     }
+
+    /// 与 `stateTint` 配套的弱底：记录态 / 暂停 / 保存各有一块可辨认的底。
+    private var stateSoft: Color {
+        if viewModel.didSave { return DesignTokens.Colors.successSoft }
+        switch viewModel.state {
+        case .running: return DesignTokens.Colors.accentSoft
+        case .paused: return DesignTokens.Colors.warningSoft
+        default: return DesignTokens.Colors.surfaceMuted
+        }
+    }
+
+    // MARK: - 主信息
 
     private func primaryMetric(
         title: LocalizedStringKey,
@@ -166,6 +202,42 @@ struct RunView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: - 第三层：提示
+
+    @ViewBuilder
+    private var hintLayer: some View {
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            if let message = statusMessage {
+                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            }
+
+            if let hintMessage = viewModel.authorization.backgroundDegradationHint {
+                hint(hintMessage, tint: DesignTokens.Colors.warning, soft: DesignTokens.Colors.warningSoft)
+                    .accessibilityIdentifier("run.backgroundDegraded")
+            }
+
+            if viewModel.didSave {
+                Text(L10n.runStatusSaved)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(DesignTokens.Colors.success)
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.vertical, DesignTokens.Spacing.xxs)
+                    .background(DesignTokens.Colors.successSoft, in: Capsule())
+                    .accessibilityIdentifier("run.saved")
+            }
+        }
+    }
+
+    private func hint(_ message: String, tint: Color, soft: Color) -> some View {
+        Text(message)
+            .font(DesignTokens.Typography.caption)
+            .foregroundStyle(tint)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .background(soft, in: Capsule())
+    }
+
     // MARK: - 主操作
 
     private var statusMessage: String? {
@@ -183,6 +255,20 @@ struct RunView: View {
             }
         }
         return nil
+    }
+
+    /// 主操作强调色：未开始与记录中共用唯一品牌 accent。
+    private var actionTint: Color {
+        viewModel.state == .ready ? DesignTokens.Colors.accent : stateTint
+    }
+
+    private var actionOnTint: Color {
+        if viewModel.didSave { return DesignTokens.Colors.onSuccess }
+        switch viewModel.state {
+        case .running, .ready: return DesignTokens.Colors.onAccent
+        case .paused: return DesignTokens.Colors.onWarning
+        case .finished: return DesignTokens.Colors.onSuccess
+        }
     }
 
     @ViewBuilder
@@ -225,11 +311,14 @@ struct RunView: View {
         Button(action: action) {
             Text(title)
                 .font(DesignTokens.Typography.control)
+                .foregroundStyle(actionOnTint)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(DesignTokens.Colors.accent)
+        .background(
+            actionTint,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+        )
         .accessibilityLabel(Text(label))
     }
 
@@ -241,11 +330,18 @@ struct RunView: View {
         Button(action: action) {
             Text(title)
                 .font(DesignTokens.Typography.control)
+                .foregroundStyle(DesignTokens.Colors.warning)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.Colors.warning)
+        .background(
+            DesignTokens.Colors.warningSoft,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                .stroke(DesignTokens.Colors.warning)
+        }
         .accessibilityLabel(Text(label))
     }
 }
