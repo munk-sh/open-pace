@@ -13,8 +13,10 @@ usage() {
     存在且本机有 xcodegen 可从 spec 生成工程时，在模拟器就绪后拆成两次
     xcodebuild test（共用 .build/ios 派生数据）：
       1) -only-testing:PurePaceTests（日志 .build/logs/xcodebuild-unit.log，Executed 摘要先落盘）
-      2) -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests（日志 .build/logs/xcodebuild-ui.log；
-         DeviceFlowUITests 只由 scripts/verify-ios-device-flow.sh 分阶段驱动，不进默认 CI UI 腿）
+      2) -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests
+         -skip-testing:PurePaceUITests/TCCAuthorizationUITests（日志 .build/logs/xcodebuild-ui.log；
+         DeviceFlowUITests / TCCAuthorizationUITests 都只由 scripts/verify-ios-device-flow.sh
+         分阶段驱动，不进默认 CI UI 腿）
     UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
     simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
     模拟器准备：目标设备已 Booted 且持锁后无并发时直接复用（不 shutdown）；
@@ -582,8 +584,8 @@ test_with_xcodebuild() {
     return 1
   fi
   # 第二次调用：UI 测试（-only-testing:PurePaceUITests），由 -uiTestLocation 确定性测试源驱动。
-  # DeviceFlowUITests 是真机取证套件（由 scripts/verify-ios-device-flow.sh 分阶段单独驱动），
-  # 不进默认 CI UI 腿：无设备前置时会 4/4 确定性失败并撞满 600s 预算。此处显式排除，
+  # DeviceFlowUITests / TCCAuthorizationUITests 是真机取证套件（由 scripts/verify-ios-device-flow.sh
+  # 分阶段单独驱动），不进默认 CI UI 腿：无设备前置时会确定性失败并撞满 600s 预算。此处显式排除，
   # 重试路径复用同一脚本，因此两次 attempt 的选择器一致。
   local tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
   rm -f "$tcc_stop_file"
@@ -592,7 +594,7 @@ test_with_xcodebuild() {
   local ui_status=0
   local ui_started
   ui_started="$(date +%s)"
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests -skip-testing:PurePaceUITests/TCCAuthorizationUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
   run_with_watchdog "$ui_available" "$ui_log" \
     xcodebuild test-without-building \
     -project "$project_path" \
@@ -601,6 +603,7 @@ test_with_xcodebuild() {
     -derivedDataPath "$derived_data" \
     -only-testing:PurePaceUITests \
     -skip-testing:PurePaceUITests/DeviceFlowUITests \
+    -skip-testing:PurePaceUITests/TCCAuthorizationUITests \
     -test-timeouts-enabled YES \
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \

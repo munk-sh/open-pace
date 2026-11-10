@@ -7,9 +7,11 @@
 
 ```bash
 bash scripts/verify-ios-device-flow.sh --help
+bash scripts/verify-ios-device-flow.sh --list      # 无真机也可列出阶段与用例
 bash scripts/verify-ios-device-flow.sh --phase=audit
 bash scripts/verify-ios-device-flow.sh --phase=audio
 bash scripts/verify-ios-device-flow.sh --phase=background --candidate /path/to/PurePace-Release-*.zip
+bash scripts/verify-ios-device-flow.sh --phase=tcc
 ```
 
 - 目标设备默认 `00008101-001C701E0A68001E`，可用 `--device <udid>` 或 `PUREPACE_DEVICE_UDID` 覆盖。
@@ -18,13 +20,14 @@ bash scripts/verify-ios-device-flow.sh --phase=background --candidate /path/to/P
 - 签名只在 `xcodebuild` 命令行临时传入（`-allowProvisioningUpdates DEVELOPMENT_TEAM=… CODE_SIGNING_ALLOWED=YES
   CODE_SIGN_STYLE=Automatic`），工程文件不落团队/证书配置。
 
-## 三模式
+## 四模式
 
 | 模式 | 构建 | 做什么 | 主要证据 |
 |---|---|---|---|
 | `--phase=audit` | Release | 首屏审计：五个读数位 / 三 Tab / 详情导出入口 | `audit-*.png`、`audit-*.ax.json`、`audit-result.json`、`report.md` |
 | `--phase=audio` | Debug + `-uiTestLocation` | 跨一次公里边界 + 音源在播（默认 runner 自播合成音）+ duck 遥测；同用例再跑一遍 `--music-strategy=none` 负对照 | `audio-*.png`、`run-*.json`、`announcements-*.json`、`music-source.json`、`.gpx`、`sha256.txt` |
 | `--phase=background` | Release | 开跑 → 起音源 → `press(.home)` → Mac 侧等 5–6 分钟 → 回前台结束保存/历史/导出 | `background-*.png`、`run-*.json`、`announcements-*.json`、`active-run.jsonl`、`.gpx`、`sha256.txt` |
+| `--phase=tcc` | Debug（真实 CoreLocation） | TCC 授权：新装首启 → 首次弹窗 → Always 升级 → App 自报 `authorizedAlways` | `tcc-result.json`、`run-*.json`、`report.md` |
 
 音源由 `--music-strategy` 决定，默认 `runner`：
 
@@ -36,6 +39,9 @@ bash scripts/verify-ios-device-flow.sh --phase=background --candidate /path/to/P
 
 `--music-bundle-id <id>` 仅对 `app` 策略生效。合成音源由 `scripts/gen-ios-test-audio.sh` 幂等生成
 （纯 Python 标准库，无网络），产物 ≤ 200 KB 且入库。
+
+`tcc` 的链路、label 兜底表与失败判读见 `docs/device-tcc-automation.md`；
+该套件不进默认模拟器 UI 腿（`scripts/test-ios.sh` 带 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`）。
 
 `background` 为两段式：阶段一在设备端开跑并 `press(.home)` 后立即结束；6 分钟等待放 Mac 侧
 （宿主 sleep + `devicectl` 只读读容器）；阶段二 `activate()` 回前台完成结束保存与导出。

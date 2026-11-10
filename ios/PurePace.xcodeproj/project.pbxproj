@@ -21,6 +21,7 @@
 		2E346223B78523CA54313690 /* SystemAuthorizationProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFF86B1F35B589683054194 /* SystemAuthorizationProbe.swift */; };
 		2F04A57E6A29EC207BB6C5BF /* RunLaunchArgumentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45EA5810EB3E3F52A89BA839 /* RunLaunchArgumentsTests.swift */; };
 		2F999FC994DB1D62B63532D3 /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */; };
+		32144F1DFB9436B57B5488AA /* TCCAuthorizationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A1E395FE22C96DAE79BEC5 /* TCCAuthorizationUITests.swift */; };
 		340C65408F183E5E79EF76E1 /* AnnouncementSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD80A9FA63B42CCADCC792B /* AnnouncementSettingsStoreTests.swift */; };
 		358FEAA8B7FA910C49D6A2F6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4022B4F31A31C90183669928 /* ContentView.swift */; };
 		3ACB8F16CA433E7533BC4BB6 /* ReleaseDeterministicLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3710BF0825B5A67073D5AE9 /* ReleaseDeterministicLocationSource.swift */; };
@@ -91,6 +92,7 @@
 		26C2885657CC029A9ED36BD2 /* MusicSourceSelfCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSourceSelfCheckUITests.swift; sourceTree = "<group>"; };
 		2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRootView.swift; sourceTree = "<group>"; };
 		2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementSpeaker.swift; sourceTree = "<group>"; };
+		37A1E395FE22C96DAE79BEC5 /* TCCAuthorizationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCCAuthorizationUITests.swift; sourceTree = "<group>"; };
 		3946F0FB94B97F9094A132C2 /* RunDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailContent.swift; sourceTree = "<group>"; };
 		3A0C307E21FE7705A4EC61DF /* RunSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSessionViewModel.swift; sourceTree = "<group>"; };
 		3A75E899C8A1A37EBB3FBDBD /* RunTestLocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunTestLocationSource.swift; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 				9C48DD31CEE3DDD5F0C134AC /* MusicSource.swift */,
 				26C2885657CC029A9ED36BD2 /* MusicSourceSelfCheckUITests.swift */,
 				BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */,
+				37A1E395FE22C96DAE79BEC5 /* TCCAuthorizationUITests.swift */,
 			);
 			path = PurePaceUITests;
 			sourceTree = "<group>";
@@ -454,6 +457,7 @@
 				45D64CC404E4D430191C5343 /* MusicSource.swift in Sources */,
 				DB0261EEB057D34D5074381C /* MusicSourceSelfCheckUITests.swift in Sources */,
 				AB63DB59C7CAF4EF2DB33284 /* RunFlowUITests.swift in Sources */,
+				32144F1DFB9436B57B5488AA /* TCCAuthorizationUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
