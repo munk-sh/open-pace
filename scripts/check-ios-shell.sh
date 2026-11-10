@@ -10,7 +10,8 @@ usage() {
 
 对 PurePace iOS 工程做结构断言并打印逐条结果：
   - ios/project.yml 存在，xcodegen 连续两次生成结果一致
-  - project.pbxproj 仅存在于 ios/PurePace.xcodeproj
+  - 生成后 project.pbxproj 确实存在于 ios/PurePace.xcodeproj；.gitignore 忽略该生成物，
+    且 git ls-files 无 tracked project.pbxproj；额外/游离 project.pbxproj 仍判失败
   - iOS 17.0 / Swift 6.2 / 仅本地 path package RunCore / MARKETING_VERSION 来自 VERSION
   - 三个 target 与真实跑步页（Run / History / Settings，无 Log）
   - App import 允许表（CoreLocation 仅限 ios/PurePace/Harness/ 与 Location/）
@@ -630,8 +631,27 @@ fi
 
 # ------------------------------------------------ 无手写工程文件
 problems=""
-stray_pbxproj="$(find . -name project.pbxproj -not -path "./$pbxproj" -not -path './ios/.build/*' -print 2>/dev/null | head -20 || true)"
-[ -z "$stray_pbxproj" ] || problems="$problems 存在额外 project.pbxproj: $(printf '%s' "$stray_pbxproj" | tr '\n' ' ');"
+# pbxproj 是生成物：既不能入库，也要在生成后被 .gitignore 覆盖。
+tracked_pbxproj="$(git ls-files 2>/dev/null | grep -F 'project.pbxproj' || true)"
+[ -z "$tracked_pbxproj" ] \
+  || problems="$problems git 索引仍跟踪 project.pbxproj: $(printf '%s' "$tracked_pbxproj" | tr '\n' ' ');"
+if ! git check-ignore -q "$pbxproj" 2>/dev/null; then
+  problems="$problems .gitignore 未忽略生成物 $pbxproj;"
+fi
+# 游离 pbxproj：排除生成目录与已被 .gitignore 忽略的生成物后仍存在即失败。
+stray_pbxproj=""
+while IFS= read -r candidate; do
+  [ -z "$candidate" ] && continue
+  [ "$candidate" = "./$pbxproj" ] && continue
+  case "$candidate" in
+    ./ios/.build/*) continue ;;
+  esac
+  git check-ignore -q "$candidate" 2>/dev/null && continue
+  stray_pbxproj="$stray_pbxproj $candidate"
+done <<EOF
+$(find . -name project.pbxproj -not -path './ios/.build/*' -print 2>/dev/null | head -20)
+EOF
+[ -z "$stray_pbxproj" ] || problems="$problems 存在额外 project.pbxproj:$stray_pbxproj;"
 stray_projects="$(find . -name '*.xcodeproj' -not -path "./$xcodeproj" -not -path './ios/.build/*' -print 2>/dev/null | head -20 || true)"
 [ -z "$stray_projects" ] || problems="$problems 存在额外 .xcodeproj: $(printf '%s' "$stray_projects" | tr '\n' ' ');"
 if [ -z "$problems" ]; then

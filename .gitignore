@@ -8,6 +8,8 @@
 .munk/uploads/
 .build/
 .swiftpm/
+# iOS 工程由 ios/project.yml 经 xcodegen 生成，整目录不入库。
+ios/PurePace.xcodeproj/
 android/.gradle/
 android/build/
 android/app/build/
