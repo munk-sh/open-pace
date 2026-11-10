@@ -2,14 +2,14 @@ import XCTest
 
 /// `docs/verification-matrix.md` 的结构守护（L1，无 UI）。
 ///
-/// 约束：纯表格、表头逐字一致、恰 10 条接缝、6 列；本项 4 行已实测（不含 pending），
-/// 另 6 行标 `pending: 待对应 item 回填`。
+/// 约束：纯表格、表头逐字一致、恰 10 条接缝、6 列；全部行回填后为
+/// 9 行实测 + 1 行显式缺口（Dynamic Type），不再保留 `pending: 待对应 item 回填`。
 final class DocsVerificationMatrixTests: XCTestCase {
     private static let expectedHeader = "| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |"
     private static let pendingMarker = "pending: 待对应 item 回填"
+    private static let gapMarker = "缺口"
     private static let expectedSeamCount = 10
-    private static let measuredSeams = ["后台定位", "锁屏", "重启", "Info.plist"]
-    private static let pendingSeams = ["TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
+    private static let seams = ["后台定位", "锁屏", "重启", "Info.plist", "TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
 
     private enum MatrixError: Error, CustomStringConvertible {
         case repoRootNotFound(start: String)
@@ -43,26 +43,40 @@ final class DocsVerificationMatrixTests: XCTestCase {
         }
     }
 
-    // MARK: - 覆盖与 pending 归属
+    // MARK: - 覆盖、缺口与 pending 归属
 
-    func testMatrixCoversTenSeamsAndOnlyPendingRowsAreMarked() throws {
+    func testMatrixCoversTenSeamsWithNineMeasuredRowsAndOneExplicitGap() throws {
         let dataRows = Array(try nonEmptyLines().dropFirst(2))
         XCTAssertEqual(dataRows.count, Self.expectedSeamCount)
 
         let pendingRows = dataRows.filter { $0.contains(Self.pendingMarker) }
-        let measuredRows = dataRows.filter { !$0.contains(Self.pendingMarker) }
-        XCTAssertEqual(pendingRows.count, 6, "另两项的 6 条接缝必须标 pending")
-        XCTAssertEqual(measuredRows.count, 4, "本项 4 条接缝必须为实测行")
+        XCTAssertEqual(pendingRows.count, 0, "回填后不得再有 pending 行")
 
-        for seam in Self.measuredSeams {
-            let row = dataRows.first { $0.contains(seam) }
-            XCTAssertNotNil(row, "缺少实测接缝：\(seam)")
-            XCTAssertFalse(row?.contains(Self.pendingMarker) ?? true, "\(seam) 属本项实测，不得标 pending")
+        let gapRows = dataRows.filter { $0.contains(Self.gapMarker) }
+        XCTAssertEqual(gapRows.count, 1, "Dynamic Type 显式缺口行必须恰为 1 行")
+
+        let measuredRows = dataRows.filter {
+            !$0.contains(Self.pendingMarker) && !$0.contains(Self.gapMarker)
         }
-        for seam in Self.pendingSeams {
+        XCTAssertEqual(measuredRows.count, 9, "回填后 9 条接缝必须为实测行")
+
+        let gapRow = gapRows.first
+        XCTAssertNotNil(gapRow, "缺少显式缺口行")
+        XCTAssertTrue(gapRow?.contains("Dynamic Type") ?? false, "缺口行必须落在 Dynamic Type")
+        XCTAssertTrue(gapRow?.contains("缺口：本波未做（预算取舍）") ?? false,
+                      "缺口行现状必须写明预算取舍")
+        XCTAssertTrue(gapRow?.contains("none（缺口）") ?? false,
+                      "缺口行断言名/反例列必须为 none（缺口）")
+
+        for seam in Self.seams {
             let row = dataRows.first { $0.contains(seam) }
-            XCTAssertNotNil(row, "缺少待回填接缝：\(seam)")
-            XCTAssertTrue(row?.contains(Self.pendingMarker) ?? false, "\(seam) 未标 \(Self.pendingMarker)")
+            XCTAssertNotNil(row, "缺少接缝：\(seam)")
+        }
+
+        for seam in Self.seams where seam != "Dynamic Type" {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertFalse(row?.contains(Self.pendingMarker) ?? true, "\(seam) 已实测，不得标 pending")
+            XCTAssertFalse(row?.contains(Self.gapMarker) ?? true, "\(seam) 已实测，不得含缺口标记")
         }
     }
 

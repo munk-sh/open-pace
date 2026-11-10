@@ -9,7 +9,8 @@
 - `ios/RunCore/Sources/PurePaceRunCore/RunSessionOrchestrator.swift`：additive `init(restoring:checkpointStore:archiveStore:announcementsEnabled:)`（状态恢复为 `paused`、还原 `announcedSplitIndex`、以 `lastSample` 回填归档单调守卫锚点、按「锚点时间 − 活跃时长」派生 `startedAt` 下界）+ `duplicateSampleCount` 只读转发。
 - `ios/PurePace/Run/RunSessionViewModel.swift`：注入 `NotificationCenter` + `restoringCheckpoint`；生产注册两条 protected-data 通知（`RunProtectedDataObservation`，`deinit` 移除 token）映射为 `isProtectedDataLocked`/`protectedDataUnavailableSince`；发布 `duplicateSampleCount`、`didRestoreFromCheckpoint`；新增 `makeRestored(...) throws` 应用级恢复入口。
 - 测试落点：`ios/PurePaceTests/RunSessionLockTests.swift`、`RunSessionRestoreTests.swift`、`RunLocationSourceTests.swift`（补强）；`ios/RunCore/Tests/PurePaceRunCoreTests/OrchestratorRestoreTests.swift`、`RunSampleDedupTests.swift`、`DocsVerificationMatrixTests.swift`。
-- `docs/verification-matrix.md`：纯 Markdown 表格单一真源，覆盖 10 条接缝。
+- `docs/verification-matrix.md`：纯 Markdown 表格单一真源，覆盖 10 条接缝；B/C 归属的 6 行已按 main 上真实符号回填，终态为 9 行实测 + 1 行显式缺口（Dynamic Type），不再有 `pending: 待对应 item 回填`。
+- `ios/RunCore/Tests/PurePaceRunCoreTests/DocsVerificationMatrixTests.swift`：结构守护同步放宽为「10 条接缝逐条存在」+ 计数断言（pending 0 / 缺口 1 / 实测 9），不再要求旧 6 项标 pending。
 
 ## 验收
 
@@ -43,7 +44,11 @@
 
 ### D. 冻结约束与验证矩阵
 
-- ac-verification-matrix: `docs/verification-matrix.md` 为纯 Markdown 表格（无正文段落），表头恰为 `| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |`；覆盖全部 10 条接缝；本项（A）行按实测填，其余行按已知信息填并标 `pending: 待对应 item 回填`。
+- ac-verification-matrix: `docs/verification-matrix.md` 为纯 Markdown 表格（无正文段落），表头逐字 `| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |`，数据行恰 10 条、每行 6 列且单元格非空；`pending: 待对应 item 回填` 出现 0 次；10 条接缝逐条存在（后台定位 / 锁屏 / 重启 / Info.plist / TTS / duck / GPX / 竖屏 / Dynamic Type / 设计 token），其中「Dynamic Type」为唯一缺口行（「现状」含 `缺口：本波未做（预算取舍）`，「断言名」「反例」两列均为 `none（缺口）`），其余 9 行为实测行。
+- ac-matrix-rows-real-names: 6 条回填行（TTS / duck / GPX / 竖屏 / 设计 token）的「断言名」「反例」列只写 main 上真实存在的测试/门禁标识，禁编造；TTS 含 `testEachKilometerAnnouncedExactlyOnceInOrder`/`testResumeCatchUpEmitsAtMostOne`/`testInterruptionDuringSpeechSuppressesDeactivationThenNextAnnouncementReactivates` 与反例 `testResumeCatchUpDoesNotReplayEachMissingKilometer`；duck 含 `testEndAnnouncementRevokesDuckWhenActivationDucked`/`testEndAnnouncementSeparatesDeactivationFromDuckRevocation`/`testApplyingDefaultConfigurationReadsBackFromRealSession` 与反例 `testDuckRevokedDiffersFromSessionDeactivatedWhenActivationSkipsDuck`；GPX 含 `fixture-fields-match`/`red-proof-missing-ele`/`red-proof-namespace`/`testExportRoundTripPreservesEveryPoint`；竖屏含 `ac-portrait-orientation-lock`；设计 token 含 `testPolicyThresholds`/`ac-design-tokens`。
+- ac-matrix-status-column-measured: 「现状」列写实测口径与阈值来源而非结论词——GPX 行出现 `1e-6`、`0.11 m/格`、`恰为 4`、`不设数量容差`；竖屏行写出 `UISupportedInterfaceOrientations=UIInterfaceOrientationPortrait` 与 `TARGETED_DEVICE_FAMILY=1` 并注明源码 `project.yml` 与构建产物 `Info.plist` 双向实测；设计 token 行出现 `80 = 2.5 × Spacing.xl`、`16 = Spacing.md`、`2026-11-11`（先定后测）。
+- ac-matrix-guard-counts: `DocsVerificationMatrixTests` 保留「表头逐字 / 恰 10 条接缝 / 6 列 / 非空单元格」结构断言与仓库根 `VERSION` 定位，并断言 `pending == 0`、`缺口 == 1`、`实测 == 9`；缺口行以 `缺口` / `none（缺口）` 识别且必须落在 Dynamic Type。
+- ac-matrix-scope-frozen: 本项 `git diff --name-only` 仅含 `docs/verification-matrix.md` 与 `ios/RunCore/Tests/PurePaceRunCoreTests/DocsVerificationMatrixTests.swift`；前 4 行（A 归属）内容不变。
 - ac-freeze-identifiers: `scripts/check-ios-shell.sh` 可及 identifier 冻结清单仍 33 项，零新增/改名/删除；`git diff` 无 `accessibilityIdentifier(...)` 改动。
 - ac-freeze-gates: `.munk/code-gates.json` 仍 22 个 gate，不删不增且全退 0；新增矩阵表不得让任何既有 gate 变红。
 - ac-no-ui-or-asset-diff: 不改 `RunView`/`History/*`/`Settings/*`/`Design/*`/`Localizable.xcstrings`/截图/`shared/`；`git diff --stat` 只含本项 session/location/RunCore 源码、测试与 `docs/verification-matrix.md`。
@@ -56,6 +61,7 @@
 - 不新增真机场、XCUITest 设备用例、设备脚本或 CI 重腿；真机锁屏/后台定位恒为 `pending: 待人现场`。
 - 不定义「重启后结束会话」的归档 `startedAt` 新语义、不改 `RunRecord`/`RunArchiveStore` 契约；恢复入口**不接生产启动流程**（`ContentView`/App 启动不自动恢复），故重启后归档只含重启后样本、`startedAt` 为下界，均为已知缺口。
 - 不重写既有 110+ RunCore 用例、既有 ViewModel/Location 用例或 `scripts/**` 门禁；不新增 gate。
+- 矩阵回填不改 `ios/PurePace/**` 生产代码（含 `RunLayoutBalancePolicy`/`RunView`/`DesignTokens`）、不改 `.github/workflows/ios.yml` 与 `.munk/code-gates.json`、不新增门禁、不改 `docs/` 下其他文件；不补 Dynamic Type 实现或动态字号断言（预算取舍，矩阵如实记为缺口，禁虚标实测）。
 - 不做性能优化、定位精度策略调整、后台任务/续跑调度（`BGTaskScheduler`）；不维护第二张矩阵表。
 
 ## 实现约束
@@ -66,9 +72,10 @@
 - **时间与测试纪律**：时间一律由注入时钟/样本时间戳提供，测试禁用 `Date()` 现时与真实通知投递时序；临时目录 + `defer` 清理；XCTest（禁 `import Testing`）；真实落盘断言必须用新 store 实例从磁盘读回。
 - **阈值先定后测**：所有数值阈值（含 `maximumSampleGapSeconds`）必须在首次跑相关测试前写入代码与注释并说明推导依据，禁止看红后调阈值或反向拟合。
 - **反例纪律**：反例与正例同 commit、可独立判红、不改生产代码、不手工改阈值；反例测试是长期资产，不是一次性脚本。
+- **矩阵回填纪律**：断言名/反例名逐条取自 main 已交付代码与 `scripts/**` 门禁的真实标识，禁编造、禁把「计划中的测试」写成实测；证据路径必须指向仓库内真实文件（TTS：`AnnouncementSchedulerTests`/`AnnouncementSpeakerTests`；duck：`AudioSessionAdapterTests`/`AnnouncementSpeakerTests`；GPX：`RunGPXExporterTests`/`GPXCodecTests`/`scripts/check-gpx-export.sh`；竖屏：`ios/project.yml`/`scripts/check-ios-shell.sh`；设计 token：`RunLayoutBalancePolicy`/`LocalizationPolicyTests`/`DesignTokensTests`/`scripts/check-ios-shell.sh`）。缺口行只许写 `none（缺口）`，不得以 `pending` 充当缺口。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_9738f1ec924207f9（2026-11-11，pass，阶段 2 断言补齐 A：后台定位策略 + 锁屏/重启状态恢复）
-- 交付：定位策略补 `pauses` 复位（1 行生产改动）+ 脏值预置反例与弱引用链用例；锁屏链路新增注入式观察者 `RunProtectedDataObservation` 与 `isProtectedDataLocked`/`protectedDataUnavailableSince`/`duplicateSampleCount`/`didRestoreFromCheckpoint` 可观测状态；RunCore 新增 `RunMetricsEngine.duplicateSampleCount` 与 `RunSessionOrchestrator.init(restoring:)`（含 `announcedSplitIndex` 还原、归档锚点回填、`startedAt` 派生下界）+ 应用级 `RunSessionViewModel.makeRestored(...) throws`；新增 `docs/verification-matrix.md` 十接缝单表并由 `DocsVerificationMatrixTests` 机械守护。既有契约、identifier、`ios/project.yml`、`.munk/code-gates.json` 零改动。
-- 验证：`code_gates` 22 门 attempt 001 全绿（含 `test-ios-core`、`test-ios-run-core`、`test-ios`、`lint-ios-shell`、`check-gpx-export`、`check-shell-expansion`）；证据口径为代码层 + 模拟器层，真机锁屏/后台连续定位仍 `pending: 待人现场`。
+- workItemId: wi_intake_3c33f34dc2d5a6b8（2026-11-11，pass，验证矩阵 B/C 6 行回填 + 守护测试放宽）
+- 交付：`docs/verification-matrix.md` 由「4 实测 + 6 pending」收敛为「9 实测 + 1 显式缺口」——TTS / duck / GPX / 竖屏+iPhone-only / 设计 token+hero 间距 5 行按 main 上真实测试与门禁标识填全，断言名与反例零编造；「现状」列改写实测口径与阈值来源（GPX 1e-6 ≈ 0.11 m/格、trkpt 恰 4 不设数量容差；竖屏 `project.yml` 与构建产物 `Info.plist` 双向实测；阈值 80 = 2.5 × Spacing.xl、16 = Spacing.md，2026-11-11 先定后测）。Dynamic Type 如实记为唯一缺口（`none（缺口）`，不补实现）。`DocsVerificationMatrixTests` 由 `measuredSeams(4)/pendingSeams(6)` 改为 10 接缝逐条存在 + 计数断言（pending 0 / 缺口 1 / 实测 9），保留表头逐字、6 列非空、`repoRoot()`/`VERSION` 定位。
+- 验证：`code_gates` 22 门 attempt 001 全绿（含 `test-ios-run-core` 的 `swift test`、`lint-ios-shell`）；本项未改生产代码、`ios/project.yml`、`.munk/code-gates.json` 与其他文档，缺口永久对下游可见。
