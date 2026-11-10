@@ -24,6 +24,8 @@ private final class AudioSessionSpy: AudioSessionControlling {
     var categoryOptions: AVAudioSession.CategoryOptions = []
     var isOtherAudioPlaying: Bool = false
     var secondaryAudioShouldBeSilencedHint: Bool = false
+    /// 仅停用调用（`active == false`）抛错的注入点，用于复现真机上的迟到失败分支。
+    var deactivationError: Error?
 
     var activations: [ActivationCall] { activationCalls.filter(\.active) }
     var deactivations: [ActivationCall] { activationCalls.filter { !$0.active } }
@@ -41,7 +43,14 @@ private final class AudioSessionSpy: AudioSessionControlling {
 
     func setActive(_ active: Bool, options: AVAudioSession.SetActiveOptions) throws {
         activationCalls.append(ActivationCall(active: active, options: options))
+        if !active, let deactivationError {
+            throw deactivationError
+        }
     }
+}
+
+private enum InjectedAudioError: Error {
+    case setActiveFalseFailed
 }
 
 private final class SpeechSynthesizerSpy: SpeechSynthesizing {
@@ -204,6 +213,158 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertEqual(session.deactivations.count, 1)
     }
 
+    // MARK: - 停用边界：true / 中断 / 抛错三分支
+
+    /// 机制① 证伪基线：协调器保持 `.active` 时结束播报，派生值唯一来自真实平台调用。
+    func testActiveSessionDeactivationWritesTrueDerivationsAndSinglePlatformCall() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
+        let speaker = makeSpeaker(
+            adapter: adapter,
+            synthesizer: synthesizer,
+            telemetry: recorder
+        )
+
+        speaker.speak(makeCommand(splitIndex: 1))
+        XCTAssertEqual(adapter.state, .active)
+        synthesizer.start()
+        synthesizer.finish()
+
+        XCTAssertEqual(adapter.state, .inactive)
+        XCTAssertEqual(session.activations.count, 1)
+        XCTAssertEqual(session.deactivations.count, 1)
+        XCTAssertEqual(session.deactivations.first?.options, [.notifyOthersOnDeactivation])
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, false],
+            "didFinish 后必须恰好下发一次 setActive(false)"
+        )
+
+        guard let entry = recorder.snapshot().first else {
+            return XCTFail("缺少播报遥测条目")
+        }
+        XCTAssertTrue(entry.sessionActivated)
+        XCTAssertTrue(entry.sessionDeactivated)
+        XCTAssertTrue(entry.duckRevoked)
+        XCTAssertFalse(entry.cancelled)
+        XCTAssertNotNil(entry.finishedAt)
+    }
+
+    /// 机制② 复现：播报中出现 interruption began，didFinish 时协调器已非 `.active`，
+    /// `deactivate()` 返回 `.none`，因此没有平台停用调用、两个派生字段均为 false；
+    /// 随后 `shouldResume == false` 让状态回到 `.inactive`，下一次播报重新激活。
+    func testInterruptionDuringSpeechSuppressesDeactivationThenNextAnnouncementReactivates() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
+        let speaker = makeSpeaker(
+            adapter: adapter,
+            synthesizer: synthesizer,
+            telemetry: recorder
+        )
+
+        speaker.speak(makeCommand(splitIndex: 1))
+        synthesizer.start()
+        adapter.handleInterruption(.began)
+        XCTAssertEqual(adapter.state, .interrupted)
+
+        synthesizer.finish()
+
+        XCTAssertEqual(adapter.state, .interrupted, "非 active 状态下 deactivate 不改变状态")
+        XCTAssertTrue(session.deactivations.isEmpty, "协调器非 active 时不得下发 setActive(false)")
+
+        guard let first = recorder.snapshot().first else {
+            return XCTFail("缺少首条播报遥测条目")
+        }
+        XCTAssertTrue(first.sessionActivated)
+        XCTAssertFalse(first.sessionDeactivated)
+        XCTAssertFalse(first.duckRevoked)
+        XCTAssertFalse(first.cancelled)
+        XCTAssertNotNil(first.finishedAt)
+
+        adapter.handleInterruption(.ended(shouldResume: false))
+        XCTAssertEqual(adapter.state, .inactive)
+        XCTAssertTrue(session.deactivations.isEmpty)
+
+        speaker.speak(makeCommand(splitIndex: 2))
+        XCTAssertEqual(session.activations.count, 2, "下一次播报必须重新下发激活")
+        XCTAssertEqual(adapter.state, .active)
+        guard let second = recorder.snapshot().last else {
+            return XCTFail("缺少第二条播报遥测条目")
+        }
+        XCTAssertTrue(second.sessionActivated)
+    }
+
+    /// 机制③ 复现：`setActive(false)` 抛出后 `speak` 的 catch 吞错，协调器状态已先转
+    /// `.inactive`；落盘指纹恰为真机观测到的 `sessionActivated=true` +
+    /// `sessionDeactivated=false` + `finishedAt != nil` + `cancelled=false`。
+    func testThrownDeactivationProducesObservedFalseFingerprintAndNextActivation() {
+        let session = AudioSessionSpy()
+        session.deactivationError = InjectedAudioError.setActiveFalseFailed
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
+        let speaker = makeSpeaker(
+            adapter: adapter,
+            synthesizer: synthesizer,
+            telemetry: recorder
+        )
+
+        speaker.speak(makeCommand(splitIndex: 1))
+        XCTAssertEqual(adapter.state, .active)
+        synthesizer.start()
+        synthesizer.finish()
+
+        XCTAssertEqual(session.deactivations.count, 1, "平台停用调用已发起但抛出")
+        XCTAssertEqual(adapter.state, .inactive, "deactivate 先改状态、后执行平台调用")
+
+        guard let first = recorder.snapshot().first else {
+            return XCTFail("缺少首条播报遥测条目")
+        }
+        XCTAssertTrue(first.sessionActivated)
+        XCTAssertFalse(first.sessionDeactivated)
+        XCTAssertFalse(first.duckRevoked)
+        XCTAssertFalse(first.cancelled)
+        XCTAssertNotNil(first.finishedAt)
+
+        speaker.speak(makeCommand(splitIndex: 2))
+        XCTAssertEqual(session.activations.count, 2, "状态已转 inactive，下一次播报仍能重新激活")
+        XCTAssertEqual(adapter.state, .active)
+        guard let second = recorder.snapshot().last else {
+            return XCTFail("缺少第二条播报遥测条目")
+        }
+        XCTAssertTrue(second.sessionActivated)
+    }
+
+    /// ac-derived-fields-provenance：音频环境布尔在 `beginAnnouncement` 之后实时读取，
+    /// 注入两组相反值都应原样落入遥测，证明未被写死或复用旧快照。
+    func testAnnouncementContextPassesThroughInjectedAudioEnvironmentBooleans() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let speaker = makeSpeaker(session: session, synthesizer: synthesizer, telemetry: recorder)
+
+        session.isOtherAudioPlaying = true
+        session.secondaryAudioShouldBeSilencedHint = true
+        speaker.speak(makeCommand(splitIndex: 1))
+        synthesizer.finish()
+
+        session.isOtherAudioPlaying = false
+        session.secondaryAudioShouldBeSilencedHint = false
+        speaker.speak(makeCommand(splitIndex: 2))
+        synthesizer.finish()
+
+        let entries = recorder.snapshot()
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries[0].isOtherAudioPlaying, true)
+        XCTAssertEqual(entries[0].secondaryAudioShouldBeSilencedHint, true)
+        XCTAssertEqual(entries[1].isOtherAudioPlaying, false)
+        XCTAssertEqual(entries[1].secondaryAudioShouldBeSilencedHint, false)
+    }
+
     // MARK: - helpers
 
     private func makeSpeaker(
@@ -212,8 +373,22 @@ final class AnnouncementSpeakerTests: XCTestCase {
         telemetry: AnnouncementTelemetryRecording? = nil,
         now: @escaping () -> Date = { Date() }
     ) -> SpeechAnnouncementSpeaker {
+        makeSpeaker(
+            adapter: AudioSessionAdapter(controller: session, observesInterruptions: false),
+            synthesizer: synthesizer,
+            telemetry: telemetry,
+            now: now
+        )
+    }
+
+    private func makeSpeaker(
+        adapter: AudioSessionAdapter,
+        synthesizer: SpeechSynthesizerSpy,
+        telemetry: AnnouncementTelemetryRecording? = nil,
+        now: @escaping () -> Date = { Date() }
+    ) -> SpeechAnnouncementSpeaker {
         SpeechAnnouncementSpeaker(
-            audioSession: AudioSessionAdapter(controller: session, observesInterruptions: false),
+            audioSession: adapter,
             synthesizer: synthesizer,
             telemetry: telemetry,
             now: now
