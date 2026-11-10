@@ -79,6 +79,18 @@ enum AudioInterruptionEvent: Equatable, Sendable {
     }
 }
 
+/// 一次播报结束的两个派生事实，各自来自独立的平台调用观测：
+/// - `sessionDeactivated`：结束调用真实下发了 `setActive(false, options:)` 且未抛错；
+/// - `duckRevoked`：本次播报激活时真实下发的 category options 含 `.duckOthers`，
+///   且结束调用真实携带 `.notifyOthersOnDeactivation` 并成功。
+/// 两者不是同源别名：激活未 duck 时前者可为 `true` 而后者为 `false`。
+struct AnnouncementEndResult: Equatable, Sendable {
+    let sessionDeactivated: Bool
+    let duckRevoked: Bool
+
+    static let none = AnnouncementEndResult(sessionDeactivated: false, duckRevoked: false)
+}
+
 /// 把 `AudioSessionSettings.defaultAnnouncement` 与中断生命周期落到真实平台的薄适配层。
 ///
 /// 只做「导出 `AudioSessionAction`」这一件事：状态机与幂等语义全部复用
@@ -89,6 +101,8 @@ final class AudioSessionAdapter: NSObject {
     private let notificationCenter: NotificationCenter
     private var coordinator: AudioSessionCoordinator
     private var isObservingInterruptions = false
+    /// 平台读回事实：最近一次激活真实下发的 category options 是否含 `.duckOthers`。
+    private var activationDuckedOthers = false
 
     init(
         controller: AudioSessionControlling = AVAudioSessionController(),
@@ -137,20 +151,28 @@ final class AudioSessionAdapter: NSObject {
     func beginAnnouncement() throws -> Bool {
         let action = coordinator.activate()
         let performed = Self.performsPlatformCall(action)
+        if performed {
+            // 只有真实下发激活时才刷新该事实；幂等 `.none` 保留上一次激活的平台结果。
+            activationDuckedOthers = false
+        }
         try perform(action)
         return performed
     }
 
     /// 播报结束：仅在确实处于激活态时停用一次，选项取自配置的 `deactivationOptions`。
-    /// 返回 `true` 当且仅当 `setActive(false, …)` 真实执行成功；动作 `.none` 返回 `false`
-    /// 且不发起任何平台调用；平台调用抛错时错误向上抛出、协调器状态保持 `.active`。
+    /// 返回两个独立事实：`sessionDeactivated` 当且仅当 `setActive(false, …)` 真实执行成功；
+    /// 动作 `.none` 返回两者皆 `false` 且不发起任何平台调用；平台调用抛错时错误向上抛出、
+    /// 协调器状态保持 `.active`。`duckRevoked` 另需激活时真实下发过 `.duckOthers`。
     @discardableResult
-    func endAnnouncement() throws -> Bool {
+    func endAnnouncement() throws -> AnnouncementEndResult {
         let action = coordinator.deactivate()
-        if case .none = action { return false }
+        guard case let .deactivate(options) = action else { return .none }
         try perform(action)
         coordinator.commitDeactivation()
-        return true
+        return AnnouncementEndResult(
+            sessionDeactivated: true,
+            duckRevoked: activationDuckedOthers && options.contains(.notifyOthersOnDeactivation)
+        )
     }
 
     /// 测试与系统通知共用的处理入口：投递真实 `AVAudioSession.interruptionNotification`。
@@ -223,6 +245,8 @@ final class AudioSessionAdapter: NSObject {
                 mode: AVAudioSession.Mode(settings.mode),
                 options: AVAudioSession.CategoryOptions(settings.options)
             )
+            // 以平台读回值（而非入参 `settings`）记录本次激活是否真的 duck 了其它音频。
+            activationDuckedOthers = controller.categoryOptions.contains(.duckOthers)
             try controller.setActive(true, options: [])
         case let .deactivate(options):
             try controller.setActive(false, options: AVAudioSession.SetActiveOptions(options))

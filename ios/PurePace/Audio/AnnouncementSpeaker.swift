@@ -65,7 +65,9 @@ enum AnnouncementText {
         let totalSeconds = max(0, Int(command.elapsed.rounded()))
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
-        return "已完成第 \(command.splitIndex) 公里，用时 \(String(format: "%02d:%02d", minutes, seconds))"
+        let elapsed = String(format: "%02d:%02d", minutes, seconds)
+        // 配速口径与 `RunFormatting.paceText` 完全一致（`m:ss /km`，分钟不补零）。
+        return "已完成第 \(command.splitIndex) 公里，用时 \(elapsed)，配速 \(RunFormatting.paceText(command.pace))"
     }
 }
 
@@ -133,9 +135,12 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
             let occurredAt = self.now()
             let stateBefore = self.audioSession.state
             var sessionDeactivated = false
+            var duckRevoked = false
             let outcome: AnnouncementDeactivationOutcome
             do {
-                sessionDeactivated = try self.audioSession.endAnnouncement()
+                let end = try self.audioSession.endAnnouncement()
+                sessionDeactivated = end.sessionDeactivated
+                duckRevoked = end.duckRevoked
                 outcome = sessionDeactivated
                     ? .success
                     : .notApplicable(
@@ -161,7 +166,7 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
                 finishedAt: self.now(),
                 cancelled: cancelled,
                 sessionDeactivated: sessionDeactivated,
-                duckRevoked: sessionDeactivated
+                duckRevoked: duckRevoked
             )
         })
     }
