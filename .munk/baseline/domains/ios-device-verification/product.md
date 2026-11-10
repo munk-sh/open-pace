@@ -1,5 +1,7 @@
 # Domain: ios-device-verification
 
+> **已退役（2026-11-10，清理写项 A）**：`scripts/verify-ios-device-flow.sh`、`DeviceFlowUITests.swift`、`TCCAuthorizationUITests.swift` 与 `artifacts/device-audit/**` 已删除。本域下述契约保留为历史记录，不得据其恢复脚本/用例；现行门与退役口径见 `domains/ios-device-run/product.md`。
+
 PurePace iOS 真机自动化取证域：用「断言清单 + 一条多阶段脚本 + 对应 XCUITest」把核心闭环（开跑 → 后台连续记录 → 跨公里播报 + 音乐 duck → 结束保存 → 历史 → 导出 GPX）与候选包首屏审计从人手走查变成零人工、可重复、带构建身份标注的机器证据。定位与审计不驱动锁屏/解锁，不承载单测/集成/模拟器层语义，不改业务源码。
 
 ## 范围
@@ -152,7 +154,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条多阶段脚�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_b855267dc3a6c09f（2026-11-10，pass）
-- 交付：真机 TCC 授权改走 XCUITest 官方路径——`ios/PurePaceUITests/TCCAuthorizationUITests.swift` 提供可复用弹窗步骤（SpringBoard/App 精确 label 匹配 + `addUIInterruptionMonitor` 兜底，零像素/零坐标）+ 真机用例 `testTCCFreshInstallReachesAuthorizedAlways`（首启弹窗 → `run.backgroundDegraded` → `run.start` 触发 Always 升级 → `run.finish`/`run.saved` → `tcc-result.json`）；`scripts/verify-ios-device-flow.sh` 增 `--list`（preflight 前早退）与 `tcc` 阶段（Debug + 真实 CoreLocation，报告记 `testSuite`），分析侧以 App 自报 `authorizationStatus.name == authorizedAlways` / `rawValue == 3` 判定并校验 `authorizationMode` 与 `firstPromptHandled` 一致；`scripts/test-ios.sh` 默认 UI 腿追加 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`；新增 `docs/device-tcc-automation.md`，`docs/device-flow-usage.md` 升为四模式。
-- 实测：`bash scripts/verify-ios-device-flow.sh --list` 退出 0 且列出 `tcc` 与目标用例（无真机）；模拟器 `xcodebuild build-for-testing`（iPhone 16 / iOS 18.6）**TEST BUILD SUCCEEDED**，新 UI 测试 target 编译通过；`code_gates` 22 门全绿；`xcodegen generate` 重跑后 pbxproj 差异与入库版本一致（仅新文件 4 行），证明为生成产物；TCC 源码无 `XCUICoordinate` / `normalizedOffset` / 截图判读命中。
-- 边界与待办：`scripts/device-*.sh`、`ios/PurePace/**`、`ios/project.yml`、`Info.plist`、签名配置、`VERSION`、`.github/workflows/**`、`.munk/code-gates.json` 零 diff；真机「新装包首启到 authorizedAlways ≤3 分钟」为 `pending: 等待设备验证`（Owner 走设备 ops task `task_97c958a247a259ff`），本项不宣称真机已验证。
+- workItemId: wi_intake_e4d409ec52cb46d4（2026-11-10，pass）— 本域资产退役
+- 交付：`scripts/verify-ios-device-flow.sh`、`ios/PurePaceUITests/DeviceFlowUITests.swift`、`ios/PurePaceUITests/TCCAuthorizationUITests.swift` 与 `artifacts/device-audit/**`（72 文件）已删除；`scripts/check-ios-scripts.sh` 中 device/audio/候选包布局断言块整块移除，`scripts/test-ios.sh` 的 `-skip-testing` 两行与本脚本文案清除（保留 `-only-testing:PurePaceUITests`）。`scripts/check-ios-shell.sh` 的 release-deterministic 断言与 `ReleaseDeterministicLocationSource.swift` 未动。
+- 实测：`bash scripts/check-ios-scripts.sh` 0（27 项 / 0 失败）、`bash scripts/check-shell-expansion.sh` 0（7 项 / 0 失败）；可执行面对 `device-run|verify-ios-device-flow|DeviceFlowUITests|TCCAuthorizationUITests` 零命中。
+- 边界：`docs/device-flow-usage.md`、`docs/device-assertion-matrix.md`、`docs/device-tcc-automation.md` 仍含指向已删脚本的引用（无门断言，归写项 B）；真机相关 `pending: 待人现场`，不宣称真机已验证。
