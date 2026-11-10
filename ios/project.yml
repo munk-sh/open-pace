@@ -81,6 +81,15 @@ targets:
     platform: iOS
     sources:
       - path: PurePaceUITests
+        excludes:
+          - "Info.plist"
+    # 测试侧后台音频声明：真机 audio 阶段的音源由 UITests runner 自播（无人操作），
+    # 需要 runner 侧声明 audio 后台模式；产品 App 的 Info.plist 保持零 diff。
+    info:
+      path: PurePaceUITests/Info.plist
+      properties:
+        UIBackgroundModes:
+          - audio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID).uitests
