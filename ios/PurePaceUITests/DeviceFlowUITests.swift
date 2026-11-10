@@ -153,7 +153,9 @@ final class DeviceFlowUITests: XCTestCase {
         let resolution = MusicStrategy.from(environment: environment)
 
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
+        // 按构建配置选择确定性定位源：Debug 用 UI-test 定位源，Release 用候选包确定性源（见 AudioLaunchArguments）。
+        let launchArguments = AudioLaunchArguments.current
+        app.launchArguments += launchArguments
         app.launch()
         allowLocationIfNeeded()
 
@@ -164,6 +166,8 @@ final class DeviceFlowUITests: XCTestCase {
         var result: [String: Any] = [
             "test": "testAudioKilometerBoundaryWithMusic",
             "generatedAt": Date().timeIntervalSince1970,
+            "configuration": AudioLaunchArguments.configurationName,
+            "launchArguments": launchArguments,
         ]
         // 起音源（runner 自播 / app 外启 / none 不产生音源）；证据先于任何语义结论落盘。
         let (musicEvidence, runnerSource) = startMusicSource(environment: environment)
@@ -438,7 +442,10 @@ final class DeviceFlowUITests: XCTestCase {
             payload["musicPlayingConfirmed"] = playing
             payload["playerStarted"] = playing
             payload["isPlayingAtStart"] = playing
+            // 曲目元数据只读探针：可及树 + 截图先落盘，标题/时长/本地文件三态写进 audio-result.json。
             attachScreenshot(music, name: "audio-music")
+            attachAXDump(music, name: "audio-music.ax.json")
+            payload["trackMetadata"] = MusicAppProbe.parse(axDump: music.debugDescription)
             return (payload, nil)
         case .none:
             payload["musicRunning"] = false

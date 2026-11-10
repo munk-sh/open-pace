@@ -1112,6 +1112,7 @@ release_deterministic_problems() {
   local tests="$root/ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift"
   local app_dir="$root/ios/PurePace"
   local ref_file=""
+  local ui_file=""
 
   if [ ! -f "$release_source" ]; then
     out="$out 缺少 $release_source;"
@@ -1179,10 +1180,16 @@ release_deterministic_problems() {
     esac
   done <<< "$(grep -rlF --include='*.swift' -- "$flag" "$app_dir" 2>/dev/null || true)"
 
-  if [ -d "$root/ios/PurePaceUITests" ] \
-    && grep -rFq -- "$flag" "$root/ios/PurePaceUITests" 2>/dev/null; then
-    out="$out UI 测试出现 ${flag}（Debug 用例语义被改）;"
-  fi
+  # Release 音频用例必须用确定性源 flag，但 Debug 用例语义不得被替换：
+  # 含该 flag 的 UI 测试文件必须同时保留 -uiTestLocation 与 #if DEBUG/#else 配置分支。
+  while IFS= read -r ui_file; do
+    [ -z "$ui_file" ] && continue
+    if ! grep -Fq -- '-uiTestLocation' "$ui_file" \
+      || ! grep -Fq -- '#if DEBUG' "$ui_file" \
+      || ! grep -Fq -- '#else' "$ui_file"; then
+      out="$out UI 测试出现 ${flag} 但未保留 Debug 用例语义: ${ui_file#"$root"/};"
+    fi
+  done <<< "$(grep -rlF --include='*.swift' -- "$flag" "$root/ios/PurePaceUITests" 2>/dev/null || true)"
 
   if [ -f "$run_source" ] && grep -Fq -- "$flag" "$run_source"; then
     out="$out 真实定位源出现确定性 flag;"
