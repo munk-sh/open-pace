@@ -35,6 +35,12 @@ public struct RunMetricsEngine: Sendable {
     private var completedSplits: [RunSplit] = []
     private var windowEntries: [WindowEntry] = []
 
+    /// 运行态下因时间戳未前进而被整条丢弃的采样条数。
+    ///
+    /// 只统计「已开始且未暂停」时命中单调守卫的样本；暂停/未开始/已结束路径的
+    /// 直接返回不计入，避免被误读成「所有被丢样本计数」。恢复态同样从 0 起算。
+    public private(set) var duplicateSampleCount: Int = 0
+
     public init() {}
 
     /// 由 checkpoint 恢复累计账本、已完成分段与时间/位置锚点。
@@ -134,6 +140,7 @@ public struct RunMetricsEngine: Sendable {
 
         // 时间倒退或等时的样本整条丢弃：不回退距离/时长/分段。
         if hasAnySample, let lastTimestamp, sample.timestamp <= lastTimestamp {
+            duplicateSampleCount += 1
             return update(newlyCompletedSplits: [])
         }
 

@@ -58,9 +58,41 @@ public struct RunSessionOrchestrator: Sendable {
         self.lastArchivedSampleTimestamp = nil
     }
 
+    /// 由 checkpoint 恢复：状态机/度量引擎按既有 additive 恢复语义重建，不追加、不改写文件。
+    ///
+    /// 状态由 `RunSessionMachine(restoring:)` 决定（`running`/`paused` 一律恢复为 `paused`，
+    /// 必须显式 `resume(at:)`）；已播报公里序号从 checkpoint 还原，避免恢复后重复播报。
+    /// `lastArchivedSampleTimestamp` 必须回填锚点时间，否则新进程里早于锚点的样本仍会被
+    /// 归档序列接受并污染 checkpoint。`startedAt` 按「锚点时间 − 活跃时长」派生（下界）。
+    public init(
+        restoring checkpoint: RunCheckpoint,
+        checkpointStore: RunCheckpointStore,
+        archiveStore: RunArchiveStore,
+        announcementsEnabled: Bool = true
+    ) {
+        let machine = RunSessionMachine(restoring: checkpoint)
+        self.state = machine.state
+        self.announcementsEnabled = announcementsEnabled
+        self.machine = machine
+        self.engine = RunMetricsEngine(restoring: checkpoint)
+        self.scheduler = AnnouncementScheduler(announcedSplitIndex: checkpoint.announcedSplitIndex ?? 0)
+        self.checkpointStore = checkpointStore
+        self.archiveStore = archiveStore
+        self.archivedSamples = []
+        self.startedAt = checkpoint.lastSample.map {
+            $0.timestamp.addingTimeInterval(-checkpoint.elapsed)
+        }
+        self.lastArchivedSampleTimestamp = checkpoint.lastSample?.timestamp
+    }
+
     /// 当前度量快照（距离/时长/配速/分段全部来自 `RunMetricsEngine`）。
     public var metrics: RunMetrics {
         engine.metrics
+    }
+
+    /// 运行态下被单调守卫整条丢弃的等时/倒退采样条数（只读转发）。
+    public var duplicateSampleCount: Int {
+        engine.duplicateSampleCount
     }
 
     /// 运行期已接受的采样序列，按时间严格递增；结束归档与 GPX 导出共用这一批数据。
