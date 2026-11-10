@@ -11,10 +11,13 @@ struct ContentView: View {
 
     @StateObject private var runModel: RunSessionViewModel
     @StateObject private var settings: AnnouncementSettingsStore
-    @State private var selection: Tab = .run
+    @State private var selection: Tab
 
     private let archiveStore: RunArchiveStore
     private let exporter: RunGPXExporter
+    /// 仅截图取证：默认 `nil` / `false`，Release 路径不注入任何演示数据。
+    private let demoRecords: [RunRecord]?
+    private let autoOpenDetail: Bool
 
     @MainActor
     init() {
@@ -23,11 +26,30 @@ struct ContentView: View {
         archiveStore = stores.archive
         exporter = stores.exporter
         _settings = StateObject(wrappedValue: settings)
+        var initialTab = Tab.run
+        var demoRecords: [RunRecord]?
+        var autoOpenDetail = false
         let locationSource: RunLocationProviding
         let telemetryDebugEnabled: Bool
 #if DEBUG
         // UI 用例容器隔离（仅 `-uiTestResetArchive` 时清空归档/导出）。
         RunStorage.resetArchiveIfRequested()
+        // 截图取证门控（仅 DEBUG，Release 路径不可达）：首屏 Tab 与历史页演示态。
+        if let tab = RunLaunchArguments.value(
+            after: RunLaunchArguments.screenshotInitialTabFlag,
+            arguments: CommandLine.arguments
+        ) {
+            switch tab {
+            case "history": initialTab = .history
+            case "settings": initialTab = .settings
+            default: initialTab = .run
+            }
+        }
+        demoRecords = HistoryDemoRecords.records()
+        autoOpenDetail = RunLaunchArguments.flagEnabled(
+            RunLaunchArguments.screenshotOpenRunDetailFlag,
+            arguments: CommandLine.arguments
+        )
         // 仅 DEBUG 且显式传 `-uiTestLocation` 时使用确定性测试定位源；
         // 其余分支（含 Release）统一经选择器，默认落真实 `RunLocationSource`。
         if CommandLine.arguments.contains("-uiTestLocation") {
@@ -43,6 +65,9 @@ struct ContentView: View {
         locationSource = selected.source
         telemetryDebugEnabled = selected.telemetryDebugEnabled
 #endif
+        self.demoRecords = demoRecords
+        self.autoOpenDetail = autoOpenDetail
+        _selection = State(initialValue: initialTab)
         let recorder = AnnouncementTelemetryRecorder()
         _runModel = StateObject(
             wrappedValue: RunSessionViewModel(
@@ -74,20 +99,31 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selection) {
             RunView(viewModel: runModel)
-                .tabItem { Label("Run", systemImage: "figure.run") }
+                .tabItem {
+                    Label("Run", systemImage: "figure.run")
+                        .accessibilityIdentifier("tab.run")
+                }
                 .tag(Tab.run)
 
             HistoryView(
                 archiveStore: archiveStore,
                 exporter: exporter,
                 refreshToken: runModel.savedCount,
-                onRunAgain: { selection = .run }
+                onRunAgain: { selection = .run },
+                injectedRecords: demoRecords,
+                autoOpenFirstDetail: autoOpenDetail
             )
-            .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+            .tabItem {
+                Label("History", systemImage: "clock.arrow.circlepath")
+                    .accessibilityIdentifier("tab.history")
+            }
             .tag(Tab.history)
 
             SettingsView(store: settings)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                        .accessibilityIdentifier("tab.settings")
+                }
                 .tag(Tab.settings)
         }
         .onChange(of: settings.isEnabled) { _, enabled in

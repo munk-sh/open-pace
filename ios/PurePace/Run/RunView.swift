@@ -1,54 +1,61 @@
 import SwiftUI
 
-/// 首屏跑步页：实时距离/时长/配速/分段 + 开始/暂停/恢复/结束，结束后给出「已保存」。
+/// 首屏跑步页：距离 / 时长 / 当前配速为强主信息，平均配速与分段为次信息；
+/// 开始 / 暂停 / 继续 / 结束是唯一主操作区，三态可辨。样式全部取自 `DesignTokens`。
 /// 所有数值来自 `RunSessionViewModel`（即 `RunSessionOrchestrator.metrics`），View 只做绑定与格式化。
 struct RunView: View {
     @ObservedObject var viewModel: RunSessionViewModel
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 28) {
-                metric(
-                    title: "Distance",
-                    value: viewModel.distanceText,
-                    identifier: "run.distance",
-                    font: .system(size: 56, weight: .bold, design: .rounded)
-                )
+            VStack(spacing: DesignTokens.Spacing.lg) {
+                distanceHero
 
-                HStack(alignment: .top, spacing: 20) {
-                    metric(title: "Time", value: viewModel.elapsedText, identifier: "run.elapsed")
-                    metric(title: "Current", value: viewModel.currentPaceText, identifier: "run.currentPace")
-                    metric(title: "Average", value: viewModel.averagePaceText, identifier: "run.averagePace")
-                    metric(title: "Splits", value: viewModel.splitCountText, identifier: "run.splits")
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                    primaryMetric(title: "Time", value: viewModel.elapsedText, identifier: "run.elapsed")
+                    primaryMetric(
+                        title: "Current",
+                        value: viewModel.currentPaceText,
+                        identifier: "run.currentPace"
+                    )
+                }
+
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                    secondaryMetric(
+                        title: "Average",
+                        value: viewModel.averagePaceText,
+                        identifier: "run.averagePace"
+                    )
+                    secondaryMetric(title: "Splits", value: viewModel.splitCountText, identifier: "run.splits")
                 }
 
                 if let message = statusMessage {
                     Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondary)
                         .multilineTextAlignment(.center)
                 }
 
                 if let hint = viewModel.authorization.backgroundDegradationHint {
                     Text(hint)
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.warning)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("run.backgroundDegraded")
                 }
 
                 if viewModel.didSave {
                     Text("已保存")
-                        .font(.headline)
-                        .foregroundStyle(.green)
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(DesignTokens.Colors.success)
                         .accessibilityIdentifier("run.saved")
                 }
 
 #if DEBUG
                 if let summary = viewModel.telemetrySummary {
                     Text(summary)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondary)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("run.telemetry")
                 }
@@ -58,11 +65,61 @@ struct RunView: View {
 
                 Spacer()
             }
-            .padding()
+            .padding(DesignTokens.Spacing.md)
             .navigationTitle("Run")
             .onAppear { viewModel.onAppear() }
         }
+        .accessibilityIdentifier("tab.run")
     }
+
+    // MARK: - 主信息
+
+    private var distanceHero: some View {
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            Text(viewModel.distanceText)
+                .font(DesignTokens.Typography.display)
+                .foregroundStyle(DesignTokens.Colors.primary)
+                .monospacedDigit()
+                .accessibilityIdentifier("run.distance")
+            Text("Distance")
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+    }
+
+    private func primaryMetric(title: String, value: String, identifier: String) -> some View {
+        VStack(spacing: DesignTokens.Spacing.xxs) {
+            Text(value)
+                .font(DesignTokens.Typography.primaryValue)
+                .foregroundStyle(DesignTokens.Colors.primary)
+                .monospacedDigit()
+                .accessibilityIdentifier(identifier)
+            Text(title)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 次信息
+
+    private func secondaryMetric(title: String, value: String, identifier: String) -> some View {
+        VStack(spacing: DesignTokens.Spacing.xxs) {
+            Text(value)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .monospacedDigit()
+                .accessibilityIdentifier(identifier)
+            Text(title)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 主操作
 
     private var statusMessage: String? {
         if let error = viewModel.errorMessage {
@@ -85,48 +142,58 @@ struct RunView: View {
     private var controls: some View {
         switch viewModel.state {
         case .ready:
-            controlButton("开始", identifier: "run.start") {
+            primaryControl("开始", label: "开始记录跑次") {
                 viewModel.start()
             }
+            .accessibilityIdentifier("run.start")
         case .running:
-            HStack(spacing: 16) {
-                controlButton("暂停", identifier: "run.pause") { viewModel.pause() }
-                controlButton("结束", identifier: "run.finish") { viewModel.finish() }
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                primaryControl("暂停", label: "暂停记录跑次") { viewModel.pause() }
+                    .accessibilityIdentifier("run.pause")
+                secondaryControl("结束", label: "结束并保存跑次") { viewModel.finish() }
+                    .accessibilityIdentifier("run.finish")
             }
         case .paused:
-            HStack(spacing: 16) {
-                controlButton("继续", identifier: "run.resume") { viewModel.resume() }
-                controlButton("结束", identifier: "run.finish") { viewModel.finish() }
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                primaryControl("继续", label: "继续记录跑次") { viewModel.resume() }
+                    .accessibilityIdentifier("run.resume")
+                secondaryControl("结束", label: "结束并保存跑次") { viewModel.finish() }
+                    .accessibilityIdentifier("run.finish")
             }
         case .finished:
             EmptyView()
         }
     }
 
-    private func controlButton(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
+    private func primaryControl(
+        _ title: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.headline)
-                .frame(minWidth: 120, minHeight: 44)
+                .font(DesignTokens.Typography.control)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: DesignTokens.minTapTarget)
         }
         .buttonStyle(.borderedProminent)
-        .accessibilityIdentifier(identifier)
+        .tint(DesignTokens.Colors.accent)
+        .accessibilityLabel(label)
     }
 
-    private func metric(
-        title: String,
-        value: String,
-        identifier: String,
-        font: Font = .title3
+    private func secondaryControl(
+        _ title: String,
+        label: String,
+        action: @escaping () -> Void
     ) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(font)
-                .monospacedDigit()
-                .accessibilityIdentifier(identifier)
+        Button(action: action) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DesignTokens.Typography.control)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: DesignTokens.minTapTarget)
         }
+        .buttonStyle(.bordered)
+        .tint(DesignTokens.Colors.warning)
+        .accessibilityLabel(label)
     }
 }
