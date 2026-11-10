@@ -25,17 +25,22 @@ usage() {
 
   --phase=audit       候选包首屏审计：五个读数位 / 三 Tab / 详情导出入口；产出截图、
                       *.ax.json、audit-result.json 与 report.md。
-  --phase=audio       Debug 构建 + -uiTestLocation 确定性源：跨一次公里边界并起系统 Music，
-                      机器读回 telemetry.announcements[] 的 km 触发 / duck 应用与恢复 /
-                      isOtherAudioPlaying；落盘截图序列、跑次 JSON、announcements 抽取。
-  --phase=background  Release 构建：开跑 → 起 Music → press(.home) → Mac 侧等 5–6 分钟后
-                      回前台结束保存、历史、导出 GPX；读回 checkpoint/跑次/GPX 并实算 sha256。
-                      设备不锁屏前提下可随时读容器；结论只写「切后台后进程存活 + 持续采样」。
+  --phase=audio       Debug 构建 + -uiTestLocation 确定性源：跨一次公里边界；音源由
+                      --music-strategy 决定（默认 runner = UITests runner 自播合成音），
+                      并跑 runner 正例 + none 负对照两遍；机器读回 telemetry.announcements[]
+                      的 km 触发 / duck 应用与恢复 / isOtherAudioPlaying 可归因。
+  --phase=background  Release 构建：开跑 → 起音源（同 --music-strategy，默认 runner）→ press(.home)
+                      → Mac 侧等 5–6 分钟后回前台结束保存、历史、导出 GPX；读回 checkpoint/跑次/GPX
+                      并实算 sha256。设备不锁屏前提下可随时读容器；结论只写「切后台后进程存活 + 持续采样」。
 
 选项:
   --phase <mode>            等价于 --phase=<mode>
   --device <udid>           覆盖目标设备（默认 00008101-001C701E0A68001E）
   --candidate <zip>         候选包 zip 路径（默认匹配 artifacts/candidates/PurePace-Release-*.zip）
+  --music-strategy <mode>   音源策略：runner|app|none（默认 runner）
+                            runner = UITests runner 自播合成循环音（无人操作）；app = 起外部 App；
+                            none = 不产生音源（--phase=audio 的负对照固定使用 none）
+  --music-bundle-id <id>    app 策略目标 bundle id（默认 com.apple.Music）
   -h, --help                显示本帮助并退出 0
 
 环境变量:
@@ -44,6 +49,8 @@ usage() {
   PUREPACE_DEVELOPMENT_TEAM 签名团队（默认 3X4J53U6RY，仅命令行临时传入）
   PUREPACE_BACKGROUND_SECONDS  background 阶段后台窗口秒数（默认 330，允许 300–360）
   PUREPACE_CANDIDATE_ZIP    候选包 zip 路径（同 --candidate）
+  PUREPACE_MUSIC_STRATEGY   音源策略（同 --music-strategy）
+  PUREPACE_MUSIC_BUNDLE_ID  app 策略目标 bundle id（同 --music-bundle-id）
 
 退出码:
   0  该阶段全部机器断言通过
@@ -58,6 +65,8 @@ device_udid="${PUREPACE_DEVICE_UDID:-00008101-001C701E0A68001E}"
 bundle_id="${PUREPACE_BUNDLE_ID:-sh.munk.purepace}"
 team_id="${PUREPACE_DEVELOPMENT_TEAM:-3X4J53U6RY}"
 background_seconds="${PUREPACE_BACKGROUND_SECONDS:-330}"
+music_strategy="${PUREPACE_MUSIC_STRATEGY:-runner}"
+music_bundle_id="${PUREPACE_MUSIC_BUNDLE_ID:-com.apple.Music}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -86,6 +95,20 @@ while [ "$#" -gt 0 ]; do
       shift
       candidate_path="${1:-}"
       ;;
+    --music-strategy=*)
+      music_strategy="${1#--music-strategy=}"
+      ;;
+    --music-strategy)
+      shift
+      music_strategy="${1:-}"
+      ;;
+    --music-bundle-id=*)
+      music_bundle_id="${1#--music-bundle-id=}"
+      ;;
+    --music-bundle-id)
+      shift
+      music_bundle_id="${1:-}"
+      ;;
     *)
       echo "verify-ios-device-flow: 未知参数 '$1'（使用 --help 查看用法）" >&2
       usage >&2
@@ -103,6 +126,21 @@ case "$phase" in
     exit 2
     ;;
 esac
+
+case "$music_strategy" in
+  runner|app|none) ;;
+  *)
+    echo "verify-ios-device-flow: 非法的 --music-strategy='${music_strategy}'（只接受 runner|app|none）" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [ -z "$music_bundle_id" ]; then
+  echo "verify-ios-device-flow: --music-bundle-id 不能为空" >&2
+  usage >&2
+  exit 2
+fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
@@ -333,8 +371,13 @@ build_for_testing() {
 }
 
 run_case() {
-  local case_name="$1" result_bundle="$2" log="$3"
+  local case_name="$1" result_bundle="$2" log="$3" strategy="${4:-$music_strategy}"
   set +e
+  # TEST_RUNNER_* 由 xcodebuild 转交测试 runner（前缀可能被剥离，故同时导出无前缀同名变量）。
+  TEST_RUNNER_MUSIC_STRATEGY="$strategy" \
+  TEST_RUNNER_MUSIC_BUNDLE_ID="$music_bundle_id" \
+  MUSIC_STRATEGY="$strategy" \
+  MUSIC_BUNDLE_ID="$music_bundle_id" \
   xcodebuild test-without-building \
     -project "$project_path" \
     -scheme "$scheme" \
@@ -353,13 +396,13 @@ run_case() {
 }
 
 export_attachments() {
-  local result_bundle="$1" out="$2"
-  mkdir -p "$out"
+  local result_bundle="$1" out="$2" dest="${3:-$evidence_dir}"
+  mkdir -p "$out" "$dest"
   if ! xcrun xcresulttool export attachments --path "$result_bundle" --output-path "$out" >/dev/null 2>&1; then
     fail_step "attachments" "xcresulttool export attachments 失败（${result_bundle}）"
     return 1
   fi
-  python3 - "$out" "$evidence_dir" <<'PY'
+  python3 - "$out" "$dest" <<'PY'
 import json
 import os
 import re
@@ -476,12 +519,19 @@ if os.path.exists(failures_path):
 checks = []
 
 
-def check(name, ok, detail, evidence=None):
+def check(name, ok, detail, evidence=None, status=None):
     entry = {"name": name, "ok": bool(ok), "detail": detail}
+    if status:
+        # not-applicable / record-only：不计 pass，也不因缺席而绿。
+        entry["status"] = status
     if evidence:
         entry["evidence"] = evidence
     checks.append(entry)
     return entry
+
+
+def check_not_applicable(name, detail, evidence=None):
+    return check(name, True, detail, evidence, status="not-applicable")
 
 
 def read_json(path, default=None):
@@ -548,14 +598,37 @@ def epoch_seconds(text):
     return datetime.datetime.fromisoformat(value).timestamp()
 
 
-def announce_checks(announcements):
+def announce_checks(announcements, strategy, label, player=None):
+    """结构观测优先：字段存在性/类型/实测值/取样时刻先落盘，再给语义结论。
+
+    `isOtherAudioPlaying` 的取样时刻由产品代码决定：`announcementContext` 在
+    `synthesizer.speak(...)` 之前构造，`announcements[].startedAt` 即该快照时刻，
+    因此该读数不是「播报期间」的自污染读数（自污染假设见 audio-other-audio-self-pollution）。
+
+    `player` 是本次跑次的 runner 播放器证据；`strategy=runner` 但播放器未起播时，
+    前置不成立（ac-not-applicable-never-green），全部音源相关项记 not-applicable。
+    """
+    def named(base):
+        return "%s-%s" % (label, base)
+
+    player = player or {}
+    runner_started = player.get("playerStarted") is True and player.get("isPlayingAtStart") is True
+    # 「无音源」= 负对照，或 runner 正例但播放器未真正起播。
+    no_external_source = strategy == "none" or (strategy == "runner" and not runner_started)
+    source_reason = (
+        "strategy=none：无外部音源"
+        if strategy == "none"
+        else "strategy=runner 但 runner 未起播（playerStarted=%r isPlayingAtStart=%r）"
+        % (player.get("playerStarted"), player.get("isPlayingAtStart"))
+    )
+
     if not announcements:
-        check("announcements-present", False, "telemetry.announcements[] 为空", "run JSON")
-        return
+        check(named("announcements-present"), False, "telemetry.announcements[] 为空", "announcements-*.json")
+        return None
     km = [a for a in announcements if a.get("splitIndex") == 1]
     km_text = [a for a in km if "第 1 公里" in str(a.get("text", ""))]
     check(
-        "announcements-km-trigger",
+        named("km-trigger"),
         bool(km_text),
         "announcements=%d，splitIndex==1 且 text 含「第 1 公里」的条目=%d（telemetry 无独立 trigger 字段，"
         "公里触发由 splitIndex/text 推得）" % (len(announcements), len(km_text)),
@@ -563,26 +636,74 @@ def announce_checks(announcements):
     )
     entry = (km_text or km or [announcements[0]])[0]
     check(
-        "announcements-audio-session",
+        named("audio-session-fields"),
         bool(entry.get("category")) and bool(entry.get("mode")) and isinstance(entry.get("categoryOptions"), list),
         "category=%r mode=%r options=%r"
         % (entry.get("category"), entry.get("mode"), entry.get("categoryOptions")),
         "announcements-*.json",
     )
     options = entry.get("categoryOptions") or []
+    other = entry.get("isOtherAudioPlaying")
+    started_at = entry.get("startedAt")
     check(
-        "announcements-duck-applied-and-restored",
-        "duckOthers" in options and entry.get("duckRevoked") is True,
-        "categoryOptions 含 duckOthers=%s，duckRevoked=%r，sessionActivated=%r，sessionDeactivated=%r"
-        % ("duckOthers" in options, entry.get("duckRevoked"), entry.get("sessionActivated"), entry.get("sessionDeactivated")),
+        named("other-audio-snapshot"),
+        True,
+        "isOtherAudioPlaying=%r，取样时刻 startedAt=%r（播报开始前快照：announcementContext 先于 "
+        "synthesizer.speak），duckRevoked=%r，sessionActivated=%r，sessionDeactivated=%r（只记录实测值）%s"
+        % (other, started_at, entry.get("duckRevoked"), entry.get("sessionActivated"),
+           entry.get("sessionDeactivated"),
+           ("；%s → 归因 not-applicable" % source_reason) if no_external_source else ""),
         "announcements-*.json",
+        status="not-applicable" if no_external_source else "recorded",
     )
-    check(
-        "announcements-other-audio-playing",
-        isinstance(entry.get("isOtherAudioPlaying"), bool),
-        "isOtherAudioPlaying=%r（原样记录，不伪造 true）" % (entry.get("isOtherAudioPlaying"),),
-        "announcements-*.json",
-    )
+    if no_external_source:
+        for base, detail in (
+            ("other-audio-attributable",
+             "isOtherAudioPlaying=%r；%s，无他路音频可归因（不判 pass）" % (other, source_reason)),
+            ("duck-others",
+             "categoryOptions=%r；%s，duckOthers 无实际 duck 对象可断言（不判 pass）"
+             % (options, source_reason)),
+            ("duck-revoked",
+             "duckRevoked=%r；%s（不判 pass）" % (entry.get("duckRevoked"), source_reason)),
+            ("session-activated",
+             "sessionActivated=%r；%s（不判 pass）" % (entry.get("sessionActivated"), source_reason)),
+            ("session-deactivated",
+             "sessionDeactivated=%r；%s（不判 pass）" % (entry.get("sessionDeactivated"), source_reason)),
+        ):
+            check_not_applicable(named(base), detail, "announcements-*.json")
+    else:
+        check(
+            named("duck-others"),
+            "duckOthers" in options,
+            "categoryOptions=%r 含 duckOthers=%s（配置项可断言）"
+            % (options, "duckOthers" in options),
+            "announcements-*.json",
+        )
+        check(
+            named("session-activated"),
+            entry.get("sessionActivated") is True,
+            "sessionActivated=%r（= beginAnnouncement 是否真实下发 setActive(true)）"
+            % (entry.get("sessionActivated"),),
+            "announcements-*.json",
+        )
+        pending = "pending-classification: wi_intake_f76b858c0c2376f5（只记实测值，不判 pass/fail）"
+        check(
+            named("duck-revoked"),
+            True,
+            "duckRevoked=%r（record-only：成功路径按契约应为 true，与 setActive(false,[.notifyOthersOnDeactivation]) "
+            "的真实调用结果成对；不写重试计数）%s" % (entry.get("duckRevoked"), pending),
+            "announcements-*.json",
+            status="recorded",
+        )
+        check(
+            named("session-deactivated"),
+            True,
+            "sessionDeactivated=%r（record-only：须与真实 setActive(false) 调用成对；false 必须伴随错误记录）%s"
+            % (entry.get("sessionDeactivated"), pending),
+            "announcements-*.json",
+            status="recorded",
+        )
+    return entry
 
 
 def checkpoint_continuity(path, pressed_home, window_seconds):
@@ -663,6 +784,18 @@ def build_identity_lines():
     return lines
 
 
+DEVICE_ONLY_MARKERS = ("other-audio", "duck", "session-activ", "session-deactiv", "attribut",
+                       "negative-control")
+
+
+def capability_of(name):
+    """逐项标注「模拟器可断言 / 仅真机可断言」，不伪绿（ac-device-only-assertions）。"""
+    lowered = name.lower()
+    if any(marker in lowered for marker in DEVICE_ONLY_MARKERS):
+        return "仅真机可断言"
+    return "模拟器可断言"
+
+
 def render_report(ok):
     lines = []
     lines.append("# 真机取证报告（%s）" % phase)
@@ -676,23 +809,40 @@ def render_report(ok):
     lines.append("- 起止时间：%s → %s"
                  % (meta.get("startedAt"), meta.get("finishedAt") or "?"))
     lines.append("- 用例：`PurePaceUITests/DeviceFlowUITests/%s`" % meta.get("testCase"))
+    lines.append("- 音源策略：`%s`（runner=UITests runner 自播合成音，无人操作；none=负对照无音源；"
+                 "app=外部 App `%s`）" % (meta.get("musicStrategy"), meta.get("musicBundleId")))
     lines.append("- 结论：%s" % ("机器断言通过" if ok else "存在失败项"))
     lines.append("")
     lines.extend(build_identity_lines())
     lines.append("")
     lines.append("## 断言逐项")
     lines.append("")
-    lines.append("| 断言项 | 结果 | 证据 / 说明 |")
-    lines.append("|---|---|---|")
+    lines.append("| 断言项 | 能力分层 | 结果 | 证据 / 说明 |")
+    lines.append("|---|---|---|---|")
     for entry in checks:
-        lines.append("| `%s` | %s | %s |"
-                     % (entry["name"], "PASS" if entry["ok"] else "FAIL", entry["detail"]))
+        lines.append("| `%s` | %s | %s | %s |"
+                     % (entry["name"],
+                        capability_of(entry["name"]),
+                        entry.get("status") or ("PASS" if entry["ok"] else "FAIL"),
+                        entry["detail"]))
+    lines.append("")
+    lines.append("能力分层口径：`模拟器可断言` = 资产/工程声明/播放器 `isPlaying`/结构字段存在性"
+                 "（`scripts/test-ios.sh` 的 `MusicSourceSelfCheckUITests` 覆盖）；"
+                 "`仅真机可断言` = 他路音频归因 `isOtherAudioPlaying`、`duckOthers` 实际 duck 语义、"
+                 "`duckRevoked`/`sessionActivated`/`sessionDeactivated` 实测（模拟器音频栈无真实他路音频，"
+                 "在模拟器侧一律记 `not-applicable`）。")
     lines.append("")
     lines.append("## 失败项")
     lines.append("")
-    if failures:
+    # 断言级失败（无 status 的真实 pass/fail 项）也要进失败项，避免「存在失败项」却列「无」。
+    failed_steps = {failure["step"] for failure in failures}
+    failed_checks = [entry for entry in checks
+                     if not entry["ok"] and not entry.get("status") and entry["name"] not in failed_steps]
+    if failures or failed_checks:
         for failure in failures:
             lines.append("- `%s`: %s" % (failure["step"], failure["reason"]))
+        for entry in failed_checks:
+            lines.append("- `%s`: %s" % (entry["name"], entry["detail"]))
     else:
         lines.append("- 无")
     lines.append("")
@@ -701,13 +851,24 @@ def render_report(ok):
     for name in sorted(os.listdir(evidence_dir)):
         if name == "report.md":
             continue
-        lines.append("- `%s`（%d 字节）" % (name, os.path.getsize(os.path.join(evidence_dir, name))))
+        path = os.path.join(evidence_dir, name)
+        if os.path.isdir(path):
+            for sub_root, _sub_dirs, sub_files in os.walk(path):
+                for sub_name in sorted(sub_files):
+                    sub_path = os.path.join(sub_root, sub_name)
+                    lines.append("- `%s`（%d 字节）"
+                                 % (os.path.relpath(sub_path, evidence_dir), os.path.getsize(sub_path)))
+            continue
+        lines.append("- `%s`（%d 字节）" % (name, os.path.getsize(path)))
     lines.append("")
     lines.append("## pending: 待人现场（needs-you 单点）")
     lines.append("")
     lines.append("- 锁屏态本版不验；如公司要求补，只由人在最终候选包上做一次「电源键 + 解锁」（≤ 30 秒），"
                  "由公司另排，产品侧不得自行加进脚本或窗口。")
     lines.append("- 人耳判定（≤ 2 条）随机器证据一次性交回公司负责人：播报是否听清；音乐 duck 后听感是否恢复。")
+    lines.append("- `duckRevoked` / `sessionDeactivated` 只记实测值并标 `pending-classification: "
+                 "wi_intake_f76b858c0c2376f5`（不判 pass/fail、不放宽、不 continue-on-error）；"
+                 "`sessionActivated` 与 `duckOthers` 属配置/调用可断言项，前置不成立时记 `not-applicable`。")
     lines.append("- 断言清单确认：`docs/device-assertion-matrix.md` 待 PO 转公司确认（`pending: 待公司确认`）；"
                  "确认后才跑 `--phase=audio` / `--phase=background` 正式场。")
     if not ok:
@@ -801,61 +962,200 @@ if phase == "audit":
     )
 
 elif phase == "audio":
-    audio_result = read_json(os.path.join(evidence_dir, "audio-result.json"), {})
-    for name in ["audio-start.png", "audio-km.png", "audio-finish.png"]:
-        check("audio-screenshot-%s" % name, nonempty(os.path.join(evidence_dir, name)),
-              "截图 %s %s" % (name, "存在且非空" if nonempty(os.path.join(evidence_dir, name)) else "缺失或为空"),
-              name)
-    check(
-        "audio-music-playing-confirmed",
-        (audio_result or {}).get("musicPlayingConfirmed") is True,
-        "系统 Music 启动/在播确认: musicRunning=%r musicPlayingConfirmed=%r（确认不了即 FAIL，不伪造）"
-        % ((audio_result or {}).get("musicRunning"), (audio_result or {}).get("musicPlayingConfirmed")),
-        "audio-music.png / audio-result.json",
-    )
+    # 正负对照（裁决 A）：同一用例跑两遍——正例按 --music-strategy（默认 runner），负对照固定 none。
+    primary_strategy = meta.get("musicStrategy") or "runner"
+    primary_label = "audio-%s" % primary_strategy
+    pass_specs = [
+        (primary_strategy, primary_label,
+         os.path.join(evidence_dir, primary_label),
+         os.path.join(os.path.dirname(meta_path), "container-%s" % primary_strategy)),
+    ]
+    if primary_strategy != "none":
+        pass_specs.append(("none", "audio-none",
+                           os.path.join(evidence_dir, "audio-none"),
+                           os.path.join(os.path.dirname(meta_path), "container-none")))
 
-    runs = pick_newest_runs([os.path.join(os.path.dirname(meta_path), "container-after")],
-                            phase_started_epoch)
-    run = runs[-1][2] if runs else None
-    if run is None:
-        check("audio-run-json", False, "未读到本次跑次 JSON（Documents/Runs）", None)
-        announcements = []
-    else:
-        copied_run = copy_evidence_file(runs[-1][1], evidence_dir, "run-")
-        check("audio-run-json", bool(copied_run), "跑次 JSON 已复制: %s" % copied_run, copied_run)
-        telemetry = run.get("telemetry") or {}
-        announcements = telemetry.get("announcements") or []
-        announce_path = os.path.join(evidence_dir, "announcements-%s.json" % run.get("id", "unknown"))
-        with open(announce_path, "w", encoding="utf-8") as handle:
-            json.dump(announcements, handle, ensure_ascii=False, indent=2)
+    pass_entries = {}
+    for strategy, label, pass_dir, container_dir in pass_specs:
+        result = read_json(os.path.join(pass_dir, "audio-result.json"), {}) or {}
+        music_keys = [
+            "musicStrategy", "musicStrategyRequested", "musicStrategyInvalidRequested",
+            "musicSourceKind", "musicBundleIdentifier", "assetName", "assetBytes", "assetSHA256",
+            "hasPlayer", "playerStarted", "isPlayingAtStart", "isPlayingAtFinish",
+            "currentTimeAtStart", "currentTimeAtFinish", "playbackStartedAt", "playbackStoppedAt",
+            "sessionSetActiveTrueCalled", "musicRunning", "musicPlayingConfirmed", "playerError",
+            "otherAudioSnapshotSource", "otherAudioSnapshots",
+        ]
+        music_source = {key: result.get(key) for key in music_keys if key in result}
+        music_source["strategyForPass"] = strategy
+        with open(os.path.join(pass_dir, "music-source.json"), "w", encoding="utf-8") as handle:
+            json.dump(music_source, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
-        announce_checks(announcements)
-        duration = run.get("activeDuration")
-        check(
-            "audio-single-run-bounded",
-            isinstance(duration, (int, float)) and 60 <= duration <= 90,
-            "activeDuration=%.1fs（验收窗口 60–90s；-uiTestLocation 默认节奏约 10 m/s，跨 1 km 约 100s）"
-            % duration if isinstance(duration, (int, float)) else "activeDuration 缺失",
-            "run JSON",
-        )
-        samples = run.get("samples") or []
-        check("audio-sample-count", len(samples) > 1, "samples=%d" % len(samples), "run JSON")
-        sources = sorted({str(sample.get("source")) for sample in samples})
-        check("audio-sample-source-simulated", sources == ["simulated"],
-              "samples[].source=%r（-uiTestLocation 确定性路径）" % sources, "run JSON")
 
-    gpx_files = sorted(glob.glob(os.path.join(os.path.dirname(meta_path), "container-after", "Exports", "*.gpx")))
-    if gpx_files:
-        gpx_path = gpx_files[-1]
-        target = copy_evidence_file(gpx_path, evidence_dir, "")
-        check("audio-gpx-artifact", bool(target), "导出 GPX: %s" % target, target)
-        if target:
-            digest = sha256_of(os.path.join(evidence_dir, target))
-            with open(os.path.join(evidence_dir, "sha256.txt"), "w", encoding="utf-8") as handle:
-                handle.write("%s  %s\n" % (digest, target))
-            check("audio-gpx-sha256", re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
-                  "sha256=%s（%d 字节）" % (digest, os.path.getsize(os.path.join(evidence_dir, target))),
-                  "sha256.txt")
+        for name in ["audio-start.png", "audio-km.png", "audio-finish.png"]:
+            path = os.path.join(pass_dir, name)
+            check("%s-screenshot-%s" % (label, name), nonempty(path),
+                  "截图 %s %s" % (name, "存在且非空" if nonempty(path) else "缺失或为空"), name)
+
+        check(
+            "%s-player-log" % label,
+            "playerStarted" in result and "isPlayingAtStart" in result,
+            "runner 播放器状态：playerStarted=%r isPlayingAtStart=%r currentTimeAtStart=%r "
+            "currentTimeAtFinish=%r playbackStartedAt=%r playbackStoppedAt=%r "
+            "sessionSetActiveTrueCalled=%r"
+            % (result.get("playerStarted"), result.get("isPlayingAtStart"),
+               result.get("currentTimeAtStart"), result.get("currentTimeAtFinish"),
+               result.get("playbackStartedAt"), result.get("playbackStoppedAt"),
+               result.get("sessionSetActiveTrueCalled")),
+            "music-source.json",
+        )
+
+        entry = None
+        runs = pick_newest_runs([container_dir], phase_started_epoch)
+        run = runs[-1][2] if runs else None
+        if run is None:
+            check("%s-run-json" % label, False, "未读到本次跑次 JSON（Documents/Runs）", None)
+        else:
+            copied_run = copy_evidence_file(runs[-1][1], pass_dir, "run-")
+            check("%s-run-json" % label, bool(copied_run), "跑次 JSON 已复制: %s" % copied_run, copied_run)
+            telemetry = run.get("telemetry") or {}
+            announcements = telemetry.get("announcements") or []
+            announce_path = os.path.join(pass_dir, "announcements-%s.json" % run.get("id", "unknown"))
+            with open(announce_path, "w", encoding="utf-8") as handle:
+                json.dump(announcements, handle, ensure_ascii=False, indent=2)
+                handle.write("\n")
+            entry = announce_checks(announcements, strategy, label, player=result)
+            duration = run.get("activeDuration")
+            check(
+                "%s-single-run-bounded" % label,
+                isinstance(duration, (int, float)) and 60 <= duration <= 90,
+                "activeDuration=%.1fs（验收窗口 60–90s；-uiTestLocation 默认节奏约 10 m/s，跨 1 km 约 100s）"
+                % duration if isinstance(duration, (int, float)) else "activeDuration 缺失",
+                "run JSON",
+            )
+            samples = run.get("samples") or []
+            check("%s-sample-count" % label, len(samples) > 1, "samples=%d" % len(samples), "run JSON")
+            sources = sorted({str(sample.get("source")) for sample in samples})
+            check("%s-sample-source-simulated" % label, sources == ["simulated"],
+                  "samples[].source=%r（-uiTestLocation 确定性路径）" % sources, "run JSON")
+
+        gpx_files = sorted(glob.glob(os.path.join(container_dir, "Exports", "*.gpx")))
+        if gpx_files:
+            gpx_path = gpx_files[-1]
+            target = copy_evidence_file(gpx_path, pass_dir, "")
+            check("%s-gpx-artifact" % label, bool(target), "导出 GPX: %s" % target, target)
+            if target:
+                digest = sha256_of(os.path.join(pass_dir, target))
+                with open(os.path.join(pass_dir, "sha256.txt"), "w", encoding="utf-8") as handle:
+                    handle.write("%s  %s\n" % (digest, target))
+                check("%s-gpx-sha256" % label, re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
+                      "sha256=%s（%d 字节）" % (digest, os.path.getsize(os.path.join(pass_dir, target))),
+                      "sha256.txt")
+        else:
+            check("%s-gpx-artifact" % label, False, "Documents/Exports 未读到 .gpx", None)
+
+        pass_entries[label] = {"strategy": strategy, "result": result, "entry": entry}
+
+    primary = pass_entries.get(primary_label) or {}
+    primary_result = primary.get("result") or {}
+    primary_entry = primary.get("entry") or {}
+    negative = pass_entries.get("audio-none") or {}
+    negative_result = negative.get("result") or {}
+    negative_entry = negative.get("entry") or {}
+
+    if primary_strategy == "runner":
+        asset_sha = primary_result.get("assetSHA256")
+        playback_started = primary_result.get("playbackStartedAt")
+        run_started = primary_result.get("runStartedAt")
+        attribution = (
+            primary_result.get("musicStrategy") == "runner"
+            and isinstance(primary_result.get("assetBytes"), int) and primary_result.get("assetBytes") > 0
+            and isinstance(asset_sha, str) and re.fullmatch(r"[0-9a-f]{64}", asset_sha) is not None
+            and primary_result.get("playerStarted") is True
+            and primary_result.get("isPlayingAtStart") is True
+            and isinstance(playback_started, (int, float)) and isinstance(run_started, (int, float))
+            and playback_started < run_started
+            and isinstance(primary_result.get("currentTimeAtFinish"), (int, float))
+            and primary_result.get("currentTimeAtFinish") > 0
+            and primary_entry.get("isOtherAudioPlaying") is True
+        )
+        check(
+            "audio-other-audio-attributable",
+            attribution,
+            "strategy=runner / asset=%r(%r B, sha256=%r) / playerStarted=%r / isPlayingAtStart=%r / "
+            "playbackStartedAt=%r < runStartedAt=%r / currentTimeAtFinish=%r / "
+            "announcements[].isOtherAudioPlaying=%r（缺任一项即 FAIL，不凭单一布尔通过）"
+            % (primary_result.get("assetName"), primary_result.get("assetBytes"), asset_sha,
+               primary_result.get("playerStarted"), primary_result.get("isPlayingAtStart"),
+               playback_started, run_started, primary_result.get("currentTimeAtFinish"),
+               primary_entry.get("isOtherAudioPlaying")),
+            "music-source.json / announcements-*.json",
+        )
+    elif primary_strategy == "app":
+        check_not_applicable(
+            "audio-other-audio-attributable",
+            "strategy=app：外部 App 起播=%r；runner 侧无自播证据，可归因键为 app 起播确认"
+            % (primary_result.get("musicPlayingConfirmed"),),
+            "music-source.json",
+        )
+    else:
+        check(
+            "audio-other-audio-attributable",
+            False,
+            "请求 --music-strategy=none：只有负例、无正例，不得空过",
+            None,
+        )
+
+    if primary_strategy == "none":
+        check(
+            "audio-negative-control",
+            False,
+            "只跑了 none 一遍：缺正例 isOtherAudioPlaying=true 一侧，负对照不成立",
+            None,
+        )
+    else:
+        positive_other = primary_entry.get("isOtherAudioPlaying")
+        negative_other = negative_entry.get("isOtherAudioPlaying")
+        check(
+            "audio-negative-control",
+            positive_other is True and negative_other is False,
+            "正例 isOtherAudioPlaying=%r / 负例(--music-strategy=none) isOtherAudioPlaying=%r（须 true/false 齐备）"
+            % (positive_other, negative_other),
+            "announcements-*.json",
+        )
+        negative_started_at = negative_entry.get("startedAt")
+        check(
+            "audio-negative-control-sampling",
+            isinstance(negative_started_at, (int, float)) and negative_other is False,
+            "负对照读数取播报开始前快照：announcements[].startedAt=%r 早于 synthesizer.speak；"
+            "该读数为 false 才算无外部音源在播（不用播报期间的 true 当证据）" % (negative_started_at,),
+            "announcements-*.json",
+        )
+
+    before_snapshots = [s for s in (negative_result.get("otherAudioSnapshots") or [])
+                        if s.get("label") == "beforeRun"]
+    window_snapshots = [s for s in (negative_result.get("otherAudioSnapshots") or [])
+                        if s.get("label") == "announcementWindow"]
+    if any(s.get("isOtherAudioPlaying") is True for s in window_snapshots):
+        self_pollution = "supported"
+    elif window_snapshots:
+        self_pollution = "excluded"
+    else:
+        self_pollution = "cannot-exclude"
+    check(
+        "audio-other-audio-self-pollution",
+        True,
+        "候选假设（AVSpeechSynthesizer 由系统语音进程播放造成 isOtherAudioPlaying 自污染）判定=%s；"
+        "负例 runner 进程快照 beforeRun=%r / announcementWindow=%r（source=%r）。"
+        "结论：产品字段在 announcementContext 构造时取样（先于 synthesizer.speak），"
+        "负对照只用该播报前快照；若 assumption 成立/不能排除，也不以播报期间读数作外部音乐证据。"
+        % (self_pollution,
+           [s.get("isOtherAudioPlaying") for s in before_snapshots],
+           [s.get("isOtherAudioPlaying") for s in window_snapshots],
+           negative_result.get("otherAudioSnapshotSource")),
+        "music-source.json / announcements-*.json",
+        status="recorded",
+    )
 
 elif phase == "background":
     stage1 = read_json(os.path.join(evidence_dir, "background-stage1.json"), {}) or {}
@@ -900,7 +1200,7 @@ elif phase == "background":
         with open(announce_path, "w", encoding="utf-8") as handle:
             json.dump(announcements, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
-        announce_checks(announcements)
+        announce_checks(announcements, meta.get("musicStrategy") or "runner", "background", player=stage1)
 
         if isinstance(pressed_home, (int, float)) and samples:
             times = [float(s["timestamp"]) for s in samples if isinstance(s.get("timestamp"), (int, float))]
@@ -1025,14 +1325,35 @@ run_audit() {
   merge_meta testCase "$test_case"
 }
 
+run_audio_pass() {
+  local strategy="$1" result_bundle="$2" attachments="$3" container="$4" pass_dir="$5"
+  local label="audio-${strategy}"
+  mkdir -p "$pass_dir"
+  if ! run_case "testAudioKilometerBoundaryWithMusic" "$result_bundle" "${phase_dir}/xcodebuild-${label}.log" "$strategy"; then
+    fail_step "xcodebuild-${label}" "test-without-building 退出非零（日志 ${phase_dir}/xcodebuild-${label}.log）"
+  fi
+  # 每遍独立 result bundle / 附件 / 容器副本 / 证据子目录。
+  export_attachments "$result_bundle" "$attachments" "$pass_dir" || true
+  copy_container "$container"
+}
+
 run_audio() {
   build_for_testing || return 1
-  local result_bundle="${phase_dir}/DeviceFlow-audio.xcresult"
-  if ! run_case "testAudioKilometerBoundaryWithMusic" "$result_bundle" "${phase_dir}/xcodebuild-audio.log"; then
-    fail_step "xcodebuild-audio" "test-without-building 退出非零（日志 ${phase_dir}/xcodebuild-audio.log）"
+  # 正例：按 --music-strategy（默认 runner）跑；负对照：固定 none。
+  run_audio_pass "$music_strategy" \
+    "${phase_dir}/DeviceFlow-audio-${music_strategy}.xcresult" \
+    "${phase_dir}/attachments-${music_strategy}" \
+    "${phase_dir}/container-${music_strategy}" \
+    "${evidence_dir}/audio-${music_strategy}" || true
+  if [ "$music_strategy" != "none" ]; then
+    run_audio_pass "none" \
+      "${phase_dir}/DeviceFlow-audio-none.xcresult" \
+      "${phase_dir}/attachments-none" \
+      "${phase_dir}/container-none" \
+      "${evidence_dir}/audio-none" || true
+  else
+    info "--music-strategy=none：只跑负例，缺正例将如实判 FAIL（不伪造可归因）"
   fi
-  export_attachments "$result_bundle" "${phase_dir}/attachments" || true
-  copy_container "${phase_dir}/container-after"
   xcrun devicectl device info apps --device "$device_udid" --bundle-id "$bundle_id" \
     --json-output "${phase_dir}/installed-app.json" >/dev/null 2>&1 || true
   merge_meta testCase "$test_case"
@@ -1102,6 +1423,7 @@ main() {
   info "阶段 ${phase}（${build_configuration} 构建）→ 证据目录 ${evidence_dir}"
   preflight || return 1
   collect_candidate_identity
+  merge_meta musicStrategy "$music_strategy" musicBundleId "$music_bundle_id"
   generate_project || return 1
   case "$phase" in
     audit) run_audit || true ;;

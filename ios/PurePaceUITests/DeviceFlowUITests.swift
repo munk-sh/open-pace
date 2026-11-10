@@ -3,8 +3,10 @@ import XCTest
 /// 真机取证用例集：由 `scripts/verify-ios-device-flow.sh` 按阶段驱动，零人工操作。
 ///
 /// - audit：Release 构建，只读观察首屏五个读数位 / 三 Tab / 详情导出入口，落盘截图与可及树。
-/// - audio：Debug 构建 + `-uiTestLocation` 确定性测试源，跨一次公里边界并起系统 Music 验证 duck 遥测。
-/// - background：两段式。阶段一开跑 → 起 Music → `press(.home)` 后立即结束；6 分钟等待放 Mac 侧；
+/// - audio：Debug 构建 + `-uiTestLocation` 确定性测试源，跨一次公里边界；音源由 `--music-strategy`
+///   决定（默认 `runner` = UITests runner 自播合成音，`app` = 起外部 App，`none` = 负对照无音源），
+///   验证 duck 遥测与 `isOtherAudioPlaying` 可归因。
+/// - background：两段式。阶段一开跑 → 起音源 → `press(.home)` 后立即结束；6 分钟等待放 Mac 侧；
 ///   阶段二 `activate()` 回前台完成结束保存、历史与导出。不在测试进程内 sleep 断言后台连续性。
 ///
 /// 硬约束：不调用锁屏/解锁/密码相关 API；不在 run 内要求人按任何步骤；不驱动模拟器。
@@ -14,7 +16,6 @@ final class DeviceFlowUITests: XCTestCase {
         "Change to Always Allow",
         "使用 App 期间允许", "允许一次", "始终允许", "允许改为始终允许"
     ]
-    private static let musicBundleIdentifier = "com.apple.MobileMusic"
 
     override func setUpWithError() throws {
         // 审计缺项要作为缺陷连同证据交回，不能让首个失败提前中断证据落盘；最终仍以断言收口。
@@ -148,6 +149,9 @@ final class DeviceFlowUITests: XCTestCase {
     // MARK: - 阶段 audio
 
     func testAudioKilometerBoundaryWithMusic() {
+        let environment = ProcessInfo.processInfo.environment
+        let resolution = MusicStrategy.from(environment: environment)
+
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
         app.launch()
@@ -161,17 +165,12 @@ final class DeviceFlowUITests: XCTestCase {
             "test": "testAudioKilometerBoundaryWithMusic",
             "generatedAt": Date().timeIntervalSince1970,
         ]
-
-        // 起系统 Music 并尽量确认在播；确认不了就如实记 false，不伪造「音乐在播」。
-        let music = XCUIApplication(bundleIdentifier: Self.musicBundleIdentifier)
-        music.launch()
-        let musicRunning = music.wait(for: .runningForeground, timeout: 20)
-            || music.wait(for: .runningBackground, timeout: 10)
-        let playing = musicRunning ? ensureMusicPlaying(music) : false
-        result["musicBundleIdentifier"] = Self.musicBundleIdentifier
-        result["musicRunning"] = musicRunning
-        result["musicPlayingConfirmed"] = playing
-        attachScreenshot(music, name: "audio-music")
+        // 起音源（runner 自播 / app 外启 / none 不产生音源）；证据先于任何语义结论落盘。
+        let (musicEvidence, runnerSource) = startMusicSource(environment: environment)
+        result.merge(musicEvidence) { _, new in new }
+        // 他路音频旁证：播报前 / 播报窗口 / 结束后各取一次快照（含取样时刻）。
+        result["otherAudioSnapshotSource"] = OtherAudioSnapshot.source
+        var otherAudioSnapshots: [[String: Any]] = [OtherAudioSnapshot.capture(label: "beforeRun")]
 
         app.activate()
         allowLocationIfNeeded()
@@ -181,11 +180,13 @@ final class DeviceFlowUITests: XCTestCase {
         )
 
         let startedAt = Date()
+        result["runStartedAt"] = startedAt.timeIntervalSince1970
         app.buttons["run.start"].tap()
         attachScreenshot(app, name: "audio-start")
 
         let crossed = waitUntil(timeout: 180) { self.distanceKilometers(distance.label) >= 1.0 }
         let crossSeconds = Date().timeIntervalSince(startedAt)
+        otherAudioSnapshots.append(OtherAudioSnapshot.capture(label: "announcementWindow"))
         attachScreenshot(app, name: "audio-km")
         result["kilometerBoundaryReached"] = crossed
         result["kilometerBoundarySeconds"] = crossSeconds
@@ -200,6 +201,7 @@ final class DeviceFlowUITests: XCTestCase {
         finish.tap()
         let saved = app.staticTexts["run.saved"].waitForExistence(timeout: 15)
         XCTAssertTrue(saved, "结束后缺少「已保存」反馈")
+        otherAudioSnapshots.append(OtherAudioSnapshot.capture(label: "afterFinish"))
         attachScreenshot(app, name: "audio-finish")
 
         let telemetry = app.staticTexts["run.telemetry"]
@@ -234,6 +236,18 @@ final class DeviceFlowUITests: XCTestCase {
                 }
             }
         }
+
+        // runner 播放器状态日志：结束前记录实测值，再停止播放；两遍（runner/none）都落这份字段。
+        if let source = runnerSource {
+            let finishEvidence = source.evidence()
+            result["currentTimeAtFinish"] = finishEvidence["currentTimeAtFinish"]
+            result["isPlayingAtFinish"] = finishEvidence["isPlayingAtFinish"]
+            result["playbackStartedAt"] = finishEvidence["playbackStartedAt"]
+            result["sessionSetActiveTrueCalled"] = finishEvidence["sessionSetActiveTrueCalled"]
+            source.stop()
+            result["playbackStoppedAt"] = source.playbackStoppedAt ?? NSNull()
+        }
+        result["otherAudioSnapshots"] = otherAudioSnapshots
         attachJSON(result, name: "audio-result.json")
 
         XCTAssertTrue(telemetryExists, "结束后缺少 DEBUG 门控的 run.telemetry 遥测摘要")
@@ -247,7 +261,39 @@ final class DeviceFlowUITests: XCTestCase {
                 "遥测缺少 isOtherAudioPlaying：\(telemetry.label)"
             )
         }
+
+        // 音源可归因（裁决 A）：runner 正例必须起播且早于跑次开始；none 负例不得创建播放器。
+        switch resolution.strategy {
+        case .runner:
+            XCTAssertEqual(result["playerStarted"] as? Bool, true, "runner 自播未起播（playerStarted）")
+            XCTAssertEqual(result["isPlayingAtStart"] as? Bool, true, "runner 播放器起播后不在播")
+            if let playbackStartedAt = result["playbackStartedAt"] as? Double {
+                XCTAssertLessThan(
+                    playbackStartedAt,
+                    startedAt.timeIntervalSince1970,
+                    "runner 起播时刻必须早于跑次开始时刻，否则不可归因"
+                )
+            } else {
+                XCTFail("runner 起播时刻（playbackStartedAt）缺失，无法归因")
+            }
+            XCTAssertGreaterThan(
+                (result["currentTimeAtFinish"] as? Double) ?? 0,
+                0,
+                "结束时 runner 播放器 currentTime 应为正"
+            )
+        case .none:
+            XCTAssertEqual(result["playerStarted"] as? Bool, false, "none 策略不得创建播放器")
+            XCTAssertEqual(result["isPlayingAtStart"] as? Bool, false, "none 策略不得在播")
+            XCTAssertEqual(result["hasPlayer"] as? Bool, false, "none 策略下 hasPlayer 必须为 false")
+        case .app:
+            XCTAssertEqual(
+                result["playerStarted"] as? Bool,
+                result["musicPlayingConfirmed"] as? Bool,
+                "app 策略须如实记录外部音源是否起播"
+            )
+        }
     }
+
 
     // MARK: - 阶段 background（阶段一：开跑 + 切后台）
 
@@ -259,11 +305,8 @@ final class DeviceFlowUITests: XCTestCase {
         let distance = app.staticTexts["run.distance"]
         XCTAssertTrue(distance.waitForExistence(timeout: 30), "跑步页缺少距离读数")
 
-        let music = XCUIApplication(bundleIdentifier: Self.musicBundleIdentifier)
-        music.launch()
-        let musicRunning = music.wait(for: .runningForeground, timeout: 20)
-            || music.wait(for: .runningBackground, timeout: 10)
-        let playing = musicRunning ? ensureMusicPlaying(music) : false
+        // 播放器必须活到 home 键之后，否则 AVAudioPlayer 立刻释放、后台期间无他路音频。
+        let (musicEvidence, backgroundSource) = startMusicSource(environment: ProcessInfo.processInfo.environment)
         app.activate()
         allowLocationIfNeeded()
 
@@ -281,16 +324,16 @@ final class DeviceFlowUITests: XCTestCase {
         // 唯一前后台动作：home 键。不调用任何锁屏/解锁 API。
         XCUIDevice.shared.press(.home)
 
-        let result: [String: Any] = [
+        var result: [String: Any] = [
             "test": "testBackgroundStartAndPressHome",
             "startedAt": startedAt,
             "pressedHomeAt": pressedHomeAt,
             "firstSampleObservedBeforeHome": firstSample,
-            "musicBundleIdentifier": Self.musicBundleIdentifier,
-            "musicRunning": musicRunning,
-            "musicPlayingConfirmed": playing,
         ]
+        result.merge(musicEvidence) { _, new in new }
+        result["isPlayingAtHome"] = backgroundSource?.isPlaying ?? false
         attachJSON(result, name: "background-stage1.json")
+        backgroundSource?.stop()
     }
 
     // MARK: - 阶段 background（阶段二：回前台结束保存 + 导出）
@@ -358,9 +401,59 @@ final class DeviceFlowUITests: XCTestCase {
         XCTAssertTrue(exported.label.hasSuffix(".gpx"), "完成态必须包含 .gpx 文件名")
     }
 
-    // MARK: - 音乐
+    // MARK: - 音源
 
-    /// 尽力让系统 Music 进入播放态：先找 Pause（已在播），再点 Play；找不到播放控件如实返回 false。
+    /// 按策略起音源并返回结构化证据 + runner 播放器（非 runner 策略为 nil）。
+    ///
+    /// - `runner`（默认）：UITests runner 自播合成循环音，对被测 App 就是他路音频，可归因；
+    /// - `app`：启动 `--music-bundle-id` 指定 App（缺省 `com.apple.Music`），起播失败如实记 false；
+    /// - `none`：不创建任何播放器（负对照）。
+    private func startMusicSource(
+        environment: [String: String]
+    ) -> ([String: Any], RunnerMusicSource?) {
+        let resolution = MusicStrategy.from(environment: environment)
+        let bundleIdentifier = MusicStrategy.bundleIdentifier(environment: environment)
+        var payload: [String: Any] = [
+            "musicStrategy": resolution.strategy.rawValue,
+            "musicStrategyRequested": resolution.rawValue ?? NSNull(),
+            "musicStrategyInvalidRequested": resolution.invalidRequested ?? NSNull(),
+            "musicBundleIdentifier": NSNull(),
+        ]
+        switch resolution.strategy {
+        case .runner:
+            let source = RunnerMusicSource()
+            let started = source.start()
+            payload.merge(source.evidence()) { _, new in new }
+            payload["musicPlayingConfirmed"] = started
+            payload["musicRunning"] = started
+            return (payload, source)
+        case .app:
+            let music = XCUIApplication(bundleIdentifier: bundleIdentifier)
+            music.launch()
+            let running = music.wait(for: .runningForeground, timeout: 20)
+                || music.wait(for: .runningBackground, timeout: 10)
+            let playing = running ? ensureMusicPlaying(music) : false
+            payload["musicBundleIdentifier"] = bundleIdentifier
+            payload["musicRunning"] = running
+            payload["musicPlayingConfirmed"] = playing
+            payload["playerStarted"] = playing
+            payload["isPlayingAtStart"] = playing
+            attachScreenshot(music, name: "audio-music")
+            return (payload, nil)
+        case .none:
+            payload["musicRunning"] = false
+            payload["musicPlayingConfirmed"] = false
+            payload["playerStarted"] = false
+            payload["isPlaying"] = false
+            payload["isPlayingAtStart"] = false
+            payload["isPlayingAtFinish"] = false
+            payload["hasPlayer"] = false
+            return (payload, nil)
+        }
+    }
+
+    /// `app` 策略下尽力让外部播放器进入播放态：先找 Pause（已在播），再点 Play；
+    /// 找不到播放控件如实返回 false。
     private func ensureMusicPlaying(_ music: XCUIApplication) -> Bool {
         if music.buttons["Pause"].exists || music.buttons["暂停"].exists {
             return true
