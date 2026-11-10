@@ -6,7 +6,7 @@
 
 - `scripts/lib/ios-budget.sh`（新，可 source 纯逻辑库）：`ios_now_epoch`（唯一墙钟取时入口，测试可重定义注入伪造时钟）、`ios_seconds_or_default`、`ios_attempt_budget`、`ios_leg_budget`、`ios_budget_short`、`ios_budget_message`、`run_with_watchdog`。刻意不加 `set -euo pipefail`、无主流程副作用；由 `scripts/test-ios.sh` 在使用点之前 source。
 - `scripts/test-ios.sh`：删除内联 `run_with_watchdog` 与 `waited=$((waited + N))` 轮询计数；锁等待（1200s）、quiescent 等待（600s）、warmup 确认（≤10s）三处循环全部改墙钟差额判定；引入 `attempt_started_at` / `attempt_budget` / `attempt_budget_remaining()`，腿预算 `min(单腿上界 600, attempt 剩余)`；单测腿 `124` 与 UI 腿 `124` 均改归口「承载层预算/硬超时」，不再写成产品断言失败。
-- `scripts/tests/test-ios-budget.sh`（新，249 行）：不依赖模拟器/Xcode/网络的确定性单测，用伪造时钟覆盖墙钟超时、非计数判定、退出码透传、预算算术与承载层口径文案。
+- `scripts/tests/test-ios-budget.sh`（249 行）：不依赖模拟器/Xcode/网络的确定性单测，用伪造时钟覆盖墙钟超时、非计数判定、退出码透传、预算算术与承载层口径文案。冻结时钟用例的「读次数下界」由测试侧 **确定性放行** 驱动（伪造时钟第 N 次取时 `touch` release 文件，子进程等待该文件后退出），不依赖子进程墙钟时长与机器速度。
 - `scripts/check-ios-scripts.sh`：追加「预算单测必须随 `lint-ios-scripts` 门执行」的正向/负向断言（沙箱注入 `waited=$((waited + 1))` 的违规样本必须被识别为失败）。门禁清单与门数（22）不动。
 - env 契约：`PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS`（默认 2700，与 45min 对齐）、`PUREPACE_IOS_RETRY_RESERVE_SECONDS`（默认 900）、`PUREPACE_IOS_UI_MIN_BUDGET_SECONDS`（默认 300）、`IOS_XCODEBUILD_TIMEOUT`（单腿上界，默认 600）、`IOS_WATCHDOG_POLL_SECONDS`（默认 1，仅轮询粒度）、`PUREPACE_IOS_STEP_STARTED_AT`（step 起始 epoch）；非法值一律回落默认。
 - 必须保留的原文特征串：`阶段 xcodebuild-test 硬超时`、`runner bootstrap 挂起`（`ios.yml` 的 `infra_pattern` 依赖它们触发一次承载层重试），并在同一路径追加承载层/预算口径说明。
@@ -14,7 +14,14 @@
 ## 验收
 
 - ac-watchdog-wall-clock-budget: `run_with_watchdog` 以墙钟差额判定超时（起点 `ios_now_epoch` 与每次轮询差额 ≥ 超时秒数），`sleep` 只作轮询粒度；伪造时钟每次前进 5s、预算 10s、子进程 `sleep 30` → ≤3 次轮询内返回 124。
-- ac-watchdog-not-iteration-counted: 时钟冻结、预算 5s、子进程真实运行约 0.3s（轮询次数 >5）→ 返回 0；`scripts/test-ios.sh` 与 `scripts/lib/**` 中不再出现以轮询计数参与预算判定的写法（`waited=$((waited` 式计数）。
+- ac-watchdog-not-iteration-counted: 时钟冻结、预算 5s、子进程被确定性放行后正常退出 → 返回 0；`scripts/test-ios.sh` 与 `scripts/lib/**` 中不再出现以轮询计数参与预算判定的写法（`waited=$((waited` 式计数）。
+- ac-reads-deterministic-lower-bound: 冻结时钟用例的读次数下界由固定常量 N（N ≥ 7，实现取 8）驱动且必然成立——`bash scripts/tests/test-ios-budget.sh` 每次运行该用例都 `[PASS]` 并读出 `reads >= N`，不存在「期望 >6」这类由子进程墙钟时长推导的下界失败分支。
+- ac-frozen-clock-no-false-timeout: 冻结时钟下子进程被放行后正常退出，用例断言 `rc=0` 通过（看门狗未返回 124，即冻结时钟未被误判超时）。
+- ac-assertions-not-weakened: 断言只增不删——不删除任何既有 `ac-*` 断言、不下调门限（读次数下界 N 严格大于原「>5 次轮询」意图）、不加 `retry` / `continue-on-error` / `|| true` / 延长超时。
+- ac-repeat-stable-20x: `bash scripts/tests/test-ios-budget.sh` 连续 20 次结果完全一致（每次 exit 0、断言项数与失败数 0、无 `[FAIL]`）；交付回执记录命令、次数与时刻。
+- ac-single-run-fast: 单次运行仍为纯 bash、无模拟器/Xcode/网络，耗时 <10s（不因等待 release 文件引入固定长睡）。
+- ac-lint-ios-scripts-green: `bash scripts/check-ios-scripts.sh` 退出 0，含沙箱反例自检——沙箱 `scripts/test-ios.sh` 追加 `waited=$((waited + 1))` 后预算单测仍必须失败。
+- ac-check-ios-scripts-sandbox-compat: 预算单测在 `check-ios-scripts.sh` 沙箱（只拷入 `scripts/test-ios.sh`、`scripts/lib/ios-budget.sh`、`scripts/tests/test-ios-budget.sh`）中仍正常并给出与仓库内一致结果；放行机制只依赖自身 `mktemp` 工作目录，不新增外部文件依赖。
 - ac-watchdog-passthrough-exit: 子进程以 65 退出时 `run_with_watchdog` 原样返回 65，真实产品/测试失败退出码不被改写。
 - ac-step-budget-strictly-less: attempt 预算 = step 预算 − 重试余量，严格小于 step 超时；默认 2700 − 900 = 1800s 且 1800 < 2700。
 - ac-retry-margin-determinable: 重试余量可判定且 ≥ `ios.yml` 起跑门槛 900s、≥ UI 最小阈值 300s；单测断言 reserve ≥ 900、reserve ≥ ui_min、`attempt_budget >= reserve`。
@@ -24,7 +31,7 @@
 - ac-env-overridable: `PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS` 与 `PUREPACE_IOS_RETRY_RESERVE_SECONDS` 均可覆盖，单测 step=3600 / reserve=1200 → attempt=2400；非数字回落默认。
 - ac-timeout-message-preserved: 超时路径保留 `……阶段 xcodebuild-test 硬超时……`、`……runner bootstrap 挂起……` 原文，并在同一路径追加承载层/预算口径说明。
 - ac-tests-runnable-deterministic: `bash scripts/tests/test-ios-budget.sh` 可独立运行、失败非零退出、不依赖模拟器/Xcode/网络、用伪造时钟保持确定性、单次 <10s，并被 `bash scripts/check-ios-scripts.sh`（`lint-ios-scripts` 门）调用以纳入本地 `code_gates`，且门禁清单不变。
-- ac-scope-freeze: `.github/workflows/ios.yml`（45min timeout、900s 重试门槛、`infra_pattern`）、`.munk/code-gates.json`（仍 22 门）、`ios/`、`shared/`、`android/` 零改动；无 skip / continue-on-error / allowed-failure / 删断言 / 删腿 / 新增门腿；两次 `xcodebuild test` 的 `-only-testing` 选择器与 `-skip-testing:PurePaceUITests/DeviceFlowUITests` 不变。
+- ac-scope-freeze: `.github/workflows/ios.yml`（45min timeout、900s 重试门槛、`infra_pattern`）、`.munk/code-gates.json`（仍 22 门）、`ios/`、`shared/`、`android/` 零改动；无 skip / continue-on-error / allowed-failure / 删断言 / 删腿 / 新增门腿；两次 `xcodebuild test` 的 `-only-testing` 选择器与 `-skip-testing:PurePaceUITests/DeviceFlowUITests` 不变。测试确定性修正只落在 `scripts/tests/test-ios-budget.sh`（必要时对 `scripts/lib/ios-budget.sh` 做不改判定语义的最小测试辅助）；产品 App 源码、`.github/workflows/**`、`scripts/verify-ios-*`、门禁定义零改动。
 - ac-unit-leg-unchanged: 本地 `bash scripts/test-ios.sh --unit-only` 仍真实执行 `-only-testing:PurePaceTests`，退出码语义（0/1/2/124）不变，且不出现伪造 `TEST SUCCEEDED` 行。
 
 ## 非目标
@@ -44,12 +51,13 @@
 - 静态门字面量不得削弱：`scripts/test-ios.sh` 仍含 `run_with_watchdog`、`IOS_XCODEBUILD_TIMEOUT` 且默认 `:-600`、`xcodebuild test`、`-scheme`、`ios/PurePace.xcodeproj`、`swift test --package-path ios/Core`、`blocked:`、`simctl bootstatus/install/privacy/launch/terminate`；顺序锚点 install < privacy < 单测 < UI；无 `simctl location`、无 `timeout <数字>`、不 echo 伪造 `BUILD/TEST SUCCEEDED`。
 - 远端 shell 为 macOS bash 3.2：变量展开一律 `${var}`，变量后紧跟中文/非 ASCII 字节时必须带花括号（`check-shell-expansion.sh` 守）；新增文件须带 `set -euo pipefail`、`--help` 约定，不得写入 `VERSION` 字面值。
 - 本地验证口径（收口证据，不跑远端）：`bash -n scripts/test-ios.sh scripts/lib/*.sh scripts/tests/test-ios-budget.sh`、`bash scripts/tests/test-ios-budget.sh`、`check-ios-scripts.sh` / `check-ios-workflow.sh` / `check-shell-expansion.sh` / `check-baseline.sh`、`bash scripts/test-ios.sh --unit-only`。
+- 单测确定性口径：伪造时钟状态落在 `${work_dir}/fake-clock` / `fake-reads` 文件（跨子 shell 生效）；新增 gated 语义——第 N 次取时 `touch` `${work_dir}/fake-release`，冻结时钟用例子进程改为 `while [ ! -f "<release>" ]; do sleep 0.01; done` 后退出。`run_with_watchdog` 每轮先取时再 sleep，释放后子进程退出、下一轮取时一次即退出循环，故 `reads >= N` 必然成立；冻结模式 elapsed 恒为 0 < 超时，故 `rc=0` 必然成立。禁止用「子进程真实睡一段时间」推导读次数下界（机器速度函数，CI runner 上会伪红）。
 - 与 `domains/ios-ci-stability` 的边界：该域仍是 iOS 测试链路稳定性的总契约（预热/锁/确定性定位源）；本域只承接「预算记账与看门狗」明细，两者冲突时以本域 AC 为准。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_3fc087442ebae47d（2026-11-10，pass）
-- 交付：新增 `scripts/lib/ios-budget.sh`（墙钟看门狗 + 预算算术 + 承载层口径文案）与 `scripts/tests/test-ios-budget.sh`（确定性单测）；`scripts/test-ios.sh` 改墙钟差额计时（删除 `waited=$((waited + N))`，锁/quiescent/warmup 三处一并收敛）、显式 attempt 预算（2700 − 900 = 1800s，重试 attempt 取 step 剩余不重复扣余量）、腿预算 `min(600, attempt 剩余)`、124 归口承载层；`scripts/check-ios-scripts.sh` 增加预算单测正反例自检。
-- 口径变更（推翻旧约束）：`ios-ci-stability` 的 `ac-budget-per-leg-independent`（腿各享一份独立 600s）与 `ac-ui-budget-below-min-fails`（失败行为逐字前缀 `UI 腿可用 `）作废，改由本域 `ac-leg-budget-bounded-by-attempt` / `ac-budget-exhausted-names-carrier` 定义（腿预算改为 `min(600, attempt 剩余)`，文案改为 `承载层预算不足：<scope> 可用 Xs < 阈值 Ys（来源：step 预算 2700s − 重试余量 900s）`）。根因：`sleep 1` 轮询计数在 runner 卡顿时系统性低估墙钟，一次性 attempt 可耗尽至 step 硬超时，`ios.yml` 的重试门槛因此结构性拿不到时间。
-- 验证：本 worktree `code_gates` 已通过（含 `lint-ios-scripts` 内的预算单测与其反例自检）；`bash scripts/test-ios.sh --unit-only` 本地实跑结论见本轮交付回执；CI 侧 run 结论仍由 guard 观测，未取到不写「CI 已通过」。
-- 零改动：`.github/workflows/ios.yml`、`.munk/code-gates.json`（22 门）、`ios/`、`shared/`、`android/`、`scripts/check-ios-workflow.sh`、业务源码与版本号。
+- workItemId: wi_intake_80055cf54243aa39（2026-11-10，pass）
+- 交付：消除 `scripts/tests/test-ios-budget.sh` 冻结时钟用例（`ac-watchdog-not-iteration-counted`）的伪红。伪造时钟新增 gated 语义——第 N 次取时（`frozen_release_after=8`）`touch` `${work_dir}/fake-release`，子进程由 `bash -c 'sleep 0.3'` 改为轮询等待该 release 文件后退出；断言由「`reads > 6`」改为「`reads >= N`」，成为与机器速度无关的确定性下界。断言只增不删（`rc=0`、「无 waited 计数」、超时特征串、退出码透传、预算算术全部保留），门限未下调（N=8 > 原 6 次轮询意图）。
+- 根因（推翻旧假设）：原下界由「子进程真实睡 0.3s ÷ 单轮实际开销」推导，是机器速度函数；CI runner 约 60ms/轮时只有 5 次读取，`lint-ios-scripts` 假失败后 test/build 全 skipped。被测属性本身未坏（同一 run 已 PASS 的 `rc=0` 与无 waited 计数即证明看门狗不按轮询计数判超时）。
+- 验证：本 worktree `code_gates` 已通过（含 `lint-ios-scripts` 内的预算单测与其沙箱反例自检——注入 `waited=$((waited + 1))` 仍 FAIL）；连跑 20 次一致性与耗时结论见本轮交付回执；CI 侧 run 由 guard 观测，未取到不写「CI 已通过」。
+- 零改动：`scripts/lib/ios-budget.sh`、`scripts/test-ios.sh`、`scripts/check-ios-scripts.sh`、`.github/workflows/**`、`.munk/code-gates.json`（22 门）、`ios/`、`shared/`、`android/`、业务源码与版本号。

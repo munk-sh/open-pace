@@ -25,9 +25,20 @@ bash scripts/verify-ios-device-flow.sh --phase=tcc
 | 模式 | 构建 | 做什么 | 主要证据 |
 |---|---|---|---|
 | `--phase=audit` | Release | 首屏审计：五个读数位 / 三 Tab / 详情导出入口 | `audit-*.png`、`audit-*.ax.json`、`audit-result.json`、`report.md` |
-| `--phase=audio` | Debug + `-uiTestLocation` | 跨一次公里边界 + 系统 Music 在播 + duck 遥测 | `audio-*.png`、`run-*.json`、`announcements-*.json`、`.gpx`、`sha256.txt` |
-| `--phase=background` | Release | 开跑 → 起 Music → `press(.home)` → Mac 侧等 5–6 分钟 → 回前台结束保存/历史/导出 | `background-*.png`、`run-*.json`、`announcements-*.json`、`active-run.jsonl`、`.gpx`、`sha256.txt` |
+| `--phase=audio` | Debug + `-uiTestLocation` | 跨一次公里边界 + 音源在播（默认 runner 自播合成音）+ duck 遥测；同用例再跑一遍 `--music-strategy=none` 负对照 | `audio-*.png`、`run-*.json`、`announcements-*.json`、`music-source.json`、`.gpx`、`sha256.txt` |
+| `--phase=background` | Release | 开跑 → 起音源 → `press(.home)` → Mac 侧等 5–6 分钟 → 回前台结束保存/历史/导出 | `background-*.png`、`run-*.json`、`announcements-*.json`、`active-run.jsonl`、`.gpx`、`sha256.txt` |
 | `--phase=tcc` | Debug（真实 CoreLocation） | TCC 授权：新装首启 → 首次弹窗 → Always 升级 → App 自报 `authorizedAlways` | `tcc-result.json`、`run-*.json`、`report.md` |
+
+音源由 `--music-strategy` 决定，默认 `runner`：
+
+| 取值 | 音源 | 说明 |
+|---|---|---|
+| `runner`（默认） | UITests runner 自播 `ios/PurePaceUITests/Fixtures/runner-music-loop.wav` | 无人操作、无需外部 App；对被测 App 即他路音频，`isOtherAudioPlaying` 可归因 |
+| `app` | `--music-bundle-id` 指定的 App（默认 `com.apple.Music`） | 需人工/设备已登录该 App，起播失败如实记 `false` |
+| `none` | 无音源（负对照） | `playerStarted == false`，duck 相关项记 `not-applicable`，不得记 pass |
+
+`--music-bundle-id <id>` 仅对 `app` 策略生效。合成音源由 `scripts/gen-ios-test-audio.sh` 幂等生成
+（纯 Python 标准库，无网络），产物 ≤ 200 KB 且入库。
 
 `tcc` 的链路、label 兜底表与失败判读见 `docs/device-tcc-automation.md`；
 该套件不进默认模拟器 UI 腿（`scripts/test-ios.sh` 带 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`）。

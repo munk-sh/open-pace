@@ -29,6 +29,7 @@
 		3CC82733F7846248163E5701 /* ReleaseDeterministicLocationSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFB59E533908C4680DA47E4 /* ReleaseDeterministicLocationSourceTests.swift */; };
 		3FB06955CBE75261637CCAD5 /* HarnessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8BBE0CAF511BF62F9D0A7E9 /* HarnessRunner.swift */; };
 		4285B22F8606CCAF879A4F88 /* AudioSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */; };
+		45D64CC404E4D430191C5343 /* MusicSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C48DD31CEE3DDD5F0C134AC /* MusicSource.swift */; };
 		46DF9C233E17672F3A124131 /* HarnessRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */; };
 		46E6606704AD0BE86A772328 /* AnnouncementDeactivationDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 916F906CCF0A7E95EECEB129 /* AnnouncementDeactivationDiagnostics.swift */; };
 		47D8E9D40C1B127FE9E2E985 /* HarnessStreamParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8567782533C16822A84A70 /* HarnessStreamParser.swift */; };
@@ -52,8 +53,10 @@
 		A3E3FC4521506FF24097BA38 /* RunExportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06CDF5AE45E761D19679CF6 /* RunExportState.swift */; };
 		AB63DB59C7CAF4EF2DB33284 /* RunFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */; };
 		B06E7E8197B2C9E2C264CF6C /* HarnessStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8CAD5BD310B0E3D77E09B1 /* HarnessStatus.swift */; };
+		C15F013DC7436FAD522B9DA6 /* runner-music-loop.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8CFAE6DAFC5AC5D675321292 /* runner-music-loop.wav */; };
 		CBC9DA325A63516DBA96DFCE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C6747A6B1939AD682A84E9 /* SettingsView.swift */; };
 		D507D14D063F008CE5AA1EFB /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = FE15D17AB4D2BE7110E8E8E7 /* PurePaceRunCore */; };
+		DB0261EEB057D34D5074381C /* MusicSourceSelfCheckUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C2885657CC029A9ED36BD2 /* MusicSourceSelfCheckUITests.swift */; };
 		DE6A30E5F3E19B3F392DFB0D /* RunExportStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443E2D1C92BE7DC4628598B6 /* RunExportStateTests.swift */; };
 		E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */; };
 		E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F52CE6745B637780DCF9BB /* RunLocationSource.swift */; };
@@ -86,6 +89,7 @@
 		12287FD1ADD03B7D645179B1 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		198070A7688997E9F2F8C9FD /* PurePaceUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PurePaceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		213E0734F10F057EC5D70560 /* PurePace.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PurePace.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		26C2885657CC029A9ED36BD2 /* MusicSourceSelfCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSourceSelfCheckUITests.swift; sourceTree = "<group>"; };
 		2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRootView.swift; sourceTree = "<group>"; };
 		2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementSpeaker.swift; sourceTree = "<group>"; };
 		37A1E395FE22C96DAE79BEC5 /* TCCAuthorizationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCCAuthorizationUITests.swift; sourceTree = "<group>"; };
@@ -119,9 +123,11 @@
 		83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundModesPlistTests.swift; sourceTree = "<group>"; };
 		84F52CE6745B637780DCF9BB /* RunLocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLocationSource.swift; sourceTree = "<group>"; };
 		8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFormatting.swift; sourceTree = "<group>"; };
+		8CFAE6DAFC5AC5D675321292 /* runner-music-loop.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "runner-music-loop.wav"; sourceTree = "<group>"; };
 		90C6747A6B1939AD682A84E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		916F906CCF0A7E95EECEB129 /* AnnouncementDeactivationDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementDeactivationDiagnostics.swift; sourceTree = "<group>"; };
 		946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailContentTests.swift; sourceTree = "<group>"; };
+		9C48DD31CEE3DDD5F0C134AC /* MusicSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicSource.swift; sourceTree = "<group>"; };
 		9FFB59E533908C4680DA47E4 /* ReleaseDeterministicLocationSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseDeterministicLocationSourceTests.swift; sourceTree = "<group>"; };
 		A8BBE0CAF511BF62F9D0A7E9 /* HarnessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRunner.swift; sourceTree = "<group>"; };
 		AE8CAD5BD310B0E3D77E09B1 /* HarnessStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessStatus.swift; sourceTree = "<group>"; };
@@ -215,6 +221,14 @@
 			path = PurePace;
 			sourceTree = "<group>";
 		};
+		4FF1F926E77F7F6AE183F6C4 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				8CFAE6DAFC5AC5D675321292 /* runner-music-loop.wav */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
 		5EDA6B8B6F88656C4FFA8A0B /* Location */ = {
 			isa = PBXGroup;
 			children = (
@@ -306,7 +320,10 @@
 		BE117B21B1CFF0C0193AE588 /* PurePaceUITests */ = {
 			isa = PBXGroup;
 			children = (
+				4FF1F926E77F7F6AE183F6C4 /* Fixtures */,
 				42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */,
+				9C48DD31CEE3DDD5F0C134AC /* MusicSource.swift */,
+				26C2885657CC029A9ED36BD2 /* MusicSourceSelfCheckUITests.swift */,
 				BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */,
 				37A1E395FE22C96DAE79BEC5 /* TCCAuthorizationUITests.swift */,
 			);
@@ -349,6 +366,7 @@
 			buildConfigurationList = A2A9EE82A50C3B870ECA3527 /* Build configuration list for PBXNativeTarget "PurePaceUITests" */;
 			buildPhases = (
 				38D611A3E3D9BC3F25ED591E /* Sources */,
+				A23812D16F098179BDAFDCD7 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -419,12 +437,25 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		A23812D16F098179BDAFDCD7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C15F013DC7436FAD522B9DA6 /* runner-music-loop.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		38D611A3E3D9BC3F25ED591E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				494BF388C35D3915FF3ADCE1 /* DeviceFlowUITests.swift in Sources */,
+				45D64CC404E4D430191C5343 /* MusicSource.swift in Sources */,
+				DB0261EEB057D34D5074381C /* MusicSourceSelfCheckUITests.swift in Sources */,
 				AB63DB59C7CAF4EF2DB33284 /* RunFlowUITests.swift in Sources */,
 				32144F1DFB9436B57B5488AA /* TCCAuthorizationUITests.swift in Sources */,
 			);
@@ -513,6 +544,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = PurePaceUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -545,6 +577,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = PurePaceUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

@@ -1,14 +1,14 @@
 # Domain: ios-device-verification
 
-PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚本 + 对应 XCUITest」把核心闭环（开跑 → 后台连续记录 → 跨公里播报 + 音乐 duck → 结束保存 → 历史 → 导出 GPX）与候选包首屏审计从人手走查变成零人工、可重复、带构建身份标注的机器证据。定位与审计不驱动锁屏/解锁，不承载单测/集成/模拟器层语义，不改业务源码。
+PurePace iOS 真机自动化取证域：用「断言清单 + 一条多阶段脚本 + 对应 XCUITest」把核心闭环（开跑 → 后台连续记录 → 跨公里播报 + 音乐 duck → 结束保存 → 历史 → 导出 GPX）与候选包首屏审计从人手走查变成零人工、可重复、带构建身份标注的机器证据。定位与审计不驱动锁屏/解锁，不承载单测/集成/模拟器层语义，不改业务源码。
 
 ## 范围
 
 - `docs/device-assertion-matrix.md`（第一交付）：逐项一行、四列（断言项 / 判点 / 证据来源类型与构建身份 / 具体取值路径）；证据来源只取「Debug 可断言」「Release 候选包可断言」「只能人耳」三档。
-- `scripts/verify-ios-device-flow.sh`：一条脚本三模式 `--phase=audit|audio|background`，`#!/usr/bin/env bash`、`set -euo pipefail`、以 `BASH_SOURCE` 推导仓库根，头注释写明「需真机连接」与目标 UDID `00008101-001C701E0A68001E`；零人工、不读 stdin、不弹交互。
+- `scripts/verify-ios-device-flow.sh`：一条脚本四模式 `--phase=audit|audio|background|tcc` 加 `--list`，`#!/usr/bin/env bash`、`set -euo pipefail`、以 `BASH_SOURCE` 推导仓库根，头注释写明「需真机连接」与目标 UDID `00008101-001C701E0A68001E`；零人工、不读 stdin、不弹交互。
 - `ios/PurePaceUITests/DeviceFlowUITests.swift`：audit / audio / background 三组用例，经 XCTest attachment + `xcresulttool` 导出截图与可及树；后台连续性由 Mac 侧等待 + `devicectl` 只读读容器，不在测试进程内 `sleep` 断言。
 - 证据落盘 `artifacts/device-audit/<UTC 时间戳>/`：`report.md`、`*.png`、`*.ax.json`、`run-*.json`、`announcements-*.json`、`*.gpx`、`sha256.txt`；中间产物只进 `.build/device-flow/`。
-- `docs/device-flow-usage.md`：脚本用法、三模式、构建配置、证据路径、`pending: 待人现场（needs-you 单点）` 清单。
+- `docs/device-flow-usage.md`：脚本用法、四模式、构建配置、证据路径、`pending: 待人现场（needs-you 单点）` 清单。
 - 构建身份默认分层：`audit` / `background` 用 Release，`audio` 用 Debug（`-uiTestLocation` 确定性源仅 `#if DEBUG` 可用）。
 - `ios/PurePace/Location/ReleaseDeterministicLocationSource.swift`：Release 可用的显式 launch-arg 确定性定位源，实现既有 `RunLocationProviding` 契约，**不得**包在 `#if DEBUG` 内，不 import CoreLocation/AVFoundation、不读写磁盘、不请求授权、不做播报；唯一场景 `km-crossing`（固定基准坐标、经度不变、纬度每 1.0 s 推进 20 m，约 50 个样本跨 1 km）；`sampleSource = .simulated`、`authorization = .authorizedWhenInUse`、`allowsBackgroundLocationUpdates = false`、`pausesLocationUpdatesAutomatically = false`；时钟/生成器 seam 可注入，单测无需 `sleep`。
 - `ios/PurePace/Location/RunLocationSourceSelection.swift`：纯参数选择逻辑（Foundation + PurePaceRunCore，无 IO），`@MainActor static func select(arguments:makeReal:makeDeterministic:)`；仅当显式出现 `-releaseDeterministicLocation <scenario>` 时返回确定性源，缺值 / 取值以 `-` 开头 / 场景未知一律 fail-closed 回真实 `RunLocationSource()` 且确定性工厂调用 0 次。
@@ -20,6 +20,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - `scripts/verify-ios-device-flow.sh`：`--list` 早退（preflight 之前，无真机也可列出阶段/用例）；新增 `tcc` 阶段（Debug + 真实 CoreLocation，不传 `-uiTestLocation` / `-releaseDeterministicLocation`），报告与 meta 记 `testSuite`。
 - `scripts/test-ios.sh`：默认模拟器 UI 腿追加 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`，usage 同步；既有 600s 预算与三件套参数不变。
 - `docs/device-tcc-automation.md`：TCC 链路、label 兜底表、失败判读、与 `scripts/device-*.sh` 的调用关系。
+- 音频 duck 自证（UITests 自带合成音源、`--music-strategy=runner|app|none` 默认 `runner`、runner/none 正负对照、`duckRevoked` / `sessionDeactivated` 只做结构性观测）拆分到子域 `ios-audio-verification`，本域只保留 `--phase=audio` 的形状与证据边界。
 
 ## 验收
 
@@ -85,7 +86,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 ### `--phase=audio`
 
 - ac-audio-single-run-bounded: 单次真机无人操作跑完，跑动 60–90 秒，跨恰好一次公里边界；无固定 `sleep` 作成功判据，等待均为有界 `waitForExistence`。
-- ac-audio-music-and-announcement: 运行中启动系统 Music 并确认在播；`telemetry.announcements[]` 至少 1 条 km 触发（`trigger` 为公里完成、`splitIndex == 1`），含音频会话 category/mode/options、duck 应用与恢复、`isOtherAudioPlaying` 取值。
+- ac-audio-music-and-announcement: 运行中由 **runner 自播音源**（`--music-strategy=runner`，默认）提供他路音频并确认在播（系统 Music 不再作为默认路径，详见子域 `ios-audio-verification`）；`--phase=audio` 须同时跑 `--music-strategy=none` 负对照；`telemetry.announcements[]` 至少 1 条 km 触发（`trigger` 为公里完成、`splitIndex == 1`），含音频会话 category/mode/options、duck 应用与恢复、`isOtherAudioPlaying` 取值。
 - ac-audio-artifacts: 截图序列（起跑 / km 边界 / 结束）、跑次 JSON、`announcements-*.json` 抽取均落盘；任一项缺失即 FAIL 并列证据。
 
 ### `--phase=background`
@@ -126,6 +127,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - 不宣称阶段 2/3「真机已验证」；不改 `code_gates`、`.github/workflows`、CI 触发或发布流程。
 - 不写「真机已验证公里播报」：确定性源只提供「仅设备验证场」的机器证据，样本 `simulated` 不计入真实 CoreLocation 判据；真实移动结论仍只能人耳。
 - 不写桌面端自研驱动（CDP / 注入 JS / 自拼截屏）；不装 mobilecli agent，不依赖 `mobile_*`；不引入第三方运行时依赖。
+- 本项的 `scripts/verify-ios-device-flow.sh` 保持原样；可复用的单步幂等底座（`scripts/device-run.sh`、9 phase、`artifacts/device-run/<candidateKey>/`）归 `ios-device-run` 域，后续 run 才改用它。
 - 不做截图视觉回归、不提交模拟器结论、不改 Android 侧；脚本与清单未就绪前不排人、不约窗口。
 - TCC 路径不复活、不改写任何 BMP/逐行像素测蓝字或坐标硬编码实现（像素探测路径永久排除）；不为暴露授权状态新增 App launch flag；不在本项起真机设备场或跑正式验收窗口；不改 `.github/workflows/**`；不承诺修好特定 iOS 版本的系统弹窗文案差异，只提供 label 兜底与可判读失败。
 
