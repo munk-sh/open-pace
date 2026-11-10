@@ -73,14 +73,16 @@
 
 | 断言项 | 判点（通过条件） | 证据来源类型与构建身份 | 具体取值路径 |
 |---|---|---|---|
-| 公里播报 + 音乐 duck（Release 候选包） | **Debug 可断言 + Release 只能人耳**：Debug UI-test 构建下可由遥测证明；Release 候选包上取不到机器证据，只能人耳判定 | Debug 可断言 + Release 只能人耳 / (a) Debug UI-test 构建可断言；(b) Release 候选包（sha256 `7258…` / commit `8db1a167`）只能人耳 | Debug：`telemetry.announcements[].splitIndex` / `.categoryOptions` / `.duckRevoked`；Release：无机器路径，原因见下 |
+| 公里播报 + 音乐 duck（Release 候选包） | **Debug 可断言 + Release 机器证据来自显式 launch-arg 确定性源（非真实移动）**：Debug UI-test 构建由遥测证明同一条公里契约；Release 候选包用 `-releaseDeterministicLocation km-crossing` 产出同一份 `telemetry.announcements[]`；真实 CoreLocation 只能人耳 | Debug 可断言 + Release 候选包可断言（确定性源，非真实移动）/ (a) Debug UI-test 构建可断言；(b) Release 候选包（`7258…` / commit `8db1a167` 及更早无确定性源；本项起的候选包见 `artifacts/candidates/Release-candidate-*.txt`）机器证据来自显式 launch-arg 确定性源，真实 CoreLocation 仍只能人耳 | Debug：`telemetry.announcements[].splitIndex` / `.categoryOptions` / `.duckRevoked`；Release：同一路径下的 `simulated` 样本 |
+| Release 确定性源门控 | **默认关 + 仅设备验证场 + 不计入真实 CoreLocation 判据**：仅显式 `-releaseDeterministicLocation km-crossing` 时构造确定性源；缺值、取值以 `-` 开头、场景未知一律 fail-closed 回真实源且构造次数 0；样本 `sampleSource=simulated`，真实 CoreLocation 判据不受影响 | 本地代码断言 + 结构门 / (b) Release 候选包（本项起） | `ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift` 的默认路径/flag 路径/公里边界用例；`scripts/check-ios-shell.sh` 的 `ac-release-deterministic-source` 断言块 |
 
-- 原因：`-uiTestLocation` 被 `#if DEBUG` 关闭，Release 无法注入确定性源，公里边界只能靠真实移动；
-  无人静止场无法保证跨公里，故 Release 候选包上「公里播报 + 音乐 duck」取不到机器证据。
-- 对外文案只准写「Debug 构建 + 遥测验证」，禁止写「真机已验证公里播报」。
-- 评估结论与影响面（另立项实施，本项不动业务源码）：把确定性源改为显式 launch-arg 门控进 Release 后，
-  该能力会编译进 Release 包（包体略增），并引入被误触/被外部拉起进入测试定位模式的风险；需产品决策与开关白名单，
-  故本项只记录结论与影响面，不实施。
+- 原因：真实 CoreLocation 在无人静止场无法保证跨公里，真实定位的公里播报仍只能人耳；
+  Release 候选包的机器证据来自显式 launch-arg 确定性源（`-releaseDeterministicLocation km-crossing`，
+  默认关），样本标记 `simulated`，**不计入真实 CoreLocation 判据**。
+- 对外文案只准写「Debug 构建 + 遥测验证 / Release 确定性源机器证据」，禁止写「真机已验证公里播报」
+  或「候选包已验证真实定位」。
+- 影响面：确定性源随 Release 编译进包（包体略增），只有显式 launch-arg 才被构造，
+  缺值/未知场景 fail-closed 回真实源，正常用户不可达。
 
 ## 批次 C：只能人耳（最后一批，总数 ≤ 2）
 

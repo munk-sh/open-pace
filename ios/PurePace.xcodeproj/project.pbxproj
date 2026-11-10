@@ -21,7 +21,9 @@
 		2F999FC994DB1D62B63532D3 /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */; };
 		340C65408F183E5E79EF76E1 /* AnnouncementSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD80A9FA63B42CCADCC792B /* AnnouncementSettingsStoreTests.swift */; };
 		358FEAA8B7FA910C49D6A2F6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4022B4F31A31C90183669928 /* ContentView.swift */; };
+		3ACB8F16CA433E7533BC4BB6 /* ReleaseDeterministicLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3710BF0825B5A67073D5AE9 /* ReleaseDeterministicLocationSource.swift */; };
 		3C870F657252C7D7AAABEC3D /* RunStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6979D59B297BF779E9FB8091 /* RunStorage.swift */; };
+		3CC82733F7846248163E5701 /* ReleaseDeterministicLocationSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFB59E533908C4680DA47E4 /* ReleaseDeterministicLocationSourceTests.swift */; };
 		3FB06955CBE75261637CCAD5 /* HarnessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8BBE0CAF511BF62F9D0A7E9 /* HarnessRunner.swift */; };
 		4285B22F8606CCAF879A4F88 /* AudioSessionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */; };
 		46DF9C233E17672F3A124131 /* HarnessRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */; };
@@ -36,6 +38,7 @@
 		6795C85FFD209099FDB61BB8 /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF175C374D94F838558C47F6 /* RunDetailView.swift */; };
 		6AEB23A67EF320D276F11DE4 /* RunTestLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75E899C8A1A37EBB3FBDBD /* RunTestLocationSource.swift */; };
 		705CBAEC44F719BA7B7DA310 /* AnnouncementSpeaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C859108E4070A5FAE4A7B14 /* AnnouncementSpeaker.swift */; };
+		8294B57809845DD4579E5C39 /* RunLocationSourceSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79963B1AC94038D85EC8DC72 /* RunLocationSourceSelection.swift */; };
 		855E0CE18DD960D7553B6BD7 /* RunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C128654102AD78C2EBB9A29 /* RunView.swift */; };
 		8AB6B76FED288FDB0A97F3D2 /* BackgroundModesPlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */; };
 		8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */; };
@@ -99,6 +102,7 @@
 		6979D59B297BF779E9FB8091 /* RunStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunStorage.swift; sourceTree = "<group>"; };
 		749E8A7A834548B0E911B3FA /* HarnessArgumentAndStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessArgumentAndStatusTests.swift; sourceTree = "<group>"; };
 		78DAD5BA8D4A54FFE4D1EA22 /* RunTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunTelemetry.swift; sourceTree = "<group>"; };
+		79963B1AC94038D85EC8DC72 /* RunLocationSourceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLocationSourceSelection.swift; sourceTree = "<group>"; };
 		7D9351687C7F6A09A79DFD07 /* AnnouncementSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementSettingsStore.swift; sourceTree = "<group>"; };
 		803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessDirectRunTests.swift; sourceTree = "<group>"; };
 		83DB17CB862BCE45E73BF238 /* BackgroundModesPlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundModesPlistTests.swift; sourceTree = "<group>"; };
@@ -106,8 +110,10 @@
 		8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFormatting.swift; sourceTree = "<group>"; };
 		90C6747A6B1939AD682A84E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailContentTests.swift; sourceTree = "<group>"; };
+		9FFB59E533908C4680DA47E4 /* ReleaseDeterministicLocationSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseDeterministicLocationSourceTests.swift; sourceTree = "<group>"; };
 		A8BBE0CAF511BF62F9D0A7E9 /* HarnessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessRunner.swift; sourceTree = "<group>"; };
 		AE8CAD5BD310B0E3D77E09B1 /* HarnessStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessStatus.swift; sourceTree = "<group>"; };
+		B3710BF0825B5A67073D5AE9 /* ReleaseDeterministicLocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseDeterministicLocationSource.swift; sourceTree = "<group>"; };
 		B7A75A903B92F745A7E76CD1 /* HarnessArguments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessArguments.swift; sourceTree = "<group>"; };
 		BC6F10201A25FFA8ACCAB5A7 /* RunFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFlowUITests.swift; sourceTree = "<group>"; };
 		C06CDF5AE45E761D19679CF6 /* RunExportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunExportState.swift; sourceTree = "<group>"; };
@@ -199,7 +205,9 @@
 		5EDA6B8B6F88656C4FFA8A0B /* Location */ = {
 			isa = PBXGroup;
 			children = (
+				B3710BF0825B5A67073D5AE9 /* ReleaseDeterministicLocationSource.swift */,
 				84F52CE6745B637780DCF9BB /* RunLocationSource.swift */,
+				79963B1AC94038D85EC8DC72 /* RunLocationSourceSelection.swift */,
 				3A75E899C8A1A37EBB3FBDBD /* RunTestLocationSource.swift */,
 				3CFF86B1F35B589683054194 /* SystemAuthorizationProbe.swift */,
 			);
@@ -255,6 +263,7 @@
 				4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */,
 				48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */,
 				0C63B74113003C1F66A18A9B /* HarnessTestSupport.swift */,
+				9FFB59E533908C4680DA47E4 /* ReleaseDeterministicLocationSourceTests.swift */,
 				946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */,
 				443E2D1C92BE7DC4628598B6 /* RunExportStateTests.swift */,
 				657A96566570892DD608DC14 /* RunFormattingTests.swift */,
@@ -415,6 +424,7 @@
 				E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */,
 				4FF2BFB3A4B2DD2F23F05E8C /* HarnessResumeTests.swift in Sources */,
 				0F0A6511EC0967A95F98F0B7 /* HarnessTestSupport.swift in Sources */,
+				3CC82733F7846248163E5701 /* ReleaseDeterministicLocationSourceTests.swift in Sources */,
 				A2A403B86105C64D10718B6E /* RunDetailContentTests.swift in Sources */,
 				DE6A30E5F3E19B3F392DFB0D /* RunExportStateTests.swift in Sources */,
 				EBF83618B15A8A29636BC004 /* RunFormattingTests.swift in Sources */,
@@ -442,11 +452,13 @@
 				47D8E9D40C1B127FE9E2E985 /* HarnessStreamParser.swift in Sources */,
 				9D3E951B8CB63F021BD31C89 /* HistoryView.swift in Sources */,
 				15EDC33B1E24E97A4957B062 /* PurePaceApp.swift in Sources */,
+				3ACB8F16CA433E7533BC4BB6 /* ReleaseDeterministicLocationSource.swift in Sources */,
 				FB437BCB0F7B5AC7FD5183A8 /* RunDetailContent.swift in Sources */,
 				6795C85FFD209099FDB61BB8 /* RunDetailView.swift in Sources */,
 				A3E3FC4521506FF24097BA38 /* RunExportState.swift in Sources */,
 				8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */,
 				E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */,
+				8294B57809845DD4579E5C39 /* RunLocationSourceSelection.swift in Sources */,
 				15E12F1120D7F04C367B521C /* RunSessionViewModel.swift in Sources */,
 				3C870F657252C7D7AAABEC3D /* RunStorage.swift in Sources */,
 				21D52FBE4C0241DA94413CE2 /* RunTelemetry.swift in Sources */,

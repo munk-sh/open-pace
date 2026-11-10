@@ -872,6 +872,185 @@ ui_source_selftest "ac-ui-assertions-intact" drop_assertions
 ui_source_selftest "ac-ui-test-count-intact" drop_ui_case
 ui_source_selftest "ac-ui-export-case-intact" drop_export_ui_case
 
+# ------------------------------------------------ Release 确定性源（launch-arg 门控，默认关）
+# 基础 Info.plist 只承载 UIBackgroundModes = [location, audio]，改动须同步本基线。
+INFO_PLIST_SHA256="2b92134b1ab0dfd91b82bda01027df147a2233036b13ed21194fb39eda2642f6"
+
+release_deterministic_problems() {
+  local root="$1" out="" usage_keys="" expected_usage="" modes="" plist_sha=""
+  local flag='-releaseDeterministicLocation'
+  local release_source="$root/ios/PurePace/Location/ReleaseDeterministicLocationSource.swift"
+  local selection="$root/ios/PurePace/Location/RunLocationSourceSelection.swift"
+  local content="$root/ios/PurePace/ContentView.swift"
+  local run_source="$root/ios/PurePace/Location/RunLocationSource.swift"
+  local spec="$root/ios/project.yml"
+  local plist="$root/ios/PurePace/Info.plist"
+  local tests="$root/ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift"
+  local app_dir="$root/ios/PurePace"
+  local ref_file=""
+
+  if [ ! -f "$release_source" ]; then
+    out="$out 缺少 $release_source;"
+  else
+    grep -Fq 'RunLocationProviding' "$release_source" \
+      || out="$out 确定性源未实现 RunLocationProviding;"
+    # Release 候选包必须能编译到该类型，禁止整体退回 #if DEBUG。
+    if grep -Fq -- '#if DEBUG' "$release_source"; then
+      out="$out 确定性源被 #if DEBUG 关掉（Release 不可用）;"
+    fi
+    if grep -Eq '^import (CoreLocation|AVFoundation)' "$release_source"; then
+      out="$out 确定性源 import 了 CoreLocation/AVFoundation;"
+    fi
+    if grep -Eq 'CLLocationManager|startUpdatingLocation|requestWhenInUseAuthorization|requestAlwaysAuthorization' "$release_source"; then
+      out="$out 确定性源触碰真实授权/采集 API;"
+    fi
+    grep -Fq 'km-crossing' "$release_source" || out="$out 确定性源缺少 km-crossing 场景;"
+    grep -Fq 'sampleSource: RunSampleSource { .simulated }' "$release_source" \
+      || out="$out 确定性源未如实标记 simulated;"
+    grep -Fq 'allowsBackgroundLocationUpdates: Bool { false }' "$release_source" \
+      || out="$out 确定性源伪造了后台定位能力;"
+    grep -Fq 'pausesLocationUpdatesAutomatically: Bool { false }' "$release_source" \
+      || out="$out 确定性源伪造了自动暂停能力;"
+  fi
+
+  if [ ! -f "$selection" ]; then
+    out="$out 缺少 $selection;"
+  else
+    if grep -Fq -- '#if DEBUG' "$selection"; then
+      out="$out 选择逻辑依赖 #if DEBUG（Release 不可用）;"
+    fi
+    # 默认分支（无 flag/非法 flag）必须构造真实源且不打开调试遥测。
+    grep -Fq 'return Selection(source: makeReal(), telemetryDebugEnabled: false)' "$selection" \
+      || out="$out 选择器默认分支不再构造真实源;"
+    grep -Fq 'return Selection(source: makeDeterministic(scenario), telemetryDebugEnabled: true)' "$selection" \
+      || out="$out 选择器 flag 分支不再构造确定性源;"
+  fi
+
+  if [ ! -f "$content" ]; then
+    out="$out 缺少 $content;"
+  else
+    grep -Fq 'RunLocationSourceSelection.select' "$content" \
+      || out="$out ContentView 未接定位源选择器;"
+    grep -Fq 'RunLocationSource()' "$content" \
+      || out="$out ContentView 默认闭包未构造真实定位源;"
+    grep -Fq 'RunTestLocationSource()' "$content" \
+      || out="$out ContentView 删除了既有 Debug UI 用例定位源;"
+  fi
+
+  # 普通用户路径无注入入口：确定性源只许出现在 ContentView 与两个定位层文件。
+  while IFS= read -r ref_file; do
+    [ -z "$ref_file" ] && continue
+    case "$ref_file" in
+      "$app_dir/ContentView.swift"|"$release_source"|"$selection") ;;
+      *) out="$out 普通用户路径引用了确定性源: ${ref_file#"$root"/};" ;;
+    esac
+  done <<< "$(grep -rlF --include='*.swift' 'ReleaseDeterministicLocationSource' "$app_dir" 2>/dev/null || true)"
+
+  # flag 字符串只许留在定位层（确定性源 + 选择器）与 ContentView 入口，不得泄漏到 UI/Run/Settings。
+  while IFS= read -r ref_file; do
+    [ -z "$ref_file" ] && continue
+    case "$ref_file" in
+      "$release_source"|"$selection"|"$app_dir/ContentView.swift") ;;
+      *) out="$out flag 泄漏到非定位层: ${ref_file#"$root"/};" ;;
+    esac
+  done <<< "$(grep -rlF --include='*.swift' -- "$flag" "$app_dir" 2>/dev/null || true)"
+
+  if [ -d "$root/ios/PurePaceUITests" ] \
+    && grep -rFq -- "$flag" "$root/ios/PurePaceUITests" 2>/dev/null; then
+    out="$out UI 测试出现 $flag（Debug 用例语义被改）;"
+  fi
+
+  if [ -f "$run_source" ] && grep -Fq -- "$flag" "$run_source"; then
+    out="$out 真实定位源出现确定性 flag;"
+  fi
+
+  if [ ! -f "$tests" ]; then
+    out="$out 缺少 $tests;"
+  else
+    grep -Fq '@testable import PurePace' "$tests" || out="$out 确定性源单测未导入 App 模块;"
+    grep -Fq 'XCTAssert' "$tests" || out="$out 确定性源单测无断言;"
+    if grep -Eq '(Thread\.sleep|sleep\()' "$tests"; then
+      out="$out 确定性源单测使用固定 sleep;"
+    fi
+  fi
+
+  if [ ! -f "$spec" ]; then
+    out="$out 缺少 $spec;"
+  else
+    # 无 flag 时不得引入额外权限声明：定位用途说明键恰为既有两条。
+    usage_keys="$(grep -oE 'INFOPLIST_KEY_NS[A-Za-z]*UsageDescription' "$spec" | sort -u || true)"
+    expected_usage="$(printf '%s\n' \
+      INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription \
+      INFOPLIST_KEY_NSLocationWhenInUseUsageDescription | sort)"
+    [ "$usage_keys" = "$expected_usage" ] \
+      || out="$out project.yml 定位用途说明键被改动（期望恰为既有两条）;"
+    modes="$(awk '
+      /^[[:space:]]*UIBackgroundModes:[[:space:]]*$/ {in_modes=1; next}
+      in_modes && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {line=$0; gsub(/[[:space:]-]/, "", line); print line; next}
+      in_modes {in_modes=0}
+    ' "$spec" 2>/dev/null || true)"
+    [ "$modes" = "$(printf 'location\naudio')" ] \
+      || out="$out project.yml UIBackgroundModes 不再是 location+audio;"
+  fi
+
+  if [ ! -f "$plist" ]; then
+    out="$out 缺少 $plist;"
+  else
+    plist_sha="$(shasum -a 256 "$plist" | awk '{print $1}')"
+    if [ "$plist_sha" != "$INFO_PLIST_SHA256" ]; then
+      out="$out ios/PurePace/Info.plist 已改动（权限/后台声明须零 diff）;"
+    fi
+  fi
+
+  printf '%s' "$out"
+}
+
+problems="$(release_deterministic_problems .)"
+if [ -z "$problems" ]; then
+  pass "ac-release-deterministic-source (launch-arg 门控 + 默认关 + 权限零新增)"
+else
+  fail "ac-release-deterministic-source" "$problems"
+fi
+
+# 反例自检：把确定性源退回 #if DEBUG / 默认分支改回确定性源，两种违规样本都必须被识别。
+release_deterministic_selftest() {
+  local label="$1" mutate="$2" sandbox="" out=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-reldet.XXXXXX")"
+  mkdir -p "$sandbox/ios/PurePace/Location" "$sandbox/ios/PurePaceTests" "$sandbox/ios/PurePaceUITests"
+  cp ios/PurePace/Location/ReleaseDeterministicLocationSource.swift \
+    ios/PurePace/Location/RunLocationSourceSelection.swift \
+    ios/PurePace/Location/RunLocationSource.swift \
+    "$sandbox/ios/PurePace/Location/"
+  cp ios/PurePace/ContentView.swift ios/PurePace/Info.plist "$sandbox/ios/PurePace/"
+  cp ios/project.yml "$sandbox/ios/"
+  cp ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift "$sandbox/ios/PurePaceTests/"
+  cp ios/PurePaceUITests/RunFlowUITests.swift "$sandbox/ios/PurePaceUITests/"
+  "$mutate" "$sandbox"
+  out="$(release_deterministic_problems "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "$label (self-test)"
+  else
+    fail "$label" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+debug_wrap_release_source() {
+  local file="$1/ios/PurePace/Location/ReleaseDeterministicLocationSource.swift"
+  printf '#if DEBUG\n' > "$file.tmp"
+  cat "$file" >> "$file.tmp"
+  printf '#endif\n' >> "$file.tmp"
+  mv "$file.tmp" "$file"
+}
+
+default_branch_deterministic() {
+  sed -i '' 's/Selection(source: makeReal(), telemetryDebugEnabled: false)/Selection(source: makeDeterministic(.kmCrossing), telemetryDebugEnabled: true)/' \
+    "$1/ios/PurePace/Location/RunLocationSourceSelection.swift"
+}
+
+release_deterministic_selftest "ac-release-deterministic-release-available" debug_wrap_release_source
+release_deterministic_selftest "ac-release-deterministic-default-real" default_branch_deterministic
+
 # ------------------------------------------------ 脚本与门禁真实执行
 problems=""
 for file in scripts/build-ios.sh scripts/test-ios.sh scripts/sync-ios-version.sh scripts/check-ios-shell.sh; do

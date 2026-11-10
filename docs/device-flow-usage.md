@@ -30,6 +30,29 @@ bash scripts/verify-ios-device-flow.sh --phase=background --candidate /path/to/P
 （宿主 sleep + `devicectl` 只读读容器）；阶段二 `activate()` 回前台完成结束保存与导出。
 **不在测试进程内 sleep 断言后台连续性。**
 
+## Release 确定性源（仅设备验证场）
+
+Release 候选包内置一条显式 launch-arg 门控的确定性定位源，用于在无人静止场跨过 1 km。**默认关**：
+
+```bash
+xcrun devicectl device process launch --device <udid> --terminate-existing sh.munk.purepace \
+  -- -releaseDeterministicLocation km-crossing
+```
+
+- flag 语法：`-releaseDeterministicLocation <scenario>`；当前唯一场景为 `km-crossing`——
+  经度固定、纬度每 1.0 s 推进 20 m，从跑步开始后的首个位置锚点起约 50 步跨过 1 km，
+  因此 60–90 秒跑动内恰好跨一次公里边界。
+- 默认关：参数缺省、缺少取值、取值以 `-` 开头或场景名未知时，一律回真实 `RunLocationSource()`，
+  确定性源不会被构造；正常用户启动路径没有任何注入入口。
+- 能力如实：样本 `sampleSource` 记为 `simulated`，授权快照为 `authorizedWhenInUse`，
+  `allowsBackgroundLocationUpdates = false`、`pausesLocationUpdatesAutomatically = false`；
+  不请求授权、不触碰系统定位管理器、不读写磁盘、不做播报。
+- 判据边界：`simulated` 样本**不计入真实 CoreLocation 判据**。本场景只用于
+  「跨公里播报 + 音乐 duck」的机器证据（`telemetry.announcements[]` 中 `splitIndex == 1`、
+  `trigger == kilometerCompleted`），不证明真实移动、锁屏定位或后台连续性。
+- 本项只提供「仅设备验证场」的确定性证据，不写「真机已验证」；真实移动结论仍以
+  `--phase=background` 与人耳判定为准。
+
 ## 证据路径
 
 - 每次运行：`artifacts/device-audit/<UTC 时间戳>/`
