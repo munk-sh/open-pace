@@ -10,7 +10,7 @@ PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 →
 - 内嵌 `python3`（仅标准库，不 import App/RunCore 源码、不复用 `GPXCodec`）独立解析：`trkpt` 数严格 == `samples` 数；GPX 时间跨度与记录时间跨度绝对差 ≤1s；首末 `trkpt` 与对应样本时间差各 ≤1s；首末经纬度差 ≤1e-6。任一不等即非零退出并记录实际值与期望值。
 - 证据：`.build/verify-ios-ui-e2e/report.json` 与 `export-evidence.json`（含 `recordId` / `gpxFile` / `sha256`（64 hex）/ `bytes` / `trkptCount` / `sampleCount` / `timeSpanSeconds` / `timeSpanDeltaSeconds` / `ok`），默认只写 `.build/`；显式 `--refresh-evidence` 才覆盖 `docs/evidence/stage3-e2e/`（报告、导出证据、解析结果、4 张截图副本）。成败路径都留下证据文件（前置失败补写 `ok=false`）。
 - 门禁定位：`.munk/code-gates.json` 保持 22 门；`verify-ios-ui-e2e` 是按需执行的持锁串行本地旁证、不作本地阻断，权威绿为 `.github/workflows/ios.yml` 同 commit run（回执须引真实 run id + headSha）。`lint-ios-shell` 断言 4 条 UI 用例、`func testStartFinishExportGPXArtifact` 存在、`XCTAssert` ≥112，并对「删除新用例」反例判红。
-- `README.md`：新增「跑步链路验收自动化」小节，写明新用例名、本机定向跑命令、干净容器断言入口、证据路径、真机执行命令（`-destination id=00008101-001C701E0A68001E`），并把人工清单收敛为两件。
+- `README.md`：新增「跑步链路验收自动化」小节，写明新用例名、本机定向跑命令、干净容器断言入口、证据路径，并把人工清单收敛为两件；真机验收改由人手按 `docs/device-manual-acceptance.md` 在交付后执行，README 不再给 agent 侧真机命令。
 
 ## 验收
 
@@ -23,7 +23,7 @@ PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 →
 - ac-evidence-artifact: 每次运行写出 `export-evidence.json`，字段至少含 `recordId`、`gpxFile`、`sha256`（64 位十六进制）、`trkptCount`、`sampleCount`、`timeSpanSeconds`、`ok`；stdout 打印路径；任一断言失败时 `ok == false` 且脚本非零退出。
 - ac-e2e-leg-topology: `verify-ios-ui-e2e` 不新增本地阻断门，保持「持锁串行本地旁证 + `ios.yml` 权威」口径；脚本执行的是新全链路用例并完成上述容器断言，不是仅本地手动的旁路脚本。
 - ac-existing-suites-preserved: 既有 3 条 UI 用例逐条保留、断言不减；`PurePaceTests` 全量单测不删不弱化；`check-ios-shell.sh` 的 `XCTAssert` 阈值只升不降。
-- ac-device-runnable: 新用例只依赖 XCUITest + `-uiTestLocation` DEBUG 门控，不使用模拟器专属 API；README 给出真机可执行命令；本项不连接真机。
+- ac-simulator-runnable-manual-device-doc: 模拟器可跑——新用例只依赖 XCUITest + `-uiTestLocation` DEBUG 门控，不使用模拟器专属 API；真机按 `docs/device-manual-acceptance.md` 由人手测，本域不要求真机可执行，也不再由 README 提供真机命令。
 - ac-docs-manual-checklist: README 明确「人手清单只剩两件：改系统定位授权、按电源键锁屏」，并说明开始/结束/选记录/滚动/导出/分享由用例覆盖。
 - ac-no-product-change: `ios/PurePace/**` 产品源码、`ios/RunCore/**`、`ios/Core/**`、`ios/project.yml`、`VERSION`、导出/持久化/CoreLocation/AudioSession 契约零改动；不加种子数据；不新增第三方运行时或脚本依赖（仅 bash / xcrun / xcodebuild / xmllint / python3 标准库）。
 - ac-gates-green: 本地 `.munk/code-gates.json` 全量绿（含 `lint-ios-shell`、`lint-ios-scripts`），回执给出新用例名、断言落点、证据文件路径与实跑输出摘要。
@@ -49,6 +49,6 @@ PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 →
 
 ## 最近交付证明
 
-- workItemId: wi_intake_e3d410ae1741d8d8（2026-11-09，pass）
-- 交付：`RunFlowUITests.swift` 新增 `testStartFinishExportGPXArtifact`（全链路开始/结束/选记录/详情/导出/分享/回详情，4 张固定截图）；`scripts/verify-ios-ui-e2e.sh` 改为定向该用例并扩展容器断言（导出行 UUID 绑定、时间跨度对齐）与 `export-evidence.json`（sha256 等），失败路径补写 `ok=false`；`check-ios-shell.sh` 用例数 3→4、`XCTAssert` 阈值升至 112、新增「删除新用例」反例；`README.md` 新增跑步链路验收自动化小节与两件人工清单。
-- 实测：实跑证据 `.build/verify-ios-ui-e2e/export-evidence.json` `ok=true`，`recordId 49D20EE4-…E405DB`、`trkptCount 4 == sampleCount 4`、`timeSpanDeltaSeconds 0.0`、`sha256` 64 hex；本地 22 门全绿（`lint-ios-shell` / `lint-ios-scripts` 等）。口径：模拟器 + 代码层；重 UI e2e 权威绿以 `ios.yml` 同 commit run 为准；真机仍为 `pending: 待人现场`。
+- workItemId: wi_intake_1aa34f98b6e5f9a3（2026-11-10，pass）
+- 交付：`ac-device-runnable` 撤除，改写为 `ac-simulator-runnable-manual-device-doc`——模拟器可跑（仅 XCUITest + `-uiTestLocation` DEBUG 门控），真机改由人手按 `docs/device-manual-acceptance.md` 在交付后手测；README 不再给 agent 侧真机命令，本域不再要求真机可执行。该断言无门脚本承载，删除不削弱任何门。
+- 实测：`code_gates` 22 门全绿；`bash scripts/test-ios.sh` 全量腿退出 0——单测 125 例 0 失败、UI 6 例（`RunFlowUITests` 4 + `MusicSourceSelfCheckUITests` 2）0 失败；断言回执 `lint-ios-shell` 27 项 / `lint-ios-scripts` 27 项 / `check-shell-expansion` 7 项，失败 0。口径：模拟器 + 代码层；真机 `pending: 待人现场`。
