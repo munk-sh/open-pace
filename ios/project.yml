@@ -10,6 +10,10 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
   groupSortPosition: top
+  developmentLanguage: zh-Hans
+  knownRegions:
+    - zh-Hans
+    - Base
 
 configs:
   Debug: debug
@@ -51,6 +55,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: PurePace
+        INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans
         INFOPLIST_KEY_CFBundleDisplayName: PurePace
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
@@ -83,6 +88,10 @@ targets:
       - path: PurePaceUITests
         excludes:
           - "Info.plist"
+      # 纯判定策略与 App 共用同一实现，保证单测与 UI 用例判定一致且可反向失败。
+      - path: PurePace/Design/VisibleTextPolicy.swift
+      - path: PurePace/Design/VisibleDatePolicy.swift
+      - path: PurePace/Design/PrimaryActionLayoutPolicy.swift
     # 测试侧后台音频声明：真机 audio 阶段的音源由 UITests runner 自播（无人操作），
     # 需要 runner 侧声明 audio 后台模式；产品 App 的 Info.plist 保持零 diff。
     info:

@@ -5,68 +5,85 @@ import SwiftUI
 /// 所有数值来自 `RunSessionViewModel`（即 `RunSessionOrchestrator.metrics`），View 只做绑定与格式化。
 struct RunView: View {
     @ObservedObject var viewModel: RunSessionViewModel
+    /// 保存态主操作：切到历史 Tab（纯视图回调，不触碰状态机）。
+    var onShowHistory: () -> Void = {}
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: DesignTokens.Spacing.lg) {
-                distanceHero
+            ScrollView {
+                VStack(spacing: DesignTokens.Spacing.md) {
+                    distanceHero
 
-                HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                    primaryMetric(title: "Time", value: viewModel.elapsedText, identifier: "run.elapsed")
-                    primaryMetric(
-                        title: "Current",
-                        value: viewModel.currentPaceText,
-                        identifier: "run.currentPace"
-                    )
-                }
+                    HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                        primaryMetric(
+                            title: L10n.runMetricTime,
+                            value: viewModel.elapsedText,
+                            identifier: "run.elapsed"
+                        )
+                        primaryMetric(
+                            title: L10n.runMetricCurrent,
+                            value: viewModel.currentPaceText,
+                            identifier: "run.currentPace"
+                        )
+                    }
 
-                HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                    secondaryMetric(
-                        title: "Average",
-                        value: viewModel.averagePaceText,
-                        identifier: "run.averagePace"
-                    )
-                    secondaryMetric(title: "Splits", value: viewModel.splitCountText, identifier: "run.splits")
-                }
+                    HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                        secondaryMetric(
+                            title: L10n.runMetricAverage,
+                            value: viewModel.averagePaceText,
+                            identifier: "run.averagePace"
+                        )
+                        secondaryMetric(
+                            title: L10n.runMetricSplits,
+                            value: viewModel.splitCountText,
+                            identifier: "run.splits"
+                        )
+                    }
 
-                if let message = statusMessage {
-                    Text(message)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.secondary)
-                        .multilineTextAlignment(.center)
-                }
+                    if let message = statusMessage {
+                        Text(message)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.secondary)
+                            .multilineTextAlignment(.center)
+                    }
 
-                if let hint = viewModel.authorization.backgroundDegradationHint {
-                    Text(hint)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.warning)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier("run.backgroundDegraded")
-                }
+                    if let hint = viewModel.authorization.backgroundDegradationHint {
+                        Text(hint)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.warning)
+                            .multilineTextAlignment(.center)
+                            .accessibilityIdentifier("run.backgroundDegraded")
+                    }
 
-                if viewModel.didSave {
-                    Text("已保存")
-                        .font(DesignTokens.Typography.title)
-                        .foregroundStyle(DesignTokens.Colors.success)
-                        .accessibilityIdentifier("run.saved")
-                }
+                    if viewModel.didSave {
+                        Text(L10n.runStatusSaved)
+                            .font(DesignTokens.Typography.title)
+                            .foregroundStyle(DesignTokens.Colors.success)
+                            .accessibilityIdentifier("run.saved")
+                    }
 
 #if DEBUG
-                if let summary = viewModel.telemetrySummary {
-                    Text(summary)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.secondary)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier("run.telemetry")
-                }
+                    if let summary = viewModel.telemetrySummary {
+                        Text(summary)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.secondary)
+                            .multilineTextAlignment(.center)
+                            .accessibilityIdentifier("run.telemetry")
+                    }
 #endif
-
-                controls
-
-                Spacer()
+                }
+                .padding(DesignTokens.Spacing.md)
+                .frame(maxWidth: .infinity)
             }
-            .padding(DesignTokens.Spacing.md)
-            .navigationTitle("Run")
+            .navigationTitle(L10n.runNavigationTitle)
+            // 主操作固定底部控制区：安全区上方、TabBar 之上，三态共用同一锚点。
+            .safeAreaInset(edge: .bottom) {
+                controls
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .frame(maxWidth: .infinity)
+                    .background(DesignTokens.Colors.surface)
+            }
             .onAppear { viewModel.onAppear() }
         }
         .accessibilityIdentifier("tab.run")
@@ -81,7 +98,7 @@ struct RunView: View {
                 .foregroundStyle(DesignTokens.Colors.primary)
                 .monospacedDigit()
                 .accessibilityIdentifier("run.distance")
-            Text("Distance")
+            Text(L10n.runMetricDistance)
                 .font(DesignTokens.Typography.caption)
                 .foregroundStyle(DesignTokens.Colors.secondary)
         }
@@ -89,7 +106,11 @@ struct RunView: View {
         .padding(.vertical, DesignTokens.Spacing.sm)
     }
 
-    private func primaryMetric(title: String, value: String, identifier: String) -> some View {
+    private func primaryMetric(
+        title: LocalizedStringKey,
+        value: String,
+        identifier: String
+    ) -> some View {
         VStack(spacing: DesignTokens.Spacing.xxs) {
             Text(value)
                 .font(DesignTokens.Typography.primaryValue)
@@ -105,7 +126,11 @@ struct RunView: View {
 
     // MARK: - 次信息
 
-    private func secondaryMetric(title: String, value: String, identifier: String) -> some View {
+    private func secondaryMetric(
+        title: LocalizedStringKey,
+        value: String,
+        identifier: String
+    ) -> some View {
         VStack(spacing: DesignTokens.Spacing.xxs) {
             Text(value)
                 .font(DesignTokens.Typography.caption)
@@ -128,9 +153,9 @@ struct RunView: View {
         if viewModel.state == .ready {
             switch viewModel.authorization {
             case .denied, .restricted:
-                return "定位不可用，请在系统设置中允许 PurePace 使用定位。"
+                return L10n.locationDenied
             case .notDetermined:
-                return "等待定位授权…"
+                return L10n.waitingAuthorization
             case .authorizedWhenInUse, .authorizedAlways:
                 return nil
             }
@@ -142,32 +167,37 @@ struct RunView: View {
     private var controls: some View {
         switch viewModel.state {
         case .ready:
-            primaryControl("开始", label: "开始记录跑次") {
+            primaryControl(L10n.runActionStart, label: L10n.runStartLabel) {
                 viewModel.start()
             }
             .accessibilityIdentifier("run.start")
         case .running:
             HStack(spacing: DesignTokens.Spacing.sm) {
-                primaryControl("暂停", label: "暂停记录跑次") { viewModel.pause() }
+                primaryControl(L10n.runActionPause, label: L10n.runPauseLabel) { viewModel.pause() }
                     .accessibilityIdentifier("run.pause")
-                secondaryControl("结束", label: "结束并保存跑次") { viewModel.finish() }
+                secondaryControl(L10n.runActionFinish, label: L10n.runFinishLabel) { viewModel.finish() }
                     .accessibilityIdentifier("run.finish")
             }
         case .paused:
             HStack(spacing: DesignTokens.Spacing.sm) {
-                primaryControl("继续", label: "继续记录跑次") { viewModel.resume() }
+                primaryControl(L10n.runActionResume, label: L10n.runResumeLabel) { viewModel.resume() }
                     .accessibilityIdentifier("run.resume")
-                secondaryControl("结束", label: "结束并保存跑次") { viewModel.finish() }
+                secondaryControl(L10n.runActionFinish, label: L10n.runFinishLabel) { viewModel.finish() }
                     .accessibilityIdentifier("run.finish")
             }
         case .finished:
-            EmptyView()
+            if viewModel.didSave {
+                primaryControl(L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
+                    onShowHistory()
+                }
+                .accessibilityIdentifier("run.viewHistory")
+            }
         }
     }
 
     private func primaryControl(
-        _ title: String,
-        label: String,
+        _ title: LocalizedStringKey,
+        label: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -178,12 +208,12 @@ struct RunView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(DesignTokens.Colors.accent)
-        .accessibilityLabel(label)
+        .accessibilityLabel(Text(label))
     }
 
     private func secondaryControl(
-        _ title: String,
-        label: String,
+        _ title: LocalizedStringKey,
+        label: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -194,6 +224,6 @@ struct RunView: View {
         }
         .buttonStyle(.bordered)
         .tint(DesignTokens.Colors.warning)
-        .accessibilityLabel(label)
+        .accessibilityLabel(Text(label))
     }
 }

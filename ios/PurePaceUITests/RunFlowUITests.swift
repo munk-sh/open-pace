@@ -46,14 +46,14 @@ final class RunFlowUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "缺少 Tab 栏")
-        XCTAssertTrue(tabBar.buttons["Settings"].exists, "缺少 Settings Tab")
+        XCTAssertTrue(tabBar.buttons["设置"].exists, "缺少 Settings Tab")
         XCTAssertFalse(tabBar.buttons["Log"].exists, "Log Tab 应已移除")
 
         let start = app.buttons["run.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
 
         // 空态诚实：未开跑时 History 只有空态，不渲染任何示例跑次。
-        let historyTab = app.tabBars.buttons["History"]
+        let historyTab = app.tabBars.buttons["历史"]
         XCTAssertTrue(historyTab.waitForExistence(timeout: 10), "缺少 History Tab")
         historyTab.tap()
         XCTAssertTrue(
@@ -70,8 +70,8 @@ final class RunFlowUITests: XCTestCase {
             0,
             "归档为空时详情不可达"
         )
-        XCTAssertTrue(app.tabBars.buttons["Run"].waitForExistence(timeout: 10), "缺少 Run Tab")
-        app.tabBars.buttons["Run"].tap()
+        XCTAssertTrue(app.tabBars.buttons["跑步"].waitForExistence(timeout: 10), "缺少 Run Tab")
+        app.tabBars.buttons["跑步"].tap()
         XCTAssertTrue(start.waitForExistence(timeout: 10), "返回跑步页后缺少开始按钮")
 
         // 起点读数在 tap 之前取：此时跑步未开始，读数不受 1Hz 定位注入竞态影响。
@@ -333,7 +333,7 @@ final class RunFlowUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "缺少 Tab 栏")
-        let historyTab = tabBar.buttons["History"]
+        let historyTab = tabBar.buttons["历史"]
         XCTAssertTrue(historyTab.waitForExistence(timeout: 10), "缺少 History Tab")
 
         // 记录开始前已有行数 N；本次结束后应变为 N+1，且降序首行即本次新记录。
@@ -344,8 +344,8 @@ final class RunFlowUITests: XCTestCase {
             "History 列表未加载完成"
         )
         let baselineCount = rows.count
-        XCTAssertTrue(app.tabBars.buttons["Run"].waitForExistence(timeout: 10), "缺少 Run Tab")
-        app.tabBars.buttons["Run"].tap()
+        XCTAssertTrue(app.tabBars.buttons["跑步"].waitForExistence(timeout: 10), "缺少 Run Tab")
+        app.tabBars.buttons["跑步"].tap()
         let start = app.buttons["run.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
         start.tap()
@@ -445,7 +445,7 @@ final class RunFlowUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
-        let settingsTab = tabBar.buttons["Settings"]
+        let settingsTab = tabBar.buttons["设置"]
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 10), "缺少 Settings Tab")
         settingsTab.tap()
 
@@ -475,20 +475,155 @@ final class RunFlowUITests: XCTestCase {
 
         let relaunchedTabBar = app.tabBars.firstMatch
         XCTAssertTrue(relaunchedTabBar.waitForExistence(timeout: 30), "重启后缺少 Tab 栏")
-        relaunchedTabBar.buttons["Settings"].tap()
+        relaunchedTabBar.buttons["设置"].tap()
 
         let relaunchedToggle = app.switches["settings.announcementToggle"]
         XCTAssertTrue(relaunchedToggle.waitForExistence(timeout: 10), "重启后缺少每公里播报开关")
         XCTAssertEqual(relaunchedToggle.value as? String, "0", "重启后应保持关闭状态")
     }
 
+    /// ac-visible-copy-zh-hans / ac-run-detail-date-zh-hans / ac-primary-action-bottom-anchored：
+    /// 三屏可及树逐条过 zh-Hans 白名单，详情/历史日期过 zh-Hans 判定，三态主操作过底部锚定判定；
+    /// 同一判定同时产出 5 图 + 6 棵可及树证据（附件由 xcresulttool 导出）。
+    func testZhHansCopyDatesAndBottomAnchoredPrimaryAction() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
+        addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
+            for label in Self.locationAllowLabels {
+                let button = alert.buttons[label]
+                if button.exists {
+                    button.tap()
+                    return true
+                }
+            }
+            return false
+        }
+        app.launch()
+        allowLocationIfNeeded()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
+
+        // 1) 首屏未开始：文案 + 开始按钮底部锚定。
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 30), "缺少开始按钮")
+        assertVisibleCopyZhHans(app, screen: "跑步页（未开始）")
+        assertPrimaryActionAnchored(app, button: start, state: "未开始")
+        attachScreenshot(app, name: "run-not-started")
+        attachAccessibilityTree(app, name: "01-run-not-started")
+
+        // 2) 历史空态。
+        tabBar.buttons["历史"].tap()
+        XCTAssertTrue(app.staticTexts["history.empty"].waitForExistence(timeout: 10), "历史空态缺失")
+        assertVisibleCopyZhHans(app, screen: "历史空态")
+        attachScreenshot(app, name: "history-empty")
+        attachAccessibilityTree(app, name: "03-history-empty")
+
+        // 3) 运行中：文案 + 暂停按钮底部锚定。
+        tabBar.buttons["跑步"].tap()
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "返回跑步页后缺少开始按钮")
+        start.tap()
+        let pause = app.buttons["run.pause"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 15), "运行时缺少暂停按钮")
+        assertVisibleCopyZhHans(app, screen: "跑步页（运行中）")
+        assertPrimaryActionAnchored(app, button: pause, state: "运行中")
+        attachScreenshot(app, name: "run-running")
+        attachAccessibilityTree(app, name: "02-run-running")
+
+        // 4) 保存态：主操作仍在底部锚定。
+        let finish = app.buttons["run.finish"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
+        finish.tap()
+        XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
+        let viewHistory = app.buttons["run.viewHistory"]
+        XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
+        assertVisibleCopyZhHans(app, screen: "跑步页（保存态）")
+        assertPrimaryActionAnchored(app, button: viewHistory, state: "保存态")
+
+        // 5) 历史列表与详情：日期必须 zh-Hans。
+        tabBar.buttons["历史"].tap()
+        let rows = app.descendants(matching: .any).matching(identifier: "history.row")
+        XCTAssertTrue(waitUntil(timeout: 15) { rows.count >= 1 }, "历史列表未出现本次记录")
+        assertVisibleCopyZhHans(app, screen: "历史列表")
+        rows.firstMatch.tap()
+
+        let startedAt = app.staticTexts["runDetail.startedAt"]
+        XCTAssertTrue(startedAt.waitForExistence(timeout: 10), "详情缺少开始时间")
+        let startedText = startedAt.label
+        let endedText = app.staticTexts["runDetail.endedAt"].label
+        XCTAssertTrue(VisibleDatePolicy.isZhHansDateTime(startedText), "详情开始时间不是 zh-Hans：\(startedText)")
+        XCTAssertTrue(VisibleDatePolicy.isZhHansDateTime(endedText), "详情结束时间不是 zh-Hans：\(endedText)")
+        assertVisibleCopyZhHans(app, screen: "跑次详情")
+        attachScreenshot(app, name: "history-detail")
+        attachAccessibilityTree(app, name: "04-history-detail")
+
+        // 6) 设置页 + 完整 Tab 树。
+        tabBar.buttons["设置"].tap()
+        XCTAssertTrue(
+            app.switches["settings.announcementToggle"].waitForExistence(timeout: 10),
+            "设置页缺少播报开关"
+        )
+        assertVisibleCopyZhHans(app, screen: "设置页")
+        attachScreenshot(app, name: "settings")
+        attachAccessibilityTree(app, name: "05-settings")
+
+        // 7) 回到跑步页取完整 Tab 树（与设置页树区分）。
+        tabBar.buttons["跑步"].tap()
+        XCTAssertTrue(tabBar.buttons["设置"].waitForExistence(timeout: 10), "缺少设置 Tab")
+        attachAccessibilityTree(app, name: "06-tabs")
+    }
+
     // MARK: - 授权与等待
+
+    /// 把当前可及树中的全部非空 label 喂给与单测相同的 zh-Hans 白名单判定。
+    /// SF Symbol 名称（系统图标标识）与 DEBUG 门控的 `run.telemetry` 诊断摘要不是用户可见文案，先滤除。
+    private func assertVisibleCopyZhHans(_ app: XCUIApplication, screen: String) {
+        let texts = app.descendants(matching: .any)
+            .allElementsBoundByIndex
+            .filter { $0.identifier != "run.telemetry" }
+            .map { $0.label }
+            .filter { !$0.isEmpty && !isSystemSymbolLabel($0) }
+        let violations = VisibleTextPolicy.violations(in: texts)
+        XCTAssertTrue(violations.isEmpty, "\(screen) 存在裸英文文案：\(violations)")
+    }
+
+    private func isSystemSymbolLabel(_ text: String) -> Bool {
+        text.range(of: #"^[a-z0-9]+(\.[a-z0-9]+)+$"#, options: .regularExpression) != nil
+    }
+
+    /// 用真实按钮 frame 与 TabBar frame 喂给与单测相同的主操作底部锚定判定。
+    private func assertPrimaryActionAnchored(
+        _ app: XCUIApplication,
+        button: XCUIElement,
+        state: String
+    ) {
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "缺少 Tab 栏")
+        let evaluation = PrimaryActionLayoutPolicy.evaluate(
+            actionFrame: button.frame,
+            tabBarFrame: tabBar.frame
+        )
+        XCTAssertTrue(
+            evaluation.passes,
+            "\(state) 主操作未底部锚定（高 \(evaluation.height)pt，底部间距 \(evaluation.bottomGap)pt）："
+                + "\(evaluation.problems)"
+        )
+    }
+
+    /// 以固定名称保存可及树文本（lifetime = .keepAlways），供证据导出。
+    private func attachAccessibilityTree(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(string: app.debugDescription)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
 
     /// 通过真实 Settings UI 把每公里播报开关归一为开启（前序用例可能已关闭）。
     private func enableAnnouncements(_ app: XCUIApplication) {
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
-        tabBar.buttons["Settings"].tap()
+        tabBar.buttons["设置"].tap()
         let toggle = app.switches["settings.announcementToggle"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings 缺少每公里播报开关")
         if (toggle.value as? String) == "0" {
@@ -498,7 +633,7 @@ final class RunFlowUITests: XCTestCase {
                 "无法通过 Settings 开启每公里播报"
             )
         }
-        tabBar.buttons["Run"].tap()
+        tabBar.buttons["跑步"].tap()
         XCTAssertTrue(
             app.buttons["run.start"].waitForExistence(timeout: 10),
             "返回跑步页后缺少开始按钮"

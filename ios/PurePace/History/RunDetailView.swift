@@ -16,13 +16,17 @@ struct RunDetailView: View {
     var body: some View {
         List {
             Section {
-                field("开始", content.startedAtText, identifier: "runDetail.startedAt")
-                field("结束", content.endedAtText, identifier: "runDetail.endedAt")
+                field(L10n.runDetailFieldStart, content.startedAtText, identifier: "runDetail.startedAt")
+                field(L10n.runDetailFieldEnd, content.endedAtText, identifier: "runDetail.endedAt")
             }
             Section {
-                field("总距离", content.distanceText, identifier: "runDetail.distance")
-                field("活跃时长", content.activeDurationText, identifier: "runDetail.activeDuration")
-                field("平均配速", content.averagePaceText, identifier: "runDetail.averagePace")
+                field(L10n.runDetailFieldDistance, content.distanceText, identifier: "runDetail.distance")
+                field(
+                    L10n.runDetailFieldActiveDuration,
+                    content.activeDurationText,
+                    identifier: "runDetail.activeDuration"
+                )
+                field(L10n.runDetailFieldAveragePace, content.averagePaceText, identifier: "runDetail.averagePace")
             }
             Section {
                 if content.hasSplits {
@@ -38,7 +42,7 @@ struct RunDetailView: View {
                         .accessibilityIdentifier("runDetail.splitRow")
                     }
                 } else {
-                    Text("暂无分段")
+                    Text(L10n.runDetailSplitsEmpty)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("runDetail.splitsEmpty")
                 }
@@ -48,50 +52,50 @@ struct RunDetailView: View {
             }
             exportSection
         }
-        .navigationTitle("跑次详情")
+        .navigationTitle(L10n.runDetailNavigationTitle)
         .accessibilityIdentifier("runDetail.root")
     }
 
     @ViewBuilder
     private var exportSection: some View {
         Section {
-            Button("导出 GPX") {
+            Button(L10n.runDetailExportButton) {
                 exportState.export(record, using: exporter)
             }
             .font(DesignTokens.Typography.control)
             .frame(minHeight: DesignTokens.minTapTarget)
             .accessibilityIdentifier("runDetail.export")
-            .accessibilityLabel("导出 GPX")
+            .accessibilityLabel(Text(L10n.runDetailExportLabel))
 
             switch exportState.phase {
             case .idle:
                 EmptyView()
             case .exported(let url):
-                Text("已导出 \(url.lastPathComponent)")
+                (Text(L10n.runDetailExported) + Text(verbatim: " \(url.lastPathComponent)"))
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("runDetail.exported")
                 ShareLink(item: url) {
-                    Text("分享")
+                    Text(L10n.runDetailShare)
                 }
                 .frame(minHeight: DesignTokens.minTapTarget)
                 .accessibilityIdentifier("runDetail.share")
-                .accessibilityLabel("分享 GPX 文件")
+                .accessibilityLabel(Text(L10n.runDetailShareLabel))
             case .failed:
-                Text("导出失败")
+                Text(L10n.runDetailExportFailed)
                     .foregroundStyle(DesignTokens.Colors.danger)
                     .accessibilityIdentifier("runDetail.exportFailed")
             }
         } header: {
-            Text("导出")
+            Text(L10n.runDetailExportSection)
                 .font(DesignTokens.Typography.sectionHeader)
         } footer: {
-            Text("导出为 GPX 文件，可分享给其它应用。")
+            Text(L10n.runDetailExportFooter)
                 .font(DesignTokens.Typography.caption)
                 .foregroundStyle(DesignTokens.Colors.secondary)
         }
     }
 
-    private func field(_ title: String, _ value: String, identifier: String) -> some View {
+    private func field(_ title: LocalizedStringKey, _ value: String, identifier: String) -> some View {
         HStack {
             Text(title)
             Spacer()

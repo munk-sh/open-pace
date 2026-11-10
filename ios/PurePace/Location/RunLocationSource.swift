@@ -33,7 +33,7 @@ enum RunLocationAuthorization: String, Sendable {
     /// 授权降级时给用户的明确提示；仅在 `WhenInUse` 降级态返回文案。
     var backgroundDegradationHint: String? {
         guard self == .authorizedWhenInUse else { return nil }
-        return "后台定位未开启，锁屏后可能暂停记录；请在系统设置中将定位权限改为「始终允许」。"
+        return L10n.backgroundDegradedHint
     }
 
     init(status: CLAuthorizationStatus) {

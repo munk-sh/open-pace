@@ -98,9 +98,9 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            RunView(viewModel: runModel)
+            RunView(viewModel: runModel, onShowHistory: { selection = .history })
                 .tabItem {
-                    Label("Run", systemImage: "figure.run")
+                    Label(L10n.tabRun, systemImage: "figure.run")
                         .accessibilityIdentifier("tab.run")
                 }
                 .tag(Tab.run)
@@ -114,14 +114,14 @@ struct ContentView: View {
                 autoOpenFirstDetail: autoOpenDetail
             )
             .tabItem {
-                Label("History", systemImage: "clock.arrow.circlepath")
+                Label(L10n.tabHistory, systemImage: "clock.arrow.circlepath")
                     .accessibilityIdentifier("tab.history")
             }
             .tag(Tab.history)
 
             SettingsView(store: settings)
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape")
+                    Label(L10n.tabSettings, systemImage: "gearshape")
                         .accessibilityIdentifier("tab.settings")
                 }
                 .tag(Tab.settings)

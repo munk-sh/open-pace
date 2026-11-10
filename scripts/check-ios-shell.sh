@@ -314,6 +314,48 @@ validate_no_fixture_data() {
   printf '%s' "$problems"
 }
 
+# 用户可见文案单一来源（String Catalog，zh-Hans）+ 三屏视图零裸英文；输出为空字符串表示通过。
+validate_localization() {
+  local root="$1"
+  local problems=""
+  local catalog="$root/ios/PurePace/Resources/Localizable.xcstrings"
+  local spec="$root/ios/project.yml"
+
+  if [ ! -s "$catalog" ]; then
+    problems="$problems 缺少 ios/PurePace/Resources/Localizable.xcstrings;"
+  else
+    grep -Fq '"sourceLanguage" : "zh-Hans"' "$catalog" \
+      || problems="$problems String Catalog sourceLanguage 必须为 zh-Hans;"
+    local value
+    for value in '"跑步"' '"历史"' '"设置"'; do
+      grep -Fq "$value" "$catalog" || problems="$problems String Catalog 缺少文案 $value;"
+    done
+  fi
+
+  if [ ! -f "$spec" ]; then
+    problems="$problems 缺少 ios/project.yml;"
+  else
+    grep -Fq 'INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans' "$spec" \
+      || problems="$problems project.yml 未声明 CFBundleDevelopmentRegion=zh-Hans;"
+    grep -Fq 'knownRegions:' "$spec" || problems="$problems project.yml 未声明 knownRegions;"
+  fi
+
+  local view hits
+  for view in ContentView.swift Run/RunView.swift History/HistoryView.swift \
+    History/RunDetailView.swift Settings/SettingsView.swift; do
+    if [ ! -f "$root/ios/PurePace/$view" ]; then
+      problems="$problems 缺少 ios/PurePace/$view;"
+      continue
+    fi
+    # 视图内直接写英文文案一律判失败（L10n 键与 identifier 不受影响）。
+    hits="$(grep -nE '(Text|Label|Button|navigationTitle|accessibilityLabel)\("[A-Za-z]' \
+      "$root/ios/PurePace/$view" || true)"
+    [ -z "$hits" ] || problems="$problems ios/PurePace/$view 残留裸英文文案: $(printf '%s' "$hits" | tr '\n' ' ');"
+  done
+
+  printf '%s' "$problems"
+}
+
 # 设计 token 单一真源 + 三屏只引用 token + 主按钮可读标签；输出为空字符串表示通过。
 validate_design_tokens() {
   local root="$1"
@@ -361,26 +403,28 @@ validate_design_tokens() {
   grep -Fq 'DesignTokens.Typography.caption' "$run_view" || problems="$problems 跑步页次信息未用 caption 字号;"
   grep -Fq 'DesignTokens.Colors.secondary' "$history_view" || problems="$problems 历史页次信息未用次要色;"
 
-  # 关键文案非空存在。
-  local copy
-  for copy in '"开始"' '"暂停"' '"继续"' '"结束"'; do
-    grep -Fq "$copy" "$run_view" || problems="$problems 跑步页缺少文案 ${copy};"
+  # 关键文案必须走 L10n 键（真实值在 Localizable.xcstrings，见 validate_localization）。
+  local key
+  for key in runActionStart runActionPause runActionResume runActionFinish; do
+    grep -Fq "L10n.$key" "$run_view" || problems="$problems 跑步页缺少 L10n.$key;"
   done
-  grep -Fq '"还没有跑次记录"' "$history_view" || problems="$problems 历史空态缺少标题;"
-  grep -Fq '"去跑一次"' "$history_view" || problems="$problems 历史空态缺少 CTA;"
-  grep -Fq '"每公里语音播报"' "$settings_view" || problems="$problems 设置页缺少播报开关文案;"
-  grep -Fq '"导出 GPX"' "$detail_view" || problems="$problems 详情页缺少导出入口文案;"
+  grep -Fq 'L10n.historyEmptyTitle' "$history_view" || problems="$problems 历史空态缺少标题键;"
+  grep -Fq 'L10n.historyRunAgain' "$history_view" || problems="$problems 历史空态缺少 CTA 键;"
+  grep -Fq 'L10n.settingsAnnouncementTitle' "$settings_view" || problems="$problems 设置页缺少播报开关文案键;"
+  grep -Fq 'L10n.runDetailExportButton' "$detail_view" || problems="$problems 详情页缺少导出入口文案键;"
 
   # 主操作标签：四个互不相同且非空。
   if grep -Fq 'label: ""' "$run_view"; then
     problems="$problems 跑步页存在空 accessibilityLabel;"
   fi
   local label_count
-  label_count="$(grep -oE 'label: "[^"]+"' "$run_view" | sort -u | wc -l | tr -d ' ')"
+  label_count="$(grep -oE 'label: L10n\.[A-Za-z0-9]+' "$run_view" | sort -u | wc -l | tr -d ' ')"
   [ "$label_count" -ge 4 ] || problems="$problems 跑步页主操作 accessibilityLabel 少于 4 个互不相同的非空值;"
-  grep -Fq 'accessibilityLabel' "$run_view" || problems="$problems 跑步页主操作缺少 accessibilityLabel;"
-  grep -Fq 'accessibilityLabel("去跑一次")' "$history_view" || problems="$problems 历史空态 CTA 缺少 accessibilityLabel;"
-  grep -Fq 'accessibilityLabel("导出 GPX")' "$detail_view" || problems="$problems 导出按钮缺少 accessibilityLabel;"
+  grep -Fq 'accessibilityLabel(Text(label))' "$run_view" || problems="$problems 跑步页主操作缺少 accessibilityLabel;"
+  grep -Fq 'accessibilityLabel(Text(L10n.historyRunAgain))' "$history_view" \
+    || problems="$problems 历史空态 CTA 缺少 accessibilityLabel;"
+  grep -Fq 'accessibilityLabel(Text(L10n.runDetailExportLabel))' "$detail_view" \
+    || problems="$problems 导出按钮缺少 accessibilityLabel;"
 
   # 可及标识：主操作 / 关键控件必须可被可及树按 identifier 定位。
   local control_pair
@@ -401,14 +445,13 @@ validate_design_tokens() {
     problems="$problems 首屏/工具栏出现 demo/示例入口;"
   fi
 
-  # Tab 可读标签与标识：Label 文案与 tab.<name> 成对出现（原生 TabBar 的 identifier
-  # 由内容根与 tabItem Label 双落点承载，a11y 树以内容根标识为准）。
+  # Tab 可读标签与标识：Label 文案走 L10n 键，tab.<name> 标识成对出现。
   local tab_pair
-  for tab_pair in "Run:tab.run" "History:tab.history" "Settings:tab.settings"; do
-    local tab_label="${tab_pair%%:*}"
+  for tab_pair in "tabRun:tab.run" "tabHistory:tab.history" "tabSettings:tab.settings"; do
+    local tab_key="${tab_pair%%:*}"
     local tab_id="${tab_pair##*:}"
-    grep -Fq "Label(\"$tab_label\"" "$content_view" \
-      || problems="$problems ContentView 缺少 Tab 标签 $tab_label;"
+    grep -Fq "Label(L10n.$tab_key" "$content_view" \
+      || problems="$problems ContentView 缺少 Tab 文案键 L10n.$tab_key;"
     grep -Fq "\"$tab_id\"" "$content_view" \
       || problems="$problems ContentView 缺少 Tab 标识 $tab_id;"
   done
@@ -675,6 +718,30 @@ run_self_test() {
     > "$tmp_dir/app-fixture-bad/RunExportState.swift"
   check_fail "App 引用夹具反例" "$(validate_no_fixture_data "$tmp_dir/app-fixture-bad")"
 
+  # 本地化单一来源与视图零裸英文正负反例（正例直接复制真实源码）。
+  local loc_good="$tmp_dir/localization-good"
+  mkdir -p "$loc_good/ios/PurePace/Resources" "$loc_good/ios/PurePace/Run" \
+    "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings"
+  cp ios/PurePace/Resources/Localizable.xcstrings "$loc_good/ios/PurePace/Resources/"
+  cp ios/project.yml "$loc_good/ios/project.yml"
+  cp ios/PurePace/ContentView.swift "$loc_good/ios/PurePace/"
+  cp ios/PurePace/Run/RunView.swift "$loc_good/ios/PurePace/Run/"
+  cp ios/PurePace/History/HistoryView.swift "$loc_good/ios/PurePace/History/"
+  cp ios/PurePace/History/RunDetailView.swift "$loc_good/ios/PurePace/History/"
+  cp ios/PurePace/Settings/SettingsView.swift "$loc_good/ios/PurePace/Settings/"
+  check_ok "本地化单一来源正例" "$(validate_localization "$loc_good")"
+
+  local loc_bad="$tmp_dir/localization-bad"
+  cp -R "$loc_good" "$loc_bad"
+  printf '\nprivate let bareEnglish = Text("Settings")\n' \
+    >> "$loc_bad/ios/PurePace/Settings/SettingsView.swift"
+  check_fail "视图裸英文反例" "$(validate_localization "$loc_bad")"
+
+  loc_bad="$tmp_dir/localization-no-catalog"
+  cp -R "$loc_good" "$loc_bad"
+  rm "$loc_bad/ios/PurePace/Resources/Localizable.xcstrings"
+  check_fail "缺 String Catalog 反例" "$(validate_localization "$loc_bad")"
+
   # 设计 token 单一真源与三屏契约正负反例（正例直接复制真实源码）。
   local design_root="$tmp_dir/design-good"
   mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
@@ -700,7 +767,7 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-empty-label"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/label: "开始记录跑次"/label: ""/' "$design_bad/ios/PurePace/Run/RunView.swift"
+  sed -i '' 's/label: L10n.runStartLabel/label: ""/' "$design_bad/ios/PurePace/Run/RunView.swift"
   check_fail "空 accessibilityLabel 反例" "$(validate_design_tokens "$design_bad")"
 
   design_bad="$tmp_dir/design-no-tab"
@@ -723,7 +790,7 @@ run_self_test() {
   if [ "$failures" -ne 0 ]; then
     exit 1
   fi
-  printf '[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关/设计 token 正负反例)\n'
+  printf '[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关/设计 token/本地化 正负反例)\n'
   printf '\n%d 项断言，0 项失败\nself-test OK\n' "$checks"
 }
 
@@ -889,8 +956,9 @@ for file in $live_sources; do
 done
 if [ -z "$problems" ]; then
   grep -Fq 'TabView' ios/PurePace/ContentView.swift || problems="$problems 首屏缺少 TabView;"
-  for tab in Run History Settings; do
-    grep -Fq "\"$tab\"" ios/PurePace/ContentView.swift || problems="$problems 缺少 Tab '$tab';"
+  for tab in tabRun tabHistory tabSettings; do
+    grep -Fq "L10n.$tab" ios/PurePace/ContentView.swift \
+      || problems="$problems 缺少 Tab 文案键 L10n.$tab;"
   done
   if grep -Fq '"Log"' ios/PurePace/ContentView.swift || grep -Fq 'case log' ios/PurePace/ContentView.swift; then
     problems="$problems 首屏仍含 Log Tab;"
@@ -970,6 +1038,14 @@ if [ -z "$design_problems" ]; then
   pass "ac-design-tokens (单一 token 真源 + 三屏引用 + 可读标签)"
 else
   fail "ac-design-tokens" "$design_problems"
+fi
+
+# ------------------------------------------------ 本地化单一来源与零裸英文
+localization_problems="$(validate_localization .)"
+if [ -z "$localization_problems" ]; then
+  pass "ac-visible-copy-zh-hans (String Catalog 单一来源 + 三屏零裸英文)"
+else
+  fail "ac-visible-copy-zh-hans" "$localization_problems"
 fi
 
 # ------------------------------------------------ 测试落点
@@ -1055,7 +1131,7 @@ PY
       || out="$out RunFlowUITests 缺少全链路导出用例 testStartFinishExportGPXArtifact;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    [ "$test_count" -eq 4 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 4）;"
+    [ "$test_count" -eq 5 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 5）;"
     [ "$assert_count" -ge 112 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥112）;"
   fi
   if [ ! -f "$run_source" ]; then

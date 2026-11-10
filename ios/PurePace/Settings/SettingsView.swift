@@ -11,10 +11,10 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: $store.isEnabled) {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                            Text("每公里语音播报")
+                            Text(L10n.settingsAnnouncementTitle)
                                 .font(DesignTokens.Typography.body)
                                 .foregroundStyle(DesignTokens.Colors.primary)
-                            Text("每跑满一公里时朗读当前配速与累计时长。")
+                            Text(L10n.settingsAnnouncementBody)
                                 .font(DesignTokens.Typography.caption)
                                 .foregroundStyle(DesignTokens.Colors.secondary)
                         }
@@ -22,18 +22,18 @@ struct SettingsView: View {
                     }
                     .frame(minHeight: DesignTokens.minTapTarget)
                     .accessibilityIdentifier("settings.announcementToggle")
-                    .accessibilityLabel("每公里语音播报")
+                    .accessibilityLabel(Text(L10n.settingsAnnouncementTitle))
                 } header: {
-                    Text("播报")
+                    Text(L10n.settingsSectionAnnouncement)
                         .font(DesignTokens.Typography.sectionHeader)
                         .foregroundStyle(DesignTokens.Colors.secondary)
                 } footer: {
-                    Text("关闭后跑步过程中的语音播报会立即停止。")
+                    Text(L10n.settingsFooterAnnouncement)
                         .font(DesignTokens.Typography.caption)
                         .foregroundStyle(DesignTokens.Colors.secondary)
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(L10n.settingsNavigationTitle)
         }
         .accessibilityIdentifier("tab.settings")
     }
