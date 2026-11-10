@@ -85,6 +85,49 @@ final class AudioSessionAdapterTests: XCTestCase {
         XCTAssertEqual(spy.deactivations.first?.options, [.notifyOthersOnDeactivation])
     }
 
+    // MARK: - ac-duck-independent-source
+
+    /// 两个派生事实来自不同平台调用观测：本次激活真实下发 `[.mixWithOthers]`（不含 `.duckOthers`）
+    /// 但停用成功时，`sessionDeactivated == true` 且 `duckRevoked == false`。
+    /// 把 `duckRevoked` 改回「等于 `sessionDeactivated`」的别名写法后本用例必判红。
+    func testEndAnnouncementSeparatesDeactivationFromDuckRevocation() throws {
+        let spy = AudioSessionSpy()
+        let settings = AudioSessionSettings(
+            category: .playback,
+            mode: .spokenAudio,
+            options: [.mixWithOthers],
+            deactivationOptions: [.notifyOthersOnDeactivation]
+        )
+        let adapter = AudioSessionAdapter(
+            controller: spy,
+            settings: settings,
+            observesInterruptions: false
+        )
+
+        try adapter.beginAnnouncement()
+        let result = try adapter.endAnnouncement()
+
+        XCTAssertEqual(result, AnnouncementEndResult(sessionDeactivated: true, duckRevoked: false))
+        XCTAssertEqual(spy.activationCalls.map(\.active), [true, false])
+        XCTAssertEqual(adapter.state, .inactive)
+    }
+
+    /// 默认设置（激活含 `.duckOthers` + 停用带 `.notifyOthersOnDeactivation`）下两字段同为 `true`。
+    func testEndAnnouncementRevokesDuckWhenActivationDucked() throws {
+        let spy = AudioSessionSpy()
+        let adapter = AudioSessionAdapter(controller: spy, observesInterruptions: false)
+
+        try adapter.beginAnnouncement()
+        let result = try adapter.endAnnouncement()
+
+        XCTAssertEqual(result, AnnouncementEndResult(sessionDeactivated: true, duckRevoked: true))
+        XCTAssertEqual(
+            spy.activationCalls.map(\.options),
+            [[], [.notifyOthersOnDeactivation]],
+            "激活不带选项、停用携带 notify 选项"
+        )
+    }
+
     // MARK: - ac-activation-idempotent-on-device-path
 
     func testRepeatedBeginAnnouncementActivatesOnce() throws {

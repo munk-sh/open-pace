@@ -83,6 +83,13 @@ private func diagnosticsFileURL(in directory: URL) -> URL {
     )
 }
 
+/// App 数据容器的 Documents 目录：即生产默认诊断落盘根，也是 `devicectl --domain-type
+/// appDataContainer` 拉取路径的根。
+private func appContainerDiagnosticsDirectory() -> URL {
+    FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        ?? FileManager.default.temporaryDirectory
+}
+
 private func readDiagnostics(in directory: URL) throws -> DiagnosticsDocument {
     try JSONDecoder().decode(
         DiagnosticsDocument.self,
@@ -275,13 +282,15 @@ final class AnnouncementSpeakerTests: XCTestCase {
         synthesizer.finish()
 
         XCTAssertEqual(adapter.state, .inactive)
-        XCTAssertEqual(session.activations.count, 1)
-        XCTAssertEqual(session.deactivations.count, 1, "正常路径只下发一次 setActive(false)")
-        XCTAssertEqual(session.deactivations.first?.options, [.notifyOthersOnDeactivation])
         XCTAssertEqual(
             session.activationCalls.map(\.active),
             [true, false],
             "didFinish 后必须恰好下发一次 setActive(false)"
+        )
+        XCTAssertEqual(
+            session.activationCalls.map(\.options),
+            [[], [.notifyOthersOnDeactivation]],
+            "激活不带选项、停用携带 notify 选项"
         )
 
         guard let entry = recorder.snapshot().first else {
@@ -297,6 +306,76 @@ final class AnnouncementSpeakerTests: XCTestCase {
             FileManager.default.fileExists(atPath: diagnosticsFileURL(in: diagnosticsDirectory).path),
             "成功路径不得写诊断文件"
         )
+    }
+
+    /// ac-duck-alias-breaker：激活真实下发 `[.mixWithOthers]`（不含 `.duckOthers`）、停用携带
+    /// `.notifyOthersOnDeactivation` 且成功时，两字段必须**分叉**：`sessionDeactivated == true`、
+    /// `duckRevoked == false`。把实现改回 `duckRevoked: sessionDeactivated` 后本用例必判红。
+    func testDuckRevokedDiffersFromSessionDeactivatedWhenActivationSkipsDuck() {
+        let session = AudioSessionSpy()
+        let synthesizer = SpeechSynthesizerSpy()
+        let recorder = AnnouncementTelemetryRecorder()
+        let diagnostics = DiagnosticsSpy()
+        let adapter = AudioSessionAdapter(
+            controller: session,
+            settings: AudioSessionSettings(
+                category: .playback,
+                mode: .spokenAudio,
+                options: [.mixWithOthers],
+                deactivationOptions: [.notifyOthersOnDeactivation]
+            ),
+            observesInterruptions: false
+        )
+        let speaker = makeSpeaker(
+            adapter: adapter,
+            synthesizer: synthesizer,
+            telemetry: recorder,
+            diagnostics: diagnostics
+        )
+
+        speaker.speak(makeCommand(splitIndex: 1))
+        synthesizer.start()
+        synthesizer.finish()
+
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, false],
+            "成功路径仍必须真实下发一次停用"
+        )
+        XCTAssertEqual(adapter.state, .inactive)
+
+        guard let entry = recorder.snapshot().first else {
+            return XCTFail("缺少播报遥测条目")
+        }
+        XCTAssertTrue(entry.sessionActivated)
+        XCTAssertTrue(entry.sessionDeactivated, "停用调用真实成功")
+        XCTAssertFalse(entry.duckRevoked, "激活未下发 .duckOthers，不得声称撤销了 duck")
+        guard case .success = diagnostics.outcomes.first else {
+            return XCTFail("成功路径必须落 .success 结果")
+        }
+        XCTAssertEqual(diagnostics.outcomes.count, 1)
+    }
+
+    /// ac-announcement-text-fields：播报文本必须同时含距离、用时、配速三段；前缀逐字保留，
+    /// 配速数字口径与 `RunFormatting.paceText` 一致（`m:ss /km`，分钟不补零）。
+    func testAnnouncementTextIncludesDistanceElapsedAndPace() {
+        let first = AnnouncementCommand(
+            trigger: .kilometerCompleted,
+            splitIndex: 1,
+            distance: RunDistance(meters: 1000)!,
+            pace: RunPace(secondsPerKilometer: 300)!,
+            elapsed: 330
+        )!
+        XCTAssertEqual(AnnouncementText.sentence(for: first), "已完成第 1 公里，用时 05:30，配速 5:00 /km")
+
+        let second = AnnouncementCommand(
+            trigger: .kilometerCompleted,
+            splitIndex: 2,
+            distance: RunDistance(meters: 2000)!,
+            pace: RunPace(secondsPerKilometer: 285.4)!,
+            elapsed: 372
+        )!
+        XCTAssertEqual(AnnouncementText.sentence(for: second), "已完成第 2 公里，用时 06:12，配速 4:45 /km")
     }
 
     /// 机制② C `.interrupted` 路径：播报中出现 interruption began，didFinish 时协调器已非
@@ -360,7 +439,11 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertTrue(session.deactivations.isEmpty)
 
         speaker.speak(makeCommand(splitIndex: 2))
-        XCTAssertEqual(session.activations.count, 2, "下一次播报必须重新下发激活")
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, true],
+            "上一次结束未下发停用，下一次播报必须重新下发激活"
+        )
         XCTAssertEqual(adapter.state, .active)
         guard let second = recorder.snapshot().last else {
             return XCTFail("缺少第二条播报遥测条目")
@@ -377,15 +460,22 @@ final class AnnouncementSpeakerTests: XCTestCase {
         session.deactivationError = injectedError
         let synthesizer = SpeechSynthesizerSpy()
         let recorder = AnnouncementTelemetryRecorder()
-        let diagnosticsDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("announcement-diagnostics-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: diagnosticsDirectory) }
+        // 生产默认落盘位置：App 数据容器 Documents（`appDataContainer` 拉取路径的根）。
+        let diagnosticsDirectory = appContainerDiagnosticsDirectory()
+        let diagnosticsPath = diagnosticsFileURL(in: diagnosticsDirectory)
+        try? FileManager.default.removeItem(at: diagnosticsPath)
+        defer { try? FileManager.default.removeItem(at: diagnosticsPath) }
+        XCTAssertEqual(
+            diagnosticsDirectory,
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+            "诊断文件必须落在 App 数据容器 Documents 目录"
+        )
         let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
         let speaker = makeSpeaker(
             adapter: adapter,
             synthesizer: synthesizer,
             telemetry: recorder,
-            diagnostics: AnnouncementDeactivationDiagnosticsFile(directoryURL: diagnosticsDirectory)
+            diagnostics: AnnouncementDeactivationDiagnosticsFile()
         )
 
         speaker.speak(makeCommand(splitIndex: 1))
@@ -393,7 +483,11 @@ final class AnnouncementSpeakerTests: XCTestCase {
         synthesizer.start()
         synthesizer.finish()
 
-        XCTAssertEqual(session.deactivations.count, 1, "一次结束路径最多下发一次 setActive(false)")
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, false],
+            "一次结束路径最多下发一次 setActive(false)"
+        )
         XCTAssertEqual(adapter.state, .active, "平台调用失败时不得提交停用状态")
 
         guard let first = recorder.snapshot().first else {
@@ -425,12 +519,19 @@ final class AnnouncementSpeakerTests: XCTestCase {
         // 清除注入错误，验证下一次结束能真实停用成功。
         session.deactivationError = nil
         speaker.speak(makeCommand(splitIndex: 2))
-        XCTAssertEqual(session.activations.count, 1, "协调器仍为 active，不再下发 setActive(true)")
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, false],
+            "协调器仍为 active，下一次播报不再下发 setActive(true)"
+        )
         XCTAssertEqual(adapter.state, .active)
         synthesizer.finish()
 
-        XCTAssertEqual(session.deactivations.count, 2, "下一次结束仍下发 setActive(false)")
-        XCTAssertEqual(session.activations.count, 1)
+        XCTAssertEqual(
+            session.activationCalls.map(\.active),
+            [true, false, false],
+            "下一次结束仍真实下发一次停用，且不重新激活"
+        )
         XCTAssertEqual(adapter.state, .inactive)
         guard let second = recorder.snapshot().last else {
             return XCTFail("缺少第二条播报遥测条目")
