@@ -42,12 +42,21 @@ public struct AudioSessionCoordinator: Equatable, Sendable {
         return .activate(settings: settings)
     }
 
-    /// 停用会话：仅 `.active` 产生停用动作并携带配置的停用选项；
-    /// 其余状态（含已经停用）返回 `.none` 且状态不变。
-    public mutating func deactivate() -> AudioSessionAction {
+    /// 停用会话：纯动作推导，任何情况下都不改变 `state`。
+    /// 仅 `.active` 产生停用动作并携带配置的停用选项；其余状态返回 `.none`。
+    /// 状态提交由 `commitDeactivation()` 在平台调用真实成功后完成。
+    public func deactivate() -> AudioSessionAction {
         guard state == .active else { return .none }
-        state = .inactive
         return .deactivate(options: settings.deactivationOptions)
+    }
+
+    /// 停用状态提交：仅在平台 `setActive(false, …)` 真实成功后调用。
+    ///
+    /// 只做 `.active -> .inactive` 的纯状态转移；不产生/返回动作、不触碰平台。
+    /// `.inactive` / `.interrupted` 调用后状态不变。
+    public mutating func commitDeactivation() {
+        guard state == .active else { return }
+        state = .inactive
     }
 
     /// 中断开始：仅 `.active` 进入 `.interrupted`，且不产生任何激活动作；

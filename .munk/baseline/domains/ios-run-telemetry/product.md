@@ -51,6 +51,21 @@ iOS App 侧「机器自证」遥测子域：在既有跑步链路（Run → 结�
 - ac-autostart-isolation: `-autoStartRecording` 与 `-uiTestLocation` 互不读取——仅前者时定位源仍为 `RunLocationSource`（`sampleSource == .device`），仅后者时不自动开跑；不改变授权请求时机与既有 `telemetry` 字段。
 - ac-local-gates-green: `lint` / `lint-ios-shell` / `lint-ios-scripts` / `lint-ios-core` / `lint-ios-run-core` / `lint-ios-release` / `build-ios` / `build-ios-core` / `build-ios-run-core` / `test-ios-core` / `test-ios-run-core` / `test-ios --unit-only` 全绿；`.munk/code-gates.json` 门 id/command 与 `ios/project.yml` 零改动；新增源码与测试按既有口径登记 `scripts/check-ios-shell.sh`，不弱化既有断言。重 UI E2E 不作本地阻断门。
 
+### 播报停用边界定性（`wi_intake_f76b858c0c2376f5`）
+
+- ac-verdict-single-cause: 定性结论唯一落盘于该项 `digest.md` 顶部 `verdict: 1|2|3`（①遥测派生字段写错 / ②回调时序致状态机已非 active / ③停用调用抛出被吞），结论段不得出现「需进一步观察 / 可能 / 猜测 / 待现场判定」等含糊措辞；被排除的两个机制各自附排除依据（测试名或证据读数）。
+- ac-writer-branch-mapping: 给出写入方与分支表，至少覆盖 `AnnouncementTelemetryRecorder.recordFinished` 写入 `sessionDeactivated`/`duckRevoked`、取值来自 `SpeechAnnouncementSpeaker.speak` 的 `onFinish`（`sessionDeactivated = try audioSession.endAnnouncement()`、`duckRevoked: sessionDeactivated`）、`AudioSessionAdapter.endAnnouncement` 的 `performed = action != .none`、`AudioSessionCoordinator.deactivate` 的 `guard state == .active`，并写清写 false / 写 true 的条件。
+- ac-repro-true-branch: 测试证明播报期间协调器保持 `.active` → didFinish → 恰好一次 `setActive(false, .notifyOthersOnDeactivation)` → `sessionActivated/sessionDeactivated/duckRevoked` 全 true、`finishedAt != nil`、`cancelled=false`。
+- ac-repro-false-branch-interruption: 测试证明播报中 `interruption began` → 状态 `.interrupted` → didFinish 时 `deactivate` 返回 `.none`、无 `setActive(false)`、两派生字段 false；且 `interruptionEnded(shouldResume: false)` 后下一次播报重新激活（`sessionActivated=true`）。
+- ac-repro-false-branch-throw: 测试证明 `setActive(false)` 从注入控制器抛出 → 异常被 `speak` 的 catch 吞掉 → 两派生字段 false，但协调器状态已先转 `.inactive`，故下一次播报仍 `sessionActivated=true`；该用例须同时出现 `sessionActivated=true` + `sessionDeactivated=false` + `finishedAt != nil` + `cancelled=false` 这一真机指纹。
+- ac-fingerprint-discrimination: 指纹矩阵逐格列出三种机制在「三条均 `sessionActivated=true`」「`finishedAt` 均回调且 `cancelled=false`」「播报时长未被截断」上的预测与观测，据此说明为何只有一种自洽；不得只给结论。
+- ac-derived-fields-provenance: 说明 `isOtherAudioPlaying`/`secondaryAudioShouldBeSilencedHint` 由 `AudioSessionAdapter.announcementContext` 在 `beginAnnouncement` 之后、`synthesizer.speak` 之前实时读取并经 `recordStarted` 落盘，判定其与 `sessionDeactivated`/`duckRevoked` 非同类问题；测试须以 `true/true` 与 `false/false` 两组相反值证明透传、未写死也未复用旧快照。
+- ac-no-production-semantic-change: 不触碰 `ios/PurePace/Audio/**`、`ios/RunCore/Sources/**`、`ios/PurePace/Run/RunTelemetry.swift` 的生产行为；遥测 JSON 字段集合与含义不变；改动仅新增/扩展 `ios/PurePaceTests/**`。
+- ac-minimal-fix-proposal: 「最小修法」段给出改动文件与函数、为何最小、对调用序列/遥测契约/旧记录解码的影响面；判定为产品缺陷时明确写「需另派写项，本项未修」，仅遥测语义时明确写「不修真实音频行为」。
+- ac-evidence-refs: 引用 `artifacts/evidence/window-2c7c4f3/evidence/container-runs-B/*.json` 与 `analysis-B.txt` 的具体字段值与时间戳，禁止「见证据目录」式空引用。
+- ac-gates-green-no-weakening: `.munk/code-gates.json` 门 id 与 command 均不变（不新增、不放宽）；`test-ios`（`--unit-only`）、`test-ios-core`、`test-ios-run-core`、`build-ios`、`lint-ios-*` 全绿；不删既有断言、不加 skip。
+- ac-budget-stop: 90 分钟或 10M token 触顶立即停手，回执写明已完成到哪一步（定性 / 复现 / 修法建议）与未完成原因。
+
 ## 非目标
 
 - 不连真机、不产出真机证据：锁屏/后台连续采样与 duck 实际听感一律 `pending: 待人现场`；不对 `isOtherAudioPlaying` / `secondaryAudioShouldBeSilencedHint` 的真机数值变化做机器断言。
@@ -78,7 +93,9 @@ iOS App 侧「机器自证」遥测子域：在既有跑步链路（Run → 结�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_19c87b6c71d028a0（2026-11-10，pass，锁屏/前后台遥测 + 运行中已装包自报 + `-autoStartRecording`；只取代码层与模拟器腿证据）
-- 交付：新增 `RunLifecycleTelemetry.swift`（`RunLifecycleTelemetryRecording` + 线程安全 recorder + `RunLifecycleSnapshotBox`，观察 `protectedDataWillBecomeUnavailable` / `protectedDataDidBecomeAvailable` / `didEnterBackground` / `willEnterForeground`，UTC ISO8601 秒级、当刻快照）；`RunTelemetry` 增补 additive `events[]` 与 `bundle{}`（`BundleInfoProviding` / `SystemBundleInfoProvider` 读运行中 `Bundle.main`，缺键输出空值不伪造）；新增 `RunLaunchArguments.autoStartRecordingEnabled(arguments:)`（默认关，裸 flag 或 `1`/`true` 开，无 `#if DEBUG`）；`RunSessionViewModel` 按本跑次 `start()` 归零的 `runSampleCount` 生成事件快照、`onAppear` 一次性 autoStart 守卫，`ContentView` 仅透传解析结果；`check-ios-shell.sh` 登记 2 个新增源码与 2 个新增测试并加结构断言（四事件名 / `UIBackgroundModes` / `Bundle.main` / Release 无 DEBUG 门 / `didAutoStart`）。
-- 实测：`code_gates` 22 门全绿（attempt 002，含 `lint-ios-shell` / `lint-ios-scripts` / `lint-ios-release` / `build-ios` / `test-ios` / `test-ios-run-core` / `test-ios-core` / `check-gpx-export`）；`test-ios --unit-only`（默认模拟器腿）123 例 0 失败，其中 `RunLifecycleTelemetryTests` 7 例、`RunLaunchArgumentsTests` 4 例、`RunSessionViewModelTests` 新增 4 例（autoStart 恰一次 / 关闭不产生记录 / 定位源仍 `.device` / 事件不改状态与定位）。`scripts/test-ios.sh` 的模拟器清场互斥排除常驻 `WebDriverAgentRunner`（真机 WDA 不操作模拟器，消除伪阻塞）。
-- 未交付项（下一项前置）：**本轮未产出 Release 候选包**——按 `ac-candidate-preflight`，main 尚未合入 `-uiTestLocation` 收录式门控的交付（`main` tip `e7d3769`，该交付仍在 `munk/wi_intake_abacaa757ba3bd09` 的 `1e7e653`），构建阶段已 `munk_report_owner` 并停手，无 zip/记录新增。真机锁屏判读仍为 `pending: 待人现场`；`telemetry.events` 的机读断言只在代码层与默认模拟器腿成立，真机时序未验。
+- workItemId: wi_intake_f76b858c0c2376f5（2026-11-10，pass，播报停用边界定性；只取代码层与模拟器腿证据）
+- 结论：`verdict: 3` — 真机 window `trun_fa2b41fa85283565`（候选 2c7c4f3）三条播报的 `sessionDeactivated`/`duckRevoked` 恒 false 唯一归因为「`AudioSessionCoordinator.deactivate()` 先置 `.inactive` 再返回 `.deactivate` 动作，`setActive(false, ...)` 抛出后被 `SpeechAnnouncementSpeaker.speak` 的 `onFinish` catch 吞掉并强制写 false」，错误对象被丢弃、遥测无错误字段（可观测性缺口）。①遥测派生字段写错与②回调时序致状态机非 active 均被测试与证据证伪（三条播报窗口内零中断事件、时长 4.4907/4.1481/4.4588s 完整、`cancelled=false`）。
+- 交付：定性结论与写入方/分支表、指纹矩阵、证据读数、最小修法建议落盘 `.munk/changes/wi_intake_f76b858c0c2376f5/digest.md`；`ios/PurePaceTests/AnnouncementSpeakerTests.swift` 扩展 `AudioSessionSpy.deactivationError` 注入点并新增 4 例（true 分支 / 中断 false 分支 / 抛错 false 分支复现真机指纹 / 两个音频环境布尔双值透传）。未改生产代码与遥测 JSON 契约。
+- 实测：`AnnouncementSpeakerTests` 11/11 通过、`** TEST SUCCEEDED **`；`bash scripts/test-ios.sh --unit-only` exit 0（`PurePaceTests` 全 suite + RunCore 123/123）。
+- 后续承接：停用失败路径的生产修法已由 `wi_intake_2ba71ae036eedd40` 落地，会话停用语义、失败诊断文件与 A/B/C 验收归 `ios-audio-session` 域（「盲重试一次 + 失败回滚 `.active`」已被公司裁决否决，不在此域复活）；本域遥测契约仍不新增错误码 / 结束状态字段。设备侧窄场复验仍为 `pending: 待人现场`。
+
