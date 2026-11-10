@@ -33,8 +33,9 @@ final class AudioSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .active)
     }
 
-    // MARK: - ac-audiosession-deactivate-option
+    // ac-deactivate-option / ac-commit-after-platform-success
 
+    /// 改写：`deactivate()` 只做纯动作推导（`state` 不变），提交由 `commitDeactivation()` 承担。
     func testDeactivateCarriesNotifyOthersOption() {
         var coordinator = AudioSessionCoordinator()
         _ = coordinator.activate()
@@ -43,10 +44,44 @@ final class AudioSessionCoordinatorTests: XCTestCase {
             coordinator.deactivate(),
             .deactivate(options: [AudioCategoryOption.notifyOthersOnDeactivation])
         )
+        XCTAssertEqual(coordinator.state, .active, "纯动作推导不得改变状态")
+
+        coordinator.commitDeactivation()
         XCTAssertEqual(coordinator.state, .inactive)
 
         XCTAssertEqual(coordinator.deactivate(), .none)
         XCTAssertEqual(coordinator.state, .inactive)
+    }
+
+    /// ac-commit-after-platform-success：`deactivate()` 对非 `.active` 状态只返回 `.none` 且不改状态。
+    func testDeactivateDerivesActionWithoutCommittingState() {
+        var interrupted = AudioSessionCoordinator()
+        _ = interrupted.activate()
+        _ = interrupted.interruptionBegan()
+        XCTAssertEqual(interrupted.deactivate(), .none)
+        XCTAssertEqual(interrupted.state, .interrupted)
+
+        var inactive = AudioSessionCoordinator()
+        XCTAssertEqual(inactive.deactivate(), .none)
+        XCTAssertEqual(inactive.state, .inactive)
+    }
+
+    /// commitDeactivation 只在 `.active` 生效，且是纯状态提交（不产生动作）。
+    func testCommitDeactivationOnlyAppliesFromActive() {
+        var active = AudioSessionCoordinator()
+        _ = active.activate()
+        active.commitDeactivation()
+        XCTAssertEqual(active.state, .inactive)
+
+        var interrupted = AudioSessionCoordinator()
+        _ = interrupted.activate()
+        _ = interrupted.interruptionBegan()
+        interrupted.commitDeactivation()
+        XCTAssertEqual(interrupted.state, .interrupted)
+
+        var inactive = AudioSessionCoordinator()
+        inactive.commitDeactivation()
+        XCTAssertEqual(inactive.state, .inactive)
     }
 
     // MARK: - ac-audiosession-interruption-lifecycle
