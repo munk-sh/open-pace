@@ -84,6 +84,7 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
     private lazy var synthesizer: SpeechSynthesizing = injectedSynthesizer ?? AVSpeechSynthesizing()
     private let text: (AnnouncementCommand) -> String
     private let telemetry: AnnouncementTelemetryRecording?
+    private let diagnostics: AnnouncementDeactivationDiagnosing
     private let now: () -> Date
     private var lastDelivered: CommandKey?
 
@@ -91,12 +92,14 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
         audioSession: AudioSessionAdapter = AudioSessionAdapter(),
         synthesizer: SpeechSynthesizing? = nil,
         telemetry: AnnouncementTelemetryRecording? = nil,
+        diagnostics: AnnouncementDeactivationDiagnosing = AnnouncementDeactivationDiagnosticsFile(),
         text: @escaping (AnnouncementCommand) -> String = AnnouncementText.sentence(for:),
         now: @escaping () -> Date = { Date() }
     ) {
         self.audioSession = audioSession
         self.injectedSynthesizer = synthesizer
         self.telemetry = telemetry
+        self.diagnostics = diagnostics
         self.text = text
         self.now = now
     }
@@ -127,12 +130,32 @@ final class SpeechAnnouncementSpeaker: AnnouncementSpeaking {
             self?.telemetry?.recordSpeechDidStart(splitIndex: splitIndex, startedAt: self?.now() ?? Date())
         }, onFinish: { [weak self] cancelled in
             guard let self else { return }
+            let occurredAt = self.now()
+            let stateBefore = self.audioSession.state
             var sessionDeactivated = false
+            let outcome: AnnouncementDeactivationOutcome
             do {
                 sessionDeactivated = try self.audioSession.endAnnouncement()
+                outcome = sessionDeactivated
+                    ? .success
+                    : .notApplicable(
+                        splitIndex: splitIndex,
+                        occurredAt: occurredAt,
+                        coordinatorStateBefore: stateBefore,
+                        coordinatorStateAfter: self.audioSession.state
+                    )
             } catch {
                 sessionDeactivated = false
+                outcome = .failed(
+                    splitIndex: splitIndex,
+                    occurredAt: occurredAt,
+                    error: error,
+                    coordinatorStateBefore: stateBefore,
+                    coordinatorStateAfter: self.audioSession.state,
+                    platformCallIssued: true
+                )
             }
+            self.diagnostics.record(outcome)
             self.telemetry?.recordFinished(
                 splitIndex: splitIndex,
                 finishedAt: self.now(),

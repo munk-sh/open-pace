@@ -31,14 +31,48 @@
 | 开跑进入进行态 | `startedAt` 存在且 `startedAt < endedAt`；`run.start` 点击后 `run.finish` 出现 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `Documents/Runs/run-*.json` 的 `startedAt`、`endedAt`；`audio-start.png` 中 `run.finish` 元素 |
 | 单次跑动有界且跨恰好一次公里边界 | 跑动时长 60–90 秒；`telemetry.announcements[]` 中 `splitIndex == 1` 的公里触发恰 1 条 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `activeDuration`、`telemetry.announcements[].splitIndex`、`.trigger` |
 | 跨公里播报触发 | 至少 1 条 `telemetry.announcements[]`，`splitIndex == 1` 且 `text` 含「第 1 公里」 | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `telemetry.announcements[].splitIndex`、`telemetry.announcements[].text` |
-| 播报音频会话配置 | 播报条目含 `category`、`mode`、`categoryOptions`（含 `duckOthers`） | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `telemetry.announcements[].category` / `.mode` / `.categoryOptions` |
-| duck 应用与恢复 | `categoryOptions` 含 `duckOthers` 且 `duckRevoked == true`；`sessionActivated == true`、`sessionDeactivated == true` | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `telemetry.announcements[].categoryOptions` / `.duckRevoked` / `.sessionActivated` / `.sessionDeactivated` |
-| 他路音频在播取值 | `isOtherAudioPlaying` 为布尔并原样记录（true/false 都记录，不伪造 true） | Debug 可断言 / (a) Debug UI-test 构建 | 跑次 JSON `telemetry.announcements[].isOtherAudioPlaying`；`announcements-*.json` 同名字段 |
+| 播报音频会话配置 | 播报条目含 `category`、`mode`、`categoryOptions`（含 `duckOthers`）；`sessionActivated == true`（= 真实下发 `setActive(true)`） | Debug 可断言 / (a) Debug UI-test 构建；Release 候选包可机器读回 `categoryOptions` / `sessionActivated`，听感只能人耳 | 跑次 JSON `telemetry.announcements[].category` / `.mode` / `.categoryOptions` / `.sessionActivated`；`announcements-*.json` 同名字段 |
+| duck 应用与恢复 | `categoryOptions` 含 `duckOthers`；`sessionActivated == true`（= 真实下发 `setActive(true)`）。`duckRevoked` / `sessionDeactivated` **只记实测值并标 `pending-classification: wi_intake_f76b858c0c2376f5`**，不判 pass/fail（定性结论未出前不得伪绿）。不得写重试计数（「盲重试 + 失败回滚 .active」已被公司否决） | Debug 可断言（配置项 + 实测记录）/ (a) Debug UI-test 构建；Release 候选包只能人耳（听感恢复） | 跑次 JSON `telemetry.announcements[].categoryOptions` / `.duckRevoked` / `.sessionActivated` / `.sessionDeactivated`；`audio-result.json`、`announcements-*.json` 同名字段；runner 侧 `music-source.json` 的 `playerStarted` / `isPlayingAtStart` / `currentTimeAtFinish` |
+| 他路音频在播取值 | **音源 = runner 自播（无人操作）**：正例 `isOtherAudioPlaying == true` 且可归因（runner 播放器起播早于跑次开始、`currentTime` > 0、资产指纹齐备）；负对照 `--music-strategy=none` 同字段 `== false`；两侧齐备才成立 | Debug 可断言 / (a) Debug UI-test 构建；Release 候选包只能人耳 | `announcements-*.json` 的 `isOtherAudioPlaying`（取样时刻 = 条目 `startedAt`，先于 `synthesizer.speak`）、`audio-result.json` / `music-source.json` 的 `musicStrategy` / `playerStarted` / `isPlayingAtStart` / `playbackStartedAt` / `currentTimeAtFinish` / `assetBytes` / `assetSHA256` / `otherAudioSnapshots` |
 | 结束保存形成归档 | 结束时新增 1 条跑次 JSON；`formatVersion == 1`、`samples` 非空、`distance ≥ 0` | Debug 可断言 / (a) Debug UI-test 构建 | `Documents/Runs/*.json` 的 `formatVersion`、`samples`、`distance`、`endedAt` |
 | 历史可见本次跑次 | `history.row` 数量 ≥ 1，且最新一行对应本次 `startedAt` | Debug 可断言 / (a) Debug UI-test 构建 | `audio-history.png`；AX dump 中 `history.row`；跑次 JSON `startedAt` |
 | 导出 GPX 落盘且可校验 | `.gpx` 真实存在、字节数 > 0、实算 sha256 为 64 位十六进制并与 `sha256.txt` 一致 | Debug 可断言 / (a) Debug UI-test 构建 | `Documents/Exports/*.gpx`；`sha256.txt` |
 | 导出与采样一致 | GPX `trkpt` 数与 `samples` 数差值 ≤ 1；GPX 时间跨度与记录区间绝对差 ≤ 1 秒 | Debug 可断言 / (a) Debug UI-test 构建 | `.gpx` 的 `trkpt` 数 / 首末 `trkpt/time`；跑次 JSON `samples[]` |
 | 证据四类齐全 | 截图序列（起跑 / km 边界 / 结束）、跑次 JSON、`announcements-*.json`、`.gpx` + `sha256.txt` 均落盘非空 | Debug 可断言 / (a) Debug UI-test 构建 | `audio-*.png`、`run-*.json`、`announcements-*.json`、`*.gpx`、`sha256.txt` |
+
+## 音源策略与正负对照（`--phase=audio`）
+
+- 音源策略参数：`--music-strategy=runner|app|none`（默认 `runner`）。`runner` = UITests target 自带
+  `Fixtures/runner-music-loop.wav`（≤200 KB、python3 标准库合成、确定性、零网络）由 runner 进程
+  `AVAudioPlayer` 循环自播，**无人操作**，对被测 App 就是他路音频；`app` = `--music-bundle-id <id>`
+  （默认常量 `com.apple.Music`）起外部 App；`none` = 不产生任何音源。
+- 正负对照：同一用例 `testAudioKilometerBoundaryWithMusic` 跑两遍——正例（默认 runner）与
+  `--music-strategy=none` 负对照，各自独立 result bundle（`DeviceFlow-audio-runner.xcresult` /
+  `DeviceFlow-audio-none.xcresult`）与证据子目录（`audio-runner/` / `audio-none/`）。
+  断言正例 `announcements[].isOtherAudioPlaying == true`、负例 `== false`，任一侧缺失或不符即失败；
+  两遍都落 runner 播放器状态（`playerStarted`、`isPlayingAtStart`、`currentTimeAtFinish`、起播/停止时刻、session 状态）。
+- 无音源场景（`strategy=none` 或 runner 未起播）：`isOtherAudioPlaying` 归因、`duckOthers` 生效、
+  `duckRevoked`、`sessionActivated/sessionDeactivated` 一律记 `not-applicable`（含原因），不记 pass。
+- **自污染候选假设（结论）**：`isOtherAudioPlaying=true` 可能来自 `AVSpeechSynthesizer` 由系统语音进程播放。
+  产品代码在 `announcementContext` 构造时取样，该调用发生在 `synthesizer.speak(...)` **之前**，
+  故 `telemetry.announcements[].isOtherAudioPlaying` 实际是「播报开始前」快照（取样时刻 = 条目 `startedAt`）。
+  负对照只使用该播报前快照，不用播报期间的 true 当「外部音乐在播」的证据；runner 进程另落
+  `otherAudioSnapshots`（beforeRun / announcementWindow / afterFinish，含时间戳）作为旁证。结论状态由
+  设备运行的 `audio-other-audio-self-pollution` 检查项给出（supported / excluded / cannot-exclude），
+  本清单不预写「已排除」。
+- 模拟器 vs 真机：模拟器只证明 runner 播放器状态与 bundle 声明（`MusicSourceSelfCheckUITests`，默认 UI 腿执行）；
+  app 侧 `isOtherAudioPlaying` 归因、真实 duck 语义、`duckRevoked`、`sessionDeactivated` 仅真机可断言，
+  模拟器附件显式写 `simulatorNotApplicable`（原因「模拟器音频栈无真实他路音频/duck，真机可跑」）。
+
+## Release 候选包机器复核口径（本项不跑真机）
+
+- `sessionDeactivated` 须与实际 `setActive(false)` 调用成对：调用成功 → `true`；未下发或抛错 → `false`
+  并记录错误（桩或日志证明），不得被吞；只判「字段与调用一致」，**不写重试计数**。
+- `categoryOptions` 须含 `duckOthers`（配置项可机器读回）。
+- `duckRevoked` 只记实测值（`pending-classification: wi_intake_f76b858c0c2376f5`），不判单一布尔；无音源
+  （`strategy=none`）记 `not-applicable`。
+- 依赖顺序：`duckRevoked` / `sessionDeactivated` 等 `wi_intake_f76b858c0c2376f5` 定性结论后才可写死语义断言；
+  在此之前一律 record-only + `pending-classification`，不放宽、不 continue-on-error。
 
 ## 批次 A2：核心闭环 · Release 候选包可断言（`--phase=background`）
 
@@ -93,7 +127,9 @@
 
 ## 不进真机场的语义（指向单测 / 集成 / 模拟器层）
 
-- Info.plist 用途说明与 `UIBackgroundModes` 声明：`scripts/check-ios-shell.sh` 结构断言 + 工程配置审查。
+- Info.plist 用途说明与 `UIBackgroundModes` 声明：`scripts/check-ios-shell.sh` 结构断言 + 工程配置审查；
+  `UIBackgroundModes=[audio]` 只加在 `PurePaceUITests` target（真机 audio 音源由 runner 自播），产品包
+  `.app/Info.plist` 仍须读回 `[location, audio]`（构建产物本体断言，防测试侧声明混进候选包）。
 - 每公里播报开关默认值/持久化：`PurePaceTests` 单测 + 模拟器 `RunFlowUITests.testAnnouncementTogglePersistsAcrossRelaunch`。
 - 时间/配速/距离格式化：`ios/Core` 与 `ios/RunCore` 单元测试。
 - 会话状态机与四态（ready/running/paused/finished）：`ios/RunCore` 单测。

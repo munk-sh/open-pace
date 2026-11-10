@@ -76,14 +76,23 @@ fake_mode="real"
 fake_step=5
 fake_clock_file="${work_dir}/fake-clock"
 fake_reads_file="${work_dir}/fake-reads"
-reset_fake_clock() { # 模式 起始值
+fake_release_file="${work_dir}/fake-release"
+# 第 N 次取时放行子进程（0 = 不放行）：把「读次数下界」变成测试侧确定性事实。
+fake_release_after=0
+reset_fake_clock() { # 模式 起始值 [第 N 次取时放行]
   fake_mode="$1"
   printf '%s' "$2" > "${fake_clock_file}"
   : > "${fake_reads_file}"
+  rm -f "${fake_release_file}"
+  fake_release_after="${3:-0}"
 }
 fake_reads() { wc -l < "${fake_reads_file}" | tr -d ' '; }
 ios_now_epoch() {
   printf 'r\n' >> "${fake_reads_file}"
+  if [ "${fake_release_after}" -gt 0 ] \
+    && [ "$(fake_reads)" -ge "${fake_release_after}" ]; then
+    : > "${fake_release_file}"
+  fi
   case "${fake_mode}" in
     fake)
       local next
@@ -127,20 +136,26 @@ else
 fi
 
 # ---------------- ac-watchdog-not-iteration-counted：时钟冻结不按轮询次数判超时
-reset_fake_clock frozen 1000
+# 读次数下界由测试侧确定性放行驱动：冻结时钟在第 N 次取时时创建 release 文件，
+# 子进程见到后正常退出；run_with_watchdog 每轮先取时再 sleep，故 reads ≥ N 必然成立，
+# 与子进程墙钟时长/机器速度无关（N 固定且 > 原「>5 次轮询」意图）。
+frozen_release_after=8
+reset_fake_clock frozen 1000 "${frozen_release_after}"
 poll_rc=0
-IOS_WATCHDOG_POLL_SECONDS=0.02 run_with_watchdog 5 "${work_dir}/frozen.log" bash -c 'sleep 0.3' \
+IOS_WATCHDOG_POLL_SECONDS=0.02 run_with_watchdog 5 "${work_dir}/frozen.log" \
+  bash -c 'while [ ! -f "$1" ]; do sleep 0.01; done' _ "${fake_release_file}" \
   2>"${work_dir}/frozen.err" || poll_rc=$?
 assert_eq "ac-watchdog-not-iteration-counted (rc=0)" 0 "${poll_rc}"
 frozen_reads="$(fake_reads)"
-if [ "${frozen_reads}" -gt 6 ]; then
-  pass "ac-watchdog-not-iteration-counted (轮询 >5 次未误判超时，reads=${frozen_reads})"
+if [ "${frozen_reads}" -ge "${frozen_release_after}" ]; then
+  pass "ac-watchdog-not-iteration-counted (确定性放行 reads=${frozen_reads} ≥ ${frozen_release_after}，未误判超时)"
 else
-  fail "ac-watchdog-not-iteration-counted" "轮询取时 ${frozen_reads} 次（期望 >6，样本不足以证伪轮询计数）"
+  fail "ac-watchdog-not-iteration-counted" "取时 ${frozen_reads} 次（期望 ≥${frozen_release_after}：第 N 次取时确定性放行的下界）"
 fi
 
 # --------------------------------------- ac-watchdog-passthrough-exit：退出码透传
 fake_mode="real"
+fake_release_after=0
 exit_rc=0
 run_with_watchdog 5 "${work_dir}/passthrough.log" bash -c 'exit 65' 2>/dev/null || exit_rc=$?
 assert_eq "ac-watchdog-passthrough-exit (65 原样返回)" 65 "${exit_rc}"
