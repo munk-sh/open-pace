@@ -177,20 +177,14 @@ validate_location_config() {
     problems="$problems project.yml 仍存在 INFOPLIST_KEY_UIBackgroundModes（会覆盖数组声明，必须删除）;"
   fi
 
-  # ac-project-yml-array-both：info.properties.UIBackgroundModes 必须是含 location 与 audio 的数组。
-  local spec_modes
-  spec_modes="$(awk '
-    /^[[:space:]]*UIBackgroundModes:[[:space:]]*$/ {flag=1; next}
-    flag && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {print; next}
-    flag {flag=0}
-  ' "$spec_file" 2>/dev/null || true)"
+  # ac-static-gate-scope：只按 PurePace target 段解析，UITests target 新增的 [audio] 不得影响本断言。
+  local app_section spec_modes
+  app_section="$(project_target_section "$spec_file" "PurePace")"
+  spec_modes="$(project_background_mode_values "$app_section")"
   if [ -z "$spec_modes" ]; then
-    problems="$problems project.yml 缺少 info.properties.UIBackgroundModes 数组;"
-  else
-    grep -Eq '^[[:space:]]*-[[:space:]]*location[[:space:]]*$' <<< "$spec_modes" \
-      || problems="$problems project.yml UIBackgroundModes 数组未含 location;"
-    grep -Eq '^[[:space:]]*-[[:space:]]*audio[[:space:]]*$' <<< "$spec_modes" \
-      || problems="$problems project.yml UIBackgroundModes 数组未含 audio;"
+    problems="$problems project.yml 的 PurePace target 缺少 info.properties.UIBackgroundModes 数组;"
+  elif [ "$spec_modes" != "$(printf 'location\naudio')" ]; then
+    problems="$problems project.yml 的 PurePace target UIBackgroundModes 必须恰为 [location, audio]（实际 '${spec_modes}'; 脚本内换行以空格分隔）;"
   fi
 
   # UIBackgroundModes 是数组键，真正进产物的是 spec 同目录下、作为 INFOPLIST_FILE 的 Info.plist；
@@ -314,6 +308,70 @@ validate_no_fixture_data() {
 
   if grep -rEq --include='*.swift' 'shared/fixtures|\.tcx|sample[^"[:space:]]*\.gpx' "$dir" 2>/dev/null; then
     problems="$problems App 源码引用夹具/样例数据;"
+  fi
+
+  printf '%s' "$problems"
+}
+
+# project.yml 指定 target 段（2 空格缩进的 target 名，到下一个同级 target 为止）。
+project_target_section() {
+  local spec_file="$1" target="$2"
+  awk -v target="$target" '
+    index($0, "  " target ":") == 1 {flag=1; next}
+    flag && /^  [A-Za-z_][A-Za-z0-9_]*:/ {flag=0}
+    flag {print}
+  ' "$spec_file" 2>/dev/null || true
+}
+
+# 段内 info.properties.UIBackgroundModes 数组取值（去掉缩进与行首 '-'，每行一个）。
+project_background_mode_values() {
+  printf '%s\n' "$1" | awk '
+    /^[[:space:]]*UIBackgroundModes:[[:space:]]*$/ {flag=1; next}
+    flag && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      print line
+      next
+    }
+    flag {flag=0}
+  ' 2>/dev/null || true
+}
+
+# 测试侧音源静态契约：UITests 后台音频声明、runner 合成音资产、旧音源 id 清除、目标 id 常量钉死。
+validate_uitests_music_source() {
+  local root="$1"
+  local spec_file="$root/ios/project.yml"
+  local problems=""
+
+  local uitests_modes
+  uitests_modes="$(project_background_mode_values "$(project_target_section "$spec_file" "PurePaceUITests")")"
+  if [ "$uitests_modes" != "audio" ]; then
+    problems="$problems project.yml 的 PurePaceUITests target UIBackgroundModes 必须恰为 [audio]（实际 '${uitests_modes}'; 脚本内换行以空格分隔）;"
+  fi
+
+  local wav="$root/ios/PurePaceUITests/Fixtures/runner-music-loop.wav"
+  if [ ! -s "$wav" ]; then
+    problems="$problems 缺少 $root/ios/PurePaceUITests/Fixtures/runner-music-loop.wav（runner 自播合成音源）;"
+  else
+    local bytes
+    bytes="$(wc -c < "$wav" | tr -d ' ')"
+    if [ "$bytes" -gt 204800 ]; then
+      problems="$problems runner-music-loop.wav 为 $bytes 字节，超过 204800 字节上限;"
+    fi
+  fi
+
+  # 全仓旧音源 id 零命中（治理归档 .munk/** 除外：历史 change pack 是记录，不是可执行面）。
+  if grep -rIl --exclude-dir=.git --exclude-dir=.build --exclude-dir=artifacts --exclude-dir=.munk \
+    -e 'com\.apple\.MobileMusic' "$root" >/dev/null 2>&1; then
+    problems="$problems 全仓仍存在 com.apple.Mobile""Music（旧音源 id 必须清除）;"
+  fi
+
+  local strategy_file="$root/ios/PurePaceUITests/MusicSource.swift"
+  if [ ! -f "$strategy_file" ]; then
+    problems="$problems 缺少 $root/ios/PurePaceUITests/MusicSource.swift;"
+  elif ! grep -Fq 'static let defaultBundleIdentifier = "com.apple.Music"' "$strategy_file"; then
+    problems="$problems MusicSource 常量 defaultBundleIdentifier 必须等于 com.apple.Music;"
   fi
 
   printf '%s' "$problems"
@@ -888,6 +946,156 @@ ui_source_selftest "ac-ui-assertions-intact" drop_assertions
 ui_source_selftest "ac-ui-test-count-intact" drop_ui_case
 ui_source_selftest "ac-ui-export-case-intact" drop_export_ui_case
 
+# ------------------------------------------------ 测试侧音源（runner 自播合成音 + 参数化策略）
+# 构建产物读回：模拟器构建存在时才读（lint 门先于 build 门运行，缺失不是失败，但也不冒充通过）。
+built_plist_modes() {
+  python3 - "$1" <<'PY'
+import plistlib
+import sys
+try:
+    with open(sys.argv[1], "rb") as handle:
+        doc = plistlib.load(handle)
+    print(",".join(doc.get("UIBackgroundModes") or []))
+except Exception:
+    print("unreadable")
+PY
+}
+
+validate_built_app_plists() {
+  local root="$1"
+  local problems=""
+  local base="$root/.build/ios/Build/Products/Debug-iphonesimulator"
+  local app_plist="$base/PurePace.app/Info.plist"
+  local uitests_plist="$base/PurePaceUITests-Runner.app/PlugIns/PurePaceUITests.xctest/Info.plist"
+
+  if [ -f "$app_plist" ]; then
+    local app_modes
+    app_modes="$(built_plist_modes "$app_plist")"
+    if [ "$app_modes" != "location,audio" ]; then
+      problems="$problems 产品包 Info.plist 的 UIBackgroundModes 必须恰为 [location, audio]（实际 '$app_modes'）;"
+    fi
+  fi
+
+  if [ -f "$uitests_plist" ]; then
+    local uitests_modes
+    uitests_modes="$(built_plist_modes "$uitests_plist")"
+    case ",$uitests_modes," in
+      *,audio,*) ;;
+      *) problems="$problems PurePaceUITests.xctest 的 Info.plist 未含 audio（实际 '$uitests_modes'）;" ;;
+    esac
+  fi
+
+  printf '%s' "$problems"
+}
+
+music_source_selftest() {
+  local label="$1" mutate="$2" sandbox="" out=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-music.XXXXXX")"
+  mkdir -p "$sandbox/ios/PurePaceUITests/Fixtures"
+  cp ios/project.yml "$sandbox/ios/project.yml"
+  cp ios/PurePaceUITests/MusicSource.swift "$sandbox/ios/PurePaceUITests/"
+  cp ios/PurePaceUITests/Fixtures/runner-music-loop.wav "$sandbox/ios/PurePaceUITests/Fixtures/"
+  "$mutate" "$sandbox"
+  out="$(validate_uitests_music_source "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "$label (self-test)"
+  else
+    fail "$label" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+drop_uitests_background_audio() {
+  python3 - "$1/ios/project.yml" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    text = handle.read()
+needle = "  PurePaceUITests:\n"
+index = text.index(needle)
+head, tail = text[:index], text[index:]
+tail = tail.replace("        UIBackgroundModes:\n          - audio\n", "", 1)
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(head + tail)
+PY
+}
+
+grow_music_asset() {
+  python3 - "$1/ios/PurePaceUITests/Fixtures/runner-music-loop.wav" <<'PY'
+import sys
+
+with open(sys.argv[1], "wb") as handle:
+    handle.write(b"RIFF" + b"\x00" * 204800)
+PY
+}
+
+inject_legacy_music_id() {
+  printf '\n// legacy %s\n' "com.apple.Mobile""Music" >> "$1/ios/PurePaceUITests/MusicSource.swift"
+}
+
+wrong_music_bundle_id() {
+  python3 - "$1/ios/PurePaceUITests/MusicSource.swift" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    text = handle.read()
+good = "com.apple." + 'Music"'
+bad = "com.example." + 'NotMusic"'
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(text.replace(good, bad, 1))
+PY
+}
+
+built_plist_selftest() {
+  local sandbox out
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-builtplist.XXXXXX")"
+  mkdir -p "$sandbox/.build/ios/Build/Products/Debug-iphonesimulator/PurePace.app" \
+    "$sandbox/.build/ios/Build/Products/Debug-iphonesimulator/PurePaceUITests-Runner.app/PlugIns/PurePaceUITests.xctest"
+  python3 - "$sandbox/.build/ios/Build/Products/Debug-iphonesimulator" <<'PY'
+import os
+import plistlib
+import sys
+
+base = sys.argv[1]
+with open(os.path.join(base, "PurePaceUITests-Runner.app/PlugIns/PurePaceUITests.xctest/Info.plist"), "wb") as handle:
+    plistlib.dump({"CFBundleIdentifier": "x.uitests", "UIBackgroundModes": ["audio"]}, handle)
+with open(os.path.join(base, "PurePace.app/Info.plist"), "wb") as handle:
+    plistlib.dump({"CFBundleIdentifier": "x.app", "UIBackgroundModes": ["location", "audio", "audio"]}, handle)
+PY
+  out="$(validate_built_app_plists "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "ac-built-plist-readback (self-test)"
+  else
+    fail "ac-built-plist-readback" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+music_source_selftest "ac-uitests-background-audio-only" drop_uitests_background_audio
+music_source_selftest "ac-audio-asset-committed" grow_music_asset
+music_source_selftest "ac-no-legacy-music-id" inject_legacy_music_id
+music_source_selftest "ac-music-id-constant" wrong_music_bundle_id
+built_plist_selftest
+
+problems="$(validate_uitests_music_source .)"
+if [ -z "$problems" ]; then
+  pass "ac-uitests-music-source (UITests [audio] + 合成音资产 ≤200KB + 无旧 id + 常量 com.apple.Music)"
+else
+  fail "ac-uitests-music-source" "$problems"
+fi
+
+problems="$(validate_built_app_plists .)"
+if [ -n "$problems" ]; then
+  fail "ac-built-plist-readback" "$problems"
+elif [ -f ".build/ios/Build/Products/Debug-iphonesimulator/PurePace.app/Info.plist" ]; then
+  pass "ac-built-plist-readback (产品包 [location,audio] + UITests xctest 含 audio)"
+else
+  echo "[SKIP] ac-built-plist-readback: 无 .build/ios 模拟器构建产物（构建后复跑本门生效）" >&2
+fi
+
+
 # ------------------------------------------------ Release 确定性源（launch-arg 门控，默认关）
 # 基础 Info.plist 只承载 UIBackgroundModes = [location, audio]，改动须同步本基线。
 INFO_PLIST_SHA256="2b92134b1ab0dfd91b82bda01027df147a2233036b13ed21194fb39eda2642f6"
@@ -1000,13 +1208,9 @@ release_deterministic_problems() {
       INFOPLIST_KEY_NSLocationWhenInUseUsageDescription | sort)"
     [ "$usage_keys" = "$expected_usage" ] \
       || out="$out project.yml 定位用途说明键被改动（期望恰为既有两条）;"
-    modes="$(awk '
-      /^[[:space:]]*UIBackgroundModes:[[:space:]]*$/ {in_modes=1; next}
-      in_modes && /^[[:space:]]*-[[:space:]]*[^[:space:]]/ {line=$0; gsub(/[[:space:]-]/, "", line); print line; next}
-      in_modes {in_modes=0}
-    ' "$spec" 2>/dev/null || true)"
+    modes="$(project_background_mode_values "$(project_target_section "$spec" "PurePace")")"
     [ "$modes" = "$(printf 'location\naudio')" ] \
-      || out="$out project.yml UIBackgroundModes 不再是 location+audio;"
+      || out="$out project.yml PurePace target UIBackgroundModes 不再是 location+audio;"
   fi
 
   if [ ! -f "$plist" ]; then

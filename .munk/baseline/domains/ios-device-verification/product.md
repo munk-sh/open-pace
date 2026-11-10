@@ -16,6 +16,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - `ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift`：默认路径零注入、flag 路径 1.0 s 严格递增时序、把样本喂既有 `RunSessionOrchestrator` 恰产生 1 条 `splitIndex == 1` / `.kilometerCompleted` 播报、fail-closed 与能力诚实断言。
 - `scripts/check-ios-shell.sh`：新增 release-deterministic 断言块（结构断言 + ≥1 条负向自检），不新增 `code-gates` 门（门数保持 22）。
 - `docs/device-flow-usage.md` / `docs/device-assertion-matrix.md`：flag 语法、`km-crossing`、默认关、仅设备验证场、`simulated` 不计入真实 CoreLocation 判据；矩阵新增「Release 确定性源门控」行并修正 Release 公里播报结论行。
+- 音频 duck 自证（UITests 自带合成音源、`--music-strategy=runner|app|none` 默认 `runner`、runner/none 正负对照、`duckRevoked` / `sessionDeactivated` 只做结构性观测）拆分到子域 `ios-audio-verification`，本域只保留 `--phase=audio` 的形状与证据边界。
 
 ## 验收
 
@@ -81,7 +82,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 ### `--phase=audio`
 
 - ac-audio-single-run-bounded: 单次真机无人操作跑完，跑动 60–90 秒，跨恰好一次公里边界；无固定 `sleep` 作成功判据，等待均为有界 `waitForExistence`。
-- ac-audio-music-and-announcement: 运行中启动系统 Music 并确认在播；`telemetry.announcements[]` 至少 1 条 km 触发（`trigger` 为公里完成、`splitIndex == 1`），含音频会话 category/mode/options、duck 应用与恢复、`isOtherAudioPlaying` 取值。
+- ac-audio-music-and-announcement: 运行中由 **runner 自播音源**（`--music-strategy=runner`，默认）提供他路音频并确认在播（系统 Music 不再作为默认路径，详见子域 `ios-audio-verification`）；`--phase=audio` 须同时跑 `--music-strategy=none` 负对照；`telemetry.announcements[]` 至少 1 条 km 触发（`trigger` 为公里完成、`splitIndex == 1`），含音频会话 category/mode/options、duck 应用与恢复、`isOtherAudioPlaying` 取值。
 - ac-audio-artifacts: 截图序列（起跑 / km 边界 / 结束）、跑次 JSON、`announcements-*.json` 抽取均落盘；任一项缺失即 FAIL 并列证据。
 
 ### `--phase=background`
