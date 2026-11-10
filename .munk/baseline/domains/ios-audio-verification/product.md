@@ -8,7 +8,7 @@
 - **UITests target 后台音频声明**：`ios/project.yml` 给 `PurePaceUITests` 配 `info.properties.UIBackgroundModes: [audio]`（生成 `ios/PurePaceUITests/Info.plist`）并把 wav 作为 UITests bundle 资源；pbxproj 一律 `xcodegen generate` 产物，禁手改；App target `ios/PurePace/Info.plist` 保持零 diff。
 - **音源策略层**：`ios/PurePaceUITests/MusicSource.swift`（策略解析 + runner `AVAudioPlayer` 播放器 + 证据模型）：`runner|app|none`，默认 `runner`；`app` 用 `--music-bundle-id`（默认常量 `com.apple.Music`）启动第三方/系统 App；`none` 不产生任何音源；非法值回落 `runner` 并在证据里记 `invalidRequested`。
 - **参数化与构建配置**：`scripts/verify-ios-device-flow.sh` 支持 `--music-strategy=runner|app|none` 与 `--music-bundle-id <id>`（`--music-strategy` 只对 `background` 生效），新增 `--configuration Debug|Release`（audio 缺省 `Release`，其余 phase 缺省保持 `Release`）；`--phase=audio` 固定三遍 `app` → `runner` → `none`，各自独立 result bundle / 证据子目录 / `music-source.json`；Release 用 `-releaseDeterministicLocation km-crossing`（20 m/s 确定性源），Debug 仍用 `-uiTestLocation`，默认用户路径与 `ios/PurePace/**` 零改动。
-- **候选包绑定**：audio 被驱动 App 必须来自 `--candidate`（或 `artifacts/candidates/PurePace-Release-*.zip` 唯一命中）解包的 `Payload/*.app`，经 build-for-testing 后替换产物或 `UITargetAppPath` 绑定；证据落 candidate zip sha256、候选 exec sha256、实际驱动 `.app` 路径与 exec sha256，两者一致才算候选包已验证；缺包/多义/结构不兼容在跑用例前 fail-closed。
+- **候选包绑定**：audio 被驱动 App 必须来自 `--candidate`（或 `artifacts/candidates/PurePace-Release-*.zip` 唯一命中）解包的 App bundle（布局双兼容：`Payload/*.app` 优先，根级 `*.app` 接受），经 build-for-testing 后替换产物或 `UITargetAppPath` 绑定；证据落 candidate zip sha256、候选 exec sha256、实际驱动 `.app` 路径与 exec sha256，两者一致才算候选包已验证；缺包/多义/结构不兼容在跑用例前 fail-closed。
 - **设备侧断言（audio 阶段）**：`DeviceFlowUITests.swift` 一用例 `testAudioKilometerBoundaryWithMusic` 观测 a) `isOtherAudioPlaying == true` 且可归因 runner 自播；b) `categoryOptions` 含 `duckOthers`；c) `duckRevoked` 只记录实测值；d) `sessionActivated == true`，`sessionDeactivated` 只记录实测值，并记录 `setActive(false)` 是否发生。
 - **模拟器全量可跑**：`ios/PurePaceUITests/MusicSourceSelfCheckUITests.swift`（默认 UI 腿会跑、不被 DeviceFlow 跳过规则排除）在模拟器跑 runner/none 两遍，断言资产、UITests bundle `UIBackgroundModes`、默认策略、`AVAudioPlayer.isPlaying` 正负；模拟器无法观测的 app 侧语义写 `simulatorNotApplicable`。
 - **静态门**：`scripts/check-ios-shell.sh` 把 App target `UIBackgroundModes` 断言收敛到 `PurePace` target 段，新增 UITests `UIBackgroundModes == [audio]`、wav 存在且 ≤200 KB、全仓无 `com.apple.MobileMusic`、App plist 仍 `[location,audio]` 的断言与负向自检；`code_gates` 仍 22 门。
@@ -33,6 +33,7 @@
 - ac-audio-no-debug-substitute: 显式 `--configuration=Debug` 的 audio 证据在 meta / report 标 `evidenceGrade=debug` 且注明「不可计入 V1 Release 门」；默认路径与 `device-run --phase=audio` 只接受 Release，不存在 Debug 或自产 Release 构建顶替候选包。
 - ac-audio-candidate-bound: audio 证据记录 `candidatePath`、candidate zip sha256、候选 `.app` exec sha256（64 位 hex）与证据目录路径，并记录实际被驱动 App 的 `.app` 路径与 exec sha256；二者须一致，否则 FAIL（不得只记 zip sha 就宣称候选包已验证）。
 - ac-audio-candidate-missing-fail-closed: 无 `--candidate` 且 `artifacts/candidates/PurePace-Release-*.zip` 缺失或多义时，audio 在任何用例启动前非 0 退出并写明原因。
+- ac-audio-identity-layout: `bind_candidate_identity` 的布局解析与 `device-run.sh` preflight 同口径：`Payload/*.app` 优先、根级 `*.app` 接受、同一被选层多 `.app` fail-closed、两者皆无 fail-closed 且错误含候选 zip 路径与 `unpack/` 顶层条目；根级布局的 Release 候选 zip 上 `--phase=audio` 不再在身份绑定处失败，三遍顺序 app→runner→none、`--configuration`、music 策略、launch-arg 与证据路径不变。
 
 ### 参数化与策略
 
@@ -102,7 +103,7 @@
 - **可写文件锚点**：`ios/PurePaceUITests/`（`DeviceFlowUITests.swift`、`MusicSource.swift`、`Info.plist`、`Fixtures/runner-music-loop.wav`）、`ios/project.yml`、`ios/PurePace.xcodeproj/project.pbxproj`（仅生成物）、`scripts/gen-ios-test-audio.sh`、`scripts/verify-ios-device-flow.sh`、`scripts/device-run.sh`、`scripts/check-ios-scripts.sh`、`scripts/check-ios-shell.sh`、`docs/device-assertion-matrix.md`、`docs/device-flow-usage.md`、`docs/device-scripts.md`；其余路径禁改。
 - **裁决 E 优先**：`duckRevoked` / `sessionDeactivated` 只做结构性观测（字段存在、类型、实测值、时间戳、`setActive(false)` 调用证据）并标 `pending-classification`；`duckOthers`（配置项）与 `sessionActivated` 可断言 true。
 - **三遍落地**：`--phase=audio` 固定 `app` → `runner` → `none`（同用例 `testAudioKilometerBoundaryWithMusic`），各自 result bundle 与证据子目录；`app`/`runner` 的 duck 三字段与 km 触发须取自同一条 `announcements[]` 条目。
-- **候选包绑定**：build-for-testing 后用候选 `Payload/*.app` 替换产物（或 xctestrun `UITargetAppPath` 绑定），通过判据是「实际驱动 App exec sha256 == 候选 exec sha256」；bundle id / executable / 签名 / 架构不一致时替换前 fail-closed，不回退 Debug。
+- **候选包绑定**：build-for-testing 后用候选 App bundle（`Payload/*.app` 优先，根级 `*.app` 兼容）替换产物（或 xctestrun `UITargetAppPath` 绑定），通过判据是「实际驱动 App exec sha256 == 候选 exec sha256」；bundle id / executable / 签名 / 架构不一致时替换前 fail-closed，不回退 Debug。
 - **策略传递**：脚本导出 `TEST_RUNNER_MUSIC_STRATEGY` / `TEST_RUNNER_MUSIC_BUNDLE_ID`（同时导出无前缀同名变量兜底）；用例按 `ProcessInfo.environment` 读取；`--music-strategy` 只对 `background` 生效，audio 三遍固定并记 `musicStrategyIgnored`。
 - **静态门作用域**：`check-ios-shell.sh` 的 `UIBackgroundModes` awk 解析只取 `PurePace:` target 段；新增 UITests 段断言 + 资产/旧 id 断言 + 负向自检；`INFO_PLIST_SHA256` 常量与 App plist 零 diff 断言保留。
 - **构建产物读回**：模拟器 UI 腿后从 `.build/ios/Build/Products/Debug-iphonesimulator` 用 plistlib 读 `.app/Info.plist` 与 `PurePaceUITests-Runner.app/PlugIns/PurePaceUITests.xctest/Info.plist`；XCTest 内再用 `Bundle(for:)` 做运行时读回。
@@ -112,7 +113,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_a22d527eed9de808（2026-11-10，pass）
-- 交付：`verify-ios-device-flow.sh` audio 分支默认 `Release` 并新增 `--configuration Debug|Release`；Release 用例注入 `-releaseDeterministicLocation km-crossing`（Debug 仍 `-uiTestLocation`）并把实际 `launchArguments` 落 `audio-result.json`；`--phase=audio` 固定 `app`→`runner`→`none` 三遍，`app` 遍驱动系统 Music 并落 `nowPlayingTitle` / 时长 / `isLocalFile`+`localFileBasis` / 可及树与截图；候选包绑定用候选 `Payload/*.app` 替换并校验实际驱动 exec sha256 与候选一致，缺包/多义/结构不兼容在跑用例前 fail-closed；duck 三字段与播报上下文取自同一条 `announcements[]`（`splitIndex`/`text`/时间戳成对）；km 窗口改 35–90s。
-- 交付（续）：`device-run.sh` 新增 `audio` phase（`tcc` 之后、`record` 之前，10 step），`phase_audio` 只调 `verify-ios-device-flow.sh --phase=audio --configuration=Release` 并把证据收进 `artifacts/device-run/<candidateKey>/audio/` + `audio-step.json` 必备产物清单，缺项非 0；`check-ios-scripts.sh` 硬断言升到 10 step 并新增 audio 契约块；`docs/device-scripts.md`、`docs/device-flow-usage.md`、`docs/device-assertion-matrix.md` 同步口径。
-- 实测与边界：`code_gates` 22 门全绿；真实真机 audio 腿未在本次执行（无设备场、无候选包），`app` 曲目元数据与 `duckRevoked` / `sessionDeactivated` 实测值仍为 `pending: 待人现场` + `pending-classification: wi_intake_f76b858c0c2376f5`；`ios/PurePace/**`、`ios/Core/**`、`ios/RunCore/**`、`ios/project.yml`、`project.pbxproj`、`.github/workflows/**` 零 diff；不宣称「候选包已验证 / 真机已验证」。
+- workItemId: wi_intake_b95b20c2a21caab1（2026-11-10，pass）
+- 交付：`scripts/verify-ios-device-flow.sh` 抽出与 `device-run.sh` preflight 同源的 `resolve_unpacked_app_layout`（`Payload/*.app` 优先、根级 `*.app` 兼容、同层多 `.app` 与两者皆无 fail-closed，文案含候选 zip 路径与 `unpack/` 顶层条目），`bind_candidate_identity` 改走该 resolver，使根级布局的 Release 候选 zip 在 `--phase=audio` 身份绑定处不再失败。
+- 实测：`code_gates` 22 门全绿；`scripts/check-ios-scripts.sh` 的 `ac-candidate-layout-dual` 断言两脚本含 resolver、preflight/身份绑定均走 resolver、无 `unpack/Payload/*.app` 残留展开；audio 三遍顺序 app→runner→none、`--configuration`、music 策略、launch-arg 与证据路径零语义变更。
+- 边界：真机 `--phase=audio` 实跑仍未执行（无设备场），`app` 曲目元数据与 `duckRevoked` / `sessionDeactivated` 实测值仍为 `pending: 待人现场` + `pending-classification: wi_intake_f76b858c0c2376f5`；不宣称「候选包已验证 / 真机已验证」。

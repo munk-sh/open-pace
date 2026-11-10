@@ -11,7 +11,7 @@ audio step 只调用既有三模式取证脚本 `scripts/verify-ios-device-flow.
 
 | # | phase | 职责 |
 |---|---|---|
-| 1 | `preflight` | 核目标 UDID 在线且为物理机、候选 zip 与解包 `Payload/*.app`、期望 sha256、证据根 |
+| 1 | `preflight` | 核目标 UDID 在线且为物理机、候选 zip 与解包 `.app`（`Payload/*.app` 优先，其次根级 `*.app`）、期望 sha256、证据根 |
 | 2 | `wda` | 取 `WebDriverAgentRunner.xctestrun`，起 `xcodebuild test-without-building` 与 `iproxy -u <UDID> 8100:8100`（LOCAL:DEVICE），有界轮询 `GET /status` 200 并建 WDA session |
 | 3 | `install` | 先查已装状态，已装则先 `devicectl device uninstall app` 再 `devicectl device install app`，记录 bundle id / version / build |
 | 4 | `launch` | `devicectl device process launch --terminate-existing`，有界等待首屏就绪（WDA source 可读 或 容器 `Documents/Runs` 出现） |
@@ -25,6 +25,12 @@ audio step 只调用既有三模式取证脚本 `scripts/verify-ios-device-flow.
 `--phase=plan`（或 `--dry-run`）只打印计划：10 个 step id、每步将执行的命令模板、计划证据路径，
 退出 0；该模式不执行真实 `devicectl` / `xcodebuild` / `iproxy`。
 
+候选包布局解析双兼容：解包后 `Payload/*.app` 存在时只在其中判定（`.ipa` 风格，优先）；
+否则接受根级 `*.app`（直接打包的 `.app`）。同一被选层出现多个 `.app`、或两种布局都没有 `.app` 时
+fail-closed，错误文案带候选 zip 路径与 `unpack/` 实际顶层条目。`audio` 身份绑定
+（`verify-ios-device-flow.sh` 的 `bind_candidate_identity`）用同一双布局与同一优先级。
+`--self-check` 用临时目录夹具覆盖「只有 `Payload` / 只有根级 / 两者并存取 `Payload` / 两者都无 / 同层多 `.app`」。
+
 ## 用法
 
 ```bash
@@ -35,7 +41,7 @@ bash scripts/device-run.sh --phase=all \
   --wda-xctestrun .build/device-run/<candidateKey>/WebDriverAgentRunner.xctestrun \
   --expect-zip-sha256 <hex> --expect-exec-sha256 <hex>
 bash scripts/device-run.sh --phase=collect        # 单跑一个 phase（前置 preflight 自动补齐）
-bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S error) + plan 自证
+bash scripts/device-run.sh --self-check           # bash -n + shellcheck(-S error) + plan 自证 + 布局夹具
 ```
 
 选项：
