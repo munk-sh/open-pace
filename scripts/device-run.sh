@@ -38,7 +38,7 @@ usage() {
   --tcc=<模式>               auto|preset|manual；缺省 auto
   --tcc-wait-seconds=<n>     manual 授权等待上限；缺省 120
   --self-check               对 scripts/device-*.sh 逐个 bash -n（有 shellcheck 时 -S error），
-                             并自证 --phase=plan 的幂等与 step 顺序，退出 0
+                             并自证 plan 幂等 / 布局解析 / launch 就绪分类 / tcc 判定 / 证据保留夹具，退出 0
   -h, --help                 显示本帮助并退出 0
 
 环境变量（选项优先；未给选项时作为缺省）:
@@ -353,6 +353,29 @@ mark_step_pending() {
   add_pending "${1}: ${2}"
   finalize_step_failure "$1" pending "$2"
 }
+
+# 把某 step 日志末行的 END 改写成给定状态（collect 终审把 tcc 从 pending 改判 ok）。
+rewrite_step_log_end() {
+  local id="$1"
+  local status="$2"
+  local file="${evidence_dir}/logs/${id}.log"
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+  python3 - "$file" "$id" <<'PY'
+import sys
+
+path, sid = sys.argv[1], sys.argv[2]
+with open(path, "r", encoding="utf-8", errors="replace") as handle:
+    lines = handle.readlines()
+while lines and lines[-1].rstrip("\n").startswith("END %s " % sid):
+    lines.pop()
+with open(path, "w", encoding="utf-8") as handle:
+    handle.writelines(lines)
+PY
+  printf 'END %s %s status=%s\n' "$id" "$(now_utc)" "$status" >> "$file"
+  return 0
+}
 # ------------------------------------------------- 候选包定位与 candidateKey
 candidate_path=""
 candidate_matches=0
@@ -546,6 +569,95 @@ resolve_unpacked_app_layout() {
   return 1
 }
 
+# ---------------------------------------- 证据根 / launch 就绪 / tcc 判定纯函数
+# 证据根只增不减：同一 phase 重跑覆盖自身日志，其它 phase 日志与中间产物一律保留。
+init_evidence_root() {
+  local root="${1:-${evidence_dir}}"
+  mkdir -p "${root}/logs" "${root}/wda" "${root}/container/runs" "${root}/container/exports" \
+    "${root}/container/telemetry" "${root}/container/diagnostics"
+}
+
+# 纯分类器（零 IO）：只吃探针结果，供 phase_launch 与 --self-check 共用。
+# 输出一行：ready=<0|1> readiness=<wda|devicectl-only|> reason=<''|wda_absent|devicectl_unready> containerProbe=<...> wda=<present|absent>
+classify_launch_readiness() {
+  local wda_present="${1:-0}"
+  local wda_source="${2:-0}"
+  local process_ok="${3:-0}"
+  local container_state="${4:-skipped}"
+  local wda_state="absent"
+  if [ "${wda_present}" = "1" ]; then
+    wda_state="present"
+  fi
+  if [ "${wda_source}" = "1" ]; then
+    printf 'ready=1 readiness=wda reason= containerProbe=%s wda=%s\n' \
+      "${container_state}" "${wda_state}"
+    return 0
+  fi
+  if [ "${process_ok}" = "1" ]; then
+    local reason=""
+    if [ "${wda_state}" = "absent" ]; then
+      reason="wda_absent"
+    fi
+    printf 'ready=1 readiness=devicectl-only reason=%s containerProbe=%s wda=%s\n' \
+      "${reason}" "${container_state}" "${wda_state}"
+    return 0
+  fi
+  printf 'ready=0 readiness= reason=devicectl_unready containerProbe=%s wda=%s\n' \
+    "${container_state}" "${wda_state}"
+  return 0
+}
+
+# tcc 结论只认 App 自报：ok 当且仅当 authorizedAlways。
+tcc_outcome_check() {
+  local auth_status="${1:-}"
+  [ "${auth_status}" = "authorizedAlways" ]
+}
+
+read_authorization_status() {
+  python3 - "${state_dir}/authorization.json" <<'PY'
+import json
+import sys
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    data = {}
+print(data.get("status") or "")
+PY
+}
+
+write_manifest() {
+  local root="${1:-${evidence_dir}}"
+  if [ ! -d "${root}" ]; then
+    return 0
+  fi
+  python3 - "${root}" <<'PY'
+import hashlib
+import os
+import sys
+
+root = sys.argv[1]
+entries = []
+for base, dirs, files in os.walk(root):
+    dirs.sort()
+    for name in sorted(files):
+        full = os.path.join(base, name)
+        rel = os.path.relpath(full, root)
+        if rel == "manifest-sha256.txt":
+            continue
+        digest = hashlib.sha256()
+        with open(full, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        entries.append((rel, digest.hexdigest()))
+entries.sort()
+with open(os.path.join(root, "manifest-sha256.txt"), "w", encoding="utf-8") as handle:
+    for rel, digest in entries:
+        handle.write("%s  %s\n" % (digest, rel))
+PY
+  return 0
+}
+
 # --------------------------------------------------------------- --self-check
 run_self_check() {
   local rc=0
@@ -675,6 +787,73 @@ run_self_check() {
   fi
   rm -rf "$layout_root"
 
+  # launch 就绪分类器夹具（确定性输入，不碰 devicectl）：容器探针只是 warning，不单独判红。
+  local cls=""
+  cls="$(classify_launch_readiness 0 0 1 'unreadable(warning)')"
+  if grep -Fq -- 'ready=1 readiness=devicectl-only reason=wda_absent containerProbe=unreadable(warning)' <<<"$cls" \
+    && grep -Fq -- 'wda=absent' <<<"$cls"; then
+    printf 'self-check: launch[1] wda=absent + 进程存在 + 探针不可读 → %s\n' "$cls"
+  else
+    printf 'self-check: launch[1] devicectl-only 分类错误: %s\n' "$cls" >&2
+    rc=1
+  fi
+  cls="$(classify_launch_readiness 0 0 0 'skipped')"
+  if grep -Fq -- 'ready=0 ' <<<"$cls" \
+    && grep -Fq -- 'reason=devicectl_unready' <<<"$cls" \
+    && grep -Fq -- 'wda=absent' <<<"$cls"; then
+    printf 'self-check: launch[2] wda=absent + 进程缺失 → %s\n' "$cls"
+  else
+    printf 'self-check: launch[2] devicectl_unready 分类错误: %s\n' "$cls" >&2
+    rc=1
+  fi
+  cls="$(classify_launch_readiness 1 1 0 'readable')"
+  if grep -Fq -- 'ready=1 ' <<<"$cls" \
+    && grep -Fq -- 'readiness=wda' <<<"$cls" \
+    && grep -Fq -- 'wda=present' <<<"$cls"; then
+    printf 'self-check: launch[3] WDA source 可读 → %s\n' "$cls"
+  else
+    printf 'self-check: launch[3] wda 分类错误: %s\n' "$cls" >&2
+    rc=1
+  fi
+
+  # tcc 判定夹具：ok 当且仅当 authorizedAlways。
+  local tcc_probe=""
+  local tcc_bad=0
+  for tcc_probe in '' 'authorizedWhenInUse' 'authorizedOnce' 'denied'; do
+    if tcc_outcome_check "${tcc_probe}"; then
+      printf 'self-check: tcc 非 authorizedAlways 被判 ok: %s\n' "${tcc_probe}" >&2
+      tcc_bad=1
+    fi
+  done
+  if [ "$tcc_bad" -eq 0 ] && tcc_outcome_check authorizedAlways; then
+    printf 'self-check: tcc 空/authorizedWhenInUse/authorizedOnce/denied 均非 ok，authorizedAlways 才 ok\n'
+  else
+    printf 'self-check: tcc 判定错误\n' >&2
+    rc=1
+  fi
+
+  # 证据保留夹具：连续两次初始化不清根，manifest 覆盖两次已落 phase 日志。
+  local ev_root
+  ev_root="$(mktemp -d "${TMPDIR:-/tmp}/purepace-device-evidence.XXXXXX")"
+  init_evidence_root "$ev_root"
+  printf 'phase=launch\n' > "${ev_root}/logs/launch.log"
+  init_evidence_root "$ev_root"
+  printf 'phase=tcc\n' > "${ev_root}/logs/tcc.log"
+  if [ -f "${ev_root}/logs/launch.log" ] && [ -f "${ev_root}/logs/tcc.log" ]; then
+    write_manifest "$ev_root"
+    if grep -Fq -- 'logs/launch.log' "${ev_root}/manifest-sha256.txt" \
+      && grep -Fq -- 'logs/tcc.log' "${ev_root}/manifest-sha256.txt"; then
+      printf 'self-check: evidence 连续两次初始化后 launch/tcc 日志均保留且同进 manifest\n'
+    else
+      printf 'self-check: evidence manifest 未覆盖两次 phase 日志\n' >&2
+      rc=1
+    fi
+  else
+    printf 'self-check: evidence 第二次初始化清掉了第一次 phase 日志\n' >&2
+    rc=1
+  fi
+  rm -rf "$ev_root"
+
   if [ "$rc" -ne 0 ]; then
     printf 'device-run: self-check 失败\n' >&2
     exit 1
@@ -703,11 +882,13 @@ iproxy_pid=""
 CURRENT_LOG=""
 STEP_ID=""
 
-rm -rf "$state_dir"
+# 证据根不按调用删除；state 只在 --phase=all 重置。单 phase 调用保留其它已落 phase
+# 的日志与状态（同名 phase 重跑覆盖自身日志与状态）。
+if [ "$phase_request" = "all" ]; then
+  rm -rf "$state_dir"
+fi
 mkdir -p "${state_dir}/steps" "${state_dir}/timings"
-rm -rf "$evidence_dir"
-mkdir -p "${evidence_dir}/logs" "$wda_dir" "${container_dir}/runs" "${container_dir}/exports" \
-  "${container_dir}/telemetry" "${container_dir}/diagnostics"
+init_evidence_root "$evidence_dir"
 printf '%s' "$candidate_key" > "${state_dir}/candidateKey"
 
 initial_status="skipped"
@@ -715,10 +896,12 @@ if [ "$phase_request" = "all" ]; then
   initial_status="pending"
 fi
 for step_id in $PHASES; do
-  step_set "$step_id" status "$initial_status"
-  step_set "$step_id" startedAt ''
-  step_set "$step_id" finishedAt ''
-  step_set "$step_id" error ''
+  if [ ! -f "${state_dir}/steps/${step_id}.status" ]; then
+    step_set "$step_id" status "$initial_status"
+    step_set "$step_id" startedAt ''
+    step_set "$step_id" finishedAt ''
+    step_set "$step_id" error ''
+  fi
 done
 
 stop_own_pid() {
@@ -910,6 +1093,17 @@ if os.path.isfile(auth_file):
     except (OSError, ValueError):
         pass
 
+launch = {"readiness": "", "wda": "absent", "containerProbe": "skipped", "reason": ""}
+launch_file = os.path.join(state, "launch-readiness.json")
+if os.path.isfile(launch_file):
+    try:
+        with open(launch_file, "r", encoding="utf-8") as handle:
+            loaded = json.load(handle)
+        if isinstance(loaded, dict):
+            launch.update(loaded)
+    except (OSError, ValueError):
+        pass
+
 artifacts = []
 for base, dirs, files in os.walk(evidence):
     dirs.sort()
@@ -949,6 +1143,12 @@ summary = {
         "totalSeconds": as_float(os.environ["SUMMARY_TOTAL_SECONDS"]),
     },
     "steps": steps,
+    "launch": {
+        "readiness": launch.get("readiness") or "",
+        "wda": launch.get("wda") or "absent",
+        "containerProbe": launch.get("containerProbe") or "skipped",
+        "reason": launch.get("reason") or "",
+    },
     "authorization": {
         "status": authorization.get("status") or "",
         "accuracy": authorization.get("accuracy") or "",
@@ -962,37 +1162,6 @@ with open(os.path.join(evidence, "summary.json"), "w", encoding="utf-8") as hand
     json.dump(summary, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
 print("summary.json written status=%s" % os.environ["SUMMARY_STATUS"])
-PY
-  return 0
-}
-
-write_manifest() {
-  if [ ! -d "$evidence_dir" ]; then
-    return 0
-  fi
-  python3 - "$evidence_dir" <<'PY'
-import hashlib
-import os
-import sys
-
-root = sys.argv[1]
-entries = []
-for base, dirs, files in os.walk(root):
-    dirs.sort()
-    for name in sorted(files):
-        full = os.path.join(base, name)
-        rel = os.path.relpath(full, root)
-        if rel == "manifest-sha256.txt":
-            continue
-        digest = hashlib.sha256()
-        with open(full, "rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-        entries.append((rel, digest.hexdigest()))
-entries.sort()
-with open(os.path.join(root, "manifest-sha256.txt"), "w", encoding="utf-8") as handle:
-    for rel, digest in entries:
-        handle.write("%s  %s\n" % (digest, rel))
 PY
   return 0
 }
@@ -1206,6 +1375,7 @@ PY
   printf '%s' "$bundle_id" > "${state_dir}/bundle.id"
   printf '%s' "$app_version" > "${state_dir}/app.version"
   printf '%s' "$app_build" > "${state_dir}/app.build"
+  printf '%s' "$app_exec_name" > "${state_dir}/app.exec"
 
   local mismatch=""
   if [ -n "$expect_zip_sha" ] && [ "$expect_zip_sha" != "$zip_sha" ]; then
@@ -1231,11 +1401,17 @@ PY
   end_step ok
 }
 
+# 会话内缓存：每次调用都重跑 preflight（设备校验 + zip/exec 双 sha 身份绑定并重写 candidate.json），
+# 不因 state 中已持久化的 preflight 状态跳过；只在同一次调用内避免重复执行。
+preflight_done=0
+
 ensure_preflight() {
-  if [ "$(step_get preflight status)" = "ok" ]; then
+  if [ "$preflight_done" -eq 1 ]; then
     return 0
   fi
   phase_preflight
+  preflight_done=1
+  return 0
 }
 # --------------------------------------------------------------- WDA / 设备探针
 load_bundle_id() {
@@ -1323,16 +1499,74 @@ container_runs_present() {
   return 1
 }
 
-first_screen_ready() {
-  if wda_source_ok; then
-    log "首屏就绪: WDA source 可读"
+# 设备进程表里是否存在该 App 的可执行文件进程（launch 就绪的 devicectl 侧判据）。
+app_process_present() {
+  local exec_name=""
+  if [ -f "${state_dir}/app.exec" ]; then
+    exec_name="$(cat "${state_dir}/app.exec")"
+  fi
+  if [ -z "$exec_name" ]; then
+    return 1
+  fi
+  local out="${state_dir}/probe/processes.json"
+  mkdir -p "${state_dir}/probe"
+  if ! xcrun devicectl device info processes --device "$device_udid" --json-output "$out" >> "$CURRENT_LOG" 2>&1; then
+    return 1
+  fi
+  python3 - "$out" "$exec_name" <<'PY'
+import json
+import os
+import sys
+
+path, target = sys.argv[1], sys.argv[2]
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    raise SystemExit(1)
+
+
+def hit(node):
+    if isinstance(node, dict):
+        return any(hit(value) for value in node.values())
+    if isinstance(node, list):
+        return any(hit(value) for value in node)
+    if isinstance(node, str):
+        return os.path.basename(node) == target
+    return False
+
+
+raise SystemExit(0 if hit(data) else 1)
+PY
+}
+
+# 容器探针只是 warning 级辅助信息：readable|empty|unreadable，单独不足以让 launch 失败。
+container_probe_state() {
+  local dest="${state_dir}/probe/Runs"
+  local raw="${state_dir}/probe/container-probe.log"
+  mkdir -p "${state_dir}/probe"
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  if ! xcrun devicectl device copy from \
+      --device "$device_udid" \
+      --domain-type appDataContainer \
+      --domain-identifier "$bundle_id" \
+      --source 'Documents/Runs' \
+      --destination "$dest" > "$raw" 2>&1; then
+    cat "$raw" >> "$CURRENT_LOG"
+    printf 'unreadable(warning)'
     return 0
   fi
-  if container_runs_present; then
-    log "首屏就绪: 容器 Documents/Runs 已出现"
+  cat "$raw" >> "$CURRENT_LOG"
+  if grep -Fq -- 'CoreDeviceError' "$raw" || grep -Fq -- ' 7000' "$raw"; then
+    printf 'unreadable(warning)'
     return 0
   fi
-  return 1
+  if dir_nonempty "$dest"; then
+    printf 'readable'
+    return 0
+  fi
+  printf 'empty'
 }
 
 # ------------------------------------------------------------------- wda phase
@@ -1478,6 +1712,13 @@ PY
 }
 
 # ---------------------------------------------------------------- launch phase
+launch_field() {
+  local line="$1"
+  local key="$2"
+  local value="${line#* ${key}=}"
+  printf '%s' "${value%% *}"
+}
+
 phase_launch() {
   begin_step launch
   ensure_preflight
@@ -1486,60 +1727,138 @@ phase_launch() {
   if ! xcrun devicectl device process launch --terminate-existing --device "$device_udid" "$bundle_id" >> "$CURRENT_LOG" 2>&1; then
     fail_step "App 启动失败: ${bundle_id}"
   fi
+  # launch phase 不自起 WDA：WDA 存在才走 source 判据，否则用 devicectl 设备进程表判就绪。
+  local wda_present=0
+  if [ -n "$wda_session_id" ]; then
+    wda_present=1
+  fi
   local deadline=$(( $(date +%s) + first_screen_timeout ))
+  local verdict=""
   local ready=0
+  local readiness=""
+  local wda_state="absent"
+  local reason=""
+  local container_state="skipped"
+  local wda_source=0
+  local process_ok=0
+  if [ "$wda_present" -eq 1 ]; then
+    wda_state="present"
+  fi
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    if first_screen_ready; then
-      ready=1
+    wda_source=0
+    if [ "$wda_present" -eq 1 ] && wda_source_ok; then
+      wda_source=1
+    fi
+    process_ok=0
+    if [ "$wda_source" -ne 1 ] && app_process_present; then
+      process_ok=1
+    fi
+    # 容器探针只做 warning 级辅助信息，绝不影响就绪判定。
+    container_state="$(container_probe_state)"
+    verdict="$(classify_launch_readiness "$wda_present" "$wda_source" "$process_ok" "$container_state")"
+    ready=0
+    case "$verdict" in
+      ready=1*) ready=1 ;;
+    esac
+    if [ "$ready" -eq 1 ]; then
       break
     fi
     sleep 3
   done
+  if [ -n "$verdict" ]; then
+    readiness="$(launch_field "$verdict" readiness)"
+    wda_state="$(launch_field "$verdict" wda)"
+    reason="$(launch_field "$verdict" reason)"
+    container_state="$(launch_field "$verdict" containerProbe)"
+  fi
+  printf '{"readiness":"%s","wda":"%s","containerProbe":"%s","reason":"%s"}\n' \
+    "$readiness" "$wda_state" "$container_state" "$reason" > "${state_dir}/launch-readiness.json"
+  log "launch readiness=${readiness:-<none>} wda=${wda_state} containerProbe=${container_state} reason=${reason:-<none>}"
   if [ "$ready" -ne 1 ]; then
-    log "等待判据: WDA source 可读 或 容器 Documents/Runs 出现"
-    log "最后轮询: WDA session=${wda_session_id:-<none>}"
-    fail_step "首屏就绪等待超时（${first_screen_timeout}s）"
+    log "等待判据: WDA /session/<id>/source 可读 或 设备进程表存在 App 进程（容器探针只记 warning）"
+    log "最后轮询: WDA session=${wda_session_id:-<none>} wda=${wda_state} containerProbe=${container_state}"
+    fail_step "launch 未就绪 reason=devicectl_unready wda=${wda_state} containerProbe=${container_state}（${first_screen_timeout}s）"
   fi
   end_step ok
 }
 # ------------------------------------------------------------------- tcc phase
-tcc_manual_wait() {
-  say "tcc: 请在设备上完成定位授权（脚本只提示 + 轮询，不点坐标、不识别文案），最长 ${tcc_wait_seconds}s"
+# tcc 结论只认 App 自报 authorizedAlways；helper / preset / manual 都只是路径，不是结论。
+tcc_refresh_self_report() {
+  if ! copy_from_container 'Documents/Runs' "${container_dir}/runs"; then
+    return 1
+  fi
+  if ! extract_telemetry; then
+    return 1
+  fi
+  return 0
+}
+
+tcc_wait_for_self_report() {
+  local auth_status=""
+  auth_status="$(read_authorization_status)"
+  if tcc_outcome_check "${auth_status}"; then
+    log "tcc 已观测 App 自报 authorizedAlways"
+    return 0
+  fi
+  say "tcc: 请在设备上完成「始终允许」定位授权（脚本只提示 + 轮询 App 自报，不点坐标、不识别文案），最长 ${tcc_wait_seconds}s"
   log "manual wait ${tcc_wait_seconds}s"
-  local waited=0
-  while [ "$waited" -lt "$tcc_wait_seconds" ]; do
+  local deadline=$(( $(date +%s) + tcc_wait_seconds ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 5
-    waited=$((waited + 5))
-    log "manual wait progress ${waited}/${tcc_wait_seconds}s"
+    if tcc_refresh_self_report; then
+      auth_status="$(read_authorization_status)"
+      log "tcc self-report status=${auth_status:-<empty>}"
+      if tcc_outcome_check "${auth_status}"; then
+        log "tcc 已观测 App 自报 authorizedAlways"
+        return 0
+      fi
+    else
+      log "tcc self-report 读取失败（容器/遥测暂不可读），继续等待"
+    fi
+    log "manual wait progress（只表示轮询窗口，不构成通过结论）"
   done
-  end_step ok
+  return 1
 }
 
 phase_tcc() {
   begin_step tcc
+  ensure_preflight
+  load_bundle_id
+  # 只认本次调用新观测到的自报，避免复用上一次的证据造成假绿。
+  rm -f "${state_dir}/authorization.json"
   case "$tcc_mode" in
     preset)
-      log "tcc=preset：假定已授权，只做校验不等待"
-      end_step ok
+      log "tcc=preset：不再假定已授权，仍需 App 自报 authorizedAlways"
       ;;
     auto)
       if [ -n "${PUREPACE_TCC_HELPER:-}" ] && [ -x "${PUREPACE_TCC_HELPER}" ]; then
-        load_bundle_id
         log "CMD: ${PUREPACE_TCC_HELPER} --device ${device_udid} --bundle ${bundle_id}"
         if ! "${PUREPACE_TCC_HELPER}" --device "$device_udid" --bundle "$bundle_id" >> "$CURRENT_LOG" 2>&1; then
-          fail_step "PUREPACE_TCC_HELPER 执行失败"
+          log "PUREPACE_TCC_HELPER 执行失败（不据此置 ok）"
         fi
-        end_step ok
       else
-        log "tcc=auto：PUREPACE_TCC_HELPER 不可用，回退 manual 有界等待"
-        tcc_manual_wait
+        log "tcc=auto：PUREPACE_TCC_HELPER 不可用，转有界轮询 App 自报"
       fi
       ;;
     manual)
       log "tcc=manual"
-      tcc_manual_wait
       ;;
   esac
+  if tcc_wait_for_self_report; then
+    end_step ok
+    return 0
+  fi
+  if [ "$phase_request" = "all" ]; then
+    log "tcc 未观测到 authorizedAlways：--phase=all 记 pending，由 collect 以自报字段定终态"
+    add_pending "tcc: 等待 App 自报 authorizedAlways（collect 终审）"
+    step_set tcc status pending
+    step_set tcc finishedAt "$(now_utc)"
+    step_set tcc error "未观测到 telemetry.authorizationStatus.name=authorizedAlways"
+    printf 'END %s %s status=pending\n' tcc "$(now_utc)" >> "$CURRENT_LOG"
+    say "[tcc] pending"
+    return 0
+  fi
+  mark_step_pending tcc "未观测到 App 自报 authorizedAlways（helper/preset/manual 均不置 ok）"
 }
 
 # ----------------------------------------------------------------- audio phase
@@ -1874,8 +2193,9 @@ with open(os.path.join(telemetry_dir, name), "w", encoding="utf-8") as handle:
     handle.write("\n")
 status = (telemetry.get("authorizationStatus") or {}).get("name") or ""
 accuracy = (telemetry.get("accuracyAuthorization") or {}).get("name") or ""
+source = "run-json" if status else ""
 with open(auth_path, "w", encoding="utf-8") as handle:
-    json.dump({"status": status, "accuracy": accuracy, "source": "run-json"}, handle, ensure_ascii=False, indent=2)
+    json.dump({"status": status, "accuracy": accuracy, "source": source}, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
 print("telemetry from %s authorizationStatus=%r accuracyAuthorization=%r" % (name, status, accuracy))
 PY
@@ -1891,9 +2211,12 @@ record_run_seconds() {
 }
 
 enforce_authorization() {
-  if [ "$(step_get tcc status)" != "ok" ]; then
-    return 0
-  fi
+  local tcc_status
+  tcc_status="$(step_get tcc status)"
+  case "${tcc_status}" in
+    ok|pending) ;;
+    *) return 0 ;;
+  esac
   local auth_line=""
   if ! auth_line="$(python3 - "${state_dir}/authorization.json" <<'PY'
 import json
@@ -1910,15 +2233,18 @@ PY
   fi
   local auth_status="${auth_line%%|*}"
   local auth_accuracy="${auth_line#*|}"
-  case "$auth_status" in
-    authorized*) ;;
-    *) mark_step_failed tcc "App 自报 authorizationStatus='${auth_status}'（期望 authorized*，字段缺失也失败）" ;;
-  esac
-  case "$auth_accuracy" in
+  if ! tcc_outcome_check "${auth_status}"; then
+    mark_step_failed tcc "App 自报 authorizationStatus='${auth_status}'（期望 authorizedAlways，字段缺失也失败）"
+  fi
+  case "${auth_accuracy}" in
     fullAccuracy|reducedAccuracy) ;;
     *) mark_step_failed tcc "App 自报 accuracyAuthorization='${auth_accuracy}'（期望 fullAccuracy|reducedAccuracy）" ;;
   esac
-  log "authorization 自报校验通过: status=${auth_status} accuracy=${auth_accuracy}"
+  step_set tcc status ok
+  step_set tcc error ''
+  step_set tcc finishedAt "$(now_utc)"
+  rewrite_step_log_end tcc ok
+  log "authorization 自报校验通过（collect 终审）: status=${auth_status} accuracy=${auth_accuracy}"
   return 0
 }
 
@@ -1987,7 +2313,7 @@ run_real_phase() {
   local target="$1"
   case "$target" in
     preflight)
-      phase_preflight
+      ensure_preflight
       ;;
     wda)
       ensure_preflight
