@@ -10,14 +10,12 @@ struct RunView: View {
 
     var body: some View {
         NavigationStack {
-            // 指标内容块整体在「导航栏下沿 → 底部控制区上沿」之间垂直居中；
+            // 四层（hero → 次级指标 → 提示 → 主操作）在「导航栏下沿 → 主操作顶边」之间等量分布：
+            // 固定间距只取语义 token，剩余空间由四个等权 Spacer(minLength:) 吸收，
+            // 不出现顶对齐后把余量堆成单块死白的旧布局；
             // 小屏/大字号溢出时退回滚动，不截断内容。
             ViewThatFits(in: .vertical) {
-                VStack {
-                    Spacer(minLength: DesignTokens.Spacing.md)
-                    metricsContent
-                    Spacer(minLength: DesignTokens.Spacing.md)
-                }
+                balancedMetrics
                 ScrollView { metricsContent }
             }
             // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
@@ -45,14 +43,30 @@ struct RunView: View {
 
     // MARK: - 指标内容块
 
+    /// 首屏等量分布：四个 Spacer 夹出四层，等权吸收余量（最小间距取语义 token）。
+    private var balancedMetrics: some View {
+        VStack(spacing: .zero) {
+            Spacer(minLength: DesignTokens.Spacing.screenTop)
+            distanceHero
+            Spacer(minLength: DesignTokens.Spacing.cardGap)
+            metricsPanel
+            Spacer(minLength: DesignTokens.Spacing.sectionGap)
+            hintLayer
+            Spacer(minLength: DesignTokens.Spacing.sectionGap)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.cardGap)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     /// 三态共用的四层内容块：hero 距离 → 次级指标 → 提示 → （底部）主操作。
+    /// 仅作为 ViewThatFits 的滚动退路，垂直余量不是本分支的职责。
     private var metricsContent: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
+        VStack(spacing: DesignTokens.Spacing.sectionGap) {
             distanceHero
             metricsPanel
             hintLayer
         }
-        .padding(DesignTokens.Spacing.md)
+        .padding(DesignTokens.Spacing.cardGap)
         .frame(maxWidth: .infinity)
     }
 
@@ -69,7 +83,7 @@ struct RunView: View {
                 .foregroundStyle(DesignTokens.Colors.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xs)
         .background(
             stateSoft,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.panel)
@@ -82,7 +96,7 @@ struct RunView: View {
 
     /// 第二层：surface 卡片面里的时长 / 当前配速（primaryValue）与平均配速 / 分段（caption）。
     private var metricsPanel: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
+        VStack(spacing: DesignTokens.Spacing.xl) {
             HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
                 primaryMetric(
                     title: L10n.runMetricTime,
