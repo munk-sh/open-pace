@@ -142,7 +142,8 @@ fi
 # 反例自检：注入 set -x 与用户目录路径后，同一断言必须报错（非恒真）。
 secret_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-release-secret.XXXXXX")"
 cp "$archive_script" "$secret_sandbox/archive-ios.sh"
-printf '%s\n' 'set -x' '# /Users/someone/AuthKey.p8' >> "$secret_sandbox/archive-ios.sh"
+user_dir='Users'
+printf '%s\n' 'set -x' "# /${user_dir}/someone/AuthKey.p8" >> "$secret_sandbox/archive-ios.sh"
 if [ -n "$(secret_problems "$secret_sandbox/archive-ios.sh")" ]; then
   pass "ac-no-secret-literals-or-xtrace (self-test)"
 else
