@@ -16,6 +16,10 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - `ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift`：默认路径零注入、flag 路径 1.0 s 严格递增时序、把样本喂既有 `RunSessionOrchestrator` 恰产生 1 条 `splitIndex == 1` / `.kilometerCompleted` 播报、fail-closed 与能力诚实断言。
 - `scripts/check-ios-shell.sh`：新增 release-deterministic 断言块（结构断言 + ≥1 条负向自检），不新增 `code-gates` 门（门数保持 22）。
 - `docs/device-flow-usage.md` / `docs/device-assertion-matrix.md`：flag 语法、`km-crossing`、默认关、仅设备验证场、`simulated` 不计入真实 CoreLocation 判据；矩阵新增「Release 确定性源门控」行并修正 Release 公里播报结论行。
+- 真机 TCC 授权（`tcc` 阶段）：`ios/PurePaceUITests/TCCAuthorizationUITests.swift` 提供可复用 TCC 授权步骤 + 真机专属用例 `testTCCFreshInstallReachesAuthorizedAlways`；只走官方可及性路径——SpringBoard（`XCUIApplication(bundleIdentifier: "com.apple.springboard")`）与 App 的 accessibility 元素查询 + 精确 label 匹配，`addUIInterruptionMonitor` 仅兜底。
+- `scripts/verify-ios-device-flow.sh`：`--list` 早退（preflight 之前，无真机也可列出阶段/用例）；新增 `tcc` 阶段（Debug + 真实 CoreLocation，不传 `-uiTestLocation` / `-releaseDeterministicLocation`），报告与 meta 记 `testSuite`。
+- `scripts/test-ios.sh`：默认模拟器 UI 腿追加 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`，usage 同步；既有 600s 预算与三件套参数不变。
+- `docs/device-tcc-automation.md`：TCC 链路、label 兜底表、失败判读、与 `scripts/device-*.sh` 的调用关系。
 
 ## 验收
 
@@ -100,6 +104,20 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - ac-real-device-run: 至少一次真实设备运行完成（报告含 UDID、iOS 版本、起止时间、构建身份）；连接或设备侧能力缺失时如实记录卡点并 report owner，禁止编造截图、可及树、telemetry 或 sha256。
 - ac-digest-pointer: 断言清单摘要、脚本用法、三模式产物路径、构建身份标注、`pending: 待人现场（needs-you 单点）` 清单写入交付摘要；`artifacts/device-audit/<UTC>/` 与 `docs/device-assertion-matrix.md` 两个路径明确可见。
 
+### 真机 TCC 授权（XCUITest 官方路径）
+
+> 本项把 `--phase` 扩为 `audit|audio|background|tcc` 并新增 `--list`，覆盖上文 `ac-script-phases` 的三值口径；其余模式行为与预算不变。
+
+- ac-tcc-list-no-device: `bash scripts/verify-ios-device-flow.sh --list` 在无真机环境退出 0，输出含 `tcc` 与 `PurePaceUITests/TCCAuthorizationUITests/testTCCFreshInstallReachesAuthorizedAlways`。
+- ac-tcc-official-api-only: TCC 路径无像素采样、颜色判定、`XCUICoordinate` / `normalizedOffset` 点击或「截图找按钮」；只用 SpringBoard/App 的 accessibility 元素查询与精确 label 匹配（结构断言可 grep 自证）。
+- ac-tcc-fresh-grant: 未授权首启出现首次系统弹窗时按「使用App时允许」类 label 精确匹配点击；随后 Always 升级请求若出现「更改为始终允许」类弹窗同样匹配点击；产物记 `authorizationMode=grantedThisRun`、`firstPromptHandled=true` 与命中 label。
+- ac-tcc-preauth-idempotent: 设备已预授权（无任何系统弹窗）时用例不红，记 `authorizationMode=preAuthorized`、`firstPromptHandled=false`，并继续同一自报校验。
+- ac-tcc-self-report-always: `tcc` 阶段以 App 自报为准：本次新跑次 `telemetry.authorizationStatus.name == "authorizedAlways"` 且 `rawValue == 3` 才通过；不以「弹窗点到了」代替授权结果，不靠人看截图。
+- ac-tcc-failure-diagnostics: 任一步骤失败证据含 `tcc-result.json`，写明失败阶段（等待首启 / 处理首次弹窗 / 发起升级 / 处理升级弹窗 / 结束跑次）、期望 label 列表与当时实际存在的 SpringBoard 与 App 弹窗按钮 label 集合；`report.md` 失败项可直接判读是哪一步、缺哪个 label。
+- ac-tcc-default-leg-excluded: 默认模拟器 UI 腿不执行该套件（`scripts/test-ios.sh` 带 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`）；`.github/workflows/**` 不变，不新增 CI 腿，600s 预算与三件套参数不变。
+- ac-tcc-compile-gates: 模拟器目标 `xcodebuild build-for-testing` 成功（新测试 target 编译通过），既有 `code_gates` 全绿；重新生成的 `.xcodeproj` 含新文件且非手写。
+- ac-tcc-boundary-clean: 不触碰 `scripts/device-*.sh`、App 业务源码、`ios/project.yml`、`Info.plist`、签名配置与 `VERSION`。
+
 ## 非目标
 
 - 不驱动锁屏/解锁，不在 run 内要求人按任何步骤；不把「锁屏后仍出样本」写成本项结论。
@@ -109,6 +127,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - 不写「真机已验证公里播报」：确定性源只提供「仅设备验证场」的机器证据，样本 `simulated` 不计入真实 CoreLocation 判据；真实移动结论仍只能人耳。
 - 不写桌面端自研驱动（CDP / 注入 JS / 自拼截屏）；不装 mobilecli agent，不依赖 `mobile_*`；不引入第三方运行时依赖。
 - 不做截图视觉回归、不提交模拟器结论、不改 Android 侧；脚本与清单未就绪前不排人、不约窗口。
+- TCC 路径不复活、不改写任何 BMP/逐行像素测蓝字或坐标硬编码实现（像素探测路径永久排除）；不为暴露授权状态新增 App launch flag；不在本项起真机设备场或跑正式验收窗口；不改 `.github/workflows/**`；不承诺修好特定 iOS 版本的系统弹窗文案差异，只提供 label 兜底与可判读失败。
 
 ## 实现约束
 
@@ -123,10 +142,15 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - **后台两段式**：阶段一设备端开跑并 `press(.home)` 后立即结束；等待放 Mac 侧（宿主等待 + `devicectl` 只读读容器）；阶段二 `activate()` 回前台完成结束保存与导出；不在测试进程内 `sleep` 断言后台连续性。
 - **证据目录**：`artifacts/device-audit/<UTC>/` 存 `report.md`、`*.png`、`*.ax.json`、`run-*.json`、`announcements-*.json`、`*.gpx`、`sha256.txt`；resultBundle 等中间产物留 `.build/`（gitignore）。
 - **门禁口径**：`check-baseline`、`check-shell-expansion`、`check-ios-scripts`、`check-ios-shell`、`check-ios-release` 保持绿；新增脚本不进既有 `targets`，但须自满足 `--help`/未知参数契约与 shell 展开检查；报告与脚本不含 git 推送、tag、Release 动作，不写「真机已验证」。
+- **TCC 项可写集合**：`ios/PurePaceUITests/TCCAuthorizationUITests.swift`（新增）、`scripts/verify-ios-device-flow.sh`（`--list` + `tcc` 阶段 + 分析分支，不动既有 audit/audio/background 预算）、`scripts/test-ios.sh`（仅追加 `-skip-testing` 与 usage）、`docs/device-tcc-automation.md`、`docs/device-flow-usage.md`、`ios/PurePace.xcodeproj/project.pbxproj`（仅 xcodegen 生成产物，禁止手写）；禁改 `scripts/device-*.sh`、`ios/PurePace/**`、`ios/project.yml`、`Info.plist`、签名配置、`VERSION`。
+- **TCC label 兜底（中英双语、精确匹配、不做包含匹配）**：首次 `Allow While Using App` / `使用App时允许` / `使用 App 期间允许`、`Allow Once` / `允许一次`，`Don't Allow` / `不允许` 仅诊断不点击；升级 `Change to Always Allow` / `更改为始终允许` / `允许改为始终允许`、`Always Allow` / `始终允许`，`Keep Only While Using` / `仅在使用App期间允许` 仅诊断。禁止 `XCUICoordinate`、`normalizedOffset`、截图/颜色像素读取、按图片找按钮；失败诊断只输出可及性 label 集合。
+- **TCC 真机链路（Debug、真机）**：`app.launch()` → 有界等待 SpringBoard/App 弹窗并处理首次弹窗 → 等 `run.backgroundDegraded` 出现或短窗口超时 → 点 `run.start` 触发 `requestAlwaysAuthorization` 并处理升级弹窗 → 等 `run.backgroundDegraded` 消失 → `run.finish` 等 `run.saved` → 落 `tcc-result.json` 附件；脚本 `copy_container` 后读本次新跑次 JSON 断言自报授权。
+- **TCC 验证归属**：本项只交代码 + 文档 + 本地可验证项（`--list`、模拟器 build-for-testing、既有 `code_gates`）；「新装包首启到 authorizedAlways ≤3 分钟」由 Owner 走既有设备 ops task `task_97c958a247a259ff`，本项回执写「等待设备验证」。
+- **TCC 退化条款**：若真机实测证明系统弹窗确不可自动化，退化为「装包后预置 + App 自报校验」，实测原文与退化理由写入回执与 `docs/device-tcc-automation.md`，不得退回像素探测。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_abacaa757ba3bd09（2026-11-10，pass）
-- 交付：Release 可用的显式 launch-arg 确定性定位源（默认关）——`ReleaseDeterministicLocationSource`（`km-crossing`：1.0 s/20 m 推进，约 50 样本跨 1 km，`simulated` + WhenInUse + 后台开关 false）与纯参数选择器 `RunLocationSourceSelection`（缺值 / 以 `-` 开头 / 未知场景 fail-closed 回真实源、构造次数 0）；`ContentView` 的 `#if DEBUG` + `-uiTestLocation` 分支逐字保留，`#else` 分支改经选择器。`scripts/check-ios-shell.sh` 增 release-deterministic 断言块（含负向自检），门数仍 22；`docs/device-flow-usage.md` 增「Release 确定性源（仅设备验证场）」小节，矩阵新增「Release 确定性源门控」行并把 Release 公里播报结论改为「真实 CoreLocation 只能人耳；机器证据来自显式确定性源」。
-- 实测：默认路径单测零构造零注入；flag 路径时序严格 1.0 s 递增，喂 `RunSessionOrchestrator` 恰 1 条 `splitIndex == 1` / `.kilometerCompleted`；候选包从提交 `1e7e653` 出（zip `43be04f3…`，413660 B；exec `2378b720…`，1507136 B；`UIBackgroundModes=["location","audio"]`、`sh.munk.purepace`、0.1.0(1)、MinimumOSVersion 17.0 均从解压 `.app/Info.plist` 读回）。
-- 边界：`ios/PurePaceUITests/**`、`ios/RunCore/**`、`ios/Core/**`、`ios/project.yml`、`ios/PurePace/Info.plist`、`.github/workflows/**`、`.munk/code-gates.json` 零 diff；候选 `iosCI` 为 `pending: 待同 commit ios.yml run 判定`，真机三档仍为 `pending: 待人现场`；`simulated` 样本不构成真实定位结论。
+- workItemId: wi_intake_b855267dc3a6c09f（2026-11-10，pass）
+- 交付：真机 TCC 授权改走 XCUITest 官方路径——`ios/PurePaceUITests/TCCAuthorizationUITests.swift` 提供可复用弹窗步骤（SpringBoard/App 精确 label 匹配 + `addUIInterruptionMonitor` 兜底，零像素/零坐标）+ 真机用例 `testTCCFreshInstallReachesAuthorizedAlways`（首启弹窗 → `run.backgroundDegraded` → `run.start` 触发 Always 升级 → `run.finish`/`run.saved` → `tcc-result.json`）；`scripts/verify-ios-device-flow.sh` 增 `--list`（preflight 前早退）与 `tcc` 阶段（Debug + 真实 CoreLocation，报告记 `testSuite`），分析侧以 App 自报 `authorizationStatus.name == authorizedAlways` / `rawValue == 3` 判定并校验 `authorizationMode` 与 `firstPromptHandled` 一致；`scripts/test-ios.sh` 默认 UI 腿追加 `-skip-testing:PurePaceUITests/TCCAuthorizationUITests`；新增 `docs/device-tcc-automation.md`，`docs/device-flow-usage.md` 升为四模式。
+- 实测：`bash scripts/verify-ios-device-flow.sh --list` 退出 0 且列出 `tcc` 与目标用例（无真机）；模拟器 `xcodebuild build-for-testing`（iPhone 16 / iOS 18.6）**TEST BUILD SUCCEEDED**，新 UI 测试 target 编译通过；`code_gates` 22 门全绿；`xcodegen generate` 重跑后 pbxproj 差异与入库版本一致（仅新文件 4 行），证明为生成产物；TCC 源码无 `XCUICoordinate` / `normalizedOffset` / 截图判读命中。
+- 边界与待办：`scripts/device-*.sh`、`ios/PurePace/**`、`ios/project.yml`、`Info.plist`、签名配置、`VERSION`、`.github/workflows/**`、`.munk/code-gates.json` 零 diff；真机「新装包首启到 authorizedAlways ≤3 分钟」为 `pending: 等待设备验证`（Owner 走设备 ops task `task_97c958a247a259ff`），本项不宣称真机已验证。

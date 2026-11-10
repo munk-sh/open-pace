@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 真机自动化取证（需真机连接）：一条脚本、三种模式 --phase=audit|audio|background。
+# 真机自动化取证（需真机连接）：一条脚本、四种模式 --phase=audit|audio|background|tcc；
+# `--list` 无需真机即可列出阶段与用例（exit 0）。
 #
 # 目标设备：公司给定 UDID 00008101-001C701E0A68001E（可用 --device 或 PUREPACE_DEVICE_UDID 覆盖）；
 # 不假设模拟器可用，不做桌面端自研驱动，不装 mobilecli agent。
@@ -19,7 +20,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-用法: scripts/verify-ios-device-flow.sh --phase=audit|audio|background [选项]
+用法: scripts/verify-ios-device-flow.sh --phase=audit|audio|background|tcc [选项]
+      scripts/verify-ios-device-flow.sh --list
 
 真机自动化取证（需真机连接，目标 UDID 00008101-001C701E0A68001E）：
 
@@ -31,11 +33,16 @@ usage() {
   --phase=background  Release 构建：开跑 → 起 Music → press(.home) → Mac 侧等 5–6 分钟后
                       回前台结束保存、历史、导出 GPX；读回 checkpoint/跑次/GPX 并实算 sha256。
                       设备不锁屏前提下可随时读容器；结论只写「切后台后进程存活 + 持续采样」。
+  --phase=tcc         Debug 构建 + 真实 CoreLocation：可复用 TCC 授权步骤（SpringBoard 应用
+                      查询 + addUIInterruptionMonitor 兜底 + 精确 label 匹配）打通新装首启
+                      → 首次弹窗 → Always 升级，最后以跑次 JSON 的 App 自报为准
+                      （telemetry.authorizationStatus.name==authorizedAlways / rawValue==3）。
 
 选项:
   --phase <mode>            等价于 --phase=<mode>
   --device <udid>           覆盖目标设备（默认 00008101-001C701E0A68001E）
   --candidate <zip>         候选包 zip 路径（默认匹配 artifacts/candidates/PurePace-Release-*.zip）
+  --list                    列出全部阶段与用例后退出 0（无真机也可运行，不做 preflight）
   -h, --help                显示本帮助并退出 0
 
 环境变量:
@@ -53,6 +60,7 @@ EOF
 }
 
 phase=""
+list_mode=0
 candidate_path="${PUREPACE_CANDIDATE_ZIP:-}"
 device_udid="${PUREPACE_DEVICE_UDID:-00008101-001C701E0A68001E}"
 bundle_id="${PUREPACE_BUNDLE_ID:-sh.munk.purepace}"
@@ -64,6 +72,9 @@ while [ "$#" -gt 0 ]; do
     -h|--help)
       usage
       exit 0
+      ;;
+    --list)
+      list_mode=1
       ;;
     --phase=*)
       phase="${1#--phase=}"
@@ -95,10 +106,23 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
+if [ "$list_mode" -eq 1 ]; then
+  cat <<'EOF'
+verify-ios-device-flow: 阶段与用例（--list，无需真机；默认模拟器 UI 腿已排除本套件）
+
+  audit       Release  PurePaceUITests/DeviceFlowUITests/testAuditFirstScreenAndTabs
+  audio       Debug    PurePaceUITests/DeviceFlowUITests/testAudioKilometerBoundaryWithMusic
+  background  Release  PurePaceUITests/DeviceFlowUITests/testBackgroundStartAndPressHome
+                       PurePaceUITests/DeviceFlowUITests/testBackgroundFinishSaveAndExport
+  tcc         Debug    PurePaceUITests/TCCAuthorizationUITests/testTCCFreshInstallReachesAuthorizedAlways
+EOF
+  exit 0
+fi
+
 case "$phase" in
-  audit|audio|background) ;;
+  audit|audio|background|tcc) ;;
   *)
-    echo "verify-ios-device-flow: 缺少或非法的 --phase（只接受 audit|audio|background）" >&2
+    echo "verify-ios-device-flow: 缺少或非法的 --phase（只接受 audit|audio|background|tcc；用 --list 查看）" >&2
     usage >&2
     exit 2
     ;;
@@ -120,9 +144,10 @@ meta_json="${phase_dir}/meta.json"
 analysis_json="${evidence_dir}/analysis.json"
 
 case "$phase" in
-  audit) test_case="testAuditFirstScreenAndTabs"; build_configuration="Release" ;;
-  audio) test_case="testAudioKilometerBoundaryWithMusic"; build_configuration="Debug" ;;
-  background) test_case="testBackgroundStartAndPressHome"; build_configuration="Release" ;;
+  audit) test_suite="DeviceFlowUITests"; test_case="testAuditFirstScreenAndTabs"; build_configuration="Release" ;;
+  audio) test_suite="DeviceFlowUITests"; test_case="testAudioKilometerBoundaryWithMusic"; build_configuration="Debug" ;;
+  background) test_suite="DeviceFlowUITests"; test_case="testBackgroundStartAndPressHome"; build_configuration="Release" ;;
+  tcc) test_suite="TCCAuthorizationUITests"; test_case="testTCCFreshInstallReachesAuthorizedAlways"; build_configuration="Debug" ;;
 esac
 
 if [ "$phase" = "background" ]; then
@@ -205,6 +230,8 @@ with open(path, "w", encoding="utf-8") as handle:
     handle.write("\n")
 PY
 }
+
+merge_meta testSuite "$test_suite"
 
 # ---------------------------------------------------------------- 预检
 preflight() {
@@ -317,7 +344,7 @@ build_for_testing() {
     -destination "id=${device_udid}" \
     -configuration "$build_configuration" \
     -derivedDataPath "$derived_data" \
-    -only-testing:"PurePaceUITests/DeviceFlowUITests/${test_case}" \
+    -only-testing:"PurePaceUITests/${test_suite}/${test_case}" \
     -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="$team_id" \
     CODE_SIGNING_ALLOWED=YES \
@@ -341,7 +368,7 @@ run_case() {
     -destination "id=${device_udid}" \
     -configuration "$build_configuration" \
     -derivedDataPath "$derived_data" \
-    -only-testing:"PurePaceUITests/DeviceFlowUITests/${case_name}" \
+    -only-testing:"PurePaceUITests/${test_suite}/${case_name}" \
     -resultBundlePath "$result_bundle" \
     -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="$team_id" \
@@ -675,7 +702,8 @@ def render_report(ok):
                     meta.get("osBuild") or "?"))
     lines.append("- 起止时间：%s → %s"
                  % (meta.get("startedAt"), meta.get("finishedAt") or "?"))
-    lines.append("- 用例：`PurePaceUITests/DeviceFlowUITests/%s`" % meta.get("testCase"))
+    lines.append("- 用例：`PurePaceUITests/%s/%s`"
+                 % (meta.get("testSuite") or "DeviceFlowUITests", meta.get("testCase")))
     lines.append("- 结论：%s" % ("机器断言通过" if ok else "存在失败项"))
     lines.append("")
     lines.extend(build_identity_lines())
@@ -856,6 +884,73 @@ elif phase == "audio":
             check("audio-gpx-sha256", re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
                   "sha256=%s（%d 字节）" % (digest, os.path.getsize(os.path.join(evidence_dir, target))),
                   "sha256.txt")
+
+elif phase == "tcc":
+    tcc = read_json(os.path.join(evidence_dir, "tcc-result.json"), {}) or {}
+    check(
+        "tcc-result-json",
+        bool(tcc),
+        "tcc-result.json %s" % ("已落盘" if tcc else "缺失：TCC 授权步骤未产出诊断附件"),
+        "tcc-result.json",
+    )
+    mode = tcc.get("authorizationMode")
+    first_handled = tcc.get("firstPromptHandled")
+    check(
+        "tcc-authorization-mode",
+        mode in ("grantedThisRun", "preAuthorized"),
+        "authorizationMode=%r（只接受 grantedThisRun / preAuthorized）" % mode,
+        "tcc-result.json",
+    )
+    check(
+        "tcc-first-prompt-consistency",
+        (mode == "grantedThisRun" and first_handled is True)
+        or (mode == "preAuthorized" and first_handled is False),
+        "authorizationMode=%r firstPromptHandled=%r（grantedThisRun 必须 true；preAuthorized 必须 false）"
+        % (mode, first_handled),
+        "tcc-result.json",
+    )
+
+    failure_entries = tcc.get("failures") or []
+    failure_details = []
+    for entry in failure_entries:
+        actual = entry.get("actualPromptButtons") or {}
+        detail = (
+            "阶段 `%s`：%s；期望 label=%s；实际弹窗按钮 SpringBoard=%s App=%s"
+            % (
+                entry.get("stage"),
+                entry.get("reason"),
+                entry.get("expectedLabels"),
+                actual.get("springboard"),
+                actual.get("app"),
+            )
+        )
+        failure_details.append(detail)
+        failures.append({"step": "tcc-%s" % entry.get("stage"), "reason": detail})
+    check(
+        "tcc-failure-stage",
+        not failure_entries,
+        "；".join(failure_details) if failure_details else "无失败阶段",
+        "tcc-result.json",
+    )
+
+    runs = pick_newest_runs([os.path.join(os.path.dirname(meta_path), "container-after")],
+                            phase_started_epoch)
+    run = runs[-1][2] if runs else None
+    if run is None:
+        check("tcc-run-json", False, "未读到本次跑次 JSON（Documents/Runs）", None)
+        check("tcc-self-report-authorized-always", False, "无跑次 JSON，无法以 App 自报判定授权", None)
+    else:
+        copied_run = copy_evidence_file(runs[-1][1], evidence_dir, "run-")
+        check("tcc-run-json", bool(copied_run), "跑次 JSON 已复制: %s" % copied_run, copied_run)
+        telemetry = run.get("telemetry") or {}
+        auth = telemetry.get("authorizationStatus") or {}
+        check(
+            "tcc-self-report-authorized-always",
+            auth.get("name") == "authorizedAlways" and auth.get("rawValue") == 3,
+            "telemetry.authorizationStatus={name=%r, rawValue=%r}（以 App 自报为准，不以「弹窗点到了」代替）"
+            % (auth.get("name"), auth.get("rawValue")),
+            copied_run or "run JSON",
+        )
 
 elif phase == "background":
     stage1 = read_json(os.path.join(evidence_dir, "background-stage1.json"), {}) or {}
@@ -1098,6 +1193,20 @@ PY
     --json-output "${phase_dir}/installed-app.json" >/dev/null 2>&1 || true
 }
 
+# tcc 阶段：Debug 构建 + 真实 CoreLocation（不传 -uiTestLocation）；授权结果以跑次 JSON 自报为准。
+run_tcc() {
+  build_for_testing || return 1
+  local result_bundle="${phase_dir}/TCC-tcc.xcresult"
+  if ! run_case "testTCCFreshInstallReachesAuthorizedAlways" "$result_bundle" "${phase_dir}/xcodebuild-tcc.log"; then
+    fail_step "xcodebuild-tcc" "test-without-building 退出非零（日志 ${phase_dir}/xcodebuild-tcc.log）"
+  fi
+  export_attachments "$result_bundle" "${phase_dir}/attachments" || true
+  copy_container "${phase_dir}/container-after"
+  xcrun devicectl device info apps --device "$device_udid" --bundle-id "$bundle_id" \
+    --json-output "${phase_dir}/installed-app.json" >/dev/null 2>&1 || true
+  merge_meta testCase "$test_case"
+}
+
 main() {
   info "阶段 ${phase}（${build_configuration} 构建）→ 证据目录 ${evidence_dir}"
   preflight || return 1
@@ -1107,6 +1216,7 @@ main() {
     audit) run_audit || true ;;
     audio) run_audio || true ;;
     background) run_background || true ;;
+    tcc) run_tcc || true ;;
   esac
   return 0
 }
