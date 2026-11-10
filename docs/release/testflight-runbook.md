@@ -1,18 +1,21 @@
 # TestFlight 分发 Runbook
 
 面向人工执行的 iOS 归档 / 导出 / 上传流程。仓库只提供可复现的归档脚本与静态门；
-上传 App Store Connect、创建 App 记录、邀请测试者等写操作由人在本机执行，不在 CI 与脚本内。
+App 记录由一次性授权操作创建（见 `docs/release/stage4-prereqs.md`），上传构建、邀请测试者、提交审核仍是人的写操作，
+不在 CI 与仓库脚本内。
 
 ## 前置
 
 - 一台已登录 Apple Developer 账号、装有 Xcode 的 Mac，且 Xcode 命令行工具可用：`xcodebuild -version` 能输出版本。
-- App Store Connect 中已存在 `sh.munk.purepace` 对应的 App 记录（本仓库不创建记录）。先用只读方式确认：
+- App Store Connect 中存在 `sh.munk.purepace` 对应的 App 记录：该记录由公司负责人授权的一次性操作创建
+  （见 `docs/release/stage4-prereqs.md`），仓库脚本不创建。执行本流程前先用只读方式确认：
   - 当前 bundle id 为 `sh.munk.purepace`，由 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 单点定义；
     换 id 后需由人在 App Store Connect 新建或更新对应 App 记录，否则 TestFlight 无对应构建。此前构建记录里的旧
     bundle id 属历史事实，保持原样。
   - `xcrun altool --list-apps`（本机已有 App Store Connect 凭据时）逐条核对 bundle id；或
   - 在 App Store Connect 网页 / ASC API 只读查询该 bundle id 的 App 记录是否存在。
-  - 若不存在，先由人在 App Store Connect 手工创建，再继续本流程。
+  - 若不存在，先按 `docs/release/stage4-prereqs.md` 的 ASC App 记录一行处理（由人在 App Store Connect 创建，
+    或由持有建记录权限的凭据执行一次授权操作），回读校验通过后再继续本流程。
 - 三件凭据均由环境变量提供，值是人的本机路径/ID，不得写进仓库、日志或 shell history：
   - `ASC_KEY_PATH`：App Store Connect API 私钥 `.p8` 的绝对路径，必须位于仓库之外（例如 `~/keys/AuthKey_$ASC_KEY_ID.p8`）。
   - `ASC_KEY_ID`：API Key ID。
@@ -75,6 +78,7 @@
 
 - 不 push tag、不创建 GitHub Release、不在 CI 中触发分发。
 - 不在仓库内写 `.p8`、`.env` 或任何凭据文件；不把 Key ID / Issuer ID / 私钥内容写入仓库、日志、截图或本 Runbook。
-- 不创建 App Store Connect App 记录、不上传构建、不发送 TestFlight 邀请（这些是人的写操作）。
+- 不上传构建、不提交 App 审核、不发送 TestFlight 邀请（这些是人的写操作）。
+- App 记录只由公司负责人授权的一次性操作创建（见 `docs/release/stage4-prereqs.md`）；仓库脚本不复用该授权、不创建记录。
 - 不修改 `ios/project.yml` 的签名设置、版本主干或 bundle id；不手写 `project.pbxproj`。
 - 不引入任何第三方分发框架或运行时依赖；分发只依赖 Xcode 自带命令。

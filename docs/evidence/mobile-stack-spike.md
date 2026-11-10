@@ -131,7 +131,7 @@ $ adb emu geo fix -122.0090 37.3349      → OK
 $ adb emu geo fix -122.0080 37.3360      → OK
 ```
 
-`emulator` 不在 PATH（需用全路径 `/Users/zhutao/Library/Android/sdk/emulator/emulator`）；`adb` 在 `platform-tools/`。现有 SDK platform 覆盖 29–37，build-tools 到 37.0.0。`【本机实测】`
+`emulator` 不在 PATH（需用全路径 `$HOME/Library/Android/sdk/emulator/emulator`）；`adb` 在 `platform-tools/`。现有 SDK platform 覆盖 29–37，build-tools 到 37.0.0。`【本机实测】`
 
 ### 3.4 模拟器可验 / 不可验清单
 
