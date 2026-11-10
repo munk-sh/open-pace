@@ -29,17 +29,19 @@ struct ContentView: View {
         // UI 用例容器隔离（仅 `-uiTestResetArchive` 时清空归档/导出）。
         RunStorage.resetArchiveIfRequested()
         // 仅 DEBUG 且显式传 `-uiTestLocation` 时使用确定性测试定位源；
-        // 生产与 Release 构建仍走真实定位数据源（RunLocationSource）。
+        // 其余分支（含 Release）统一经选择器，默认落真实 `RunLocationSource`。
         if CommandLine.arguments.contains("-uiTestLocation") {
             locationSource = RunTestLocationSource()
             telemetryDebugEnabled = true
         } else {
-            locationSource = RunLocationSource()
-            telemetryDebugEnabled = false
+            let selected = Self.makeLocationSource()
+            locationSource = selected.source
+            telemetryDebugEnabled = selected.telemetryDebugEnabled
         }
 #else
-        locationSource = RunLocationSource()
-        telemetryDebugEnabled = false
+        let selected = Self.makeLocationSource()
+        locationSource = selected.source
+        telemetryDebugEnabled = selected.telemetryDebugEnabled
 #endif
         let recorder = AnnouncementTelemetryRecorder()
         _runModel = StateObject(
@@ -56,6 +58,16 @@ struct ContentView: View {
                     arguments: CommandLine.arguments
                 )
             )
+        )
+    }
+
+    /// 除 `-uiTestLocation`（仅 Debug UI 用例）外的唯一定位源入口：Debug/Release 共用，
+    /// 无 `-releaseDeterministicLocation` 时返回真实 `RunLocationSource`。
+    private static func makeLocationSource() -> RunLocationSourceSelection.Selection {
+        RunLocationSourceSelection.select(
+            arguments: CommandLine.arguments,
+            makeReal: { RunLocationSource() },
+            makeDeterministic: { ReleaseDeterministicLocationSource(scenario: $0) }
         )
     }
 

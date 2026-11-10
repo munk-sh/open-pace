@@ -10,6 +10,12 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - 证据落盘 `artifacts/device-audit/<UTC 时间戳>/`：`report.md`、`*.png`、`*.ax.json`、`run-*.json`、`announcements-*.json`、`*.gpx`、`sha256.txt`；中间产物只进 `.build/device-flow/`。
 - `docs/device-flow-usage.md`：脚本用法、三模式、构建配置、证据路径、`pending: 待人现场（needs-you 单点）` 清单。
 - 构建身份默认分层：`audit` / `background` 用 Release，`audio` 用 Debug（`-uiTestLocation` 确定性源仅 `#if DEBUG` 可用）。
+- `ios/PurePace/Location/ReleaseDeterministicLocationSource.swift`：Release 可用的显式 launch-arg 确定性定位源，实现既有 `RunLocationProviding` 契约，**不得**包在 `#if DEBUG` 内，不 import CoreLocation/AVFoundation、不读写磁盘、不请求授权、不做播报；唯一场景 `km-crossing`（固定基准坐标、经度不变、纬度每 1.0 s 推进 20 m，约 50 个样本跨 1 km）；`sampleSource = .simulated`、`authorization = .authorizedWhenInUse`、`allowsBackgroundLocationUpdates = false`、`pausesLocationUpdatesAutomatically = false`；时钟/生成器 seam 可注入，单测无需 `sleep`。
+- `ios/PurePace/Location/RunLocationSourceSelection.swift`：纯参数选择逻辑（Foundation + PurePaceRunCore，无 IO），`@MainActor static func select(arguments:makeReal:makeDeterministic:)`；仅当显式出现 `-releaseDeterministicLocation <scenario>` 时返回确定性源，缺值 / 取值以 `-` 开头 / 场景未知一律 fail-closed 回真实 `RunLocationSource()` 且确定性工厂调用 0 次。
+- `ios/PurePace/ContentView.swift`：`#if DEBUG` + `-uiTestLocation` 分支逐字保留；`#else` 分支改为经选择器取源（Debug/Release 均可用，默认落真实源，`telemetryDebugEnabled=false`），正常用户路径无注入入口。
+- `ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift`：默认路径零注入、flag 路径 1.0 s 严格递增时序、把样本喂既有 `RunSessionOrchestrator` 恰产生 1 条 `splitIndex == 1` / `.kilometerCompleted` 播报、fail-closed 与能力诚实断言。
+- `scripts/check-ios-shell.sh`：新增 release-deterministic 断言块（结构断言 + ≥1 条负向自检），不新增 `code-gates` 门（门数保持 22）。
+- `docs/device-flow-usage.md` / `docs/device-assertion-matrix.md`：flag 语法、`km-crossing`、默认关、仅设备验证场、`simulated` 不计入真实 CoreLocation 判据；矩阵新增「Release 确定性源门控」行并修正 Release 公里播报结论行。
 
 ## 验收
 
@@ -19,10 +25,29 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - ac-matrix-source-typed: 每行证据来源只取「Debug 可断言」「Release 候选包可断言」「只能人耳」之一且无留空；每行同时写明构建身份（(a) Debug UI-test 构建 / (b) Release 候选包 sha256 `7258…` + commit `8db1a167`）。
 - ac-matrix-machine-paths: Debug/Release 可断言行必须写具体取值路径——JSON 写字段名（`activeDuration`、`samples[].timestamp`、`telemetry.announcements[].splitIndex`）、GPX 写解析项（trkpt 数 / 时间跨度 / 折线长）、截图或可及树写文件名与判据；不得只写「检查是否正常」。
 - ac-matrix-human-ear-cap: 「只能人耳」行总数 ≤ 2，且只出现在清单最后一批；每行写明机器断言不了的原因。
-- ac-matrix-release-km-answer: 必须给出「Release 候选包上的公里播报 + 音乐 duck 机器证据」明确结论行：标「Debug 可断言 + Release 只能人耳」，写明原因（`-uiTestLocation` 被 `#if DEBUG` 关闭、km 边界需真实移动）；不得出现「Release 候选包机器断言 km 播报」的行；确定性源 launch-arg 门控进 Release 只作评估结论与影响面，另立项实施。
+- ac-matrix-release-km-answer: 必须给出「Release 候选包上的公里播报 + 音乐 duck 机器证据」明确结论行：标「Debug 可断言 + Release 机器证据来自显式 launch-arg 确定性源（非真实移动）」，写明真实 CoreLocation 只能人耳及其原因（无人静止场跨不了 1 km）；不得出现「候选包已验证真实定位」类措辞。
 - ac-matrix-gate: 清单经 PO 转公司确认后才可跑正式真机场；digest / report 记录确认引用或 `pending: 待公司确认`；未确认时不得产出 `--phase=audio` / `--phase=background` 正式场证据。
 - ac-matrix-core-loop-only: 清单只覆盖核心闭环与首屏审计三项；Info.plist 声明、单个开关、格式化、状态机、四态、阈值不得作为真机断言项（须指向单测/集成/模拟器层）。
 - ac-matrix-audit-items: 清单含候选包真机首屏审计三项（五读数位 / 三 Tab / 详情页 GPX 入口），每项判点与证据文件名规则明确。
+
+### Release 确定性源（launch-arg 门控，默认关）
+
+- ac-default-selects-real: 无 `-releaseDeterministicLocation` 时 `RunLocationSourceSelection.select` 返回注入的真实源实例（`source === makeReal()`），`telemetryDebugEnabled == false`。
+- ac-default-no-injection: 无 flag 时确定性源工厂调用次数为 0，确定性源未构造、未 `start()`、注入桩收到 0 个样本；计数在单测中直接可读。
+- ac-flag-selects-release-source: 参数含 `-releaseDeterministicLocation km-crossing` 时返回 `ReleaseDeterministicLocationSource` 且 `sampleSource == .simulated`；选择逻辑不依赖 `#if DEBUG`，Debug 与 Release 配置均编译可用。
+- ac-flag-sample-timing: 注入递增时钟后样本时间戳严格递增、相邻差 == 1.0 s，纬度单调推进、经度固定；单测不出现 `sleep` / `Thread.sleep`。
+- ac-flag-km-boundary: 样本按序喂既有 `RunSessionOrchestrator`（先 `start(at:)`），累计距离跨过 1000 m 时恰好 1 条 `AnnouncementCommand`（`splitIndex == 1`、`trigger == .kilometerCompleted`）；跨过前 0 条，跨过后 `metrics.completedKilometers == 1`。
+- ac-flag-fail-closed: flag 无值、值以 `-` 开头、或 scenario 未知（如 `bogus`）时确定性源工厂调用次数 0，返回真实源。
+- ac-flag-honest-capabilities: `allowsBackgroundLocationUpdates == false`、`pausesLocationUpdatesAutomatically == false`、`authorization == .authorizedWhenInUse`；源码不 import CoreLocation，不调用任何授权 / `startUpdatingLocation` API。
+- ac-production-source-untouched: `RunLocationSource.swift`、`RunSessionViewModel.swift`、`ios/RunCore/Sources`、`ios/PurePace/Audio`、`History`、`Settings`、`Info.plist`、`ios/project.yml` 零 diff；采样阈值、状态机、播报调度零改动。
+- ac-ui-tests-untouched: `ios/PurePaceUITests/**` 零 diff，现有 Debug 用例仍以 `-uiTestLocation`（及 `-uiTestLocationFast`）启动，其中 `-releaseDeterministicLocation` 零命中。
+- ac-static-gate-default-path: `scripts/check-ios-shell.sh` 的 release-deterministic 块在默认分支被改为直接注入确定性源、或选择器默认分支不再构造真实源时退出非 0；正常仓库上 `bash scripts/check-ios-shell.sh` 退出 0。
+- ac-static-gate-permissions-unchanged: 该静态块断言 `ios/project.yml` 的 `NS*UsageDescription` 键恰为既有两条（WhenInUse / AlwaysAndWhenInUse），`UIBackgroundModes` 含 `location` 与 `audio` 且无第三项；`ios/PurePace/Info.plist` 零 diff。
+- ac-static-gate-negative-selftest: 该静态块至少 1 条负向自检（临时副本去掉/加上被禁止结构必须报错），自检不恒真且不影响正常仓库通过。
+- ac-gate-topology-unchanged: `.munk/code-gates.json` 仍为 22 门、id/command 语义不变；`check-ios-scripts.sh` / `check-ios-release.sh` 的门数断言不改；不新增 timeout、无 `continue-on-error`、不删腿；`.github/workflows/**` 零 diff。
+- ac-docs-flag-documented: `docs/device-flow-usage.md` 含 `-releaseDeterministicLocation`、`km-crossing`、默认关、仅设备验证场、`simulated`、不计入真实 CoreLocation 判据的明确表述；不写「真机已验证」。
+- ac-matrix-row-added: `docs/device-assertion-matrix.md` 的 Release 公里播报结论表新增一行「Release 确定性源门控」，同时含「默认关」「仅设备验证场」「不计入真实 CoreLocation 判据」三要素。
+- ac-matrix-conclusion-honest: 该表现有结论行不再把「Release 上取不到机器证据 / 只能人耳」当绝对结论，改为「真实 CoreLocation 只能人耳；Release 机器证据来自显式 launch-arg 确定性源（非真实移动）」，且无「候选包已验证真实定位」类措辞。
 
 ### 产品标识跟随（矩阵与脚本的构建身份）
 
@@ -81,7 +106,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - 真机不承载核心闭环以外的语义（Info.plist 声明、单个开关、格式化、状态机、四态、阈值均在单测/集成/模拟器层证明）。
 - 不在本项修复任何业务 UI / 定位 / 音频 / 导出缺陷（缺项按缺陷记录，修复另行立项）。
 - 不宣称阶段 2/3「真机已验证」；不改 `code_gates`、`.github/workflows`、CI 触发或发布流程。
-- 不写「真机已验证公里播报」：Release 候选包上该判点只能人耳，机器证据仅来自 Debug UI-test 构建；launch-arg 门控进 Release 只写评估结论与影响面，本项不实施。
+- 不写「真机已验证公里播报」：确定性源只提供「仅设备验证场」的机器证据，样本 `simulated` 不计入真实 CoreLocation 判据；真实移动结论仍只能人耳。
 - 不写桌面端自研驱动（CDP / 注入 JS / 自拼截屏）；不装 mobilecli agent，不依赖 `mobile_*`；不引入第三方运行时依赖。
 - 不做截图视觉回归、不提交模拟器结论、不改 Android 侧；脚本与清单未就绪前不排人、不约窗口。
 
@@ -90,6 +115,8 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - **交付顺序与流程门**：先出清单交 PO 转公司确认；未确认前只做清单与静态检查，不跑正式真机场（audio / background）；确认后再跑真机，audit 仍是脚本第一产出。
 - **构建身份（硬要求）**：所有真机证据一律二选一标注，不得混写——(a) Debug UI-test 构建（`xcodebuild test` 产出）或 (b) Release 候选包（zip sha256 `7258d2e3f7984ef2557278bd1fcdd1eea5db1f34a4d549dc8071d7afcd5b9d8f` / commit `8db1a167`）；产物文件名、`report.md`、清单行、digest 四处都要带。
 - **可写文件集合**（超出会被回滚）：`docs/device-assertion-matrix.md`、`scripts/verify-ios-device-flow.sh`、`ios/PurePaceUITests/`（新增/修改用例）、`ios/project.yml`（仅登记新测试文件时）、`docs/` 其它简短说明、`artifacts/device-audit/`。禁止改 `ios/PurePace/**`、`ios/RunCore/**`、`ios/Core/**`、`.munk/code-gates.json`、`.github/workflows/**`、既有 `scripts/check-*`。
+  - 例外（`Release 确定性源` 项）：允许 `ios/PurePace/ContentView.swift`（仅 `#else` 分支接线）、`ios/PurePace/Location/ReleaseDeterministicLocationSource.swift`、`ios/PurePace/Location/RunLocationSourceSelection.swift`、`ios/PurePaceTests/ReleaseDeterministicLocationSourceTests.swift`、`ios/PurePace.xcodeproj/project.pbxproj`（仅生成器产物）、`scripts/check-ios-shell.sh`、`docs/device-flow-usage.md`；其余 `ios/PurePace/**` 与业务契约仍禁改。
+- **确定性源口径**：`Timer` 只允许出现在 `Location/`，不进 `Run/`；选择器 seam 除 `CommandLine.arguments` 外不读全局状态；未知/缺值 scenario 不抛异常、不弹 UI、不向用户可见位置写日志；`ios/project.yml` 的 `sources: - path: PurePace` 自动纳入新文件，须 `xcodegen generate --spec project.yml` 后提交生成的 pbxproj。
 - **驱动方式**：只用成熟工具链——`xcrun devicectl` 装/启 + 设备端 `xcodebuild test`（`-destination id=<UDID>`、`-only-testing`、`-resultBundlePath`），截图/可及树经 XCTest attachment + `xcresulttool export attachments` 导出；禁止自写桌面驱动。
 - **候选包定位**：不在 worktree 内，位于 products 侧 `artifacts/candidates/PurePace-Release-*.zip`；脚本用 `--candidate` 或通配定位，不复制进仓库，不写死版本号（`check-baseline` 扫 `scripts/*.sh`）。
 - **配置分层**：audit / background 用生产定位源（Release / 不传 `-uiTestLocation`）；audio 才用 DEBUG 确定性源；每模式报告写清构建配置，禁止用 Debug 结果冒充 Release 行为。
@@ -99,6 +126,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_e97db968c68e4562（2026-11-10，pass）
-- 交付：设备取证套件跟随 `sh.munk.purepace`——`scripts/verify-ios-device-flow.sh` 只改 usage 说明与 `PUREPACE_BUNDLE_ID` 默认值两行（env 覆盖保留）；`docs/device-assertion-matrix.md` 的 (a) 段与批次 A1 说明换新 id，(b) 段历史候选 `7258…` / commit `8db1a167` 与 `pending: 待人现场` 原样保留。旧 id 全局命中收敛到 `docs/evidence/stage3-e2e/report.json` 2 条历史证据。
-- 边界：`docs/evidence/**`、`artifacts/**`、`ios/PurePaceUITests/**`、`ios/project.yml`、`.github/workflows/**` 零改动；三模式断言、等待与退出码未弱化。真机三档补测仍为 `pending: 待人现场`。
+- workItemId: wi_intake_abacaa757ba3bd09（2026-11-10，pass）
+- 交付：Release 可用的显式 launch-arg 确定性定位源（默认关）——`ReleaseDeterministicLocationSource`（`km-crossing`：1.0 s/20 m 推进，约 50 样本跨 1 km，`simulated` + WhenInUse + 后台开关 false）与纯参数选择器 `RunLocationSourceSelection`（缺值 / 以 `-` 开头 / 未知场景 fail-closed 回真实源、构造次数 0）；`ContentView` 的 `#if DEBUG` + `-uiTestLocation` 分支逐字保留，`#else` 分支改经选择器。`scripts/check-ios-shell.sh` 增 release-deterministic 断言块（含负向自检），门数仍 22；`docs/device-flow-usage.md` 增「Release 确定性源（仅设备验证场）」小节，矩阵新增「Release 确定性源门控」行并把 Release 公里播报结论改为「真实 CoreLocation 只能人耳；机器证据来自显式确定性源」。
+- 实测：默认路径单测零构造零注入；flag 路径时序严格 1.0 s 递增，喂 `RunSessionOrchestrator` 恰 1 条 `splitIndex == 1` / `.kilometerCompleted`；候选包从提交 `1e7e653` 出（zip `43be04f3…`，413660 B；exec `2378b720…`，1507136 B；`UIBackgroundModes=["location","audio"]`、`sh.munk.purepace`、0.1.0(1)、MinimumOSVersion 17.0 均从解压 `.app/Info.plist` 读回）。
+- 边界：`ios/PurePaceUITests/**`、`ios/RunCore/**`、`ios/Core/**`、`ios/project.yml`、`ios/PurePace/Info.plist`、`.github/workflows/**`、`.munk/code-gates.json` 零 diff；候选 `iosCI` 为 `pending: 待同 commit ios.yml run 判定`，真机三档仍为 `pending: 待人现场`；`simulated` 样本不构成真实定位结论。
