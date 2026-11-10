@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 import PurePaceRunCore
 @testable import PurePace
@@ -276,6 +277,83 @@ final class RunSessionViewModelTests: XCTestCase {
         XCTAssertEqual(spy.commands.count, 1, "结束动作不得额外播报")
     }
 
+    // MARK: - ac-autostart-wiring / ac-autostart-isolation
+
+    func testAutoStartRecordingStartsOnFirstAppearanceOnly() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let source = FakeLocationSource()
+        let viewModel = makeViewModel(
+            stores: stores,
+            clock: Clock(date: startDate),
+            source: source,
+            autoStartRecording: true
+        )
+
+        XCTAssertEqual(viewModel.state, .ready)
+        viewModel.onAppear()
+        XCTAssertEqual(viewModel.state, .running)
+        XCTAssertEqual(source.startCount, 1, "自动开跑经 start() 请求一次定位")
+
+        viewModel.pause()
+        XCTAssertEqual(viewModel.state, .paused)
+        viewModel.onAppear()
+        XCTAssertEqual(viewModel.state, .paused, "重复 onAppear 不得重复开跑")
+    }
+
+    func testAutoStartDisabledKeepsReadyOnAppearance() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let viewModel = makeViewModel(
+            stores: stores,
+            clock: Clock(date: startDate),
+            autoStartRecording: false
+        )
+
+        viewModel.onAppear()
+        XCTAssertEqual(viewModel.state, .ready)
+        XCTAssertEqual(try? stores.archive.list().count, 0)
+    }
+
+    func testAutoStartRecordingKeepsDeviceLocationSource() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let source = FakeLocationSource()
+        source.sampleSource = .device
+        let viewModel = makeViewModel(
+            stores: stores,
+            clock: Clock(date: startDate),
+            source: source,
+            autoStartRecording: true
+        )
+
+        viewModel.onAppear()
+
+        XCTAssertEqual(viewModel.state, .running)
+        XCTAssertEqual(source.sampleSource, .device)
+    }
+
+    func testLifecycleNotificationsDoNotChangeSessionStateOrStartLocation() {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let source = FakeLocationSource()
+        let viewModel = makeViewModel(stores: stores, clock: Clock(date: startDate), source: source)
+
+        for name in [
+            UIApplication.protectedDataWillBecomeUnavailableNotification,
+            UIApplication.protectedDataDidBecomeAvailableNotification,
+            UIApplication.didEnterBackgroundNotification,
+            UIApplication.willEnterForegroundNotification
+        ] {
+            NotificationCenter.default.post(name: name, object: nil)
+        }
+
+        XCTAssertEqual(viewModel.state, .ready)
+        XCTAssertEqual(source.startCount, 0)
+        XCTAssertEqual(source.stopCount, 0)
+        XCTAssertEqual(viewModel.metrics.elapsed, 0)
+    }
+
     // MARK: - 夹具
 
     private let t0: TimeInterval = 1_700_000_000
@@ -324,14 +402,17 @@ final class RunSessionViewModelTests: XCTestCase {
         stores: Stores,
         clock: Clock,
         announcements: AnnouncementSpeaking = AnnouncementSpy(),
-        announcementsEnabled: Bool = true
+        announcementsEnabled: Bool = true,
+        source: FakeLocationSource = FakeLocationSource(),
+        autoStartRecording: Bool = false
     ) -> RunSessionViewModel {
         RunSessionViewModel(
             checkpointStore: stores.checkpoint,
             archiveStore: stores.archive,
-            locationSource: FakeLocationSource(),
+            locationSource: source,
             announcements: announcements,
             announcementsEnabled: announcementsEnabled,
+            autoStartRecording: autoStartRecording,
             now: { clock.date }
         )
     }

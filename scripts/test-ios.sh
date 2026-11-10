@@ -10,14 +10,16 @@ usage() {
 测试 iOS 侧产物，按工程可用性自动选择分支：
   - 分支 A（工程可用）：先执行 scripts/sync-ios-version.sh 由根 VERSION 生成
     ios/Config/Version.xcconfig；ios/PurePace.xcodeproj 存在，或 ios/project.yml
-    存在且本机有 xcodegen 可从 spec 生成工程时，在 bootstatus 之后拆成两次
+    存在且本机有 xcodegen 可从 spec 生成工程时，在模拟器就绪后拆成两次
     xcodebuild test（共用 .build/ios 派生数据）：
       1) -only-testing:PurePaceTests（日志 .build/logs/xcodebuild-unit.log，Executed 摘要先落盘）
       2) -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests（日志 .build/logs/xcodebuild-ui.log；
          DeviceFlowUITests 只由 scripts/verify-ios-device-flow.sh 分阶段驱动，不进默认 CI UI 腿）
     UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
     simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
-    测试前按固定顺序准备模拟器状态：bootstatus 等待设备可用 → simctl uninstall 清容器 →
+    模拟器准备：目标设备已 Booted 且持锁后无并发时直接复用（不 shutdown）；
+    否则清场 → 显式 simctl boot（与 build-for-testing 并行）→ 有界 bootstatus 轮询至就绪。
+    之后按固定顺序准备模拟器状态：simctl uninstall 清容器 →
     构建并安装 App → simctl privacy grant location 预置定位授权（授权只对已安装 bundle 生效，
     且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热。
     两次 xcodebuild test 都带测试执行预算（-test-timeouts-enabled / -default-test-execution-time-allowance /
@@ -36,6 +38,8 @@ usage() {
 
 环境变量:
   IOS_XCODEBUILD_TIMEOUT  xcodebuild test 每腿（单测/UI 各一份）的硬超时秒数，默认 600（≤600，压住 AX 初始化静默等待）
+  PUREPACE_IOS_BOOT_TIMEOUT_SECONDS
+                           模拟器 boot 有界等待秒数，默认 1200；超限打印 simulator-boot 阶段超时并以 124 退出
   PUREPACE_IOS_UI_MIN_BUDGET_SECONDS
                            UI 腿最小可用预算秒数，默认 300；可用预算低于该值时明确失败
   PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS
@@ -102,6 +106,20 @@ ui_runner_path="$derived_data/Build/Products/Debug-iphonesimulator/PurePaceUITes
 log_dir=".build/logs"
 unit_log="$log_dir/xcodebuild-unit.log"
 ui_log="$log_dir/xcodebuild-ui.log"
+timing_log="$log_dir/test-ios-timing.log"
+# 承载层分段计时：boot 起点早于 build 结束即证明 boot 与 build-for-testing 并行。
+timing_started_at="$(date +%s)"
+phase_boot_seconds=0
+phase_prep_seconds=0
+phase_build_seconds=0
+phase_unit_seconds=0
+phase_ui_seconds=0
+phase_runcore_seconds=0
+boot_timeout_seconds="${PUREPACE_IOS_BOOT_TIMEOUT_SECONDS:-1200}"
+# 复用标记：1 表示目标设备在持锁且 quiescent 后已是 Booted，直接复用给单测与 UI 两腿。
+sim_reused_booted=0
+sim_boot_started_at=0
+sim_boot_pid=""
 xcodebuild_timeout="${IOS_XCODEBUILD_TIMEOUT:-600}"
 # 单测腿 / UI 腿各自独立预算（各一份 IOS_XCODEBUILD_TIMEOUT，默认 600s）；
 # 不再用「单测已耗时」从 UI 预算里扣减。UI 腿另有最小可用预算阈值。
@@ -176,7 +194,7 @@ ios_gate_lock_acquire() {
       printf '%s\n' "$$" > "${ios_gate_lock_dir}/pid"
       ios_gate_lock_held=1
       export PUREPACE_IOS_GATE_LOCK_HELD=1
-      trap ios_gate_lock_release EXIT
+      trap 'emit_timing; ios_gate_lock_release' EXIT
       echo "[lock] acquired pid=$$ waited=${waited}s dir=${ios_gate_lock_dir}"
       return 0
     fi
@@ -211,7 +229,8 @@ ios_gate_lock_acquire() {
 ios_gate_lock_wait_quiescent() {
   local waited=0 others
   while :; do
-    others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e "^$$ " -e "^${PPID} " || true)"
+    # 真实设备 WebDriverAgentRunner 常驻且不操作模拟器，不参与模拟器清场互斥。
+    others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e 'WebDriverAgentRunner' -e "^$$ " -e "^${PPID} " || true)"
     if [ -z "${others}" ]; then
       echo "[lock] quiescent pid=$$ waited=${waited}s"
       return 0
@@ -229,8 +248,19 @@ ios_gate_lock_wait_quiescent() {
   done
 }
 
+simulator_is_booted() {
+  [ -n "${sim_udid}" ] && xcrun simctl list devices available 2>/dev/null | grep -F -- "${sim_udid}" | grep -Fq -- "(Booted)"
+}
+
+# 取锁并等并发归零后：目标设备已 Booted 则复用（不再无条件 shutdown all），否则清场冷启。
 ios_gate_lock_prepare_simulator() {
   ios_gate_lock_wait_quiescent || return $?
+  if simulator_is_booted; then
+    sim_reused_booted=1
+    echo "[sim] reuse booted ${sim_udid}"
+    return 0
+  fi
+  echo "[sim] cold boot ${sim_udid}：清场后重新启动"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   return 0
 }
@@ -250,29 +280,70 @@ sys.exit(1)
 '
 }
 
-# 干净设备 boot 等待：bootstatus -b 通过才继续，失败时打印 udid 与阶段并非零退出。
-wait_for_simulator_boot() {
-  sim_udid="$(select_simulator || true)"
-  if [ -z "$sim_udid" ]; then
-    echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法运行 UI 测试" >&2
-    exit 1
+# 显式 simctl boot（非阻塞）：与随后的 build-for-testing 并行；已 Booted 时该调用返回
+# 非零（Unable to boot device in current state）不判失败。
+start_simulator_boot() {
+  if [ "${sim_reused_booted}" = "1" ]; then
+    echo "[boot] reuse booted ${sim_udid} elapsed=0s"
+    return 0
   fi
-  echo "info: 使用模拟器 $sim_udid 注入 CoreLocation 更新"
-  if ! xcrun simctl bootstatus "$sim_udid" -b >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-boot 失败：模拟器 $sim_udid 启动/就绪失败（xcrun simctl bootstatus $sim_udid -b）" >&2
-    exit 1
-  fi
+  sim_boot_started_at="$(date +%s)"
+  echo "[boot] request ${sim_udid}（与 build-for-testing 并行）"
+  ( xcrun simctl boot "${sim_udid}" >/dev/null 2>&1 || true ) &
+  sim_boot_pid=$!
 }
 
-# 容器清理 → 构建 → 安装 → 预置定位授权 → 启动预热。
-# TCC 只对已安装 bundle 生效且 simctl uninstall 会清掉它，所以授权必须排在安装之后。
-prepare_simulator_for_ui_tests() {
-  mkdir -p "$log_dir"
-  # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
-  xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
+# 有界等待 boot 就绪：后台 simctl bootstatus 轮询 + 每轮打印 [boot] elapsed=<n>s；
+# 超过 PUREPACE_IOS_BOOT_TIMEOUT_SECONDS（默认 1200s）打印 simulator-boot 阶段超时并以 124 退出。
+wait_for_simulator_boot() {
+  local limit="${boot_timeout_seconds}"
+  case "${limit}" in
+    ""|*[!0-9]*) limit=1200 ;;
+  esac
+  if [ "${sim_reused_booted}" = "1" ]; then
+    phase_boot_seconds=0
+    return 0
+  fi
+  local started="${sim_boot_started_at}"
+  local boot_pid="" elapsed=0 status=0
+  xcrun simctl bootstatus "${sim_udid}" >/dev/null 2>&1 &
+  boot_pid=$!
+  while kill -0 "${boot_pid}" 2>/dev/null; do
+    elapsed=$(( $(date +%s) - started ))
+    echo "[boot] elapsed=${elapsed}s"
+    if [ "${elapsed}" -ge "${limit}" ]; then
+      kill -TERM "${boot_pid}" >/dev/null 2>&1 || true
+      sleep 2
+      kill -KILL "${boot_pid}" >/dev/null 2>&1 || true
+      wait "${boot_pid}" >/dev/null 2>&1 || true
+      if [ -n "${sim_boot_pid}" ]; then
+        wait "${sim_boot_pid}" >/dev/null 2>&1 || true
+      fi
+      echo "test-ios: 阶段 simulator-boot 超时：${limit}s 内模拟器 ${sim_udid} 未就绪（xcrun simctl bootstatus ${sim_udid}）" >&2
+      exit 124
+    fi
+    sleep 5
+  done
+  wait "${boot_pid}" || status=$?
+  if [ -n "${sim_boot_pid}" ]; then
+    wait "${sim_boot_pid}" >/dev/null 2>&1 || true
+  fi
+  elapsed=$(( $(date +%s) - started ))
+  phase_boot_seconds="${elapsed}"
+  if [ "${status}" -ne 0 ]; then
+    echo "test-ios: 阶段 simulator-boot 失败：模拟器 ${sim_udid} 启动/就绪失败（xcrun simctl bootstatus ${sim_udid}，elapsed=${elapsed}s）" >&2
+    exit 1
+  fi
+  echo "[boot] ready ${sim_udid} elapsed=${elapsed}s"
+}
 
-  # build-for-testing：一次构建 App + 单测包 + UI Runner，后续两次执行都用
-  # test-without-building，避免 xcodebuild test 重装 App 把已预置的 TCC 授权清掉。
+# build-for-testing：一次构建 App + 单测包 + UI Runner，后续两次执行都用
+# test-without-building，避免 xcodebuild test 重装 App 把已预置的 TCC 授权清掉。
+# 该段与 start_simulator_boot 发起的 boot 并行，故先于 wait_for_simulator_boot 调用。
+build_for_testing() {
+  mkdir -p "$log_dir"
+  local started
+  started="$(date +%s)"
   echo "info: 阶段 xcodebuild-build：构建 App 与测试包（build-for-testing，派生数据 ${derived_data}）"
   if ! xcodebuild build-for-testing \
     -project "$project_path" \
@@ -283,6 +354,17 @@ prepare_simulator_for_ui_tests() {
     echo "test-ios: 阶段 xcodebuild-build 失败：构建 App 与测试包失败（模拟器 ${sim_udid}）" >&2
     exit 1
   fi
+  phase_build_seconds=$(( $(date +%s) - started ))
+}
+
+# 容器清理 → 安装 → 预置定位授权 → 启动预热（设备必须已就绪）。
+# TCC 只对已安装 bundle 生效且 simctl uninstall 会清掉它，所以授权必须排在安装之后。
+prepare_simulator_for_ui_tests() {
+  local started
+  started="$(date +%s)"
+  mkdir -p "$log_dir"
+  # 清理上次运行残留：保证容器为空（History 恰 1 条）并回到首次未授权路径。
+  xcrun simctl uninstall "$sim_udid" "$bundle_id" >/dev/null 2>&1 || true
 
   if [ ! -d "$app_path" ]; then
     echo "test-ios: 阶段 simulator-install 失败：未找到构建产物 ${app_path}（模拟器 ${sim_udid}）" >&2
@@ -346,6 +428,7 @@ prepare_simulator_for_ui_tests() {
     echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）" >&2
     exit 1
   fi
+  phase_prep_seconds=$(( $(date +%s) - started ))
 }
 
 # ac-tel-always：xcodebuild 每次 test-without-building 都会把 App 重装到新的 Bundle
@@ -397,13 +480,24 @@ run_with_watchdog() {
 # 两次调用各自落盘日志（xcodebuild-unit.log / xcodebuild-ui.log），预算按腿独立。
 test_with_xcodebuild() {
   ios_gate_lock_acquire || exit $?
-  # 取锁后先等待其它 worktree 的 xcodebuild/simctl 归零，再清场（有并发时禁止 shutdown/erase）。
+  sim_udid="$(select_simulator || true)"
+  if [ -z "$sim_udid" ]; then
+    echo "test-ios: 未找到 iPhone 16 / iOS 18.6 模拟器，无法运行 UI 测试" >&2
+    exit 1
+  fi
+  echo "info: 使用模拟器 ${sim_udid} 注入 CoreLocation 更新"
+  # 取锁后先等待其它 worktree 的 xcodebuild/simctl 归零；已 Booted 则复用，否则清场冷启。
   ios_gate_lock_prepare_simulator || exit $?
+  # boot 与 build-for-testing 并行：先发起 boot，再构建；构建结束后才有界等待 bootstatus 就绪。
+  start_simulator_boot
+  build_for_testing
   wait_for_simulator_boot
   prepare_simulator_for_ui_tests
   echo "info: location-source=deterministic(-uiTestLocation)（真实 CoreLocation 由 scripts/verify-ios-sim-runtime.sh 覆盖）"
   # 第一次调用：单元测试（-only-testing:PurePaceTests）；日志与 Executed 摘要先落盘。
   local unit_status=0
+  local unit_started
+  unit_started="$(date +%s)"
   echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${unit_budget}s，日志 ${unit_log}）"
   run_with_watchdog "$unit_budget" "$unit_log" \
     xcodebuild test-without-building \
@@ -416,6 +510,7 @@ test_with_xcodebuild() {
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \
     CODE_SIGNING_ALLOWED=NO || unit_status=$?
+  phase_unit_seconds=$(( $(date +%s) - unit_started ))
   cat "$unit_log" 2>/dev/null || true
   # 单测摘要必须先于 UI 调用输出：UI 失败不得覆盖单测结论。
   echo "info: PurePaceTests 摘要（先于 UI 落盘：${unit_log}）："
@@ -458,6 +553,8 @@ test_with_xcodebuild() {
   refresh_location_always_until_stopped "$tcc_stop_file" &
   local tcc_refresher_pid=$!
   local ui_status=0
+  local ui_started
+  ui_started="$(date +%s)"
   echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -skip-testing:PurePaceUITests/DeviceFlowUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
   run_with_watchdog "$ui_available" "$ui_log" \
     xcodebuild test-without-building \
@@ -471,6 +568,7 @@ test_with_xcodebuild() {
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 540 \
     CODE_SIGNING_ALLOWED=NO || ui_status=$?
+  phase_ui_seconds=$(( $(date +%s) - ui_started ))
   touch "$tcc_stop_file"
   wait "$tcc_refresher_pid" 2>/dev/null || true
   rm -f "$tcc_stop_file"
@@ -491,14 +589,35 @@ test_with_run_core() {
     echo "blocked: 缺 ios/RunCore，跳过 RunCore 的 swift test"
     return 0
   fi
+  local runcore_started
+  runcore_started="$(date +%s)"
   echo "info: 执行 swift test --package-path ios/RunCore"
   if swift test --package-path ios/RunCore; then
+    phase_runcore_seconds=$(( $(date +%s) - runcore_started ))
     echo "info: RunCore SwiftPM 测试完成"
   else
     status=$?
+    phase_runcore_seconds=$(( $(date +%s) - runcore_started ))
     echo "test-ios: RunCore 的 swift test 失败（退出码 ${status}）" >&2
     return "$status"
   fi
+}
+
+# 分段计时只落一行并追加到 .build/logs/test-ios-timing.log；EXIT trap 与降级分支都经此输出，
+# 用 timing_emitted 保证每次运行只写一行。
+timing_emitted=0
+emit_timing() {
+  if [ "${timing_emitted}" = "1" ]; then
+    return 0
+  fi
+  timing_emitted=1
+  local total
+  total=$(( $(date +%s) - timing_started_at ))
+  local line="[timing] boot=${phase_boot_seconds}s prep=${phase_prep_seconds}s build=${phase_build_seconds}s unit=${phase_unit_seconds}s ui=${phase_ui_seconds}s runcore=${phase_runcore_seconds}s total=${total}s"
+  echo "$line"
+  mkdir -p "$log_dir"
+  printf '%s\n' "$line" >> "$timing_log"
+  echo "info: 分段计时已追加写入 ${timing_log}"
 }
 
 if [ -d "$project_path" ]; then
@@ -536,3 +655,4 @@ else
 fi
 
 test_with_run_core
+emit_timing
