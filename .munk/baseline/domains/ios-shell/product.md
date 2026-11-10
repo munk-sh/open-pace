@@ -5,7 +5,7 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 ## 范围
 
 - `ios/project.yml`：XcodeGen 规格，声明 App target `PurePace`、单元测试 target `PurePaceTests`、UI 测试 target `PurePaceUITests` 与共享 scheme `PurePace`；deployment target iOS 17.0、`SWIFT_VERSION = 6.2`、唯一允许的依赖是仓库内本地 path package `PurePaceRunCore`（`path: RunCore`，无远程/第三方依赖）、模拟器构建 `CODE_SIGNING_ALLOWED=NO`。
-- `ios/PurePace.xcodeproj`：由 `xcodegen generate` 生成的产物入库，**禁止手写 `project.pbxproj`**。
+- `ios/PurePace.xcodeproj`：`xcodegen generate` 生成物，整目录由 `.gitignore` 忽略、**不入库**（`project.pbxproj` / workspace / shared scheme 均不跟踪）；生成后 `git status --porcelain` 必须干净，**禁止手写 `project.pbxproj`**。
 - `ios/Config/Version.xcconfig`：由 `scripts/sync-ios-version.sh` 从根 `VERSION` 派生 `MARKETING_VERSION`；`project.yml` 以 `configFiles` 引用，版本不在规格或源码中写死。
 - `ios/PurePace/`：App 源码目录——页面职责与行为 AC 见 `ios-app` 域，本域只约束骨架事实（目录分层、import 允许表、无内置样例/网络请求/夹具引用）；`ios/PurePace/Audio/` 只放 `AudioSessionAdapter` + `AnnouncementSpeaker` 两个音频平台接缝（行为归 `ios-app` 域），本域只管 `AVFoundation` 目录限定不破。
 - `ios/PurePace/Harness/`：仅由 launch arg（`--harness direct|corelocation|resume`）激活的无业务 UI 运行 Harness——参数解析、JSONL 直接流、status 原子落盘、checkpoint 节奏与 resume 恢复为可单测纯逻辑内核，`CLLocationManager` 仅经最小采样源协议注入；`CoreLocation` 只允许出现在该目录。
@@ -13,18 +13,21 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 - `ios/project.yml` 定位/后台模式配置：非空 `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription`（及 AlwaysAndWhenInUse）、`targets.PurePace.info.properties.UIBackgroundModes: [location, audio]`，且**禁止** `INFOPLIST_KEY_UIBackgroundModes` 设置项（该标量会在构建期覆盖数组）；`ios/PurePace/Info.plist`（`INFOPLIST_FILE`）承载同一数组。仅配置声明，不承诺真机后台行为。
 - `ios/PurePaceTests/`：XCTest 用例，覆盖音频适配器、Harness 纯逻辑（参数、流解析、status、checkpoint、resume）与会话 ViewModel/格式化（行为 AC 见 `ios-app` 域）；`ios/PurePaceUITests/`：XCUITest 用例，真实定位注入下走通跑步全流程（见 `ios-app` 域 ac-ui-flow-e2e）。
 - `scripts/build-ios.sh`、`scripts/test-ios.sh`：先由根 `VERSION` 同步 `Config/Version.xcconfig`，工程缺失且有 xcodegen 时从 spec 生成，再对 iPhone 16 / iOS 18.6 执行真实 `xcodebuild build|test`（无签名）；工程不可用输出 `blocked:` 并降级真实 `swift build|test --package-path ios/Core`，绝不伪造成功行。`scripts/check-ios-shell.sh` 承载结构断言（import 允许表、`CoreLocation` 目录限定、定位/后台模式配置、Harness 文件清单），`scripts/check-ios-scripts.sh` 承载脚本契约断言。
-- `scripts/verify-ios-sim-runtime.sh`：模拟器三链路编排（direct / terminate-relaunch / corelocation）唯一入口，真实驱动已交付 Harness、用 `python3` 独立复算距离与配速、产出机读报告 `.build/verify-ios-sim-runtime/report.json`；不碰 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 的契约字段。
+- `scripts/verify-ios-sim-runtime.sh`：模拟器三链路编排（direct / terminate-relaunch / corelocation）已拆至 `ios-sim-runtime` 域；本域只保证该脚本消费的工程与 Harness 契约不变。
 - 门禁：`.munk/code-gates.json` 的 `lint-ios-shell` / `build-ios` / `test-ios`（均为单一 argv，指向上述脚本）；`scripts/verify-ios-sim-runtime.sh` / `scripts/verify-ios-ui-e2e.sh` 自 `wi_intake_11dc6b68d0c7555d` 起移出本地阻断门、保留为可手动串行的证据腿（权威覆盖回 CI `.github/workflows/ios.yml` 全量 `test-ios.sh`）；既有 `lint` / `lint-baseline` / `lint-ios-core` / `build-ios-core` / `test-ios-core` / `test` 语义不变。
 
 ## 验收
 
-- ac-xcodegen-single-source: `ios/project.yml` 存在且 `xcodegen generate --spec ios/project.yml` 成功；生成后 `ios/PurePace.xcodeproj/project.pbxproj` 入库，再次执行同一命令后 `git status --porcelain ios/PurePace.xcodeproj` 为空（工程是生成产物而非手写）。
-- ac-no-handwritten-pbxproj: `project.pbxproj` 仅存在于 `ios/PurePace.xcodeproj/` 且可由 `project.yml` 再生成；不存在第二份工程或「有工程却无 `project.yml`」的孤立工程。
+- ac-xcodegen-single-source: `ios/project.yml` 存在且 `xcodegen generate --spec ios/project.yml --project ios` 成功；`ios/PurePace.xcodeproj` 整体为 ignored 生成物，执行同一命令后 `git status --porcelain` 为空（工程是生成产物，既非手写也不入库）。
+- ac-no-tracked-pbxproj: `git ls-files` 中匹配 `project.pbxproj` 的条目为空（含 `ios/PurePace.xcodeproj/project.pbxproj` 已不在索引）；仓库内不存在第二份工程或「有工程却无 `project.yml`」的孤立工程。
+- ac-generated-artifacts-ignored: `git check-ignore -v ios/PurePace.xcodeproj/project.pbxproj` 退出 0；忽略方案为 A（整目录 `ios/PurePace.xcodeproj/`：pbxproj / workspace / scheme 全部不入库），以此保证重生成后 `git status` 干净。
+- ac-scheme-generated-shared: `xcodegen generate` 后 `ios/PurePace.xcodeproj/xcshareddata/xcschemes/PurePace.xcscheme` 存在且非空，`xcodebuild -list -project ios/PurePace.xcodeproj` 输出包含 `PurePace` scheme；scheme 随生成物不入库，无例外。
+- ac-regen-from-spec-passes-unit-leg: `rm -rf ios/PurePace.xcodeproj` 后由 `ios/project.yml` 重新生成工程成功（退出 0），随后 `bash scripts/test-ios.sh --unit-only` 单测腿真实通过（真实 `xcodebuild test`，而非 `blocked:` 降级）。
 - ac-build-settings: `xcodebuild -showBuildSettings -scheme PurePace`（iPhone 16 / iOS 18.6 destination）输出 `IPHONEOS_DEPLOYMENT_TARGET = 17.0`、`SWIFT_VERSION = 6.2`，且 `MARKETING_VERSION` 等于根 `VERSION` 内容。
 - ac-build-app: `xcodebuild build`（`-scheme PurePace`、同 destination、`CODE_SIGNING_ALLOWED=NO`）返回 0 并在构建目录产出 `PurePace.app`。
 - ac-app-targets-and-frameworks: 工程含 `PurePace` / `PurePaceTests` / `PurePaceUITests` 三个 target，依赖仅限本地 path package `PurePaceRunCore`（无远程/第三方 SwiftPM 声明）；App 源码 import 仅限 `SwiftUI` / `Foundation` / `AVFoundation` / `CoreLocation` / `PurePaceRunCore`，`AVFoundation` 只允许出现在 `ios/PurePace/Audio/`，`CoreLocation` 只允许出现在 `ios/PurePace/Harness/` 与 `ios/PurePace/Location/`，页面不得引用网络请求。
 - ac-local-package-wired: `ios/project.yml` 以 `path: RunCore` 声明 `PurePaceRunCore`，`PurePace` 与 `PurePaceTests` 均显式依赖；连续两次 `xcodegen generate` 后 `ios/PurePace.xcodeproj` 零 diff，生成的 pbxproj 仅含 `XCLocalSwiftPackageReference`、不含 `url:`/`https://`/远程 package 引用；`xcodebuild -resolvePackageDependencies` 只解析仓库内 `ios/RunCore`。
-- ac-project-regenerable: 连续两次 `xcodegen generate --spec ios/project.yml` 后 `ios/PurePace.xcodeproj` 零 diff；pbxproj 仅含 `XCLocalSwiftPackageReference`、无远程依赖；`PurePace`/`PurePaceTests` 仍显式依赖 `PurePaceRunCore`；无新增第三方/远程 SwiftPM 依赖、无新增 target。
+- ac-project-regenerable: 连续两次 `xcodegen generate --spec ios/project.yml --project ios` 后 `git status --porcelain` 为空（ignored 生成物不计入）；生成的 pbxproj 仅含 `XCLocalSwiftPackageReference`、无远程依赖；`PurePace`/`PurePaceTests` 仍显式依赖 `PurePaceRunCore`；无新增第三方/远程 SwiftPM 依赖、无新增 target。
 - ac-app-audio-session-adapter: `ios/PurePace/Audio/AudioSessionAdapter.swift` 把 `AudioSessionSettings.defaultAnnouncement` 落到真实 `AVAudioSession`（`.playback` / `.spokenAudio` / `[.duckOthers, .mixWithOthers]`），播报结束仅下发一次 `setActive(false, options: [.notifyOthersOnDeactivation])`，`interruptionNotification` 的 began/ended（含 `ShouldResume`）映射到 `AudioSessionCoordinator` 并执行其动作；平台调用抽到 `AudioSessionControlling` 协议后面，`PurePaceTests` 在 iPhone 16 / iOS 18.6 上以真实读回 + spy 断言，不使用 `XCTSkip`。
 - ac-shell-lists-updated: `check-ios-shell.sh` 的 `live_sources` 含 `Settings/AnnouncementSettingsStore.swift`、`Audio/AnnouncementSpeaker.swift`，`unit_tests` 含 `AnnouncementSettingsStoreTests.swift` / `AnnouncementSpeakerTests.swift`；Settings 段断言真实 `Toggle` + `settings.announcementToggle`、禁止「暂无可配置项」/示例数值/`Stepper`/`Slider`，`--self-test` 含对应正负反例且全绿；`AVFoundation` 目录限定（仅 `Audio/`）与越界反例不变，import 允许表不扩。
 - ac-live-run-ui: App 首屏为 Run / History / Settings 三个真实 Tab（无 `Log`），Run 页数值一律读 `orchestrator.metrics`，源码无内置样例/种子数据、无网络请求、无夹具引用；结构断言在 `check-ios-shell.sh`，行为 AC 见 `ios-app` 域。
@@ -63,22 +66,9 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 - ac-build-test-green: `bash scripts/check-ios-shell.sh`、`bash scripts/build-ios.sh`、`bash scripts/test-ios.sh` 退出码 0；`xcodebuild test -only-testing:PurePaceTests` 在 iPhone 16 / iOS 18.6 模拟器通过，既有音频/Harness 用例不减少且真实跑步 UI 用例 ≥ 1（无 `XCTSkip` 或条件跳过）；`.munk/code-gates.json` 既有门语义不放宽（门数自 `wi_intake_11dc6b68d0c7555d` 起收敛为 22 门快腿拓扑，重腿移出本地阻断，见 `ios-ci-stability`）。
 - ac-runcore-unchanged: `ios/RunCore/**` 默认零改动；`bash scripts/check-ios-run-core.sh`、`swift test --package-path ios/RunCore` 全绿；RunCore 仍只 `import Foundation`。若确需为装配补一个可选字段，必须保持旧 JSONL 可解码且同步补 RunCore 单测（默认路径不改）。
 - ac-evidence-wording: 交付结论只写「模拟器契约通过」「配置与调度契约通过」；「后台锁屏连续定位」「音乐不打断与 duck 恢复」「TTS 实听」一律 `pending: 待人现场`；不得出现「已验证」「实听通过」「真机后台定位可用」。
-- ac-script-hygiene: `scripts/verify-ios-sim-runtime.sh` 用 `#!/usr/bin/env bash` + `set -euo pipefail` + `BASH_SOURCE` 推导仓库根；`--help` 退出 0 且输出含「用法」，未知参数退出 2，`bash -n` 通过；`bash scripts/check-shell-expansion.sh`、`bash scripts/check-baseline.sh` 仍绿（无非 ASCII 裸展开、无版本字面值）。
-- ac-direct-run-real: iPhone 16 / iOS 18.6 上真实安装启动 App 跑完 direct 链路，status 满足 `schemaVersion==1`、`mode=="direct"`、`state=="finished"`、`rawSamples` 非空、`sampleCounts.received==rawSamples.count`；脚本自生成并写入 App 容器的 JSONL ≥ 3000 行（3 km/1 Hz），零引用 `shared/fixtures`。
-- ac-direct-distance-within-1pct: 脚本对 `rawSamples` 中被接受样本独立 Haversine 累加得 `recomputedDistanceMeters`，判 `|actual.distanceMeters - recomputed|/recomputed ≤ 0.005`（收紧自 0.01）且 `|recomputed - 3000|/3000 ≤ 0.01`；报告同时写出阈值与实测三项数值。
-- ac-direct-pace-within-2s: 脚本独立按 `elapsedSeconds/(recomputed/1000)` 复算平均配速，与 `actual.averagePaceSecondsPerKilometer` 差 ≤ 2.0 s/km；`currentPaceSecondsPerKilometer` 非 null 且落在 `[300, 420]`。
-- ac-direct-split-boundary-pm1: `actual.completedKilometers == 3`、`splitSampleIndexes` 长 3，每段索引与脚本按 1 Hz + 生成路线算出的期望索引差 ≤ 1 个采样点；`splits[].distanceMeters` 单调递增且每段 1000 m（±1%）。
-- ac-announcement-exactly-once-runtime: 模拟器 direct 链路的 `announcements` 条数 == `completedKilometers`，`splitIndex` 集合恰为 `1...completedKilometers` 且无重复；`finished` 后不再新增（只允许至多一条 `finished` 触发）；流中暂停窗口不产生播报。
-- ac-location-injection-real: corelocation 链路真实执行 `xcrun simctl privacy grant`，再用 `xcrun simctl location set` 按 1 Hz 确定性逐点推进 250 m 路线（每 tick 3.0 m，先推首点等 App 采到首个样本再按实际采集距离确认推进；停滞 >5 s 重算剩余点重推，最多 2 轮；总预算 300 s），不依赖 `simctl location start` 的播放时长；status `mode=="corelocation"`、已授权、`error==null`、`rawSamples` 非空；结束前 `simctl location clear`，不得用夹具或硬编码坐标冒充捕获点。
-- ac-location-distance-within-1pct: 排除首点锚点后对 corelocation `rawSamples` 独立 Haversine 累加，判 `|actual-recomputed|/recomputed ≤ 0.005`（收紧自 0.01），且与注入路线 250 m 偏差 ≤ 1%。
-- ac-location-capture-coverage: 捕获轨迹长度 / 注入路线长度 ≥ 0.99（阈值写死 99%），报告记录 `capturedMeters`、`injectedMeters`、`coverage` 实际值。
-- ac-location-pace-within-2s: `|actual.averagePaceSecondsPerKilometer - 300| <= 2.0` 的文案目标按物理换算为 3.0 m/s ⇒ 333.33 s/km：实际判定 `|actual.averagePace - 333.33| <= 2.0` 且独立复算与之相差 ≤ 2.0 s/km（以物理换算为准，不放宽）。
-- ac-terminate-relaunch-restores: 对 `completedKilometers >= 2` 且 checkpoint 文件存在非空的一次 direct 运行，真实 `xcrun simctl terminate` 后以 `--harness resume` relaunch；resume status `resumed==true`、`restored.completedDistanceMeters >= 杀进程前末个 checkpoint 的 completedDistanceMeters`、`restored.splitCount >= 该 checkpoint 的 splits.count`、`restored.announcedSplitIndex >= 已播报最大 splitIndex`。
-- ac-terminate-relaunch-no-duplicate-announcement: relaunch 后 `announcements` 不含 `splitIndex <= restored.announcedSplitIndex` 的条目，且 resume status `error==null`。
-- ac-checkpoint-on-disk-real: 杀进程前后读取的是 App 容器内真实 checkpoint 文件（JSONL，每行可被 `RunCheckpointStore` 语义解析；行数 ≥ 2，末行 `completedDistanceMeters`/`splits` 与 resume 快照一致），拒绝内存态或脚本伪造文件充当证据。
-- ac-report-machine-readable: `.build/verify-ios-sim-runtime/report.json` 可被 `json.load` 解析，含 `schemaVersion`、`device`、`links[]{id,status,thresholds,actual,verdict,durationSeconds}` 与顶层 `verdict`；每类阈值同时写出阈值与实测；`deviceVerification` 三项恒为 `"pending: 待人现场"`，全文不出现「已验证」「实听通过」。
-- ac-failure-nonzero: 任一链路失败、阈值越界、status 缺失/无法解析、`xcrun`/`xcodebuild`/模拟器运行时缺失、App 安装或启动失败时脚本非零退出（不 `exit 0`、不静默 skip），并在 stderr 与 `links[].failureReason` 写明失败指标。
-- ac-gate-registered: `.munk/code-gates.json` 曾追加 `{"id": "verify-ios-sim-runtime", "cwd": ".", "command": "bash scripts/verify-ios-sim-runtime.sh"}`；`wi_intake_11dc6b68d0c7555d` 起该门移出本地阻断（脚本与 command 契约不变、可手动执行，见 `ios-ci-stability` 域拓扑收敛），既有其余门 `id`/`command` 逐字不变；门 command 仍为单一 argv（不含 `&&`/`||`/`|`/`;`/`>`/`<`）。
+- ac-shell-gate-consistent: `bash scripts/check-ios-shell.sh` 退出 0；pbxproj 相关断言为「生成后 pbxproj 确实存在 + `git ls-files` 无 tracked pbxproj + `.gitignore` 命中该生成物 + 额外/游离 pbxproj（排除 ignored 生成物）仍判失败」；两次 generate 零 diff、本地包引用与无远程包断言保留，不得因 ignored 生成物伪红。
+- ac-scripts-gate-consistent: `bash scripts/check-ios-scripts.sh` 退出 0；`build-ios.sh` / `test-ios.sh` 的分支判定与 `--help` 文案一致（工程缺失且有 xcodegen 时由 spec 生成，仍不可用才 `blocked:` + SwiftPM 降级），脚本字面量与顺序锚点断言（含 `xcodegen generate`）保持或加强，未删除、未放宽。
+- ac-code-gates-22-green: `.munk/code-gates.json` 仍为 22 门（不新增门腿），本地先 `xcodegen generate` 并刷新 `.build/ios` 后 22 门全绿；`ac-built-plist-readback` 不得因陈旧产物伪红，也不得以改产品代码掩盖。
 - ac-existing-gates-green: `check-ios-shell.sh`、`check-ios-scripts.sh`、`check-ios-run-core.sh`、`check-shared.sh`、`check-gpx-export.sh`、`check-shell-expansion.sh`、`check-baseline.sh` 全部退出 0；本项不改 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 契约字段。
 
 ## 非目标
@@ -101,19 +91,14 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 - Harness launch arg 契约（下游脚本据此驱动，不得改名）：`--harness <direct|corelocation|resume>` 出现即激活，缺省完全不激活；`--status <绝对路径>` 三模式必填，`--stream <绝对路径>` 仅 `direct` 必填，`--checkpoint <绝对路径>` 三模式必填（direct/corelocation 追加、resume 读取），`--max-duration <秒>` 可选按活跃时长自动 `finish`；Harness 自行创建 status/checkpoint 父目录。
 - Harness 内核与契约：JSONL 直接流为 UTF-8 一行一对象、时间统一 epoch 秒；status 为唯一对外可观测面（原子写：同目录临时文件 + 原子替换），`schemaVersion=1`，每次接受采样/状态迁移后更新，禁止依赖日志或 UI 文本断言；顺序固定 `ingest` → `AnnouncementScheduler.tick` → `RunCheckpointStore.append`，checkpoint 只经 `RunCheckpointStore` 读写（禁自建 JSON 拼接/内存伪文件），resume 用 `announcedSplitIndex ?? splits.count` 播种调度器。
 - CoreLocation 适配：`CLLocationManager` 只在 Harness 目录使用并经最小采样源协议注入纯逻辑内核（单测用 fake，不触真实定位）；`requestWhenInUseAuthorization()` 授权后才 `startUpdatingLocation()`；精度阈值 50 m、首点仅锚点；`finish`/超时/去初始化时停止采样；不引入后台持续采集的运行时承诺。
-- 门禁形态：`command` 保持单一 argv，多步流程封装进 `scripts/` 下 bash 脚本（`set -euo pipefail`、幂等、支持 `--help`、以仓库根为路径基准）；构建/测试产物由忽略规则覆盖，不入库。
-- destination 钉住 iPhone 16 且必须带 `OS=18.6`（或等价 UDID）：只写 `name=iPhone 16` 会被解析成 `latest` 运行时（本机为 iOS 26.3.1，无 iPhone 16 机型）而构建失败；工程缺失时脚本走 `blocked:` + SwiftPM 降级分支，不得让门禁因此失败。
+- 门禁形态：`command` 保持单一 argv，多步流程封装进 `scripts/` 下 bash 脚本（`set -euo pipefail`、幂等、支持 `--help`、以仓库根为路径基准）；构建/测试产物（含整个 `ios/PurePace.xcodeproj/`）由忽略规则覆盖，不入库。
+- destination 钉住 iPhone 16 且必须带 `OS=18.6`（或等价 UDID）：只写 `name=iPhone 16` 会被解析成 `latest` 运行时（本机为 iOS 26.3.1，无 iPhone 16 机型）而构建失败；工程缺失时脚本先按 spec 生成，仍不可用才走 `blocked:` + SwiftPM 降级分支，不得让门禁因此失败。
 - 门禁共存：本域 `lint-ios-shell` 与脚本契约门 `lint-ios-scripts` 必须同时通过；后者对 destination 的断言按「iPhone 16 + 可选 OS/UDID」校验，不得放宽为任意机型。
-- 证据口径：只报真实命令输出摘要与用例数，不写「CI 通过」「真机已验证」；本地门通过不替代远端 run；结论限「模拟器契约通过」「配置与调度契约通过」。
-
-### 模拟器运行时验证编排（`scripts/verify-ios-sim-runtime.sh`）
-
-- 入口 `bash scripts/verify-ios-sim-runtime.sh`（`--help` 退出 0、未知参数退出 2），与 `verify-ios-ui-e2e.sh` 共用 `/tmp/purepace-ios-gate.lock` 串行化；自 `wi_intake_11dc6b68d0c7555d` 起不作本地阻断门，权威覆盖回 CI `ios.yml`。设备固定 iPhone 16 / iOS 18.6，复用 `build-ios.sh` 产物（`CODE_SIGNING_ALLOWED=NO`），容器经 `get_app_container <udid> sh.munk.purepace data` 取得。
-- 三链路（direct → terminate-relaunch → corelocation）的编排细节、阈值与报告字段见 `ac-direct-*` / `ac-terminate-*` / `ac-location-*` / `ac-report-machine-readable`；`deviceVerification` 三项恒为 `pending: 待人现场`。
+- 证据口径：只报真实命令输出摘要与用例数，不写「CI 通过」「真机已验证」；本地门通过不替代远端 run；结论限「模拟器契约通过」「配置与调度契约通过」。模拟器三链路编排与报告契约见 `ios-sim-runtime` 域。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_65fc88c0d5adf474（2026-11-10，pass）
-- 交付：产品标识一次性迁移到 `sh.munk.purepace`——`ios/project.yml` 只改 `PUREPACE_BUNDLE_ID`（`.tests` / `.uitests` 继续由变量派生）后 `xcodegen generate` 重生成工程；`scripts/test-ios.sh` / `verify-ios-sim-runtime.sh` / `verify-ios-ui-e2e.sh` 内 bundle id 字面值全部换新；`RunLocationSourceTests` 新增 `testInfoPlistBundleIdentifierIsFinalProductId` 读回 `Bundle.main.bundleIdentifier`，并在既有背景模式用例补 `audio` 断言。业务源码零改动。
-- 实测：`code_gates` 全绿（`lint-ios-shell` / `build-ios` / `test-ios` 真实执行），`git grep 'com\.chaxiu\.purepace' -- ios scripts README.md docs` 仅剩冻结的 device 取证套件与 `docs/evidence/**` 历史证据。结论口径：模拟器契约通过、配置契约通过；真机与 TestFlight 仍为 `pending: 待人现场`（新 bundle 需人侧建/更新 ASC 记录）。
-- 关联：Android 标识同步为 `sh.munk.purepace`（见 `android-shell`），两侧口径一致；候选包验收键仍为 zip sha256 + 构建产物实际 plist 值（见 `ios-release` 域 ac-candidate-evidence-keys）。
+- workItemId: wi_intake_af1e1082643399d9（2026-11-10，pass）
+- 交付：iOS 工程真源收敛到 `ios/project.yml`——`git rm --cached` 取消跟踪 `ios/PurePace.xcodeproj/` 全部生成物（pbxproj / workspace / shared scheme），`.gitignore` 采用方案 A 整目录忽略，`xcodegen generate` 后 `git status` 干净；shared scheme 仍由 spec 生成，但随生成物不入库（不再需要入库理由）。`check-ios-shell.sh` 改为「生成后 pbxproj 存在 + `git ls-files` 无 tracked pbxproj + `.gitignore` 命中 + 游离 pbxproj 仍失败」，`check-ios-scripts.sh` 的脚本分支锚点补 `xcodegen generate`，均未删除/放宽既有断言。
+- 实测：先 `xcodegen generate` 并刷新 `.build/ios` 后 `code_gates` 22 门全绿；`rm -rf ios/PurePace.xcodeproj` 后按 spec 重生成成功并跑通 `bash scripts/test-ios.sh --unit-only` 真实单测腿；`git ls-files | grep project.pbxproj` 为空。结论口径：模拟器契约通过、配置契约通过；真机与 TestFlight 仍为 `pending: 待人现场`。
+- 关联：CI 侧 drift 校验步骤见 `ci` 域；模拟器三链路证据腿见 `ios-sim-runtime` 域。

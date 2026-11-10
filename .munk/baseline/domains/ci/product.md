@@ -4,11 +4,12 @@ PurePace 远端持续集成域：以 `.github/workflows/ios.yml` 为唯一 iOS �
 
 ## 范围
 
-- `.github/workflows/ios.yml`：`name: ios`，`on.push`（不限分支/标签，推任意分支即触发）与 `workflow_dispatch`，`permissions.contents: read`；单 job `runs-on: macos-latest`，承载 `checkout` → `install` → `lint` → `test` → `build` 五步。
+- `.github/workflows/ios.yml`：`name: ios`，`on.push`（不限分支/标签，推任意分支即触发）与 `workflow_dispatch`，`permissions.contents: read`；单 job `runs-on: macos-latest`，承载 `checkout` → `install` → `drift` → `lint` → `test` → `build` 六步（`drift` 为自 `wi_intake_af1e1082643399d9` 起的构建前置校验，不计入 install/lint/test/build 顺序锚点）。
+- `drift` 步：`rm -rf` 生成目录后由 `xcodegen generate --spec ios/project.yml --project ios` 重建、`git ls-files` 断言无 tracked `project.pbxproj`、`PurePace` shared scheme 非空且 `xcodebuild -list` 可见；仅允许 `xcodegen` 与 `xcodebuild -list`，不得引入第二套 `xcodebuild build/test`，不得靠 ignored 文件的 `git diff` 充当断言。
 - `install` 步负责 runner 侧前置且幂等：`xcodegen` 缺失时经 `brew install xcodegen` 安装；`iOS 18.6` 运行时缺失时经 `xcodebuild -downloadPlatform iOS -buildVersion 18.6` 下载（失败用 `sudo` 重试）并轮询就绪；`iPhone 16` 设备缺失时用 `xcrun simctl create` 按固定 device type + 18.6 runtime 创建并轮询就绪。
 - `lint` 步逐条调用既有本地门：`scripts/check-baseline.sh`、`check-ios-core.sh`、`check-ios-scripts.sh`、`check-ios-shell.sh`（各自独立命令行，不合并成一个 `&&` 长串，不新增空转 `echo`/`true` 门）。
 - `test` / `build` 步分别执行 `bash scripts/test-ios.sh` / `bash scripts/build-ios.sh` 并透传输出；捕获到 `blocked:` 一律 `exit 1`，其余按脚本退出码透传。
-- `scripts/check-ios-workflow.sh`：本机 workflow 结构断言（bash、`set -euo pipefail`、支持 `--help`、幂等、以仓库根为路径基准），用本机已有 `ruby -ryaml` / `python3` 解析 YAML，并自测「改错 `runs-on` / 删除 `test` 步骤 / 去掉 `push` 触发 / 去掉 blocked 失败口径」四种破坏必须被拒绝。
+- `scripts/check-ios-workflow.sh`：本机 workflow 结构断言（bash、`set -euo pipefail`、支持 `--help`、幂等、以仓库根为路径基准），用本机已有 `ruby -ryaml` / `python3` 解析 YAML，并自测「改错 `runs-on` / 删除 `test` 步骤 / 去掉 `push` 触发 / 去掉 blocked 失败口径」四种破坏必须被拒绝；自 `wi_intake_af1e1082643399d9` 起追加 `drift` 步骤结构与「非空转」断言及对应负向自测。
 - 门禁：`.munk/code-gates.json` 新增 `lint-ios-workflow`（`command` 为单一 argv，指向上述脚本）；既有 10 条门 id 与 command 语义不变。
 
 ## 验收
@@ -22,6 +23,9 @@ PurePace 远端持续集成域：以 `.github/workflows/ios.yml` 为唯一 iOS �
 - ac-test-build-reuse-scripts: `test` 步执行 `bash scripts/test-ios.sh`，`build` 步执行 `bash scripts/build-ios.sh`；workflow 内不出现绕过脚本的第二套 `xcodebuild test` / `xcodebuild build` 调用。
 - ac-ci-fails-on-blocked-degradation: 脚本输出 `blocked:` 时对应 workflow 步骤以非零退出码失败，CI 变绿必然意味着 xcodebuild 真跑了 iOS 测试与构建。
 - ac-workflow-structural-gate: `scripts/check-ios-workflow.sh` 覆盖 YAML 解析与上述结构断言，并在 `.munk/code-gates.json` 注册为单一 argv 的 lint 门；本机执行退出 0，人为破坏 workflow（改错 `runs-on`、删除 `test` 步骤、去掉 `push` 触发）后非零退出并指出具体失败项，恢复后退出 0。
+- ac-ci-drift-step-present: `.github/workflows/ios.yml` 存在 `drift` 步骤（位于 `install` 之后），其 `run` 非空且执行 `xcodegen generate`（spec 指向 `ios/project.yml`），并在同一步骤内包含三项断言：生成成功、`git ls-files` 过滤 `project.pbxproj` 为空、`PurePace` shared scheme 存在且 `xcodebuild -list` 可见；任一条不满足时以非零退出。
+- ac-ci-drift-not-vacuous: drift 校验不依赖对 ignored 文件的 `git diff`；`check-ios-workflow.sh` 对「删除 drift 步骤 / 去掉索引断言 / 去掉 scheme 断言 / drift 改用 `git diff`」均判失败，并用桩 `xcodegen` / `xcodebuild` / `git` 实跑 drift 体，证明 tracked pbxproj 非空、scheme 缺失、scheme 未被列出三种篡改都会真实失败（断言非恒真）。
+- ac-workflow-structure-kept: `check-ios-workflow.sh` 既有 install/lint/test/build 顺序（忽略额外步骤）、`blocked:` 失败口径、test 硬超时与有界重试断言保持通过；workflow 内除 drift 步的 `xcodebuild -list` 外不出现第二套 `xcodebuild build` / `xcodebuild test`，drift 步骤不得插入根 `VERSION` 字面值或「CI 通过」类措辞。
 - ac-existing-gates-unchanged-green: `.munk/code-gates.json` 既有 10 条门 id 与 command 语义不变（`test` 仍为 `bash scripts/check-baseline.sh`）；`build-ios.sh` / `test-ios.sh` 仍走 xcodebuild 分支，`check-ios-scripts.sh` 的 iPhone 16 destination 断言未被放宽。
 - ac-no-version-literal: 新增/修改的 workflow 与 `scripts/*.sh` 不出现根 `VERSION` 当前字面值，版本只经 `scripts/version.sh` 取得。
 - ac-runner-simulator-mismatch-not-silent: 无论下载 iOS 18.6 还是注入 runner 实际可用 destination，scripts 源码中 `iPhone 16` 与显式 `OS=`/`id=` 的 destination 契约字面量仍在，本机默认行为不变；不得为适配 runner 删除机型或 OS 断言。
@@ -35,7 +39,7 @@ PurePace 远端持续集成域：以 `.github/workflows/ios.yml` 为唯一 iOS �
 ## 非目标
 
 - 不新增 `.github/workflows/android.yml`，不做 Android / `shared/` 任何改动。
-- 不改动 iOS 业务/UI 源码、`ios/project.yml`、`ios/PurePace.xcodeproj`、`ios/Core` 源码与其测试。
+- 不改动 iOS 业务/UI 源码、`ios/project.yml` 内容与 `ios/PurePace.xcodeproj` 的生成内容（唯一授权：`drift` 步骤按 spec 重建工程并校验；工程生成物不入库见 `ios-shell` 域）。
 - 不引入第三方运行时依赖，不引入 actionlint / fastlane / 覆盖率 / 构建产物上传 / 依赖缓存等附加设施。
 - 不设置分支保护、required checks、secrets、environment 或任何仓库设置类变更；不推 tag、不建 Release、不新建 remote、不改 remote URL、不 seed 远端。
 - 不用 CI 替代或放宽本地门；不在 workflow 内重写一套构建/测试命令。
@@ -55,8 +59,6 @@ PurePace 远端持续集成域：以 `.github/workflows/ios.yml` 为唯一 iOS �
 
 ## 最近交付证明
 
-- workItemId: wi_ws_300fc5167ee91b37（2026-11-07，pass）
-- 交付：`.github/workflows/ios.yml`（macos-latest 单 job，install 装 xcodegen 并备齐 iOS 18.6 运行时与 iPhone 16 模拟器，lint 逐条复用四个本地结构门，test/build 复用 `scripts/test-ios.sh` / `build-ios.sh` 且对 `blocked:` 判失败）；`scripts/check-ios-workflow.sh` 结构断言（含四种人为破坏自测）；`.munk/code-gates.json` 新增单一 argv 门 `lint-ios-workflow`（与同期 `lint-android` 并存），既有 10 条门语义不变。
-- 验证：`bash scripts/check-ios-workflow.sh` 退出 0，10 条 AC 断言与 4 条破坏自测全部 PASS；`check-baseline.sh` / `check-ios-scripts.sh` 退出 0；`bash scripts/test-ios.sh` 本机 xcodebuild 真跑 `** TEST SUCCEEDED **`。
-- 远端 run：首次 run 42323298568（main@0ecc569）install/lint 通过、`test` 步失败于 `scripts/test-ios.sh:65 unbound variable`——bash 3.2 把 `$derived_data` 后紧跟的全角 `）` 并入变量名；已把 `build-ios.sh` / `test-ios.sh` 的 14 处参数展开改为 `${var}`（本机 `LANG=zh_CN.UTF-8` 复现并验证修复）。
-- 远端绿色 run：42324380758（workflow `ios`，event push，main@12ee68c，conclusion=success，9m48s）；日志含 `info: xcodebuild test ... 'platform=iOS Simulator,name=iPhone 16,OS=18.6'` → `** TEST SUCCEEDED **`，`build` 步 `** BUILD SUCCEEDED **`，lint 步 `baseline OK (VERSION=0.1.0)`。
+- workItemId: wi_intake_af1e1082643399d9（2026-11-10，pass）
+- 交付：`ios.yml` 在 `install` 之后新增 `drift` 步骤——按 `ios/project.yml` 重建工程、`git ls-files` 断言无 tracked `project.pbxproj`、`PurePace` shared scheme 非空且 `xcodebuild -list` 可见，三条断言任一失败即非零退出；`scripts/check-ios-workflow.sh` 追加 drift 结构断言与「非空转」断言，并新增四种破坏自测 + 桩 `xcodegen`/`xcodebuild`/`git` 的正向实跑与三种篡改必须失败的自测。
+- 验证：`code_gates` 22 门全绿（含 `lint-ios-workflow`）；既有 install/lint/test/build 顺序、`blocked:` 失败口径、test 硬超时与有界重试断言均保持通过。远端 run 结论仍待 Owner 经 guard 观测并记录 run id（`pending: 待 remote 验证`，不以本地绿替代）。

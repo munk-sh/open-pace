@@ -68,6 +68,45 @@ jobs:
 
           device_ready
 
+      - name: drift
+        run: |
+          set -euo pipefail
+
+          spec="ios/project.yml"
+          project="ios/PurePace.xcodeproj"
+          scheme="${project}/xcshareddata/xcschemes/PurePace.xcscheme"
+
+          # 断言 1：工程必须能完全由 spec 重建（生成失败即非零退出）。
+          rm -rf "${project}"
+          xcodegen generate --spec "${spec}" --project ios
+
+          # 断言 2：索引事实——pbxproj 一律不入库。
+          # ignored 文件上的 git diff 恒为空，不能当断言；这里只看 git ls-files。
+          tracked_pbxproj="$(git ls-files | grep -F 'project.pbxproj' || true)"
+          if [ -n "${tracked_pbxproj}" ]; then
+            echo "drift: git 索引仍跟踪 project.pbxproj：" >&2
+            printf '%s\n' "${tracked_pbxproj}" >&2
+            exit 1
+          fi
+
+          # 断言 3：shared scheme 由 spec 生成，且 xcodebuild 可见。
+          if [ ! -s "${scheme}" ]; then
+            echo "drift: 生成后缺少非空 shared scheme ${scheme}" >&2
+            exit 1
+          fi
+          scheme_list="$(xcodebuild -list -project "${project}")"
+          scheme_names="$(printf '%s\n' "${scheme_list}" | sed -n '/Schemes:/,$p')"
+          case "${scheme_names}" in
+            *PurePace*)
+              ;;
+            *)
+              echo "drift: xcodebuild -list 的 Schemes 段未列出 PurePace" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "drift: xcodegen 生成成功；git ls-files 无 project.pbxproj；PurePace scheme 可见"
+
       - name: lint
         run: |
           bash scripts/check-baseline.sh
