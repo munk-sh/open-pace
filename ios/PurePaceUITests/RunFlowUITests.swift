@@ -509,6 +509,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(start.waitForExistence(timeout: 30), "缺少开始按钮")
         assertVisibleCopyZhHans(app, screen: "跑步页（未开始）")
         assertPrimaryActionAnchored(app, button: start, state: "未开始")
+        assertRunMetricsBalanced(app, primaryAction: start, state: "未开始")
         attachScreenshot(app, name: "run-not-started")
         attachAccessibilityTree(app, name: "01-run-not-started")
 
@@ -527,6 +528,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(pause.waitForExistence(timeout: 15), "运行时缺少暂停按钮")
         assertVisibleCopyZhHans(app, screen: "跑步页（运行中）")
         assertPrimaryActionAnchored(app, button: pause, state: "运行中")
+        assertRunMetricsBalanced(app, primaryAction: pause, state: "运行中")
         attachScreenshot(app, name: "run-running")
         attachAccessibilityTree(app, name: "02-run-running")
 
@@ -539,6 +541,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
         assertVisibleCopyZhHans(app, screen: "跑步页（保存态）")
         assertPrimaryActionAnchored(app, button: viewHistory, state: "保存态")
+        assertRunMetricsBalanced(app, primaryAction: viewHistory, state: "保存态")
 
         // 5) 历史列表与详情：日期必须 zh-Hans。
         tabBar.buttons["历史"].tap()
@@ -553,6 +556,7 @@ final class RunFlowUITests: XCTestCase {
         let endedText = app.staticTexts["runDetail.endedAt"].label
         XCTAssertTrue(VisibleDatePolicy.isZhHansDateTime(startedText), "详情开始时间不是 zh-Hans：\(startedText)")
         XCTAssertTrue(VisibleDatePolicy.isZhHansDateTime(endedText), "详情结束时间不是 zh-Hans：\(endedText)")
+        print("ac-run-detail-date-zh-hans started=\"\(startedText)\" ended=\"\(endedText)\"")
         assertVisibleCopyZhHans(app, screen: "跑次详情")
         attachScreenshot(app, name: "history-detail")
         attachAccessibilityTree(app, name: "04-history-detail")
@@ -584,6 +588,7 @@ final class RunFlowUITests: XCTestCase {
             .map { $0.label }
             .filter { !$0.isEmpty && !isSystemSymbolLabel($0) }
         let violations = VisibleTextPolicy.violations(in: texts)
+        print("ac-visible-copy-zh-hans \(screen): labels=\(texts.count) violations=\(violations.count)")
         XCTAssertTrue(violations.isEmpty, "\(screen) 存在裸英文文案：\(violations)")
     }
 
@@ -603,10 +608,47 @@ final class RunFlowUITests: XCTestCase {
             actionFrame: button.frame,
             tabBarFrame: tabBar.frame
         )
+        print(
+            "ac-primary-action-bottom-anchored \(state): height=\(evaluation.height) "
+                + "bottomGap=\(evaluation.bottomGap)"
+        )
         XCTAssertTrue(
             evaluation.passes,
             "\(state) 主操作未底部锚定（高 \(evaluation.height)pt，底部间距 \(evaluation.bottomGap)pt）："
                 + "\(evaluation.problems)"
+        )
+    }
+
+    /// 采集三态可见内容块与主操作的真实 frame，喂给与单测相同的指标区垂直居中判定。
+    private func assertRunMetricsBalanced(
+        _ app: XCUIApplication,
+        primaryAction: XCUIElement,
+        state: String
+    ) {
+        let navigationBar = app.navigationBars.firstMatch
+        XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
+        let identifiers = [
+            "run.distance", "run.elapsed", "run.currentPace",
+            "run.averagePace", "run.splits", "run.backgroundDegraded", "run.saved"
+        ]
+        let frames = identifiers.compactMap { identifier -> CGRect? in
+            let element = app.staticTexts[identifier]
+            return element.exists ? element.frame : nil
+        }
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: frames,
+            navigationBarBottom: navigationBar.frame.maxY,
+            primaryActionTop: primaryAction.frame.minY
+        )
+        print(
+            "ac-run-metrics-balanced \(state): top=\(evaluation.topGap) bottom=\(evaluation.bottomGap) "
+                + "largest=\(evaluation.largestGap) imbalance=\(evaluation.imbalance) "
+                + "contentFrames=\(frames)"
+        )
+        XCTAssertTrue(
+            evaluation.passes,
+            "\(state) 指标区未垂直居中（顶部留白 \(evaluation.topGap)pt，底部留白 \(evaluation.bottomGap)pt，"
+                + "最大空洞 \(evaluation.largestGap)pt）：\(evaluation.problems)"
         )
     }
 

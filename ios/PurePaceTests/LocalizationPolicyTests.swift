@@ -94,4 +94,80 @@ final class LocalizationPolicyTests: XCTestCase {
         XCTAssertFalse(evaluation.isAboveTabBar)
         XCTAssertFalse(evaluation.passes)
     }
+
+    // MARK: - D. 指标区垂直居中
+
+    /// 旧布局实测帧：内容块 177.7–447.4pt、导航栏下沿 149.7pt、主操作顶边 699.0pt。
+    private var legacyContentFrames: [CGRect] {
+        [
+            CGRect(x: 16, y: 177.7, width: 361, height: 57),
+            CGRect(x: 16, y: 254.7, width: 174, height: 60),
+            CGRect(x: 207, y: 254.7, width: 170, height: 60),
+            CGRect(x: 16, y: 334.7, width: 174, height: 36),
+            CGRect(x: 207, y: 334.7, width: 170, height: 36),
+            CGRect(x: 16, y: 415.4, width: 361, height: 32)
+        ]
+    }
+
+    /// 居中布局正例：同一内容块整体下移 111.8pt，上下留白各 139.8pt。
+    private var centeredContentFrames: [CGRect] {
+        legacyContentFrames.map { $0.offsetBy(dx: 0, dy: 111.8) }
+    }
+
+    func testPolicyThresholds() {
+        XCTAssertEqual(RunLayoutBalancePolicy.maximumGap, 160)
+        XCTAssertEqual(RunLayoutBalancePolicy.maximumImbalance, 40)
+    }
+
+    func testLegacyTopStackedLayoutFailsBothCriteria() {
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: legacyContentFrames,
+            navigationBarBottom: 149.7,
+            primaryActionTop: 699.0
+        )
+        XCTAssertFalse(evaluation.passes)
+        XCTAssertEqual(evaluation.topGap, 28, accuracy: 0.01)
+        XCTAssertEqual(evaluation.bottomGap, 251.6, accuracy: 0.01)
+        XCTAssertEqual(evaluation.largestGap, 251.6, accuracy: 0.01)
+        XCTAssertEqual(evaluation.imbalance, 223.6, accuracy: 0.01)
+        XCTAssertEqual(evaluation.problems.count, 2)
+    }
+
+    func testCenteredLayoutPassesBothCriteria() {
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: centeredContentFrames,
+            navigationBarBottom: 149.7,
+            primaryActionTop: 699.0
+        )
+        XCTAssertTrue(evaluation.passes, "\(evaluation.problems)")
+        XCTAssertEqual(evaluation.topGap, 139.8, accuracy: 0.01)
+        XCTAssertEqual(evaluation.bottomGap, 139.8, accuracy: 0.01)
+        XCTAssertEqual(evaluation.largestGap, 139.8, accuracy: 0.01)
+        XCTAssertEqual(evaluation.imbalance, 0, accuracy: 0.01)
+    }
+
+    func testRejectsAsymmetricWhitespaceEvenWhenGapsFit() {
+        // 上 10pt / 下 100pt：单洞未超 160pt，但上下差 90pt 必须判红。
+        let frames = [CGRect(x: 16, y: 159.7, width: 361, height: 57)]
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: frames,
+            navigationBarBottom: 149.7,
+            primaryActionTop: 316.7
+        )
+        XCTAssertFalse(evaluation.passes)
+        XCTAssertEqual(evaluation.largestGap, 100, accuracy: 0.01)
+        XCTAssertEqual(evaluation.imbalance, 90, accuracy: 0.01)
+        XCTAssertEqual(evaluation.problems.count, 1)
+        XCTAssertTrue(evaluation.problems[0].contains("上下留白差"))
+    }
+
+    func testRejectsMissingContent() {
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: [],
+            navigationBarBottom: 149.7,
+            primaryActionTop: 699.0
+        )
+        XCTAssertFalse(evaluation.passes)
+        XCTAssertEqual(evaluation.problems, ["未采集到任何可见内容块"])
+    }
 }

@@ -15,14 +15,15 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - 证据入仓：`docs/screenshots/run-not-started.png`、`run-running.png`、`history-detail.png`（另含 `history-empty.png` / `settings.png`）与 `docs/evidence/a11y/0{1..6}-*.txt`。
 - `ios/PurePace/Resources/Localizable.xcstrings`：String Catalog，`sourceLanguage = zh-Hans`，三屏全部用户可见文案（Tab / 导航标题 / 字段标签 / 空态 / 提示 / 按钮 / 状态 / a11y label）的唯一真源；`ios/project.yml` 声明 `developmentLanguage: zh-Hans`、`knownRegions`、`INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans` 并以 XcodeGen 重生成工程。
 - `ios/PurePace/Design/L10n.swift`：本地化键唯一入口（`LocalizedStringKey` 静态属性 + 少量 `String(localized:)` 用于拼接），视图内不得保留裸英文文案字面量。
-- `ios/PurePace/Design/{VisibleTextPolicy,VisibleDatePolicy,PrimaryActionLayoutPolicy}.swift`：三条判定的纯函数实现，与 `PurePaceTests` / `PurePaceUITests` 共用同一源文件（`project.yml` 显式列入 UITests target sources）。
-- `ios/PurePace/Run/RunView.swift`：主内容区改为 `ScrollView + VStack`，`controls` 由 `.safeAreaInset(edge: .bottom)` 承载，`.ready` / `.running` / `.paused` / 保存态共用同一底部锚点；保存态主操作 `run.viewHistory` 回历史 Tab（纯视图回调）。
+- `ios/PurePace/Design/{VisibleTextPolicy,VisibleDatePolicy,PrimaryActionLayoutPolicy,RunLayoutBalancePolicy}.swift`：四条判定的纯函数实现，与 `PurePaceTests` / `PurePaceUITests` 共用同一源文件（`project.yml` 显式列入 UITests target sources）。
+- `ios/PurePace/Run/RunView.swift`：主内容区与底部控制区分离，`controls` 由 `.safeAreaInset(edge: .bottom)` 承载，`.ready` / `.running` / `.paused` / 保存态共用同一底部锚点；指标内容块（距离/用时/当前配速/平均配速/分段/提示/已保存）抽为单一组件，经 `ViewThatFits(in: .vertical)` 的首选分支「上下等量 `Spacer(minLength: .md)`」在「导航栏下沿 → 控制区上沿」之间整体垂直居中，小屏/大字号溢出退回 `ScrollView` 不截断；DEBUG `run.telemetry` 诊断摘要改内容区底部 overlay，不进入居中块；保存态主操作 `run.viewHistory` 回历史 Tab（纯视图回调）。
 - `ios/PurePace/Run/RunFormatting.swift`：`zhHansDateTimeText`（分钟精度，历史行）与 `dateTimeText`（带秒，详情）统一走 `zh_Hans_CN` locale + 固定 `dateFormat` + 固定 `TimeZone`（`Asia/Shanghai`），历史行不再直调 `date.formatted(...)`。
 
 ## 验收
 
 - ac-token-single-source: 有且仅有一处 `enum DesignTokens` 定义（`ios/PurePace/Design/DesignTokens.swift`），覆盖颜色 / 字号 / 字重 / 间距 / 圆角 / 图标 / 最小触控尺寸；`RunView`、`HistoryView`、`SettingsView` 新增样式全部以 `DesignTokens.` 引用；脚本对 token 定义数断言为 1。
 - ac-token-values-valid: 单测断言间距档严格递增且为正、字号阶梯严格递增（caption < body < title < primaryValue < display）、圆角/图标档为正且递增、`DesignTokens.minTapTarget == 44`、主信息字号 ≥ 次信息（body）两倍。
+- ac-run-metrics-balanced: UI 用例在 `.ready`（未开始）、`.running`（运行中）、`didSave`（保存态）三态读取相邻可见内容块（`run.distance` / `run.elapsed` / `run.currentPace` / `run.averagePace` / `run.splits` / `run.backgroundDegraded`、`run.saved` 存在时）与当态主操作的真实 `frame`，区间上界 `app.navigationBars.firstMatch.frame.maxY`、下界主操作顶边，判定（a）内容区最大单一垂直空洞（含内容块底边 → 主操作顶边）≤160pt；（b）上下留白差 ≤40pt。判定抽成纯函数 `RunLayoutBalancePolicy`（`Evaluation` + `problems` + `passes`，阈值 `maximumGap = 160` / `maximumImbalance = 40` 单点定义），单测以旧顶部堆叠实测（内容 177.7–447.4pt、导航栏下沿 149.7pt、主操作顶边 699.0pt → 底部空洞 251.6pt、上下差 223.6pt）反例证明两条判据均能红，并给居中正例（上下各 139.8pt、最大空洞 139.8pt）、上下悬殊（上 10 / 下 100）与空采集反例；单测与 UI 用例编译同一份实现。
 - ac-no-magic-numbers: 三屏源码不出现 `.system(size: <数字>`、`spacing: <数字>`、`.padding(<数字>`、`minHeight: <数字>` 形式的样式字面量（系统默认 `.padding()` 不算）；`--self-test` 含样式字面量负例且判失败。
 - ac-run-primary-hierarchy: 跑步页距离绑定 display、时长与当前配速绑定 primaryValue、平均配速与分段绑定 caption + 次要色；静态段对三处字号引用逐项断言。
 - ac-run-controls-states: 未开始显示「开始」，记录中「暂停」「结束」，已暂停「继续」「结束」；主操作强调样式、结束用警示样式；状态机与 `RunSessionViewModel` / 编排器零改动。
@@ -62,14 +63,14 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - 静态断言写在既有 `scripts/check-ios-shell.sh` 的 `validate_design_tokens` / `validate_localization`，并在 `--self-test` 补正负反例（token 文件缺失、样式字面量、空 label、缺 Tab 标识、缺控件标识、demo 入口、视图裸英文、缺 String Catalog），**不新增 gate id、不改 `code-gates.json`**；门禁用真实 `grep -Fq`/`grep -Eq` 断言，不用通配允许表；`pipefail` 下禁用 `cmd | grep -q`，改 here-string / 内建匹配。
 - 本地化单一来源：新增 `ios/PurePace/Resources/Localizable.xcstrings` 是唯一文案真源；视图只引用 `L10n.*`（`LocalizedStringKey`），需要拼进 `String` 的状态提示走 `String(localized:)`；`RunFormatting` 的 `km` / `/km` 单位拼接属白名单，不改硬编码文案；工程由 XcodeGen 从 `ios/project.yml` 重新生成，禁手改 `project.pbxproj`。
 - 日期判定：`RunFormatting.zhHansDateTimeText` / `dateTimeText` 显式 `zh_Hans_CN` + 固定 `dateFormat` + 固定 `TimeZone`，与设备时区/语言无关；历史行与详情共用同一实现，`VisibleDatePolicy` 只判形与字符集。
-- 底部锚定：`RunView` 主内容与操作区分离，`controls` 只经 `.safeAreaInset(edge: .bottom)` 承载（不写 `Spacer()` 顶开），主按钮 `frame(minHeight: DesignTokens.minTapTarget)`；三态共用同一容器，指标区与操作区之间不留固定大空白。
+- 底部锚定与居中：`RunView` 主内容与操作区分离，`controls` 只经 `.safeAreaInset(edge: .bottom)` 承载（不写 `Spacer()` 顶开），主按钮 `frame(minHeight: DesignTokens.minTapTarget)`；三态共用同一容器；指标内容块整体（含提示/保存文案）在「导航栏下沿 → 控制区上沿」间垂直居中，取值只用既有 `DesignTokens.Spacing`（`DesignTokens.swift` 零 diff → 不改/不新增 token）。
 - 设置页静态约束：`validate_settings_view` 禁止 `Stepper` / `Slider` / 「示例」/「Sample」/「暂无可配置项」，新文案须避开这些词。
 - 截图造态：只允许 DEBUG 编译期 + 启动参数门控；`HistoryDemoRecords` 整文件 `#if DEBUG` 包裹、不落盘、默认启动不可见；`xcrun simctl io <udid> screenshot` 产出，安装包来自 `bash scripts/build-ios.sh` 的 `.build/ios`。
 - 证据口径：只写模拟器 / 单测 / 静态断言结论，真机项写 `pending: 待人现场`，不得写「真机已验证」或「深色模式已适配」。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_41e9dc65e08c5971（2026-11-11，pass）
-- 交付：三屏用户可见文案全部收敛到 `Resources/Localizable.xcstrings`（`sourceLanguage = zh-Hans`）+ `Design/L10n.swift` 键入口，视图零裸英文；`project.yml` 增 `developmentLanguage` / `knownRegions` / `CFBundleDevelopmentRegion` 并经 XcodeGen 重生成；历史行与详情日期改走固定 `zh_Hans_CN` + `Asia/Shanghai` 的 `RunFormatting.zhHansDateTimeText` / `dateTimeText`；`RunView` 主内容与 `controls` 分离，操作区经 `.safeAreaInset(edge: .bottom)` 固定 TabBar 之上，`.ready` / `.running` / 保存态共用锚点，保存态主操作新增 `run.viewHistory` 回历史 Tab；既有 identifier 与 `#if DEBUG` 门控未变。
-- 判定与断言：新增纯函数 `VisibleTextPolicy` / `VisibleDatePolicy` / `PrimaryActionLayoutPolicy`（与 UITests target 共用源文件）；`LocalizationPolicyTests` 8 例（含英文反例、200pt/30pt 与低于 TabBar 反例）随 `test-ios --unit-only` 运行，125 例 0 失败；`check-ios-shell.sh` 新增 `validate_localization`（catalog `sourceLanguage`、`project.yml` 声明、三屏裸英文扫描）与其正负自检，29 项断言 0 失败；`code_gates` 22 门全绿、`build-ios` SUCCEEDED。
-- 证据：UI 用例 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 在 iPhone 16 / iOS 18.6 模拟器真实通过（`.build/evidence/zhHans-final2.xcresult`），三态实测主按钮高与底部间距均满足 ≥44pt / ≤24pt；`docs/screenshots/` 5 图与 `docs/evidence/a11y/01..06-*.txt` 已按新文案与布局重新采集。UI 腿权威在 CI `ios.yml`；真机项 `pending: 待人现场`。
+- workItemId: wi_intake_ade4b64dc04c7ccf（2026-11-11，pass）
+- 交付：跑步页指标内容块三态（未开始 / 运行中 / 保存态）改为在「导航栏下沿 → 底部控制区上沿」间整体垂直居中（`ViewThatFits` 首选分支上下等量 `Spacer(minLength: .md)`，小屏/大字号退回 `ScrollView`）；`safeAreaInset(edge: .bottom)` 控制区、44pt 主操作与 TabBar 间距不动，`DesignTokens.swift` 零 diff；DEBUG `run.telemetry` 诊断摘要改内容区底部 overlay，避免挤偏居中块。
+- 判定与断言：新增纯函数 `RunLayoutBalancePolicy`（阈值 `maximumGap = 160` / `maximumImbalance = 40`），`project.yml` 列入 UITests sources 并经 XcodeGen 重生成；`LocalizationPolicyTests` 新增 5 例（旧布局底部空洞 251.6pt / 上下差 223.6pt 两条判据均红、居中正例、上下悬殊反例、空采集反例、阈值常量）；UI 用例 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 三态调用 `assertRunMetricsBalanced`。
+- 证据：iPhone 16 / iOS 18.6 模拟器 `** TEST SUCCEEDED **`，三态实测上下留白 139.83 / 139.83 / 119.83pt、最大单一空洞同上、上下差 ≈0；既有 `ac-visible-copy-zh-hans` / `ac-run-detail-date-zh-hans` / `ac-primary-action-bottom-anchored` 保持绿（高 58.0pt、底部间距 12.0pt）；`docs/screenshots/` 5 图与 `docs/evidence/a11y/01..06-*.txt` 同名覆盖重采，sha256 与生成命令记入 `.munk/changes/wi_intake_ade4b64dc04c7ccf/digest.md`；`code_gates` 22 门全绿。真机项 `pending: 待人现场`。

@@ -10,71 +10,18 @@ struct RunView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: DesignTokens.Spacing.md) {
-                    distanceHero
-
-                    HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                        primaryMetric(
-                            title: L10n.runMetricTime,
-                            value: viewModel.elapsedText,
-                            identifier: "run.elapsed"
-                        )
-                        primaryMetric(
-                            title: L10n.runMetricCurrent,
-                            value: viewModel.currentPaceText,
-                            identifier: "run.currentPace"
-                        )
-                    }
-
-                    HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                        secondaryMetric(
-                            title: L10n.runMetricAverage,
-                            value: viewModel.averagePaceText,
-                            identifier: "run.averagePace"
-                        )
-                        secondaryMetric(
-                            title: L10n.runMetricSplits,
-                            value: viewModel.splitCountText,
-                            identifier: "run.splits"
-                        )
-                    }
-
-                    if let message = statusMessage {
-                        Text(message)
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundStyle(DesignTokens.Colors.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    if let hint = viewModel.authorization.backgroundDegradationHint {
-                        Text(hint)
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundStyle(DesignTokens.Colors.warning)
-                            .multilineTextAlignment(.center)
-                            .accessibilityIdentifier("run.backgroundDegraded")
-                    }
-
-                    if viewModel.didSave {
-                        Text(L10n.runStatusSaved)
-                            .font(DesignTokens.Typography.title)
-                            .foregroundStyle(DesignTokens.Colors.success)
-                            .accessibilityIdentifier("run.saved")
-                    }
-
-#if DEBUG
-                    if let summary = viewModel.telemetrySummary {
-                        Text(summary)
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundStyle(DesignTokens.Colors.secondary)
-                            .multilineTextAlignment(.center)
-                            .accessibilityIdentifier("run.telemetry")
-                    }
-#endif
+            // 指标内容块整体在「导航栏下沿 → 底部控制区上沿」之间垂直居中；
+            // 小屏/大字号溢出时退回滚动，不截断内容。
+            ViewThatFits(in: .vertical) {
+                VStack {
+                    Spacer(minLength: DesignTokens.Spacing.md)
+                    metricsContent
+                    Spacer(minLength: DesignTokens.Spacing.md)
                 }
-                .padding(DesignTokens.Spacing.md)
-                .frame(maxWidth: .infinity)
+                ScrollView { metricsContent }
             }
+            // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
+            .overlay(alignment: .bottom) { telemetryOverlay }
             .navigationTitle(L10n.runNavigationTitle)
             // 主操作固定底部控制区：安全区上方、TabBar 之上，三态共用同一锚点。
             .safeAreaInset(edge: .bottom) {
@@ -87,6 +34,81 @@ struct RunView: View {
             .onAppear { viewModel.onAppear() }
         }
         .accessibilityIdentifier("tab.run")
+    }
+
+    // MARK: - 指标内容块
+
+    /// 三态共用的指标内容块（含提示/保存文案），整体居中而不只居中前四块。
+    private var metricsContent: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            distanceHero
+
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                primaryMetric(
+                    title: L10n.runMetricTime,
+                    value: viewModel.elapsedText,
+                    identifier: "run.elapsed"
+                )
+                primaryMetric(
+                    title: L10n.runMetricCurrent,
+                    value: viewModel.currentPaceText,
+                    identifier: "run.currentPace"
+                )
+            }
+
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+                secondaryMetric(
+                    title: L10n.runMetricAverage,
+                    value: viewModel.averagePaceText,
+                    identifier: "run.averagePace"
+                )
+                secondaryMetric(
+                    title: L10n.runMetricSplits,
+                    value: viewModel.splitCountText,
+                    identifier: "run.splits"
+                )
+            }
+
+            if let message = statusMessage {
+                Text(message)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let hint = viewModel.authorization.backgroundDegradationHint {
+                Text(hint)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.warning)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("run.backgroundDegraded")
+            }
+
+            if viewModel.didSave {
+                Text(L10n.runStatusSaved)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(DesignTokens.Colors.success)
+                    .accessibilityIdentifier("run.saved")
+            }
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// DEBUG 门控的遥测诊断摘要（非用户可见文案），不参与指标区居中。
+    @ViewBuilder
+    private var telemetryOverlay: some View {
+#if DEBUG
+        if let summary = viewModel.telemetrySummary {
+            Text(summary)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("run.telemetry")
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .allowsHitTesting(false)
+        }
+#endif
     }
 
     // MARK: - 主信息
