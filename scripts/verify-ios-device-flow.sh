@@ -501,6 +501,58 @@ resolve_candidate_strict_for_audio() {
   return 0
 }
 
+# 解包内 App bundle 布局 resolver（与 device-run.sh preflight 同一口径）：
+# 候选 zip 合法布局为 Payload/*.app（优先）或根级 *.app；同层多个 .app 或两种都没有即 fail-closed。
+# 成功：CANDIDATE_APP_LAYOUT_PATH=<app 路径>，返回 0；失败：CANDIDATE_APP_LAYOUT_ERROR=<原因>，返回 1。
+CANDIDATE_APP_LAYOUT_PATH=""
+CANDIDATE_APP_LAYOUT_ERROR=""
+
+unpack_top_entries() {
+  local unpack="$1"
+  local entries
+  entries="$(ls -A "$unpack" | tr '\n' ' ')"
+  entries="${entries% }"
+  if [ -z "$entries" ]; then
+    entries="<empty>"
+  fi
+  printf '%s' "$entries"
+}
+
+resolve_unpacked_app_layout() {
+  local unpack="$1"
+  local zip_path="${2:-<candidate.zip>}"
+  CANDIDATE_APP_LAYOUT_PATH=""
+  CANDIDATE_APP_LAYOUT_ERROR=""
+  local layer layer_dir candidate_app found
+  for layer in payload root; do
+    if [ "$layer" = "payload" ]; then
+      layer_dir="${unpack}/Payload"
+      if [ ! -d "$layer_dir" ]; then
+        continue
+      fi
+    else
+      layer_dir="$unpack"
+    fi
+    found=""
+    for candidate_app in "$layer_dir"/*.app; do
+      if [ ! -d "$candidate_app" ]; then
+        continue
+      fi
+      if [ -n "$found" ]; then
+        CANDIDATE_APP_LAYOUT_ERROR="候选 zip 内含多个 .app: ${found} / ${candidate_app}"
+        return 1
+      fi
+      found="$candidate_app"
+    done
+    if [ -n "$found" ]; then
+      CANDIDATE_APP_LAYOUT_PATH="$found"
+      return 0
+    fi
+  done
+  CANDIDATE_APP_LAYOUT_ERROR="候选 zip 缺少 .app（既无 Payload/*.app 也无根级 *.app）: ${zip_path}; unpack 顶层条目: $(unpack_top_entries "$unpack")"
+  return 1
+}
+
 # 候选 zip 里的 .app 身份（zip sha256 + exec sha256）；audio 跑任何用例前必须先落盘。
 bind_candidate_identity() {
   local unpack="${phase_dir}/candidate"
@@ -510,20 +562,12 @@ bind_candidate_identity() {
     fail_step "candidate-unzip" "候选 zip 解包失败: ${candidate_path}（日志 ${phase_dir}/candidate-unzip.log）"
     return 1
   fi
-  local app_path="" candidate_app
-  for candidate_app in "$unpack"/Payload/*.app; do
-    if [ -d "$candidate_app" ]; then
-      if [ -n "$app_path" ]; then
-        fail_step "candidate-app" "候选 zip 内含多个 .app: ${app_path} / ${candidate_app}"
-        return 1
-      fi
-      app_path="$candidate_app"
-    fi
-  done
-  if [ -z "$app_path" ]; then
-    fail_step "candidate-app" "候选 zip 缺少 Payload/*.app: ${candidate_path}"
+  local app_path=""
+  if ! resolve_unpacked_app_layout "$unpack" "$candidate_path"; then
+    fail_step "candidate-app" "$CANDIDATE_APP_LAYOUT_ERROR"
     return 1
   fi
+  app_path="$CANDIDATE_APP_LAYOUT_PATH"
   local plist="${app_path}/Info.plist"
   if [ ! -f "$plist" ]; then
     fail_step "candidate-app" "候选 .app 缺少 Info.plist: ${app_path}"

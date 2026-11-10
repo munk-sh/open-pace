@@ -432,7 +432,7 @@ print_plan() {
   printf 'step=install\n'
   printf '  command: xcrun devicectl device info apps --device %s --json-output .build/device-run/%s/apps-before.json\n' "$device_udid" "$candidate_key"
   printf '  command: xcrun devicectl device uninstall app --device %s <bundle-id>   # 仅已安装时\n' "$device_udid"
-  printf '  command: xcrun devicectl device install app --device %s <Payload/*.app>\n' "$device_udid"
+  printf '  command: xcrun devicectl device install app --device %s <unpacked .app>\n' "$device_udid"
   printf '  evidence: logs/install.log\n'
 
   printf 'step=launch\n'
@@ -490,6 +490,60 @@ print_plan() {
   printf 'artifact: wda/status.json\n'
   printf 'artifact: wda/lock.json\n'
   printf 'artifact: wda/locked.json\n'
+}
+
+# ------------------------------------------- 解包内 App bundle 布局 resolver
+# 候选 zip 有两种合法布局：Payload/*.app（优先）与根级 *.app（部分候选为 .app 直接打包）。
+# 成功：CANDIDATE_APP_LAYOUT_PATH=<app 路径>，返回 0。
+# 失败：CANDIDATE_APP_LAYOUT_ERROR=<含候选 zip 路径与 unpack 顶层条目的原因>，返回 1。
+# 同一被选层内多个 .app 立即 fail-closed；Payload/ 命中时不再看根级。
+CANDIDATE_APP_LAYOUT_PATH=""
+CANDIDATE_APP_LAYOUT_ERROR=""
+
+unpack_top_entries() {
+  local unpack="$1"
+  local entries
+  entries="$(ls -A "$unpack" | tr '\n' ' ')"
+  entries="${entries% }"
+  if [ -z "$entries" ]; then
+    entries="<empty>"
+  fi
+  printf '%s' "$entries"
+}
+
+resolve_unpacked_app_layout() {
+  local unpack="$1"
+  local zip_path="${2:-<candidate.zip>}"
+  CANDIDATE_APP_LAYOUT_PATH=""
+  CANDIDATE_APP_LAYOUT_ERROR=""
+  local layer layer_dir candidate_app found
+  for layer in payload root; do
+    if [ "$layer" = "payload" ]; then
+      layer_dir="${unpack}/Payload"
+      if [ ! -d "$layer_dir" ]; then
+        continue
+      fi
+    else
+      layer_dir="$unpack"
+    fi
+    found=""
+    for candidate_app in "$layer_dir"/*.app; do
+      if [ ! -d "$candidate_app" ]; then
+        continue
+      fi
+      if [ -n "$found" ]; then
+        CANDIDATE_APP_LAYOUT_ERROR="候选 zip 内含多个 .app: ${found} / ${candidate_app}"
+        return 1
+      fi
+      found="$candidate_app"
+    done
+    if [ -n "$found" ]; then
+      CANDIDATE_APP_LAYOUT_PATH="$found"
+      return 0
+    fi
+  done
+  CANDIDATE_APP_LAYOUT_ERROR="解包后缺少 .app（既无 Payload/*.app 也无根级 *.app）: ${zip_path}; unpack 顶层条目: $(unpack_top_entries "$unpack")"
+  return 1
 }
 
 # --------------------------------------------------------------- --self-check
@@ -553,6 +607,73 @@ run_self_check() {
     printf 'self-check: 未知参数退出 %s（期望 2）\n' "$rc_probe" >&2
     rc=1
   fi
+
+  # 候选包布局 resolver 夹具：临时目录现造（不入库、结束清理），断言的就是 preflight 生产入口。
+  local layout_root
+  layout_root="$(mktemp -d "${TMPDIR:-/tmp}/purepace-device-layout.XXXXXX")"
+  local layout_dir
+
+  layout_dir="${layout_root}/payload-only"
+  mkdir -p "${layout_dir}/Payload/PurePace.app"
+  if resolve_unpacked_app_layout "$layout_dir" "${layout_dir}/candidate.zip" \
+    && [ "$CANDIDATE_APP_LAYOUT_PATH" = "${layout_dir}/Payload/PurePace.app" ]; then
+    printf 'self-check: layout[1] payload-only → %s\n' "$CANDIDATE_APP_LAYOUT_PATH"
+  else
+    printf 'self-check: layout[1] payload-only 解析失败\n  path=%s\n  error=%s\n' \
+      "$CANDIDATE_APP_LAYOUT_PATH" "$CANDIDATE_APP_LAYOUT_ERROR" >&2
+    rc=1
+  fi
+
+  layout_dir="${layout_root}/root-only"
+  mkdir -p "${layout_dir}/PurePace.app"
+  if resolve_unpacked_app_layout "$layout_dir" "${layout_dir}/candidate.zip" \
+    && [ "$CANDIDATE_APP_LAYOUT_PATH" = "${layout_dir}/PurePace.app" ]; then
+    printf 'self-check: layout[2] root-only → %s\n' "$CANDIDATE_APP_LAYOUT_PATH"
+  else
+    printf 'self-check: layout[2] root-only 解析失败\n  path=%s\n  error=%s\n' \
+      "$CANDIDATE_APP_LAYOUT_PATH" "$CANDIDATE_APP_LAYOUT_ERROR" >&2
+    rc=1
+  fi
+
+  layout_dir="${layout_root}/both"
+  mkdir -p "${layout_dir}/Payload/PurePace.app" "${layout_dir}/Decoy.app"
+  if resolve_unpacked_app_layout "$layout_dir" "${layout_dir}/candidate.zip" \
+    && [ "$CANDIDATE_APP_LAYOUT_PATH" = "${layout_dir}/Payload/PurePace.app" ]; then
+    printf 'self-check: layout[3] payload+root 取 Payload → %s\n' "$CANDIDATE_APP_LAYOUT_PATH"
+  else
+    printf 'self-check: layout[3] payload+root 未按 Payload 优先解析\n  path=%s\n  error=%s\n' \
+      "$CANDIDATE_APP_LAYOUT_PATH" "$CANDIDATE_APP_LAYOUT_ERROR" >&2
+    rc=1
+  fi
+
+  layout_dir="${layout_root}/missing"
+  mkdir -p "${layout_dir}/Payload" "${layout_dir}/__MACOSX"
+  if resolve_unpacked_app_layout "$layout_dir" "${layout_dir}/candidate.zip"; then
+    printf 'self-check: layout[4] missing 应 fail-closed 却返回 %s\n' "$CANDIDATE_APP_LAYOUT_PATH" >&2
+    rc=1
+  elif ! grep -Fq -- "__MACOSX" <<<"$CANDIDATE_APP_LAYOUT_ERROR" \
+    || ! grep -Fq -- "Payload" <<<"$CANDIDATE_APP_LAYOUT_ERROR" \
+    || ! grep -Fq -- "${layout_dir}/candidate.zip" <<<"$CANDIDATE_APP_LAYOUT_ERROR"; then
+    printf 'self-check: layout[4] missing 失败文案缺少顶层条目或候选路径: %s\n' \
+      "$CANDIDATE_APP_LAYOUT_ERROR" >&2
+    rc=1
+  else
+    printf 'self-check: layout[4] missing fail-closed → %s\n' "$CANDIDATE_APP_LAYOUT_ERROR"
+  fi
+
+  layout_dir="${layout_root}/multi"
+  mkdir -p "${layout_dir}/Payload/One.app" "${layout_dir}/Payload/Two.app"
+  if resolve_unpacked_app_layout "$layout_dir" "${layout_dir}/candidate.zip"; then
+    printf 'self-check: layout[5] 同一层多 .app 应 fail-closed 却返回 %s\n' "$CANDIDATE_APP_LAYOUT_PATH" >&2
+    rc=1
+  elif ! grep -Fq -- "One.app" <<<"$CANDIDATE_APP_LAYOUT_ERROR" \
+    || ! grep -Fq -- "Two.app" <<<"$CANDIDATE_APP_LAYOUT_ERROR"; then
+    printf 'self-check: layout[5] 多 .app 失败文案未列出冲突路径: %s\n' "$CANDIDATE_APP_LAYOUT_ERROR" >&2
+    rc=1
+  else
+    printf 'self-check: layout[5] multi-app fail-closed → %s\n' "$CANDIDATE_APP_LAYOUT_ERROR"
+  fi
+  rm -rf "$layout_root"
 
   if [ "$rc" -ne 0 ]; then
     printf 'device-run: self-check 失败\n' >&2
@@ -1043,18 +1164,10 @@ PY
     fail_step "候选 zip 解包失败: ${candidate_path}"
   fi
   local app_path=""
-  local candidate_app
-  for candidate_app in "${state_dir}"/unpack/Payload/*.app; do
-    if [ -d "$candidate_app" ]; then
-      if [ -n "$app_path" ]; then
-        fail_step "候选 zip 内含多个 .app: ${app_path} / ${candidate_app}"
-      fi
-      app_path="$candidate_app"
-    fi
-  done
-  if [ -z "$app_path" ]; then
-    fail_step "解包后缺少 Payload/*.app: ${candidate_path}"
+  if ! resolve_unpacked_app_layout "${state_dir}/unpack" "$candidate_path"; then
+    fail_step "$CANDIDATE_APP_LAYOUT_ERROR"
   fi
+  app_path="$CANDIDATE_APP_LAYOUT_PATH"
 
   local plist="${app_path}/Info.plist"
   if [ ! -f "$plist" ]; then

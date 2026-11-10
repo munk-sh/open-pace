@@ -212,6 +212,28 @@ else
 fi
 rm -rf "$plan_sandbox"
 
+# ------------------------- 候选包布局双兼容（Payload/ 与根级 .app 共用同一 resolver）
+problems=""
+for needle in 'resolve_unpacked_app_layout' 'CANDIDATE_APP_LAYOUT_ERROR' 'unpack 顶层条目'; do
+  grep -Fq -- "$needle" scripts/device-run.sh || problems="$problems device-run.sh 缺少 '${needle}';"
+done
+grep -Fq -- 'resolve_unpacked_app_layout "${state_dir}/unpack"' scripts/device-run.sh \
+  || problems="$problems device-run.sh preflight 未走双布局 resolver;"
+if grep -Eq -- 'unpack/Payload/\*\.app' scripts/device-run.sh; then
+  problems="$problems device-run.sh 仍残留只认 Payload/*.app 的展开;"
+fi
+for needle in 'resolve_unpacked_app_layout' 'unpack 顶层条目'; do
+  grep -Fq -- "$needle" scripts/verify-ios-device-flow.sh \
+    || problems="$problems verify-ios-device-flow.sh 缺少 '${needle}';"
+done
+grep -Fq -- 'resolve_unpacked_app_layout "$unpack"' scripts/verify-ios-device-flow.sh \
+  || problems="$problems verify-ios-device-flow.sh 身份绑定未走双布局 resolver;"
+if [ -z "$problems" ]; then
+  pass "ac-candidate-layout-dual"
+else
+  fail "ac-candidate-layout-dual" "$problems"
+fi
+
 # ------------------ verify-ios-device-flow.sh audio 契约（Release 默认 + 固定三遍 + fail-closed）
 audio_plan_problems() {
   local file="$1"
