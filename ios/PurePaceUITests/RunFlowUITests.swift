@@ -116,6 +116,7 @@ final class RunFlowUITests: XCTestCase {
             "暂停后未进入可恢复状态"
         )
         XCTAssertEqual(app.staticTexts["run.currentPace"].label, "--", "暂停时当前配速必须为空")
+        assertRunMetricsBalanced(app, primaryAction: app.buttons["run.resume"], state: "暂停")
         let pausedDistance = distance.label
         let pausedElapsed = elapsed.label
         XCTAssertTrue(waitWindow(seconds: 4), "暂停观察窗口未完成")
@@ -619,7 +620,10 @@ final class RunFlowUITests: XCTestCase {
         )
     }
 
-    /// 采集三态可见内容块与主操作的真实 frame，喂给与单测相同的指标区垂直居中判定。
+    /// 采集四态可见内容块与主操作的真实 frame，喂给与单测相同的首屏四层分布判定。
+    /// 采集口径不变：静态文本 frame + 导航栏下沿 + 主操作顶边；
+    /// 这里收全部 staticTexts（而非 identifier 白名单），把面板内 caption 也算作可见内容，
+    /// 避免把「块内说明文案」误算成块间空洞。
     private func assertRunMetricsBalanced(
         _ app: XCUIApplication,
         primaryAction: XCUIElement,
@@ -627,18 +631,20 @@ final class RunFlowUITests: XCTestCase {
     ) {
         let navigationBar = app.navigationBars.firstMatch
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
-        let identifiers = [
-            "run.distance", "run.elapsed", "run.currentPace",
-            "run.averagePace", "run.splits", "run.backgroundDegraded", "run.saved"
-        ]
-        let frames = identifiers.compactMap { identifier -> CGRect? in
-            let element = app.staticTexts[identifier]
-            return element.exists ? element.frame : nil
-        }
+        let navigationBarBottom = navigationBar.frame.maxY
+        let primaryActionTop = primaryAction.frame.minY
+        let frames = app.staticTexts.allElementsBoundByIndex
+            .filter { $0.identifier != "run.telemetry" }
+            .map { $0.frame }
+            .filter { frame in
+                !frame.isEmpty
+                    && frame.minY >= navigationBarBottom
+                    && frame.maxY <= primaryActionTop
+            }
         let evaluation = RunLayoutBalancePolicy.evaluate(
             contentFrames: frames,
-            navigationBarBottom: navigationBar.frame.maxY,
-            primaryActionTop: primaryAction.frame.minY
+            navigationBarBottom: navigationBarBottom,
+            primaryActionTop: primaryActionTop
         )
         print(
             "ac-run-metrics-balanced \(state): top=\(evaluation.topGap) bottom=\(evaluation.bottomGap) "

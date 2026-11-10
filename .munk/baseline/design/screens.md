@@ -7,7 +7,7 @@
 四层自上而下：
 
 1. **Hero 距离**：`Typography.display`，最大字号；HeroPanel 弱底随三态（未开始 `primary` / 记录中 `accent` / 暂停 `warning` / 保存 `success`）。
-2. **次级指标**：`primaryValue`（用时 / 当前配速）+ `caption`（平均配速 / 分段），在内容区内垂直居中（`ViewThatFits` 首选分支上下等量 `Spacer(minLength: .md)`，小屏/大字号退回 `ScrollView`）。
+2. **次级指标**：`primaryValue`（用时 / 当前配速）+ `caption`（平均配速 / 分段）。四层在「导航栏下沿 → 控制区上沿」间等量分布：固定间距只取 `Spacing.screenTop` / `cardGap` / `sectionGap` 语义 token，剩余余量由 4 个等权 `Spacer(minLength:)` 吸收；小屏/大字号退回 `ScrollView`。平衡判据 `maximumTopGap` / `maximumBottomGap` / `maximumGap = 80pt`、`maximumImbalance = 16pt`。
 3. **提示**：`caption` + 次要色或警示色，带弱底；保存态额外显示 `success` 胶囊。
 4. **主操作**：`.safeAreaInset(edge: .bottom)` 固定底部，未开始与记录中共用 `accent`，暂停 `warning`，保存 `success`，`minHeight = 44`。
 

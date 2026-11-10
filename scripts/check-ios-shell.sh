@@ -214,6 +214,55 @@ validate_location_config() {
   printf '%s' "$problems"
 }
 
+# 竖屏锁定：project.yml 声明 portrait-only + 仅 iPhone（TARGETED_DEVICE_FAMILY = 1）；
+# 构建产物 Info.plist 存在时同时读取其 UISupportedInterfaceOrientations / UIDeviceFamily。
+# 本产品不存在旋转 / size class 变体，改成横屏或 family 2 必须判红。
+validate_orientation_config() {
+  local root="$1"
+  local problems=""
+  local spec_file="$root/ios/project.yml"
+
+  if [ ! -f "$spec_file" ]; then
+    printf '%s' " 缺少 ios/project.yml;"
+    return
+  fi
+
+  local orientation_line
+  orientation_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UISupportedInterfaceOrientations:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  if [ -z "$orientation_line" ]; then
+    problems="$problems project.yml 缺少 INFOPLIST_KEY_UISupportedInterfaceOrientations;"
+  else
+    case "$orientation_line" in
+      *UIInterfaceOrientationPortrait) ;;
+      *) problems="$problems project.yml 必须声明 UIInterfaceOrientationPortrait;" ;;
+    esac
+    case "$orientation_line" in
+      *Landscape*|*UIInterfaceOrientationPortraitUpsideDown*) \
+        problems="$problems project.yml 不得声明横屏或倒置方向;" ;;
+    esac
+  fi
+
+  if ! grep -Eq '^[[:space:]]*TARGETED_DEVICE_FAMILY: "1"' "$spec_file" 2>/dev/null; then
+    problems="$problems project.yml 的 TARGETED_DEVICE_FAMILY 必须为 1（仅 iPhone）;"
+  fi
+
+  local app_plist="$root/.build/ios/Build/Products/Debug-iphonesimulator/PurePace.app/Info.plist"
+  if [ -f "$app_plist" ]; then
+    local plist_orientations
+    plist_orientations="$(plutil -extract UISupportedInterfaceOrientations json -o - "$app_plist" 2>/dev/null || true)"
+    if [ "$plist_orientations" != '["UIInterfaceOrientationPortrait"]' ]; then
+      problems="$problems 构建产物 Info.plist 方向必须仅竖屏（实际 ${plist_orientations:-缺失}）;"
+    fi
+    local device_family
+    device_family="$(plutil -extract UIDeviceFamily json -o - "$app_plist" 2>/dev/null || true)"
+    if [ "$device_family" != '[1]' ]; then
+      problems="$problems 构建产物 Info.plist UIDeviceFamily 必须为 [1]（实际 ${device_family:-缺失}）;"
+    fi
+  fi
+
+  printf '%s' "$problems"
+}
+
 # RunLocationSource 后台/Always 采集静态契约（含可注入 seam + 降级提示标识）。
 validate_background_location_source() {
   local root="$1"
@@ -387,6 +436,42 @@ validate_design_tokens() {
   grep -Eq 'minTapTarget: CGFloat = 44' "$token_file" || problems="$problems minTapTarget 必须为 44;"
   grep -Fq 'supportsDarkMode = true' "$token_file" \
     || problems="$problems 深色模式必须开启（supportsDarkMode = true）;"
+
+  # 首屏语义间距 token：只能取固定档位（scale 内），且四层余量由等权 Spacer(minLength:) 吸收。
+  local semantic_token
+  for semantic_token in \
+    'static let screenTop: CGFloat = lg' \
+    'static let cardGap: CGFloat = md' \
+    'static let sectionGap: CGFloat = sm'; do
+    grep -Fq "$semantic_token" "$token_file" \
+      || problems="$problems 缺少语义间距 token '$semantic_token';"
+  done
+  for semantic_token in screenTop cardGap sectionGap; do
+    grep -Fq "DesignTokens.Spacing.$semantic_token" "$run_view" \
+      || problems="$problems 跑步页未引用语义间距 token Spacing.$semantic_token;"
+  done
+  local spacer_count
+  spacer_count="$(grep -c 'Spacer(minLength: DesignTokens\.Spacing\.' "$run_view" || true)"
+  [ "$spacer_count" -ge 4 ] \
+    || problems="$problems 跑步页等权 Spacer(minLength:) 少于 4 个（实际 ${spacer_count}），余量会堆成单块死白;"
+  grep -Fq 'Spacer(minLength: DesignTokens.Spacing.screenTop)' "$run_view" \
+    || problems="$problems 跑步页顶部呼吸位未用 Spacing.screenTop;"
+
+  # 布局阈值先定后测：四个常量逐个锁定，改回 160/40 或 96/24 必须判红。
+  local policy_file="$root/ios/PurePace/Design/RunLayoutBalancePolicy.swift"
+  if [ ! -f "$policy_file" ]; then
+    problems="$problems 缺少布局平衡策略 RunLayoutBalancePolicy.swift;"
+  else
+    local threshold
+    for threshold in \
+      'maximumTopGap: CGFloat = 80' \
+      'maximumBottomGap: CGFloat = 80' \
+      'maximumGap: CGFloat = 80' \
+      'maximumImbalance: CGFloat = 16'; do
+      grep -Fq "$threshold" "$policy_file" \
+        || problems="$problems 布局阈值必须为 '$threshold';"
+    done
+  fi
 
   # 语义色必须 light/dark 成对：两侧计数一致且至少一组。
   local light_count dark_count
@@ -832,6 +917,7 @@ run_self_test() {
   mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
     "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings"
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
+  cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
   cp ios/PurePace/History/HistoryView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
@@ -913,6 +999,46 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n.accessibilityIdentifier("run.extra")\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_fail "identifier 追加反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-layout-thresholds"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' \
+    -e 's/maximumTopGap: CGFloat = 80/maximumTopGap: CGFloat = 160/' \
+    -e 's/maximumBottomGap: CGFloat = 80/maximumBottomGap: CGFloat = 160/' \
+    -e 's/maximumGap: CGFloat = 80/maximumGap: CGFloat = 160/' \
+    -e 's/maximumImbalance: CGFloat = 16/maximumImbalance: CGFloat = 40/' \
+    "$design_bad/ios/PurePace/Design/RunLayoutBalancePolicy.swift"
+  check_fail "布局阈值改回 160/40 反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-no-semantic-spacing"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let screenTop: CGFloat = lg/static let screenTopLegacy: CGFloat = lg/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail "缺首屏语义间距 token 反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-stacked-spacers"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' \
+    -e 's/Spacer(minLength: DesignTokens.Spacing.screenTop)/Spacer(minLength: DesignTokens.Spacing.md)/' \
+    -e 's/Spacer(minLength: DesignTokens.Spacing.cardGap)/Spacer(minLength: DesignTokens.Spacing.md)/' \
+    -e 's/Spacer(minLength: DesignTokens.Spacing.sectionGap)/Spacer(minLength: DesignTokens.Spacing.md)/' \
+    "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "首屏余量未用语义间距反例" "$(validate_design_tokens "$design_bad")"
+
+  # 竖屏锁定正负反例（portrait-only + family 1；改成横屏 / family 2 必须判红）。
+  mkdir -p "$tmp_dir/orientation-good/ios"
+  cp ios/project.yml "$tmp_dir/orientation-good/ios/"
+  check_ok "竖屏锁定正例" "$(validate_orientation_config "$tmp_dir/orientation-good")"
+
+  cp -R "$tmp_dir/orientation-good" "$tmp_dir/orientation-landscape"
+  sed -i '' 's/INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait/INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationLandscapeLeft/' \
+    "$tmp_dir/orientation-landscape/ios/project.yml"
+  check_fail "横屏方向反例" "$(validate_orientation_config "$tmp_dir/orientation-landscape")"
+
+  cp -R "$tmp_dir/orientation-good" "$tmp_dir/orientation-family"
+  sed -i '' 's/TARGETED_DEVICE_FAMILY: "1"/TARGETED_DEVICE_FAMILY: "2"/' \
+    "$tmp_dir/orientation-family/ios/project.yml"
+  check_fail "device family 2 反例" "$(validate_orientation_config "$tmp_dir/orientation-family")"
 
   if [ "$failures" -ne 0 ]; then
     exit 1
@@ -1057,6 +1183,14 @@ else
   else
     fail "ac-corelocation-config-declared" "$location_problems"
   fi
+fi
+
+# ------------------------------------------------ 竖屏锁定（无旋转 / size class 变体）
+orientation_problems="$(validate_orientation_config .)"
+if [ -z "$orientation_problems" ]; then
+  pass "ac-portrait-orientation-lock (UIInterfaceOrientationPortrait + TARGETED_DEVICE_FAMILY 1)"
+else
+  fail "ac-portrait-orientation-lock" "$orientation_problems"
 fi
 
 # ------------------------------------------------ 后台/Always 定位采集

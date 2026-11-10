@@ -157,6 +157,15 @@ enum DesignTokens {
         static let lg: CGFloat = 24
         static let xl: CGFloat = 32
 
+        // MARK: 语义间距（首屏四层垂直分布）
+
+        /// 首屏内容区距导航栏下沿的最小呼吸位（= lg 24）。
+        static let screenTop: CGFloat = lg
+        /// hero 面板与次级指标卡片的层间距，同时用作内容区左右内边距（= md 16）。
+        static let cardGap: CGFloat = md
+        /// 指标卡片 / 提示片 / 底部主操作之间的层间距（= sm 12）。
+        static let sectionGap: CGFloat = sm
+
         /// 由小到大的间距档，供单调递增断言使用。
         static let scale: [CGFloat] = [xxs, xs, sm, md, lg, xl]
     }
