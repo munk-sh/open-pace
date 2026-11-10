@@ -87,7 +87,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - 不做暂停播报、结束播报、整公里合并播报等新调度语义，也不做后台 / 锁屏播报与音频中断恢复后的重播策略（沿用既有编排器与调度器规则，App 侧不自建）。
 - 不做 `scripts/verify-ios-ui-e2e.sh` 与新增端到端门禁（波 3）；只保证既有 `test-ios` 门绿。
 - 不改 `ios/RunCore`、`ios/Core`、`ios/PurePace/Harness/` 的源码与契约；不改 Android、`shared/`、`.github/workflows/*`；不推 tag、不动 Release。
-- 不做视觉设计系统 / 自定义 token / 主题；沿用系统语义色、系统控件与 Dynamic Type。
+- 三屏视觉层级与设计 token 已由 `ios-ui-design` 域承载（token 单一真源 + 三屏只引用 token）；本域自身不再新增 token/主题体系，颜色仍取系统语义色。
 - 不做真机验证与真机锁屏连续定位验收（`pending: 待人现场`）；后台/Always 只交付代码层能力、配置声明与模拟器/单测断言，不写「真机后台定位可用」类结论。
 
 ## 实现约束

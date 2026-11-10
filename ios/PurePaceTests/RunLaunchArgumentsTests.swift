@@ -64,4 +64,71 @@ final class RunLaunchArgumentsTests: XCTestCase {
             )
         )
     }
+
+    // MARK: - ac-screenshot-launch-gating
+
+    func testScreenshotInitialTabValueParsing() {
+        XCTAssertEqual(
+            RunLaunchArguments.value(
+                after: RunLaunchArguments.screenshotInitialTabFlag,
+                arguments: ["PurePace", "-screenshotInitialTab", "History"]
+            ),
+            "history"
+        )
+        XCTAssertEqual(
+            RunLaunchArguments.value(
+                after: RunLaunchArguments.screenshotInitialTabFlag,
+                arguments: ["PurePace", "-screenshotInitialTab", "settings"]
+            ),
+            "settings"
+        )
+    }
+
+    func testScreenshotInitialTabMissingOrInvalidValue() {
+        XCTAssertNil(
+            RunLaunchArguments.value(
+                after: RunLaunchArguments.screenshotInitialTabFlag,
+                arguments: ["PurePace"]
+            )
+        )
+        XCTAssertNil(
+            RunLaunchArguments.value(
+                after: RunLaunchArguments.screenshotInitialTabFlag,
+                arguments: ["PurePace", "-screenshotInitialTab"]
+            )
+        )
+        XCTAssertNil(
+            RunLaunchArguments.value(
+                after: RunLaunchArguments.screenshotInitialTabFlag,
+                arguments: ["PurePace", "-screenshotInitialTab", "-uiTestLocation"]
+            )
+        )
+    }
+
+    func testScreenshotFlagsAreOffByDefault() {
+        XCTAssertFalse(
+            RunLaunchArguments.flagEnabled(
+                RunLaunchArguments.screenshotHistoryDemoFlag,
+                arguments: ["PurePace", "-uiTestLocation"]
+            )
+        )
+        XCTAssertFalse(
+            RunLaunchArguments.flagEnabled(
+                RunLaunchArguments.screenshotOpenRunDetailFlag,
+                arguments: ["PurePace"]
+            )
+        )
+        XCTAssertTrue(
+            RunLaunchArguments.flagEnabled(
+                RunLaunchArguments.screenshotHistoryDemoFlag,
+                arguments: ["PurePace", "-screenshotHistoryDemo"]
+            )
+        )
+        XCTAssertTrue(
+            RunLaunchArguments.flagEnabled(
+                RunLaunchArguments.screenshotOpenRunDetailFlag,
+                arguments: ["PurePace", "-screenshotOpenRunDetail"]
+            )
+        )
+    }
 }

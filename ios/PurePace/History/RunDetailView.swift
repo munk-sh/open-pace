@@ -58,7 +58,10 @@ struct RunDetailView: View {
             Button("导出 GPX") {
                 exportState.export(record, using: exporter)
             }
+            .font(DesignTokens.Typography.control)
+            .frame(minHeight: DesignTokens.minTapTarget)
             .accessibilityIdentifier("runDetail.export")
+            .accessibilityLabel("导出 GPX")
 
             switch exportState.phase {
             case .idle:
@@ -70,12 +73,21 @@ struct RunDetailView: View {
                 ShareLink(item: url) {
                     Text("分享")
                 }
+                .frame(minHeight: DesignTokens.minTapTarget)
                 .accessibilityIdentifier("runDetail.share")
+                .accessibilityLabel("分享 GPX 文件")
             case .failed:
                 Text("导出失败")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignTokens.Colors.danger)
                     .accessibilityIdentifier("runDetail.exportFailed")
             }
+        } header: {
+            Text("导出")
+                .font(DesignTokens.Typography.sectionHeader)
+        } footer: {
+            Text("导出为 GPX 文件，可分享给其它应用。")
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
         }
     }
 

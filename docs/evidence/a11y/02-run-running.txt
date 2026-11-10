@@ -1,0 +1,46 @@
+Attributes: Application, 0x11aa1c7f0, pid: 6954, label: 'PurePace'
+Element subtree:
+ →Application, 0x11aa1c7f0, pid: 6954, label: 'PurePace'
+    Window (Main), 0x11aa1c910, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x11aa1ccd0, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x11aa1cdf0, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x11aa1ca30, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x11aa1cb50, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x11aa1cf70, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x11aa1d090, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x11aa1d1b0, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x11aa1d2d0, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x11aa1d3f0, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x11aa1d510, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x11aa1d630, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.run'
+                            NavigationBar, 0x11aa1d750, {{0.0, 53.7}, {393.0, 96.0}}, identifier: 'Run'
+                              StaticText, 0x11aa1d870, {{16.0, 101.3}, {62.3, 40.7}}, label: 'Run'
+                            Other, 0x11aa1d990, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x11aa1dab0, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x11aa1dbd0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x11aa1dcf0, {{0.0, 0.0}, {393.0, 852.0}}
+                                    StaticText, 0x11aa1de10, {{88.5, 177.7}, {216.0, 67.0}}, identifier: 'run.distance', label: '0.05 km'
+                                    StaticText, 0x11aa1df30, {{171.7, 252.7}, {49.7, 14.3}}, label: 'Distance'
+                                    StaticText, 0x11aa1e050, {{53.8, 303.0}, {97.0, 40.7}}, identifier: 'run.elapsed', label: '00:05'
+                                    StaticText, 0x11aa1e170, {{88.2, 347.7}, {28.0, 14.3}}, label: 'Time'
+                                    StaticText, 0x11aa1e290, {{219.6, 303.0}, {142.3, 40.7}}, identifier: 'run.currentPace', label: '1:40 /km'
+                                    StaticText, 0x11aa1e3b0, {{269.2, 347.7}, {43.0, 14.3}}, label: 'Current'
+                                    StaticText, 0x11aa1e4d0, {{77.1, 386.0}, {50.3, 14.3}}, identifier: 'run.averagePace', label: '1:40 /km'
+                                    StaticText, 0x11aa1e5f0, {{79.2, 404.3}, {46.0, 14.3}}, label: 'Average'
+                                    StaticText, 0x11aa1e710, {{286.9, 386.0}, {7.7, 14.3}}, identifier: 'run.splits', label: '0'
+                                    StaticText, 0x11aa1e830, {{274.9, 404.3}, {31.7, 14.3}}, label: 'Splits'
+                                    StaticText, 0x11aa1e950, {{17.5, 442.7}, {358.0, 28.7}}, identifier: 'run.backgroundDegraded', label: '后台定位未开启，锁屏后可能暂停记录；请在系统设置中将定位权限改为「始终允许」。'
+                                    Button, 0x11aa1ea70, {{16.0, 495.3}, {174.7, 58.0}}, identifier: 'run.pause', label: '暂停记录跑次'
+                                    Button, 0x11aa1eb90, {{202.7, 495.3}, {174.3, 58.0}}, identifier: 'run.finish', label: '结束并保存跑次'
+                TabBar, 0x11aa1ecb0, {{0.0, 769.0}, {393.0, 83.0}}, label: 'Tab Bar'
+                  Button, 0x11aa1edd0, {{2.0, 770.0}, {127.0, 48.0}}, label: 'Run', Selected
+                    Image, 0x11aa1eef0, {{52.7, 773.0}, {24.7, 29.3}}, identifier: 'figure.run', label: 'Running'
+                  Button, 0x11aa1f010, {{133.0, 770.0}, {127.0, 48.0}}, label: 'History'
+                  Button, 0x11aa1f130, {{264.0, 770.0}, {127.0, 48.0}}, label: 'Settings'
+Path to element:
+ →Application, 0x11aa1c7f0, pid: 6954, label: 'PurePace'
+Query chain:
+ →Find: Target Application 'sh.munk.purepace'
+  Output: {
+    Application, 0x106705cd0, pid: 6954, label: 'PurePace'
+  }

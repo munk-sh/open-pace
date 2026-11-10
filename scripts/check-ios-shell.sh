@@ -314,6 +314,108 @@ validate_no_fixture_data() {
   printf '%s' "$problems"
 }
 
+# 设计 token 单一真源 + 三屏只引用 token + 主按钮可读标签；输出为空字符串表示通过。
+validate_design_tokens() {
+  local root="$1"
+  local problems=""
+  local token_file="$root/ios/PurePace/Design/DesignTokens.swift"
+  local run_view="$root/ios/PurePace/Run/RunView.swift"
+  local history_view="$root/ios/PurePace/History/HistoryView.swift"
+  local settings_view="$root/ios/PurePace/Settings/SettingsView.swift"
+  local detail_view="$root/ios/PurePace/History/RunDetailView.swift"
+  local content_view="$root/ios/PurePace/ContentView.swift"
+
+  local file
+  for file in "$token_file" "$run_view" "$history_view" "$settings_view" "$detail_view" "$content_view"; do
+    [ -f "$file" ] || problems="$problems 缺少 ${file#"$root"/};"
+  done
+  if [ -n "$problems" ]; then
+    printf '%s' "$problems"
+    return
+  fi
+
+  # token 定义必须唯一，且覆盖颜色 / 字号 / 间距 / 圆角 / 图标 / 最小触控尺寸。
+  local token_definitions
+  token_definitions="$(grep -rlE --include='*.swift' '^enum DesignTokens' "$root/ios/PurePace" 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$token_definitions" = "1" ] || problems="$problems Token 定义必须唯一，实际 ${token_definitions} 处;"
+  local section
+  for section in 'enum Colors' 'enum Typography' 'enum Spacing' 'enum Radius' 'enum Icon' 'enum Appearance' 'minTapTarget'; do
+    grep -Fq "$section" "$token_file" || problems="$problems Token 缺少 ${section};"
+  done
+  grep -Eq 'minTapTarget: CGFloat = 44' "$token_file" || problems="$problems minTapTarget 必须为 44;"
+  grep -Fq 'supportsDarkMode' "$token_file" || problems="$problems Token 未为深色模式留位;"
+
+  # 三屏不得出现样式字面量，且必须引用 token 与最小触控尺寸。
+  for file in "$run_view" "$history_view" "$settings_view"; do
+    if grep -Eq '\.system\(size: *[0-9]|spacing: *[0-9]|\.padding\([0-9]|minHeight: *[0-9]' "$file"; then
+      problems="$problems ${file#"$root"/} 含样式字面量;"
+    fi
+    grep -Fq 'DesignTokens.' "$file" || problems="$problems ${file#"$root"/} 未引用 DesignTokens;"
+    grep -Fq 'DesignTokens.minTapTarget' "$file" \
+      || problems="$problems ${file#"$root"/} 未引用 minTapTarget;"
+  done
+
+  # 跑步页主/次层级：距离用 display，时长与当前配速用 primaryValue，平均配速与分段用 caption。
+  grep -Fq 'DesignTokens.Typography.display' "$run_view" || problems="$problems 跑步页主信息未用 display 字号;"
+  grep -Fq 'DesignTokens.Typography.primaryValue' "$run_view" || problems="$problems 跑步页未用 primaryValue 字号;"
+  grep -Fq 'DesignTokens.Typography.caption' "$run_view" || problems="$problems 跑步页次信息未用 caption 字号;"
+  grep -Fq 'DesignTokens.Colors.secondary' "$history_view" || problems="$problems 历史页次信息未用次要色;"
+
+  # 关键文案非空存在。
+  local copy
+  for copy in '"开始"' '"暂停"' '"继续"' '"结束"'; do
+    grep -Fq "$copy" "$run_view" || problems="$problems 跑步页缺少文案 ${copy};"
+  done
+  grep -Fq '"还没有跑次记录"' "$history_view" || problems="$problems 历史空态缺少标题;"
+  grep -Fq '"去跑一次"' "$history_view" || problems="$problems 历史空态缺少 CTA;"
+  grep -Fq '"每公里语音播报"' "$settings_view" || problems="$problems 设置页缺少播报开关文案;"
+  grep -Fq '"导出 GPX"' "$detail_view" || problems="$problems 详情页缺少导出入口文案;"
+
+  # 主操作标签：四个互不相同且非空。
+  if grep -Fq 'label: ""' "$run_view"; then
+    problems="$problems 跑步页存在空 accessibilityLabel;"
+  fi
+  local label_count
+  label_count="$(grep -oE 'label: "[^"]+"' "$run_view" | sort -u | wc -l | tr -d ' ')"
+  [ "$label_count" -ge 4 ] || problems="$problems 跑步页主操作 accessibilityLabel 少于 4 个互不相同的非空值;"
+  grep -Fq 'accessibilityLabel' "$run_view" || problems="$problems 跑步页主操作缺少 accessibilityLabel;"
+  grep -Fq 'accessibilityLabel("去跑一次")' "$history_view" || problems="$problems 历史空态 CTA 缺少 accessibilityLabel;"
+  grep -Fq 'accessibilityLabel("导出 GPX")' "$detail_view" || problems="$problems 导出按钮缺少 accessibilityLabel;"
+
+  # 可及标识：主操作 / 关键控件必须可被可及树按 identifier 定位。
+  local control_pair
+  for control_pair in \
+    "$run_view:run.start" "$run_view:run.pause" "$run_view:run.resume" "$run_view:run.finish" \
+    "$history_view:history.runAgain" "$history_view:history.row" \
+    "$detail_view:runDetail.export" "$detail_view:runDetail.root" \
+    "$settings_view:settings.announcementToggle"; do
+    file="${control_pair%%:*}"
+    local control_id="${control_pair##*:}"
+    grep -Fq "accessibilityIdentifier(\"$control_id\")" "$file" \
+      || problems="$problems ${file#"$root"/} 缺少可及标识 $control_id;"
+  done
+
+  # 首屏 / 工作流工具栏不得出现 demo / 示例入口按钮（演示态只允许启动参数门控注入）。
+  if grep -Eq '(Button|ToolbarItem|NavigationLink|Label)[^"]*"[^"]*(示例|样例|Demo|demo)' \
+    "$run_view" "$history_view" "$settings_view" "$detail_view" "$content_view"; then
+    problems="$problems 首屏/工具栏出现 demo/示例入口;"
+  fi
+
+  # Tab 可读标签与标识：Label 文案与 tab.<name> 成对出现（原生 TabBar 的 identifier
+  # 由内容根与 tabItem Label 双落点承载，a11y 树以内容根标识为准）。
+  local tab_pair
+  for tab_pair in "Run:tab.run" "History:tab.history" "Settings:tab.settings"; do
+    local tab_label="${tab_pair%%:*}"
+    local tab_id="${tab_pair##*:}"
+    grep -Fq "Label(\"$tab_label\"" "$content_view" \
+      || problems="$problems ContentView 缺少 Tab 标签 $tab_label;"
+    grep -Fq "\"$tab_id\"" "$content_view" \
+      || problems="$problems ContentView 缺少 Tab 标识 $tab_id;"
+  done
+
+  printf '%s' "$problems"
+}
+
 # project.yml 指定 target 段（2 空格缩进的 target 名，到下一个同级 target 为止）。
 project_target_section() {
   local spec_file="$1" target="$2"
@@ -573,10 +675,55 @@ run_self_test() {
     > "$tmp_dir/app-fixture-bad/RunExportState.swift"
   check_fail "App 引用夹具反例" "$(validate_no_fixture_data "$tmp_dir/app-fixture-bad")"
 
+  # 设计 token 单一真源与三屏契约正负反例（正例直接复制真实源码）。
+  local design_root="$tmp_dir/design-good"
+  mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
+    "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings"
+  cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
+  cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
+  cp ios/PurePace/History/HistoryView.swift "$design_root/ios/PurePace/History/"
+  cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
+  cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
+  cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
+  check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
+
+  local design_bad="$tmp_dir/design-no-token"
+  cp -R "$design_root" "$design_bad"
+  rm "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail "缺设计 token 文件反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-magic"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicSpacing = VStack(spacing: 20) { EmptyView() }\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "样式字面量反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-empty-label"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/label: "开始记录跑次"/label: ""/' "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "空 accessibilityLabel 反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-no-tab"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"tab.settings"/"tab.missing"/' "$design_bad/ios/PurePace/ContentView.swift"
+  check_fail "缺 Tab 标识反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-no-control-id"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/accessibilityIdentifier("run.start")/accessibilityIdentifier("run.start.removed")/' \
+    "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "主操作缺可及标识反例" "$(validate_design_tokens "$design_bad")"
+
+  design_bad="$tmp_dir/design-demo-entry"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let demoEntry = Button("示例跑次") {}\n' \
+    >> "$design_bad/ios/PurePace/ContentView.swift"
+  check_fail "demo/示例入口反例" "$(validate_design_tokens "$design_bad")"
+
   if [ "$failures" -ne 0 ]; then
     exit 1
   fi
-  printf '[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关正负反例)\n'
+  printf '[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关/设计 token 正负反例)\n'
   printf '\n%d 项断言，0 项失败\nself-test OK\n' "$checks"
 }
 
@@ -817,9 +964,17 @@ else
   fail "ac-live-run-ui" "$problems"
 fi
 
+# ------------------------------------------------ 设计 token 与三屏层级
+design_problems="$(validate_design_tokens .)"
+if [ -z "$design_problems" ]; then
+  pass "ac-design-tokens (单一 token 真源 + 三屏引用 + 可读标签)"
+else
+  fail "ac-design-tokens" "$design_problems"
+fi
+
 # ------------------------------------------------ 测试落点
 problems=""
-unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift ios/PurePaceTests/AudioSessionAdapterTests.swift ios/PurePaceTests/RunTelemetryTests.swift ios/PurePaceTests/RunLifecycleTelemetryTests.swift ios/PurePaceTests/RunLaunchArgumentsTests.swift"
+unit_tests="ios/PurePaceTests/RunSessionViewModelTests.swift ios/PurePaceTests/RunLocationSourceTests.swift ios/PurePaceTests/RunFormattingTests.swift ios/PurePaceTests/RunDetailContentTests.swift ios/PurePaceTests/RunExportStateTests.swift ios/PurePaceTests/AnnouncementSettingsStoreTests.swift ios/PurePaceTests/AnnouncementSpeakerTests.swift ios/PurePaceTests/AudioSessionAdapterTests.swift ios/PurePaceTests/RunTelemetryTests.swift ios/PurePaceTests/RunLifecycleTelemetryTests.swift ios/PurePaceTests/RunLaunchArgumentsTests.swift ios/PurePaceTests/DesignTokensTests.swift"
 ui_tests="ios/PurePaceUITests/RunFlowUITests.swift"
 for file in $unit_tests $ui_tests; do
   [ -f "$file" ] || problems="$problems 缺少 $file;"
