@@ -2,7 +2,7 @@
 
 没人打扰你的跑步计时器与热量记录本：无账号、无广告、无社交，数据只留在本机。
 
-当前仓库处于**阶段 1：工程骨架初始化**，只有协作基线（版本真源、目录约定、测试金字塔、skill 路由）与门禁，尚无业务功能实现。
+当前状态：V1 闭环已实现（一键开跑 → 后台记录 → 每公里语音播报不打断音乐 → 结束保存 → 历史 → GPX 导出/分享）；已过代码层门（[`.munk/code-gates.json`](./.munk/code-gates.json)）与模拟器门（[`.github/workflows/ios.yml`](./.github/workflows/ios.yml)）；真机终验由人按 [`docs/device-manual-acceptance.md`](./docs/device-manual-acceptance.md) 执行，当前尚未发布，版本以根 [`VERSION`](./VERSION) 为唯一真源。交付与候选记录见 [`docs/release/`](./docs/release/)（含双语 release notes 草稿与历史候选记录）。
 
 ## 冻结技术栈
 
@@ -61,5 +61,20 @@ bash scripts/version.sh --tools
 **人手清单只剩两件**：改系统定位授权、按电源键锁屏。开始 / 结束 / 选记录 / 滚动 / 导出 / 分享全部由用例覆盖。
 
 A 授权遥测 / B 音频机器自证 → 已拆至独立工作项，本项不含。
+
+## 界面语言与截图
+
+- **界面语言**：zh-Hans 单语。App 界面文案只有简体中文一套，没有其他语言的本地化版本。
+- **中文截图只进中文正文**：内嵌的中文界面截图只允许出现在本文件的中文正文里。
+- **将来新增英文 README 时**：不得内嵌任何 UI 截图，只写一句 `Interface language: Simplified Chinese`，并链到中文图集 `docs/screenshots/`。
+- **图集与登记**：截图集在 [`docs/screenshots/`](./docs/screenshots/)，逐文件校验清单为 [`docs/screenshots/SHA256SUMS`](./docs/screenshots/SHA256SUMS)。新增或替换截图必须同步更新该清单：登记文件 sha256（`shasum -a 256 <file>` 实取）与最近改动 commit 全 sha（`git log --format=%H -1 -- <file>` 实取，不许猜），在仓库根用 `shasum -a 256 -c docs/screenshots/SHA256SUMS` 可校验。
+
+以下为界面图集的三张关键屏（完整 6 张见 `docs/screenshots/`）：
+
+![开始跑步前](docs/screenshots/run-not-started.png)
+
+![记录中（深色）](docs/screenshots/run-running-dark.png)
+
+![跑次详情](docs/screenshots/history-detail.png)
 
 门禁定义在 [`.munk/code-gates.json`](./.munk/code-gates.json)：含 `lint` / `lint-baseline` / `lint-ios-core` / `lint-ios-scripts` / `lint-ios-shell` / `lint-android` / `build-ios-core` / `build-ios` / `build-android` / `test-ios-core` / `test-ios` / `test-android` / `test` / `check-shared`；`test` 真实执行 `scripts/check-baseline.sh`，iOS build/test 在工程不可用时显式 `blocked:` 并降级到 `ios/Core` 的 SwiftPM 命令，Android build/test 经统一脚本真实执行 `assembleDebug` / `testDebugUnitTest`。

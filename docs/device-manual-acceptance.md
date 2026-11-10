@@ -36,15 +36,26 @@
 
 距离增长只作观察项：**静止段不要求距离增长**，锁屏前后的距离变化以 GPS 漂移为上限，不得把「距离必须增长」当作通过条件。
 
-## 3. 构建身份标注
+## 3. 构建身份标注（本次候选实录）
 
-手测前先写清「用哪个包 / 哪个 commit 测」，两者都要落到记录里：
+手测前先写清「用哪个包 / 哪个 commit 测」，两者都要落到记录里。本手册对应本次交付候选，字段如下（实录值，直接引用，现场不必重算）：
 
-- 包：候选 zip 与其 `sha256`；
-- commit：构建来源 commit 全 sha（可加短 sha 便于对照）。
+| 字段 | 实录值 |
+| --- | --- |
+| 候选包 | `artifacts/candidates/Release-candidate-dac291a.zip`（仓外 `products/codebase_19e8ad47434ff059/artifacts/candidates/`，zip 本体不入 git） |
+| zip sha256 | `15b9043c2d0d78835cbcc1e4d59b76e3b12eb55d6c6f846814124487cce13415` |
+| zip 字节数 | `535634` |
+| commit | `dac291a22044ed7c69d659361112cee69ec98c6b`（短 sha `dac291a`） |
+| 版本 / 构建号 | `0.1.0(1)` |
+| bundle id | `sh.munk.purepace` |
+| 包内 `Info.plist` 的 `UIBackgroundModes` | `["location","audio"]` |
+| exec sha256（辅助记录） | `7b0a5b7288de7ac2d0e353a21b3475dd50bd6f070784b2a188758cf74bc23165`（`2127088` 字节；只作辅助记录，不作验收依据） |
 
-双 sha（候选 zip 的 `sha256` + commit）只作记录，不构成脚本校验流程，也不要求任何人重算比对。
+验收键 = zip sha256 + 包内 Info.plist 的 UIBackgroundModes 实际数组；exec sha 只作辅助记录。现场以「解包后 `PurePace.app/Info.plist` 实读」为准，不以构建产物或以往记录代替。
+
 历史候选仅作示例：`sha256 7258d2e3…b9d8f` / commit `8db1a167`。
+
+本候选的 exec sha 不可复现的原因见第 7 节。
 
 ## 4. 人耳判定（≤2 条）
 
@@ -62,6 +73,14 @@
 
 - 未在真机上按本手册做过，一律写 `pending: 待人现场`；
 - 只有人手实测完成并给出结论，才能把该项改成通过/未通过；
-- 禁写「真机已验证」：没有现场记录就没有真机结论，模拟器通过不等于真机通过。
+- 没有现场记录就没有真机结论，模拟器通过不等于真机通过。
 
 本手册不含自动化驱动步骤（XCUITest / simctl / 脚本）：真机项只由人手执行，脚本与 CI 不代跑。
+
+## 7. 已知限制（如实）
+
+以下两条是本次候选的既知边界，交付说明与 release notes 必须同口径保留，不得淡化或省略。
+
+1. **Dynamic Type 未跟随系统缩放**：生产界面的 `Typography.control` 是固定 20pt 档（`Font.system(size:)`，取自 `DesignTokens.Typography.titleSize = 20`），不随 Dynamic Type 缩放；AX5（最大辅助字号）只有注入式几何断言（门断言）覆盖，属测试注入几何，不是运行态实测。因此不得表述为「AX5 档已覆盖」或「辅助字号已支持」，真机上的超大字号观感仍 `pending: 待人现场`。
+
+2. **构建产物不可逐字节复现**：同一个 commit 在本地重新出包，主二进制 exec sha 会变化——主二进制内嵌 57 处派生数据路径字符串（每处随派生数据路径长度变化），且 `LC_UUID` 每次链接随机、连带 CDHash / CMS 摘要变化。因此本候选不声明任何逐字节可复现的构建属性，验收只认 zip sha256 + 包内 `Info.plist` 的 `UIBackgroundModes` 实际数组；exec sha 仅作辅助记录，不作为跨机器比对的验收键。

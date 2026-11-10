@@ -1,0 +1,21 @@
+# PurePace 界面截图校验清单（docs/screenshots/）
+#
+# 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/SHA256SUMS
+# 生成（在仓库根执行）：shasum -a 256 docs/screenshots/*.png
+#
+# 逐文件「最近改动 commit」全 sha（git log --format=%H -1 -- <file> 实取）：
+# history-detail.png      56aad8954cc6e64d36c716bcaa79ecf333078464
+# history-empty.png       56aad8954cc6e64d36c716bcaa79ecf333078464
+# run-not-started.png     56aad8954cc6e64d36c716bcaa79ecf333078464
+# run-running-dark.png    56aad8954cc6e64d36c716bcaa79ecf333078464
+# run-running.png         56aad8954cc6e64d36c716bcaa79ecf333078464
+# settings.png            56aad8954cc6e64d36c716bcaa79ecf333078464
+#
+# 新增或替换截图后必须同步更新本文件：重算该文件 sha256，并重新取该文件
+# 最近改动 commit 全 sha 追加到上面的登记区，不许猜、不许沿用旧值。
+d1c8e2c1bb89945ab10096a200bbb82fcdd663eaa4333a81dccc9afa2a7cd040  docs/screenshots/history-detail.png
+c61cb8141df27d530eada63fe0ebc56e1d458d2954a9367076b79694a50b7a0b  docs/screenshots/history-empty.png
+17d1d40a3d87d2ed8523855b0c4c5f4037a7dd02f1c37854b790e6b2861467b1  docs/screenshots/run-not-started.png
+35a35473cb1c89bd8ba88f8578507621a084d02aaf2558fd9dfe304b3b472164  docs/screenshots/run-running-dark.png
+7e36859873059359840e9cd46815e51ab718e905b9a912af20efefa75c1f2b53  docs/screenshots/run-running.png
+18dfd87c9483eaa94ba0165cff041daa191be53dadac85e43ae59a050cd6a30a  docs/screenshots/settings.png
