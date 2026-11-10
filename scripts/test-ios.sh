@@ -211,7 +211,8 @@ ios_gate_lock_acquire() {
 ios_gate_lock_wait_quiescent() {
   local waited=0 others
   while :; do
-    others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e "^$$ " -e "^${PPID} " || true)"
+    # 真实设备 WebDriverAgentRunner 常驻且不操作模拟器，不参与模拟器清场互斥。
+    others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e 'WebDriverAgentRunner' -e "^$$ " -e "^${PPID} " || true)"
     if [ -z "${others}" ]; then
       echo "[lock] quiescent pid=$$ waited=${waited}s"
       return 0

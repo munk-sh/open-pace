@@ -24,10 +24,16 @@ final class RunSessionViewModel: ObservableObject {
     private let authorizationProbe: SystemAuthorizationProbing
     private let telemetryWriter: RunTelemetryWriting
     private let telemetryDebugEnabled: Bool
+    private let lifecycleRecorder: RunLifecycleTelemetryRecording
+    private let bundleInfo: BundleInfoProviding
+    private let lifecycleSnapshotBox: RunLifecycleSnapshotBox
+    private let autoStartRecording: Bool
     private let now: () -> Date
 
     private var sampleSources: [TimeInterval: RunSampleSource] = [:]
     private var backgroundSnapshot: (allows: Bool, pauses: Bool)?
+    private var runSampleCount = 0
+    private var didAutoStart = false
 
     init(
         checkpointStore: RunCheckpointStore,
@@ -39,6 +45,9 @@ final class RunSessionViewModel: ObservableObject {
         authorizationProbe: SystemAuthorizationProbing? = nil,
         telemetryWriter: RunTelemetryWriting? = nil,
         telemetryDebugEnabled: Bool = false,
+        autoStartRecording: Bool = false,
+        lifecycleRecorder: RunLifecycleTelemetryRecording? = nil,
+        bundleInfo: BundleInfoProviding? = nil,
         now: @escaping () -> Date = { Date() }
     ) {
         let orchestrator = RunSessionOrchestrator(
@@ -56,6 +65,12 @@ final class RunSessionViewModel: ObservableObject {
         self.authorizationProbe = authorizationProbe ?? SystemAuthorizationProbe()
         self.telemetryWriter = telemetryWriter ?? RunTelemetryWriter(directoryURL: archiveStore.directoryURL)
         self.telemetryDebugEnabled = telemetryDebugEnabled
+        let snapshotBox = RunLifecycleSnapshotBox()
+        self.lifecycleSnapshotBox = snapshotBox
+        self.lifecycleRecorder = lifecycleRecorder
+            ?? RunLifecycleTelemetryRecorder(snapshotProvider: { snapshotBox.read() })
+        self.bundleInfo = bundleInfo ?? SystemBundleInfoProvider()
+        self.autoStartRecording = autoStartRecording
         self.now = now
         locationSource.delegate = self
     }
@@ -63,7 +78,14 @@ final class RunSessionViewModel: ObservableObject {
     // MARK: - 生命周期
 
     /// 页面出现即请求「使用期间」定位授权；授权后自动继续，不伪造进度。
+    ///
+    /// `-autoStartRecording` 开启时仅在 `.ready` 下自动开跑一次；重复 `onAppear` 不再触发。
     func onAppear() {
+        if autoStartRecording, state == .ready, !didAutoStart {
+            didAutoStart = true
+            start()
+            return
+        }
         locationSource.start()
     }
 
@@ -71,6 +93,8 @@ final class RunSessionViewModel: ObservableObject {
 
     func start() {
         guard state == .ready else { return }
+        runSampleCount = 0
+        updateLifecycleSnapshot()
         perform { try orchestrator.start(at: now()) }
         locationSource.start()
         // 抓「跑步进行态」的后台开关快照：真实源反映 manager，测试源如实为 false。
@@ -167,6 +191,18 @@ final class RunSessionViewModel: ObservableObject {
     private func apply(state: RunSessionState, metrics: RunMetrics) {
         self.state = state
         self.metrics = metrics
+        updateLifecycleSnapshot()
+    }
+
+    /// 事件快照只看本跑次：样本计数在 `start()` 归零，距离/时长取编排器度量。
+    private func updateLifecycleSnapshot() {
+        lifecycleSnapshotBox.update(
+            RunLifecycleSnapshot(
+                sampleCount: runSampleCount,
+                distanceMeters: metrics.distance.meters,
+                elapsedSeconds: metrics.elapsed
+            )
+        )
     }
 
     /// 跑次落盘后 additive 注入遥测；失败不改变归档结果，只作为自证缺失。
@@ -186,7 +222,9 @@ final class RunSessionViewModel: ObservableObject {
                 ?? locationSource.allowsBackgroundLocationUpdates,
             pausesLocationUpdatesAutomatically: backgroundSnapshot?.pauses
                 ?? locationSource.pausesLocationUpdatesAutomatically,
-            announcements: announcementRecorder.snapshot()
+            announcements: announcementRecorder.snapshot(),
+            events: lifecycleRecorder.events,
+            bundle: RunTelemetryBundle(infoDictionary: bundleInfo.infoDictionary)
         )
         do {
             try telemetryWriter.inject(
@@ -229,6 +267,8 @@ final class RunSessionViewModel: ObservableObject {
 extension RunSessionViewModel: RunLocationSourceDelegate {
     func locationSource(_ source: RunLocationProviding, didProduce sample: RunSample) {
         sampleSources[sample.timestamp.timeIntervalSince1970] = source.sampleSource
+        runSampleCount += 1
+        updateLifecycleSnapshot()
         ingest(sample)
     }
 

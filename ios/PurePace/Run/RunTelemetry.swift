@@ -120,6 +120,53 @@ struct RunTelemetryAnnouncement: Codable, Equatable, Sendable {
     }
 }
 
+/// 运行中已装包自报信息（设备侧唯一来源）。
+struct RunTelemetryBundle: Codable, Equatable, Sendable {
+    let backgroundModes: [String]
+    let identifier: String
+    let shortVersion: String
+    let buildVersion: String
+
+    init(
+        backgroundModes: [String],
+        identifier: String,
+        shortVersion: String,
+        buildVersion: String
+    ) {
+        self.backgroundModes = backgroundModes
+        self.identifier = identifier
+        self.shortVersion = shortVersion
+        self.buildVersion = buildVersion
+    }
+
+    /// 与 `Bundle.main.infoDictionary` 同一映射；缺失键按空值输出，不伪造。
+    init(infoDictionary: [String: Any]) {
+        self.init(
+            backgroundModes: infoDictionary["UIBackgroundModes"] as? [String] ?? [],
+            identifier: infoDictionary["CFBundleIdentifier"] as? String ?? "",
+            shortVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? "",
+            buildVersion: infoDictionary["CFBundleVersion"] as? String ?? ""
+        )
+    }
+}
+
+/// 已装包 Info.plist 读取接缝：生产读 `Bundle.main`，测试注入字典。
+protocol BundleInfoProviding {
+    var infoDictionary: [String: Any] { get }
+}
+
+struct SystemBundleInfoProvider: BundleInfoProviding {
+    private let bundle: Bundle
+
+    init(bundle: Bundle = .main) {
+        self.bundle = bundle
+    }
+
+    var infoDictionary: [String: Any] {
+        bundle.infoDictionary ?? [:]
+    }
+}
+
 /// 内嵌进单条跑次 JSON 的 additive 遥测对象。
 struct RunTelemetry: Codable, Equatable, Sendable {
     let authorizationStatus: RunTelemetryAuthorization
@@ -127,6 +174,26 @@ struct RunTelemetry: Codable, Equatable, Sendable {
     let allowsBackgroundLocationUpdates: Bool
     let pausesLocationUpdatesAutomatically: Bool
     let announcements: [RunTelemetryAnnouncement]
+    let events: [RunLifecycleEvent]
+    let bundle: RunTelemetryBundle
+
+    init(
+        authorizationStatus: RunTelemetryAuthorization,
+        accuracyAuthorization: RunTelemetryAuthorization,
+        allowsBackgroundLocationUpdates: Bool,
+        pausesLocationUpdatesAutomatically: Bool,
+        announcements: [RunTelemetryAnnouncement],
+        events: [RunLifecycleEvent] = [],
+        bundle: RunTelemetryBundle = RunTelemetryBundle(infoDictionary: [:])
+    ) {
+        self.authorizationStatus = authorizationStatus
+        self.accuracyAuthorization = accuracyAuthorization
+        self.allowsBackgroundLocationUpdates = allowsBackgroundLocationUpdates
+        self.pausesLocationUpdatesAutomatically = pausesLocationUpdatesAutomatically
+        self.announcements = announcements
+        self.events = events
+        self.bundle = bundle
+    }
 }
 
 /// 遥测写回接缝，便于在测试中注入桩以断言注入参数。

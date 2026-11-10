@@ -51,7 +51,10 @@ struct ContentView: View {
                 announcementsEnabled: settings.isEnabled,
                 announcementRecorder: recorder,
                 authorizationProbe: SystemAuthorizationProbe(),
-                telemetryDebugEnabled: telemetryDebugEnabled
+                telemetryDebugEnabled: telemetryDebugEnabled,
+                autoStartRecording: RunLaunchArguments.autoStartRecordingEnabled(
+                    arguments: CommandLine.arguments
+                )
             )
         )
     }

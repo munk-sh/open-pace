@@ -17,7 +17,9 @@
 		1DC4D100BC07F7E9E42980B5 /* RunLocationSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687A0D06E13AA02DE0CBEB34 /* RunLocationSourceTests.swift */; };
 		21D52FBE4C0241DA94413CE2 /* RunTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DAD5BA8D4A54FFE4D1EA22 /* RunTelemetry.swift */; };
 		26F279093734101AE30396A2 /* HarnessArguments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A75A903B92F745A7E76CD1 /* HarnessArguments.swift */; };
+		298AE44BEFD7359B7E3D198C /* RunLifecycleTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C0771D583F13FC983A1BE0 /* RunLifecycleTelemetry.swift */; };
 		2E346223B78523CA54313690 /* SystemAuthorizationProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFF86B1F35B589683054194 /* SystemAuthorizationProbe.swift */; };
+		2F04A57E6A29EC207BB6C5BF /* RunLaunchArgumentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45EA5810EB3E3F52A89BA839 /* RunLaunchArgumentsTests.swift */; };
 		2F999FC994DB1D62B63532D3 /* PurePaceRunCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6DB8EFBBA43117B541E10CAF /* PurePaceRunCore */; };
 		340C65408F183E5E79EF76E1 /* AnnouncementSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD80A9FA63B42CCADCC792B /* AnnouncementSettingsStoreTests.swift */; };
 		358FEAA8B7FA910C49D6A2F6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4022B4F31A31C90183669928 /* ContentView.swift */; };
@@ -27,6 +29,7 @@
 		46DF9C233E17672F3A124131 /* HarnessRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A1EDE1C3B604D846FF1A7C7 /* HarnessRootView.swift */; };
 		47D8E9D40C1B127FE9E2E985 /* HarnessStreamParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8567782533C16822A84A70 /* HarnessStreamParser.swift */; };
 		494BF388C35D3915FF3ADCE1 /* DeviceFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */; };
+		4C22013EDCBBFF2AD8DB2A53 /* RunLaunchArguments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8A764298BDFDBBFAFF6123 /* RunLaunchArguments.swift */; };
 		4E53875F48834DC17122A3A3 /* AudioSessionAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7240EA70EDAC1F8CE0305FA /* AudioSessionAdapterTests.swift */; };
 		4FF2BFB3A4B2DD2F23F05E8C /* HarnessResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */; };
 		5F0EB03A10C58F30D3457944 /* HarnessDirectRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803B74BE22C0073FCBCEB7C3 /* HarnessDirectRunTests.swift */; };
@@ -50,6 +53,7 @@
 		E37D02FF0CF3DDD056DACBE1 /* HarnessLocationCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */; };
 		E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F52CE6745B637780DCF9BB /* RunLocationSource.swift */; };
 		EBF83618B15A8A29636BC004 /* RunFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657A96566570892DD608DC14 /* RunFormattingTests.swift */; };
+		FA02E4F255D3C3C7A69AFC33 /* RunLifecycleTelemetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E54E71071A54A3C25690416 /* RunLifecycleTelemetryTests.swift */; };
 		FB437BCB0F7B5AC7FD5183A8 /* RunDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3946F0FB94B97F9094A132C2 /* RunDetailContent.swift */; };
 		FD9A7D79DD24C09FB77E8411 /* HarnessCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0118AB66198755EEAC86B0 /* HarnessCore.swift */; };
 /* End PBXBuildFile section */
@@ -90,10 +94,14 @@
 		4022B4F31A31C90183669928 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		42C0FE442745B2F40F675062 /* DeviceFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFlowUITests.swift; sourceTree = "<group>"; };
 		443E2D1C92BE7DC4628598B6 /* RunExportStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunExportStateTests.swift; sourceTree = "<group>"; };
+		45EA5810EB3E3F52A89BA839 /* RunLaunchArgumentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLaunchArgumentsTests.swift; sourceTree = "<group>"; };
 		48679057ACA1AC1020CAB9CD /* HarnessResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessResumeTests.swift; sourceTree = "<group>"; };
 		4A9E3289BD2957996962EC7B /* AudioSessionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionAdapter.swift; sourceTree = "<group>"; };
 		4D1C578C3E0FC62AE8CEECD8 /* HarnessLocationCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessLocationCoreTests.swift; sourceTree = "<group>"; };
+		4F8A764298BDFDBBFAFF6123 /* RunLaunchArguments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLaunchArguments.swift; sourceTree = "<group>"; };
+		51C0771D583F13FC983A1BE0 /* RunLifecycleTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLifecycleTelemetry.swift; sourceTree = "<group>"; };
 		5C128654102AD78C2EBB9A29 /* RunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunView.swift; sourceTree = "<group>"; };
+		5E54E71071A54A3C25690416 /* RunLifecycleTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLifecycleTelemetryTests.swift; sourceTree = "<group>"; };
 		657A96566570892DD608DC14 /* RunFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFormattingTests.swift; sourceTree = "<group>"; };
 		687A0D06E13AA02DE0CBEB34 /* RunLocationSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLocationSourceTests.swift; sourceTree = "<group>"; };
 		6979D59B297BF779E9FB8091 /* RunStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunStorage.swift; sourceTree = "<group>"; };
@@ -258,6 +266,8 @@
 				946B35988F9581A49A24FEBB /* RunDetailContentTests.swift */,
 				443E2D1C92BE7DC4628598B6 /* RunExportStateTests.swift */,
 				657A96566570892DD608DC14 /* RunFormattingTests.swift */,
+				45EA5810EB3E3F52A89BA839 /* RunLaunchArgumentsTests.swift */,
+				5E54E71071A54A3C25690416 /* RunLifecycleTelemetryTests.swift */,
 				687A0D06E13AA02DE0CBEB34 /* RunLocationSourceTests.swift */,
 				F8EEFFD9E2E088D5F4F33FDA /* RunSessionViewModelTests.swift */,
 				3F8D643743AA04C984A3978E /* RunTelemetryTests.swift */,
@@ -269,6 +279,8 @@
 			isa = PBXGroup;
 			children = (
 				8658FFC4D66A308114B4E7A9 /* RunFormatting.swift */,
+				4F8A764298BDFDBBFAFF6123 /* RunLaunchArguments.swift */,
+				51C0771D583F13FC983A1BE0 /* RunLifecycleTelemetry.swift */,
 				3A0C307E21FE7705A4EC61DF /* RunSessionViewModel.swift */,
 				6979D59B297BF779E9FB8091 /* RunStorage.swift */,
 				78DAD5BA8D4A54FFE4D1EA22 /* RunTelemetry.swift */,
@@ -418,6 +430,8 @@
 				A2A403B86105C64D10718B6E /* RunDetailContentTests.swift in Sources */,
 				DE6A30E5F3E19B3F392DFB0D /* RunExportStateTests.swift in Sources */,
 				EBF83618B15A8A29636BC004 /* RunFormattingTests.swift in Sources */,
+				2F04A57E6A29EC207BB6C5BF /* RunLaunchArgumentsTests.swift in Sources */,
+				FA02E4F255D3C3C7A69AFC33 /* RunLifecycleTelemetryTests.swift in Sources */,
 				1DC4D100BC07F7E9E42980B5 /* RunLocationSourceTests.swift in Sources */,
 				5F154B7EC5D4DDD0A31809E4 /* RunSessionViewModelTests.swift in Sources */,
 				61314EE8B90AF9216717EA00 /* RunTelemetryTests.swift in Sources */,
@@ -446,6 +460,8 @@
 				6795C85FFD209099FDB61BB8 /* RunDetailView.swift in Sources */,
 				A3E3FC4521506FF24097BA38 /* RunExportState.swift in Sources */,
 				8C9933E2276625EC89AA32ED /* RunFormatting.swift in Sources */,
+				4C22013EDCBBFF2AD8DB2A53 /* RunLaunchArguments.swift in Sources */,
+				298AE44BEFD7359B7E3D198C /* RunLifecycleTelemetry.swift in Sources */,
 				E40E1FE3BB1F66A46D8A68D6 /* RunLocationSource.swift in Sources */,
 				15E12F1120D7F04C367B521C /* RunSessionViewModel.swift in Sources */,
 				3C870F657252C7D7AAABEC3D /* RunStorage.swift in Sources */,
