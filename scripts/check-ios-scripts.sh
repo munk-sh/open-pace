@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # iOS 脚本静态/契约断言（.munk/code-gates.json 的 lint-ios-scripts 门真实执行体）。
 # 校验 build-ios.sh / test-ios.sh / check-ios-scripts.sh / version.sh / verify-ios-ui-e2e.sh /
-# verify-ios-sim-runtime.sh 的
+# verify-ios-sim-runtime.sh / device-run.sh 的
 # bash 严格模式、参数契约、xcodebuild 分支字面量、降级分支、无写死版本、无伪造成功行；任一条失败即非零退出。
 set -euo pipefail
 
@@ -9,11 +9,14 @@ usage() {
   cat <<'EOF'
 用法: scripts/check-ios-scripts.sh [--help]
 
-对 iOS 构建/测试/版本脚本做结构与契约断言并打印逐条结果：
-  - 六个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
+对 iOS 构建/测试/版本/真机脚本做结构与契约断言并打印逐条结果：
+  - 七个脚本 bash -n 通过、shebang 为 #!/usr/bin/env bash、正文含 set -euo pipefail
   - build-ios.sh / test-ios.sh / check-ios-scripts.sh / verify-ios-ui-e2e.sh /
-    verify-ios-sim-runtime.sh 的 --help
+    verify-ios-sim-runtime.sh / device-run.sh 的 --help
     退出 0 且含「用法」，未知参数退出 2
+  - device-run.sh 的 --phase=plan 无设备退出 0，打印 9 个固定 step id 与
+    devicectl / xcodebuild test-without-building / iproxy / WDA HTTP 命令模板，
+    两次运行输出逐字一致；非法 phase 退出 2；--self-check 退出 0
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
   - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 两次 xcodebuild test，
@@ -73,8 +76,8 @@ fail() {
   printf '[FAIL] %s: %s\n' "$1" "$2"
 }
 
-targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
-strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh"
+targets="build-ios.sh test-ios.sh check-ios-scripts.sh version.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh device-run.sh"
+strict_targets="build-ios.sh test-ios.sh check-ios-scripts.sh verify-ios-ui-e2e.sh verify-ios-sim-runtime.sh device-run.sh"
 
 # ------------------------------------------------- 脚本存在、语法与严格模式
 problems=""
@@ -130,6 +133,79 @@ if [ -z "$problems" ]; then
 else
   fail "ac-ios-scripts-help" "$problems"
 fi
+
+# --------------------- device-run.sh --phase=plan 无设备自证（9 step 顺序 + 命令模板 + 幂等）
+device_run_plan_problems() {
+  local file="$1"
+  local out=""
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  local first=""
+  local second=""
+  if ! first="$(bash "$file" --phase=plan 2>&1)"; then
+    out="$out --phase=plan 非零退出;"
+  fi
+  if ! second="$(bash "$file" --phase=plan 2>&1)"; then
+    out="$out --phase=plan 第二次非零退出;"
+  fi
+  if [ -z "$out" ]; then
+    local steps=""
+    steps="$(grep -E '^step=' <<<"$first" | cut -d= -f2 | tr '\n' ',')"
+    [ "$steps" = "preflight,wda,install,launch,tcc,record,lock,collect,evidence," ] \
+      || out="$out plan step 顺序为 '${steps}';"
+    local needle
+    for needle in \
+      "devicectl" \
+      "xcodebuild test-without-building" \
+      "iproxy" \
+      "http://127.0.0.1:8100/status" \
+      "manifest-sha256.txt" \
+      "candidateKey="; do
+      grep -Fq -- "$needle" <<<"$first" || out="$out plan 输出缺少 '${needle}';"
+    done
+    [ "$first" = "$second" ] || out="$out 同一候选包两次 plan 输出不一致;"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(device_run_plan_problems scripts/device-run.sh)"
+if [ -z "$problems" ]; then
+  bash scripts/device-run.sh --phase=definitely-invalid >/dev/null 2>&1 && phase_bad_rc=0 || phase_bad_rc=$?
+  [ "$phase_bad_rc" -eq 2 ] || problems="$problems 非法 phase 退出 ${phase_bad_rc}（期望 2）;"
+  bash scripts/device-run.sh --definitely-invalid >/dev/null 2>&1 && arg_bad_rc=0 || arg_bad_rc=$?
+  [ "$arg_bad_rc" -eq 2 ] || problems="$problems 未知参数退出 ${arg_bad_rc}（期望 2）;"
+  bash scripts/device-run.sh --self-check >/dev/null 2>&1 && device_self_rc=0 || device_self_rc=$?
+  [ "$device_self_rc" -eq 0 ] || problems="$problems --self-check 退出 ${device_self_rc};"
+  help_device="$(bash scripts/device-run.sh --help 2>&1)" || problems="$problems device-run.sh --help 非零退出;"
+  for phase_name in preflight wda install launch tcc record lock collect evidence; do
+    grep -Fq -- "$phase_name" <<<"$help_device" || problems="$problems device-run.sh --help 缺少 phase '${phase_name}';"
+  done
+  grep -Fq -- '用法' <<<"$help_device" || problems="$problems device-run.sh --help 缺少「用法」;"
+fi
+if [ -z "$problems" ]; then
+  pass "ac-device-run-plan-self-test"
+else
+  fail "ac-device-run-plan-self-test" "$problems"
+fi
+
+# 反例自检：删掉 plan 里的 evidence step 打印必须被识别。
+plan_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-plan.XXXXXX")"
+python3 - "$plan_sandbox/device-run.sh" <<'PY'
+import sys
+src = open("scripts/device-run.sh", encoding="utf-8").read()
+needle = "  printf 'step=evidence\\n'\n"
+if needle not in src:
+    raise SystemExit("plan evidence step 打印行未找到")
+open(sys.argv[1], "w", encoding="utf-8").write(src.replace(needle, "", 1))
+PY
+if [ -n "$(device_run_plan_problems "$plan_sandbox/device-run.sh")" ]; then
+  pass "ac-device-run-plan-self-test (self-test)"
+else
+  fail "ac-device-run-plan-self-test" "删除 plan evidence step 的违规样本未被识别"
+fi
+rm -rf "$plan_sandbox"
 
 # --------------------------------------------------- build-ios.sh 契约字面量
 problems=""

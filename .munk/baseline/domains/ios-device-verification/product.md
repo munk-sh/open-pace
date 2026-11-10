@@ -109,6 +109,7 @@ PurePace iOS 真机自动化取证域：用「断言清单 + 一条三模式脚�
 - 不宣称阶段 2/3「真机已验证」；不改 `code_gates`、`.github/workflows`、CI 触发或发布流程。
 - 不写「真机已验证公里播报」：确定性源只提供「仅设备验证场」的机器证据，样本 `simulated` 不计入真实 CoreLocation 判据；真实移动结论仍只能人耳。
 - 不写桌面端自研驱动（CDP / 注入 JS / 自拼截屏）；不装 mobilecli agent，不依赖 `mobile_*`；不引入第三方运行时依赖。
+- 本项的 `scripts/verify-ios-device-flow.sh` 保持原样；可复用的单步幂等底座（`scripts/device-run.sh`、9 phase、`artifacts/device-run/<candidateKey>/`）归 `ios-device-run` 域，后续 run 才改用它。
 - 不做截图视觉回归、不提交模拟器结论、不改 Android 侧；脚本与清单未就绪前不排人、不约窗口。
 
 ## 实现约束
