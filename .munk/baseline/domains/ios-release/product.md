@@ -18,6 +18,10 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ASC 自检顺序固定：先 `GET /v1/bundleIds?filter[identifier]=sh.munk.purepace` 与 `GET /v1/certificates`（只读），再决定是否建记录；建记录前对 ASC 的写请求计数必须为 0，且建记录后立即只读回读 `GET /v1/apps?filter[bundleId]=sh.munk.purepace` 校验。
 - `docs/release/testflight-runbook.md` 的前置/反范围措辞随一次性授权改写：App 记录由一次性授权操作创建（指向 `docs/release/stage4-prereqs.md`），上传 / 提交审核 / 邀请测试者仍是人的写操作；`check-ios-release.sh` 断言的段落与占位符保持不变。
 - `scripts/check-ios-release.sh` 的脱敏反例自检不再拼真实用户目录字面量（用 `user_dir='Users'` 变量拼接），使 `ac-no-secret-in-repo` 的 `/(Users|home)/` 零命中在仓内自洽。
+- 一次性 Release 候选出包（本轮实例 `7ce3dfe`；产物落产品数据目录 `products/codebase_19e8ad47434ff059/artifacts/candidates/`，仓外，zip 不入 git）：开工先 `git ls-remote --heads origin main` 记录 tip；tip 与 Intake 实测不一致时只写新 tip 与差异、不构建旧 commit。从干净 worktree 出包，同一 sha 只建一次。
+- 候选四步：`xcodegen generate --spec ios/project.yml` → `xcodebuild -configuration Release -destination 'generic/platform=iOS'`（签名参数仅命令行）→ 双 sha256（zip 与 zip 内 `.app` 主二进制，`shasum -a 256` + `stat -f%z`）→ 模拟器干净安装启动冒烟（`simctl erase` → `boot` → `install` → `launch`，留截图 + 首屏元素树 dump + 进程存活证据）。
+- 候选记录双落点：仓外 `artifacts/candidates/Release-candidate-<短sha>.txt`（全字段，与 `Release-candidate-2c7c4f3.txt` 同目录同字段，`zipPath` 写绝对路径）与仓内 `docs/release/candidates/Release-candidate-<短sha>.md`（同值文本摘要）。
+- 时间盒：出包轮 wall clock ≤45 分钟、≤8M token；触顶即停手出部分回执（已完成项 + 未完成原因），不继续消耗。
 
 ## 验收
 
@@ -61,6 +65,19 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ac-new-script-contract: 若新增 `scripts/*.sh`，则 `bash -n` 退出 0、shebang 为 `#!/usr/bin/env bash`、含 `set -euo pipefail`、`--help` 退出 0 且输出含「用法」、未知参数退出 2；且不含 `… | grep -q` 形态（用 `grep -q <<<"$var"` 或显式捕获 `$?`），文件内无凭据字面量。
 - ac-runbook-consistent: `bash scripts/check-ios-release.sh` 退出 0（Runbook 段落/占位符断言仍满足）；Runbook 与清单中 `fastlane` 只作为「本机一次性 CLI」表述，仓库内无 `fastlane/Fastfile`、`Gemfile`、`fastlane/Appfile`；反范围明确「不上传构建、不提交审核、不邀请测试者」。
 - ac-no-upload-or-archive: 前置项不执行 `scripts/archive-ios.sh`、不跑 `xcodebuild archive`、不跑 `xcrun altool --upload-*` / Transporter；仓库与证据内 `--upload-package`、`--upload-app` 零命中。
+- ac-tip-verified: 出包开工先跑 `git ls-remote --heads origin main` 并记录结果；若结果不等于 Intake 实测 tip（本轮 `7ce3dfef6e179c6d62857efb8b1c411ccf4a38b8`），须在回执与 txt 写明新 tip 与差异且不构建旧 commit。
+- ac-project-generated: `xcodegen generate --spec ios/project.yml` 退出码 0，构建所用 `.xcodeproj` 由该命令生成；全程无手改 `project.pbxproj`（`git status --porcelain ios/` 为空）。
+- ac-release-build-ok: 指定 xcodebuild Release 命令退出码 0，产出 `Build/Products/Release-iphoneos/PurePace.app` 且目录非空；`.app` 内 `find PurePace.app -name 'PurePace.debug.dylib' | wc -l` 输出 `0`。
+- ac-strings-autostart-flag: 对 `.app` 主二进制跑 `strings`，同时命中 `-releaseDeterministicLocation` 与 `-autoStartRecording`。
+- ac-plist-app-not-runner: plist 核验必须针对 `PurePace.app` 本体，不得用 UITests runner 的 audio-only plist 代替（`project.yml` 内两份 `UIBackgroundModes`）。
+- ac-smoke-erase-install-launch: 在 UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD` 上 `simctl erase` → `boot` → `install` → `launch` 全部退出码 0，`launch` 输出 bundle id `sh.munk.purepace`；全程不使用真机。
+- ac-smoke-process-alive: launch 后再取进程（`launchctl list` 或等价）命中 `sh.munk.purepace`，证明非启动即崩溃。
+- ac-smoke-evidence: 冒烟留存三类证据（截图 png + 首屏元素树 dump + 进程存活输出），路径写入 txt 冒烟结果行与仓内 md 摘要。
+- ac-txt-obsolete-declaration: txt 内含明示声明「旧包 2c7c4f3 / 1e7e653 / 667e1bc 全部作废不得复用」。
+- ac-single-build-per-sha: 对同一 commit 只产出一次候选；`artifacts/candidates/` 下该 commit 只有 1 个 zip + 1 个 txt（重跑须先声明并作废旧包）。
+- ac-no-full-gates-rerun: 出包轮不执行全量 code_gates（不批量跑 `scripts/check-*.sh`、不重跑 UI E2E）；确需单项结构断言时在 txt `note` 注明单项名称与原因。
+- ac-time-box: 自开工至回执 wall clock ≤45 分钟；触及上限即停手出部分回执（列已完成项 + 未完成原因），不继续消耗。
+- ac-receipt-fields: 回执必须含 zip sha256、exec sha256、commit、zip 绝对路径、四项必核结果（debugDylibCount / plist dump / strings 两 flag / codesign authority+team）与冒烟结果。
 
 ## 非目标
 
@@ -74,6 +91,7 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - 不做 tag、GitHub Release、分发操作，不改 `.github/workflows/*` 触发条件。
 - 不重构既有 `build-ios.sh` / `test-ios.sh` / `check-ios-scripts.sh` 的非必要逻辑（仅门数断言与本项接入）。
 - 不做真机签名执行、不替代 `ios-ci-stability` 的测试链路；后者「23 门」为该项交付当时的历史快照。
+- 出包轮不做任何源码 / 脚本 / `project.yml` / `.munk/code-gates.json` 改动，不顺手优化、不扩大改动半径；相对 tip 的 diff 仅限 `.munk/changes/<wi>/**` 与仓内候选 md 摘要。不真机装包（设备留给验收窗口）。
 
 ## 实现约束
 
@@ -91,8 +109,8 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_c26657b3284366d1（2026-11-10，pass）
-- 交付：从 `github.com/munk-sh/open-pace` 真实 `origin/main` tip `2c7c4f36dfdc09acfb37a3888f206512b42e7eb2`（短 `2c7c4f3`，构建时 `git status --porcelain` 为空）出唯一 Release 候选 `PurePace-Release-0.1.0-20261110T014651Z.zip`（仓外 candidates 目录）：zipSha256 `e08fda6bbbcb68ecbb26e019e4c1219f938e932883b5e7fb11d65375b1a86f5a` / 428138 B；`execName=PurePace`，execSha256 `8ccaf131cccd615c5cc2acf10e697482e10627853fdd524a77eed5921099092f` / 1565104 B。记录 txt 按既有字段顺序落盘且十六字段全非空；仓内新增同值摘要 `docs/release/candidates/Release-candidate-2c7c4f3.md`（该目录首次出现）。
-- 实测：解压后 `.app/Info.plist` 读回 `CFBundleIdentifier=sh.munk.purepace`、`CFBundleShortVersionString=0.1.0`、`CFBundleVersion=1`、`MinimumOSVersion=17.0`、`UIBackgroundModes=["location","audio"]`；`debugDylibCount=0`；签名 `Authority=Apple Development: Tao Zhu (H47755VBGF)` / `TeamIdentifier=3X4J53U6RY`（签名参数只在命令行，`ios/project.yml` 与 `.github/workflows/*` 零 diff）；二进制含 `-releaseDeterministicLocation`，默认关负例在 `PurePaceTests` 单测腿通过。
-- 实测（本地阻断门全 0）：`check-baseline`(11) / `check-ios-core`(8) / `check-ios-scripts`(25) / `check-ios-release`(17) / `check-ios-shell`(20) / `check-ios-workflow` / `check-ios-run-core`(11) / `check-shared`(13) / `check-shell-expansion`(7) / `version.sh`=`0.1.0` / `swift test ios/Core` 9 tests / `swift test ios/RunCore` 123 tests / `test-ios.sh --unit-only` 99 tests。
-- 边界：`iosCI` = 同 commit `ios.yml` run 42737709123 `in_progress`（headSha 与记录一致），记为待出结论而非已绿；真机三项仍 `pending: 待人现场`，真机窗口开工前须从**设备已安装 bundle** 自报 `UIBackgroundModes`。候选 commit 即默认分支 tip，故不触发 `ac-candidate-equivalence-after-merge` 重出；未 push tag / 未建 GitHub Release / 未上传 TestFlight / 未建 ASC 记录。阶段 4 前置（ASC App 记录 / PLA / 证书与 App Store profile）仍 `pending: 人`，见 `docs/release/stage4-prereqs.md`。
+- workItemId: wi_intake_8960dcee8527da3f（2026-11-10，pass）
+- 交付：`git ls-remote --heads origin main` 实取 tip `7ce3dfef6e179c6d62857efb8b1c411ccf4a38b8`（与基线一致，未构建旧 commit）；从该 commit 干净 worktree 出唯一候选 `PurePace-Release-0.1.0-20261110T054214Z.zip`（仓外）：zipSha256 `a000b0e19c2ee4b5c7f8e067abd9f4c25f95b43569c45b29160c73e38c736897` / 441544 B；execSha256 `d494746936c99043557ae3ba82fe2c94a3bb84c9beb0412e242dda182ef7139d` / 1619696 B。仓内新增同值摘要 `docs/release/candidates/Release-candidate-7ce3dfe.md`。
+- 实测（四项必核全过）：`.app/Info.plist` 读回 `sh.munk.purepace` / `0.1.0` / `1` / `17.0`、`UIBackgroundModes=Array { location audio }`（打 `PurePace.app` 本体非 runner）；`debugDylibCount=0`；主二进制 strings 命中 `-releaseDeterministicLocation` 与 `-autoStartRecording`；`Authority=Apple Development: Tao Zhu (H47755VBGF)` / `TeamIdentifier=3X4J53U6RY`（签名仅命令行，`ios/project.yml` 零 diff，`git status --porcelain ios/` 为空）。
+- 冒烟 PASS（UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD`）：`simctl shutdown/erase/boot/install/launch` 全 0，`launch` 输出 `sh.munk.purepace: 27423`，launchctl list 命中进程存活；证据落 `.build/release-candidate-7ce3dfe/smoke/`（截图 + 元素树 dump + 进程存活）。口径修正：设备切片在 `dyld_sim` 下无法启动（SBMainWorkspace 拒绝），冒烟改用同 commit / 同 `project.yml` / 同 Release 配置的模拟器切片完成，未改源码或脚本。
+- 边界：出包轮未重跑全量 code_gates（仅单项 `git status --porcelain ios/` 与 `git diff --exit-code ios/project.yml`）；txt 含旧包 `2c7c4f3` / `1e7e653` / `667e1bc` 作废声明；`iosCI` = 待同 commit `ios.yml` run 判定（未编造 run id）；未打 tag / 未 push / 未建 GitHub Release / 未上传 TestFlight / 未建 ASC 记录 / 未真机装包，真机三项仍 `pending: 待人现场`。
