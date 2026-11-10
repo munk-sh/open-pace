@@ -22,6 +22,7 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - 候选四步：`xcodegen generate --spec ios/project.yml` → `xcodebuild -configuration Release -destination 'generic/platform=iOS'`（签名参数仅命令行）→ 双 sha256（zip 与 zip 内 `.app` 主二进制，`shasum -a 256` + `stat -f%z`）→ 模拟器干净安装启动冒烟（`simctl erase` → `boot` → `install` → `launch`，留截图 + 首屏元素树 dump + 进程存活证据）。
 - 候选记录双落点：仓外 `artifacts/candidates/Release-candidate-<短sha>.txt`（全字段，与 `Release-candidate-2c7c4f3.txt` 同目录同字段，`zipPath` 写绝对路径）与仓内 `docs/release/candidates/Release-candidate-<短sha>.md`（同值文本摘要）。
 - 时间盒：出包轮 wall clock ≤45 分钟、≤8M token；触顶即停手出部分回执（已完成项 + 未完成原因），不继续消耗。
+- ASC app-store-connect 出包通路（只验通路、不上传）：干净 worktree 走「ASC App 记录 → `xcodegen generate` → `xcodebuild archive -configuration Release -destination 'generic/platform=iOS' -allowProvisioningUpdates DEVELOPMENT_TEAM=3X4J53U6RY CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic` → `-exportArchive -method=app-store-connect` → `.ipa`」。唯一写操作是 ASC App 记录（`fastlane produce`；本机 fastlane 不支持 `--api_key_path` 时退化为同 payload 单次 `POST /v1/bundleIds`，只发一次、不重试）；产物/日志落仓外，仓内只留脱敏摘要。
 
 ## 验收
 
@@ -78,6 +79,17 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ac-no-full-gates-rerun: 出包轮不执行全量 code_gates（不批量跑 `scripts/check-*.sh`、不重跑 UI E2E）；确需单项结构断言时在 txt `note` 注明单项名称与原因。
 - ac-time-box: 自开工至回执 wall clock ≤45 分钟；触及上限即停手出部分回执（列已完成项 + 未完成原因），不继续消耗。
 - ac-receipt-fields: 回执必须含 zip sha256、exec sha256、commit、zip 绝对路径、四项必核结果（debugDylibCount / plist dump / strings 两 flag / codesign authority+team）与冒烟结果。
+- ac-asc-app-record-single-write: ASC 建记录至多一次尝试；存在性由 `GET /v1/apps?filter[bundleId]=sh.munk.purepace`（或 `xcrun altool --list-apps`）只读回读判定——`count=1` 时证据含 `id` / `sku=purepace-ios` / `primaryLocale=zh-Hans`；`count=0` 且被拒时证据含该次请求 HTTP 状态码与 `errors[].code` 原文，且不发第二次写请求。
+- ac-archive-signed-release: `<abs>/PurePace.xcarchive` 存在，`Info.plist` 的 `ApplicationProperties.CFBundleIdentifier=sh.munk.purepace`、`ApplicationProperties.SigningIdentity` 已记录，且 `ios/project.yml` 与 `ios/PurePace.xcodeproj` 的 `git status --porcelain` 为空。
+- ac-ipa-artifact-hash: 成功路径产出 `<abs>/export/*.ipa`，证据含绝对路径与 `shasum -a 256` 实测 sha256（同命令可复现同值）。
+- ac-ipa-appstore-signing: 解开 `.ipa` 后 `Payload/PurePace.app` 的 `codesign -dv` Authority 含 `Apple Distribution`、`TeamIdentifier=3X4J53U6RY`；`embedded.mobileprovision` 解码后 `TeamIdentifier` 含 `3X4J53U6RY`、`ProvisionsAllDevices` 不为 true、`ExpirationDate` 已记录。
+- ac-distribution-identity-appears: 出包后 `security find-identity -v -p codesigning` 出现 `Apple Distribution: ... (3X4J53U6RY)`；缺失则记为失败证据并已 `munk_report_owner`。
+- ac-no-upload-asc: 全程无上传动作——日志/回执不含 `--upload-app`、`pilot`、`upload_to_testflight`、`deliver` 的实际调用，未调 ASC `POST /v1/builds`，未建 TestFlight 构建记录。
+- ac-blocked-reported-immediately: 任一命令返回含 `PLA_NOT_ACCEPTED` 或 403/角色权限不足时，当轮即 `munk_report_owner`，message 含失败命令、HTTP 状态码与 `errors[].code` 原文；不等到窗口结束。
+- ac-asc-logs-persisted: 证据含 archive 与 export 的完整原始日志文件绝对路径（`-authenticationKey*` 值确认为变量传递、未出现在日志）与关键行摘录（签名 / 描述文件 / `Exported` 行）。
+- ac-asc-secret-hygiene: 仓内 `git status --porcelain` 不含 `.p8` / `secrets.env` / `*.mobileprovision` / `.ipa` / `.xcarchive`；仓内证据不含 Issuer ID、Key ID、私钥内容或用户主目录绝对路径实值（用 `<abs>` 或占位符）。
+- ac-asc-minimal-gates-only: 只跑与本项相关的最小门（`bash scripts/check-ios-release.sh`、必要时 `bash scripts/build-ios.sh`），证据记录门 id 与结果；不执行全量 `code_gates`。
+- ac-asc-timebox-partial-receipt: 触达 60 分钟上限即出部分回执，列已完成项、卡点原文、未完成项，且不再追加探测。
 
 ## 非目标
 
@@ -92,6 +104,7 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - 不重构既有 `build-ios.sh` / `test-ios.sh` / `check-ios-scripts.sh` 的非必要逻辑（仅门数断言与本项接入）。
 - 不做真机签名执行、不替代 `ios-ci-stability` 的测试链路；后者「23 门」为该项交付当时的历史快照。
 - 出包轮不做任何源码 / 脚本 / `project.yml` / `.munk/code-gates.json` 改动，不顺手优化、不扩大改动半径；相对 tip 的 diff 仅限 `.munk/changes/<wi>/**` 与仓内候选 md 摘要。不真机装包（设备留给验收窗口）。
+- ASC 通路验证轮：不打 tag、不 push tag、不改远端设置；不手工新增 / revoke 证书与描述文件（仅 `-allowProvisioningUpdates` 自动创建）；不把签名或 `DEVELOPMENT_TEAM` 写进 `ios/project.yml`；被拒后不换端点试错、不降级绕过。
 
 ## 实现约束
 
@@ -106,11 +119,12 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - 凭据纪律（阶段 4 前置）：只从环境变量 `ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID` 读；`source ~/.munk-release/secrets.env` 只在本人 shell 会话内，禁 `set -x`、禁 `echo`/`printf` 变量值；一次性 API Key JSON 与 JWT 只落仓外 `mktemp -d` 临时目录（`chmod 600`）并在退出前删除；仓内一律用占位符。
 - 失败即停：建记录被拒（无论 PLA 还是权限/角色）不做长期重试、不换端点试错、不降级绕过；把错误原文与「已达成 / 未闭合」定性写进清单与回执。
 - 门禁与文档互锁：`scripts/check-ios-release.sh` 硬断言 22 门与脱敏口径（禁 `set -x`、禁用户主目录绝对路径、禁真实凭据）；改写 Runbook / 清单时不得触发这些断言，也不得为绕断言改门数或改门拓扑。
+- ASC 通路验证复用既有入口：优先 `scripts/archive-ios.sh`（已具备 generate → archive → `-exportArchive`、`method=app-store-connect`、`teamID=3X4J53U6RY`、automatic 签名、三件 `ASC_*` 映射与 `-allowProvisioningUpdates`、产物落仓外 `OUT_DIR`）；逐条对齐本轮命令行时可直接跑等价 `xcodebuild`，但不得改写脚本既有契约与其静态门断言。版本走 `bash scripts/version.sh` + `BUILD_NUMBER`（缺省 1）命令行覆盖。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_8960dcee8527da3f（2026-11-10，pass）
-- 交付：`git ls-remote --heads origin main` 实取 tip `7ce3dfef6e179c6d62857efb8b1c411ccf4a38b8`（与基线一致，未构建旧 commit）；从该 commit 干净 worktree 出唯一候选 `PurePace-Release-0.1.0-20261110T054214Z.zip`（仓外）：zipSha256 `a000b0e19c2ee4b5c7f8e067abd9f4c25f95b43569c45b29160c73e38c736897` / 441544 B；execSha256 `d494746936c99043557ae3ba82fe2c94a3bb84c9beb0412e242dda182ef7139d` / 1619696 B。仓内新增同值摘要 `docs/release/candidates/Release-candidate-7ce3dfe.md`。
-- 实测（四项必核全过）：`.app/Info.plist` 读回 `sh.munk.purepace` / `0.1.0` / `1` / `17.0`、`UIBackgroundModes=Array { location audio }`（打 `PurePace.app` 本体非 runner）；`debugDylibCount=0`；主二进制 strings 命中 `-releaseDeterministicLocation` 与 `-autoStartRecording`；`Authority=Apple Development: Tao Zhu (H47755VBGF)` / `TeamIdentifier=3X4J53U6RY`（签名仅命令行，`ios/project.yml` 零 diff，`git status --porcelain ios/` 为空）。
-- 冒烟 PASS（UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD`）：`simctl shutdown/erase/boot/install/launch` 全 0，`launch` 输出 `sh.munk.purepace: 27423`，launchctl list 命中进程存活；证据落 `.build/release-candidate-7ce3dfe/smoke/`（截图 + 元素树 dump + 进程存活）。口径修正：设备切片在 `dyld_sim` 下无法启动（SBMainWorkspace 拒绝），冒烟改用同 commit / 同 `project.yml` / 同 Release 配置的模拟器切片完成，未改源码或脚本。
-- 边界：出包轮未重跑全量 code_gates（仅单项 `git status --porcelain ios/` 与 `git diff --exit-code ios/project.yml`）；txt 含旧包 `2c7c4f3` / `1e7e653` / `667e1bc` 作废声明；`iosCI` = 待同 commit `ios.yml` run 判定（未编造 run id）；未打 tag / 未 push / 未建 GitHub Release / 未上传 TestFlight / 未建 ASC 记录 / 未真机装包，真机三项仍 `pending: 待人现场`。
+- workItemId: wi_intake_0fd9d8307d80a11a（2026-11-10，fail：外部权限阻塞，已上报 Owner）
+- 交付：ASC app-store-connect 通路验证自 `efeb57d`（`main` tip）干净 worktree 起步；`fastlane produce create` 因本机 fastlane 2.232.2 不支持 `--api_key_path`（`invalid option`）未生效，按 PRD 退化单次 `POST /v1/bundleIds`（`sh.munk.purepace` / `PurePace` / `IOS`）→ **HTTP 403 `FORBIDDEN_ERROR`**（`This request is forbidden for security reasons`）；同 Key 只读 `GET /v1/apps`、`/v1/bundleIds` 均 200 且 `count=0`。未发第二次写请求、未换端点、未重试。
+- 实测：`security find-identity -v -p codesigning` 仍 3 条 Developer ID / Apple Development、Apple Distribution 为 0；archive / `-exportArchive` / `.ipa`（含 sha256）与 profile 解码均未产出（Bundle ID 无法写入门户，`-allowProvisioningUpdates` 必然同 403，未以自造证书/手工 profile 绕过）。
+- 最小门：`bash scripts/check-ios-release.sh` → exit 0（17 项断言 0 失败）；未跑全量 `code_gates`；`git status --porcelain ios/` 为空，未改源码 / `project.yml` / 脚本 / `.munk/code-gates.json`。
+- 边界与待解：全程未上传（无 `--upload-app` / `pilot` / `deliver` / `POST /v1/builds`）、未打 tag；解锁需把 ASC API Key 团队角色升到 Admin（或 App Manager + 证书/描述文件写），之后重跑同一条链补 archive → `.ipa` 证据即可收口。
