@@ -24,7 +24,10 @@ usage() {
     且卸载会清掉 TCC，故必须在安装之后）→ simctl launch/terminate 启动预热。
     两次 xcodebuild test 都带测试执行预算（-test-timeouts-enabled / -default-test-execution-time-allowance /
     -maximum-test-execution-time-allowance）与进程级硬超时（bash 看门狗，不依赖 GNU timeout）；
-    单测/UI 两腿各有独立硬超时（默认 600s）；UI 腿可用预算低于最小阈值时明确失败，超时后非零退出并打印超时阶段与已执行的测试摘要。
+    看门狗按墙钟差额判定超时（sleep 仅作轮询粒度）；单测/UI 两腿各有独立上限（默认 600s），
+    实际腿预算再取 min(单腿上界, 本次 attempt 剩余)；本次 attempt 预算 = step 预算 − 重试余量
+    （默认 2700 − 900 = 1800s，严格小于 45min step 超时，为 ios.yml 的一次 infra 重试留余量）。
+    承载层预算不足/超时时以 124 退出并打印承载层预算口径，不写成产品断言失败。
     任一调用失败脚本非零退出，单测结论先于 UI 输出且不被 UI 失败覆盖。
   - 分支 B（工程不可用）：输出 blocked: 明确缺失原因（xcodegen / ios/PurePace.xcodeproj），
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
@@ -43,15 +46,21 @@ usage() {
   PUREPACE_IOS_UI_MIN_BUDGET_SECONDS
                            UI 腿最小可用预算秒数，默认 300；可用预算低于该值时明确失败
   PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS
-                           step 级总预算秒数（CI 由 ios.yml 注入 2700）；与下面的起点同时存在时生效
+                          step 级总预算秒数（CI 由 ios.yml 注入 2700）；未设置/非法时回落 2700
+  PUREPACE_IOS_RETRY_RESERVE_SECONDS
+                          为 ios.yml 一次 infra 重试预留的余量秒数，默认 900；
+                          本次 attempt 预算 = step 预算 − 该余量（默认 1800s，严格小于 2700s）
   PUREPACE_IOS_STEP_STARTED_AT
-                           step 起始 epoch 秒；UI 可用预算再取 min(单腿预算, step 剩余)
+                          step 起始 epoch 秒；attempt 起点的 step 剩余 ≤ 首次 attempt 预算时，
+                          该次 attempt 预算取 step 剩余（重试 attempt 不重复扣余量）
+  IOS_WATCHDOG_POLL_SECONDS
+                          看门狗轮询粒度秒数，默认 1（只影响轮询频率，不参与超时判定）
 
 退出码:
   0    测试通过，或工程缺失但降级的 swift test 真实通过（输出含 blocked:）
   1    工程存在但真实测试失败，或降级 swift test 失败
   2    参数非法
-  124  xcodebuild test 触发硬超时，或 UI 腿可用预算低于最小阈值（看门狗已强制终止/未起跑）
+  124  承载层硬超时（看门狗强制终止），或承载层预算不足（attempt/腿可用预算低于阈值，未起跑）
 EOF
 }
 
@@ -81,6 +90,10 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 cd "$repo_root"
+
+# 预算记账与看门狗抽到可 source 的纯逻辑库（scripts/tests/test-ios-budget.sh 直接单测）。
+# shellcheck source=lib/ios-budget.sh
+. "${script_dir}/lib/ios-budget.sh"
 
 ios_dir="ios"
 project_path="$ios_dir/PurePace.xcodeproj"
@@ -121,53 +134,78 @@ sim_reused_booted=0
 sim_boot_started_at=0
 sim_boot_pid=""
 xcodebuild_timeout="${IOS_XCODEBUILD_TIMEOUT:-600}"
-# 单测腿 / UI 腿各自独立预算（各一份 IOS_XCODEBUILD_TIMEOUT，默认 600s）；
-# 不再用「单测已耗时」从 UI 预算里扣减。UI 腿另有最小可用预算阈值。
-unit_budget="$xcodebuild_timeout"
-ui_budget="$xcodebuild_timeout"
+# 单测腿 / UI 腿各自独立上限（各一份 IOS_XCODEBUILD_TIMEOUT，默认 600s）；
+# 实际腿预算再取 min(单腿上界, 本次 attempt 剩余)，不再用「单测已耗时」从 UI 预算里扣减。
+unit_budget_cap="$xcodebuild_timeout"
+ui_budget_cap="$xcodebuild_timeout"
 ui_min_budget="${PUREPACE_IOS_UI_MIN_BUDGET_SECONDS:-300}"
-step_budget_seconds="${PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS:-}"
+# 预算记账：attempt 预算 = step 预算 − 重试余量（默认 2700 − 900 = 1800，严格小于 45min step 超时），
+# 为 ios.yml 的一次 infra 重试留出可判定余量；两个 env 均可覆盖，非法值回落默认。
+step_budget_seconds="$(ios_seconds_or_default "${PUREPACE_IOS_TEST_STEP_BUDGET_SECONDS:-}" 2700)"
+retry_reserve_seconds="$(ios_seconds_or_default "${PUREPACE_IOS_RETRY_RESERVE_SECONDS:-}" 900)"
 step_started_at="${PUREPACE_IOS_STEP_STARTED_AT:-}"
+attempt_started_at=0
+attempt_budget=""
 
-# step 级剩余预算（秒）；两个 env 缺失或非法时不约束（输出空串）。
-step_budget_remaining() {
-  case "${step_budget_seconds}" in
-    ""|*[!0-9]*) return 0 ;;
-  esac
+# attempt 起点的 step 剩余（秒）；PUREPACE_IOS_STEP_STARTED_AT 缺失/非法时输出空串（不约束）。
+step_remaining_at_start() {
   case "${step_started_at}" in
     ""|*[!0-9]*) return 0 ;;
   esac
   local now elapsed remaining
-  now="$(date +%s)"
+  now="$(ios_now_epoch)"
   elapsed=$((now - step_started_at))
-  if [ "$elapsed" -lt 0 ]; then
+  if [ "${elapsed}" -lt 0 ]; then
     elapsed=0
   fi
   remaining=$((step_budget_seconds - elapsed))
-  if [ "$remaining" -lt 0 ]; then
+  if [ "${remaining}" -lt 0 ]; then
     remaining=0
   fi
-  printf '%s' "$remaining"
+  printf '%s' "${remaining}"
 }
 
-# UI 腿可用预算：min(单腿预算, step 剩余)；step env 缺失时不约束。
-ui_leg_budget() {
-  local available="$ui_budget" step_left=""
-  step_left="$(step_budget_remaining)"
-  if [ -n "$step_left" ] && [ "$step_left" -lt "$available" ]; then
-    available="$step_left"
+# 本次 attempt 已用秒数（墙钟差额）。
+attempt_elapsed() {
+  local now elapsed
+  now="$(ios_now_epoch)"
+  elapsed=$((now - attempt_started_at))
+  if [ "${elapsed}" -lt 0 ]; then
+    elapsed=0
   fi
-  printf '%s' "$available"
+  printf '%s' "${elapsed}"
+}
+
+# 本次 attempt 剩余预算（秒）。
+attempt_budget_remaining() {
+  local left
+  left=$((attempt_budget - $(attempt_elapsed)))
+  if [ "${left}" -lt 0 ]; then
+    left=0
+  fi
+  printf '%s' "${left}"
+}
+
+# UI 腿可用预算：min(UI 单腿上界, 本次 attempt 剩余)。
+ui_leg_budget() {
+  ios_leg_budget "${ui_budget_cap}" "$(attempt_budget_remaining)"
+}
+
+# 承载层预算不足时打印口径行并返回 0（调用方据此以 124 退出）。
+budget_insufficient() {
+  local scope="$1"
+  local available="$2"
+  local threshold="$3"
+  if ios_budget_short "${available}" "${threshold}"; then
+    ios_budget_message "${scope}" "${available}" "${threshold}" "${step_budget_seconds}" "${retry_reserve_seconds}"
+    return 0
+  fi
+  return 1
 }
 
 # UI 可用预算低于最小阈值时打印一行并返回 0（调用方据此失败退出 124）。
 ui_budget_insufficient() {
-  local available="$1"
-  if [ "$available" -lt "$ui_min_budget" ]; then
-    echo "test-ios: 承载层预算不足：UI 腿可用 ${available}s < 最小阈值 ${ui_min_budget}s" >&2
-    return 0
-  fi
-  return 1
+  budget_insufficient "UI 腿" "$1" "${ui_min_budget}"
 }
 
 # 同机跨 worktree iOS 门串行化锁：固定目录 /tmp/purepace-ios-gate.lock。
@@ -188,18 +226,23 @@ ios_gate_lock_acquire() {
     echo "[lock] reentrant pid=$$ (PUREPACE_IOS_GATE_LOCK_HELD=1)"
     return 0
   fi
-  local waited=0 holder now mtime age stale
+  local elapsed=0 holder now mtime age stale started_at
+  started_at="$(ios_now_epoch)"
   while :; do
+    elapsed=$(( $(ios_now_epoch) - started_at ))
+    if [ "${elapsed}" -lt 0 ]; then
+      elapsed=0
+    fi
     if mkdir "${ios_gate_lock_dir}" 2>/dev/null; then
       printf '%s\n' "$$" > "${ios_gate_lock_dir}/pid"
       ios_gate_lock_held=1
       export PUREPACE_IOS_GATE_LOCK_HELD=1
       trap 'emit_timing; ios_gate_lock_release' EXIT
-      echo "[lock] acquired pid=$$ waited=${waited}s dir=${ios_gate_lock_dir}"
+      echo "[lock] acquired pid=$$ waited=${elapsed}s dir=${ios_gate_lock_dir}"
       return 0
     fi
     holder="$(cat "${ios_gate_lock_dir}/pid" 2>/dev/null || true)"
-    now="$(date +%s)"
+    now="$(ios_now_epoch)"
     mtime="$(stat -f %m "${ios_gate_lock_dir}" 2>/dev/null || stat -c %Y "${ios_gate_lock_dir}" 2>/dev/null || echo "${now}")"
     age=$((now - mtime))
     stale=0
@@ -213,38 +256,41 @@ ios_gate_lock_acquire() {
       rm -rf "${ios_gate_lock_dir}"
       continue
     fi
-    if [ "${waited}" -ge 1200 ]; then
-      echo "[lock] timeout pid=$$ waited=${waited}s holder=${holder:-<none>}" >&2
+    if [ "${elapsed}" -ge 1200 ]; then
+      echo "[lock] timeout pid=$$ waited=${elapsed}s holder=${holder:-<none>}" >&2
       return 3
     fi
-    if [ "${waited}" -eq 0 ]; then
+    if [ "${elapsed}" -eq 0 ]; then
       echo "[lock] waiting pid=$$ holder=${holder:-<none>}"
     fi
     sleep 30
-    waited=$((waited + 30))
   done
 }
 
 # 取锁后先有界等待其它 worktree 的 xcodebuild/simctl 归零；有并发时禁止 shutdown/erase。
 ios_gate_lock_wait_quiescent() {
-  local waited=0 others
+  local elapsed=0 others started_at
+  started_at="$(ios_now_epoch)"
   while :; do
+    elapsed=$(( $(ios_now_epoch) - started_at ))
+    if [ "${elapsed}" -lt 0 ]; then
+      elapsed=0
+    fi
     # 真实设备 WebDriverAgentRunner 常驻且不操作模拟器，不参与模拟器清场互斥。
     others="$(pgrep -fl 'xcodebuild|simctl' 2>/dev/null | grep -v -e 'purepace-ios-gate' -e 'WebDriverAgentRunner' -e "^$$ " -e "^${PPID} " || true)"
     if [ -z "${others}" ]; then
-      echo "[lock] quiescent pid=$$ waited=${waited}s"
+      echo "[lock] quiescent pid=$$ waited=${elapsed}s"
       return 0
     fi
-    if [ "${waited}" -ge 600 ]; then
-      echo "[lock] timeout-quiescent pid=$$ waited=${waited}s" >&2
+    if [ "${elapsed}" -ge 600 ]; then
+      echo "[lock] timeout-quiescent pid=$$ waited=${elapsed}s" >&2
       printf '%s\n' "${others}" >&2
       return 4
     fi
-    if [ "${waited}" -eq 0 ]; then
+    if [ "${elapsed}" -eq 0 ]; then
       echo "[lock] waiting-quiescent pid=$$"
     fi
     sleep 10
-    waited=$((waited + 10))
   done
 }
 
@@ -402,15 +448,19 @@ prepare_simulator_for_ui_tests() {
   # terminate 与随后 xcodebuild 的 terminate_running_process=1 之间存在拆进程窗口，
   # SBMainWorkspace 可能在上一个实例真正退出前返回 Busy/preflight 失败。轮询 launchctl
   # 确认 bundle 进程已消失再返回；有界约 10s，不使用裸 sleep 定时器或无限重试。
-  local warmup_waited=0
+  local warmup_started_at=0
+  local warmup_elapsed=0
   local warmup_limit=10
-  while [ "$warmup_waited" -lt "$warmup_limit" ]; do
+  warmup_started_at="$(ios_now_epoch)"
+  while :; do
     if ! xcrun simctl spawn "$sim_udid" launchctl list 2>/dev/null | grep -Fq -- "$bundle_id"; then
-      warmup_waited=$warmup_limit
+      break
+    fi
+    warmup_elapsed=$(( $(ios_now_epoch) - warmup_started_at ))
+    if [ "${warmup_elapsed}" -ge "${warmup_limit}" ]; then
       break
     fi
     sleep 1
-    warmup_waited=$((warmup_waited + 1))
   done
   if xcrun simctl spawn "$sim_udid" launchctl list 2>/dev/null | grep -Fq -- "$bundle_id"; then
     echo "test-ios: 阶段 simulator-warmup 失败：terminate 后 ${warmup_limit}s 内 ${bundle_id} 仍在 launchctl 列表（模拟器 ${sim_udid}）" >&2
@@ -445,40 +495,18 @@ refresh_location_always_until_stopped() {
   done
 }
 
-# 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）：超时先 TERM 再 KILL，
-# 打印超时阶段与已执行测试摘要，返回 124；正常退出时透传子进程退出码。
-run_with_watchdog() {
-  local timeout_seconds="$1"
-  local out_log="$2"
-  shift 2
-  local command_pid=""
-  local waited=0
-  local wait_status=0
-  "$@" >"$out_log" 2>&1 &
-  command_pid=$!
-  while kill -0 "$command_pid" 2>/dev/null; do
-    if [ "$waited" -ge "$timeout_seconds" ]; then
-      echo "test-ios: 阶段 xcodebuild-test 硬超时（${timeout_seconds}s），强制终止 PID ${command_pid}" >&2
-      kill -TERM "$command_pid" >/dev/null 2>&1 || true
-      sleep 2
-      kill -KILL "$command_pid" >/dev/null 2>&1 || true
-      wait "$command_pid" >/dev/null 2>&1 || true
-      echo "test-ios: runner bootstrap 挂起：xcodebuild test 在 ${timeout_seconds}s 硬超时前未完成（未进入产品断言）" >&2
-      echo "test-ios: 超时前已执行的测试摘要：" >&2
-      grep -E "Test Case .*(started|passed|failed)|Executed [0-9]+ tests" "$out_log" 2>/dev/null | tail -n 40 >&2 || true
-      cat "$out_log" 2>/dev/null || true
-      return 124
-    fi
-    sleep 1
-    waited=$((waited + 1))
-  done
-  wait "$command_pid" || wait_status=$?
-  return "$wait_status"
-}
+# 进程级硬超时看门狗（macOS bash 3.2 无 GNU timeout）定义在 scripts/lib/ios-budget.sh：
+# 按墙钟差额判定超时（sleep 仅作轮询粒度），超时先 TERM 再 KILL 后返回 124，正常退出透传退出码。
 
 # 单测/UI 两次 xcodebuild test 的公共前置说明：
 # 两次调用各自落盘日志（xcodebuild-unit.log / xcodebuild-ui.log），预算按腿独立。
 test_with_xcodebuild() {
+  # 本次 attempt 预算 = step 预算 − 重试余量；重试 attempt（step 剩余 ≤ 首次预算）取 step 剩余。
+  attempt_started_at="$(ios_now_epoch)"
+  attempt_budget="$(ios_attempt_budget "${step_budget_seconds}" "${retry_reserve_seconds}" "$(step_remaining_at_start)")"
+  if budget_insufficient "本次 attempt" "${attempt_budget}" "${ui_min_budget}"; then
+    return 124
+  fi
   ios_gate_lock_acquire || exit $?
   sim_udid="$(select_simulator || true)"
   if [ -z "$sim_udid" ]; then
@@ -497,8 +525,13 @@ test_with_xcodebuild() {
   # 第一次调用：单元测试（-only-testing:PurePaceTests）；日志与 Executed 摘要先落盘。
   local unit_status=0
   local unit_started
+  local unit_budget=""
+  unit_budget="$(ios_leg_budget "${unit_budget_cap}" "$(attempt_budget_remaining)")"
+  if budget_insufficient "单测腿" "${unit_budget}" 1; then
+    return 124
+  fi
   unit_started="$(date +%s)"
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${unit_budget}s，日志 ${unit_log}）"
+  echo "info: xcodebuild test-without-building -only-testing:PurePaceTests -scheme ${scheme} -destination '${destination}'（预算 ${unit_budget}s，attempt 剩余 ${attempt_budget}s，日志 ${unit_log}）"
   run_with_watchdog "$unit_budget" "$unit_log" \
     xcodebuild test-without-building \
     -project "$project_path" \
@@ -515,6 +548,10 @@ test_with_xcodebuild() {
   # 单测摘要必须先于 UI 调用输出：UI 失败不得覆盖单测结论。
   echo "info: PurePaceTests 摘要（先于 UI 落盘：${unit_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$unit_log" 2>/dev/null | tail -n 10 || true
+  if [ "$unit_status" -eq 124 ]; then
+    echo "test-ios: 承载层硬超时：单测腿在 ${unit_budget}s 腿预算内未完成（来源：attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s；归口承载层预算，不计为产品用例）" >&2
+    return 124
+  fi
   if [ "$unit_status" -ne 0 ]; then
     echo "test-ios: 阶段 xcodebuild-unit 失败：PurePaceTests 退出 ${unit_status}（模拟器 ${sim_udid}）" >&2
     return "$unit_status"
@@ -576,7 +613,7 @@ test_with_xcodebuild() {
   echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true
   if [ "$ui_status" -eq 124 ]; then
-    echo "test-ios: 阶段 xcodebuild-ui 失败：超过 ${ui_available}s 硬超时被强制终止（模拟器 ${sim_udid}）" >&2
+    echo "test-ios: 承载层硬超时：UI 腿在 ${ui_available}s 腿预算内未完成（来源：attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s；归口承载层预算，不计为产品用例）" >&2
   elif [ "$ui_status" -ne 0 ]; then
     echo "test-ios: 阶段 xcodebuild-ui 失败：xcodebuild test 退出 ${ui_status}（模拟器 ${sim_udid}）" >&2
   fi
