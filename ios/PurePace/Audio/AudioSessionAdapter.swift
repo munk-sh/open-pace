@@ -142,13 +142,15 @@ final class AudioSessionAdapter: NSObject {
     }
 
     /// 播报结束：仅在确实处于激活态时停用一次，选项取自配置的 `deactivationOptions`。
-    /// 返回是否真实下发平台调用（即 duck 撤销/会话恢复是否发生）。
+    /// 返回 `true` 当且仅当 `setActive(false, …)` 真实执行成功；动作 `.none` 返回 `false`
+    /// 且不发起任何平台调用；平台调用抛错时错误向上抛出、协调器状态保持 `.active`。
     @discardableResult
     func endAnnouncement() throws -> Bool {
         let action = coordinator.deactivate()
-        let performed = Self.performsPlatformCall(action)
+        if case .none = action { return false }
         try perform(action)
-        return performed
+        coordinator.commitDeactivation()
+        return true
     }
 
     /// 测试与系统通知共用的处理入口：投递真实 `AVAudioSession.interruptionNotification`。

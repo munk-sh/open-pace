@@ -97,5 +97,5 @@ iOS App 侧「机器自证」遥测子域：在既有跑步链路（Run → 结�
 - 结论：`verdict: 3` — 真机 window `trun_fa2b41fa85283565`（候选 2c7c4f3）三条播报的 `sessionDeactivated`/`duckRevoked` 恒 false 唯一归因为「`AudioSessionCoordinator.deactivate()` 先置 `.inactive` 再返回 `.deactivate` 动作，`setActive(false, ...)` 抛出后被 `SpeechAnnouncementSpeaker.speak` 的 `onFinish` catch 吞掉并强制写 false」，错误对象被丢弃、遥测无错误字段（可观测性缺口）。①遥测派生字段写错与②回调时序致状态机非 active 均被测试与证据证伪（三条播报窗口内零中断事件、时长 4.4907/4.1481/4.4588s 完整、`cancelled=false`）。
 - 交付：定性结论与写入方/分支表、指纹矩阵、证据读数、最小修法建议落盘 `.munk/changes/wi_intake_f76b858c0c2376f5/digest.md`；`ios/PurePaceTests/AnnouncementSpeakerTests.swift` 扩展 `AudioSessionSpy.deactivationError` 注入点并新增 4 例（true 分支 / 中断 false 分支 / 抛错 false 分支复现真机指纹 / 两个音频环境布尔双值透传）。未改生产代码与遥测 JSON 契约。
 - 实测：`AnnouncementSpeakerTests` 11/11 通过、`** TEST SUCCEEDED **`；`bash scripts/test-ios.sh --unit-only` exit 0（`PurePaceTests` 全 suite + RunCore 123/123）。
-- 未交付项（下一项前置）：停用失败路径的**生产修法尚未落地**（`announcementSpeaker` catch 记录错误 + `.deactivate` 有界重试/失败回滚状态），需 Owner 另派写项；遥测契约若需新增错误码/结束状态字段同样另派。设备侧窄场复验仍为 `pending: 待人现场`。
+- 后续承接：停用失败路径的生产修法已由 `wi_intake_2ba71ae036eedd40` 落地，会话停用语义、失败诊断文件与 A/B/C 验收归 `ios-audio-session` 域（「盲重试一次 + 失败回滚 `.active`」已被公司裁决否决，不在此域复活）；本域遥测契约仍不新增错误码 / 结束状态字段。设备侧窄场复验仍为 `pending: 待人现场`。
 

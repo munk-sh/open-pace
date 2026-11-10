@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 import PurePaceRunCore
 import XCTest
 @testable import PurePace
@@ -49,8 +50,44 @@ private final class AudioSessionSpy: AudioSessionControlling {
     }
 }
 
-private enum InjectedAudioError: Error {
-    case setActiveFalseFailed
+/// 只记录、不落盘的诊断接缝默认值：普通用例不触碰真实容器 Documents。
+private final class DiagnosticsSpy: AnnouncementDeactivationDiagnosing {
+    private(set) var outcomes: [AnnouncementDeactivationOutcome] = []
+
+    func record(_ outcome: AnnouncementDeactivationOutcome) {
+        outcomes.append(outcome)
+    }
+}
+
+/// 断言诊断文件 JSON 结构（ac-diagnostics-schema）的解码模型。
+private struct DiagnosticsDocument: Decodable {
+    struct Entry: Decodable {
+        let splitIndex: Int
+        let occurredAt: Double
+        let outcome: String
+        let errorDomain: String?
+        let errorCode: Int?
+        let coordinatorStateBefore: String
+        let coordinatorStateAfter: String
+        let platformCallIssued: Bool
+    }
+
+    let version: Int
+    let outcomes: [Entry]
+}
+
+private func diagnosticsFileURL(in directory: URL) -> URL {
+    directory.appendingPathComponent(
+        AnnouncementDeactivationDiagnosticsFile.relativePath,
+        isDirectory: false
+    )
+}
+
+private func readDiagnostics(in directory: URL) throws -> DiagnosticsDocument {
+    try JSONDecoder().decode(
+        DiagnosticsDocument.self,
+        from: Data(contentsOf: diagnosticsFileURL(in: directory))
+    )
 }
 
 private final class SpeechSynthesizerSpy: SpeechSynthesizing {
@@ -215,16 +252,21 @@ final class AnnouncementSpeakerTests: XCTestCase {
 
     // MARK: - 停用边界：true / 中断 / 抛错三分支
 
-    /// 机制① 证伪基线：协调器保持 `.active` 时结束播报，派生值唯一来自真实平台调用。
+    /// 机制① A 成功路径：协调器保持 `.active` 时结束播报，派生值唯一来自真实平台调用；
+    /// 正常路径平台调用次数不变（`[true, false]` / 停用 1 次），诊断文件不新增记录。
     func testActiveSessionDeactivationWritesTrueDerivationsAndSinglePlatformCall() {
         let session = AudioSessionSpy()
         let synthesizer = SpeechSynthesizerSpy()
         let recorder = AnnouncementTelemetryRecorder()
+        let diagnosticsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("announcement-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: diagnosticsDirectory) }
         let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
         let speaker = makeSpeaker(
             adapter: adapter,
             synthesizer: synthesizer,
-            telemetry: recorder
+            telemetry: recorder,
+            diagnostics: AnnouncementDeactivationDiagnosticsFile(directoryURL: diagnosticsDirectory)
         )
 
         speaker.speak(makeCommand(splitIndex: 1))
@@ -234,7 +276,7 @@ final class AnnouncementSpeakerTests: XCTestCase {
 
         XCTAssertEqual(adapter.state, .inactive)
         XCTAssertEqual(session.activations.count, 1)
-        XCTAssertEqual(session.deactivations.count, 1)
+        XCTAssertEqual(session.deactivations.count, 1, "正常路径只下发一次 setActive(false)")
         XCTAssertEqual(session.deactivations.first?.options, [.notifyOthersOnDeactivation])
         XCTAssertEqual(
             session.activationCalls.map(\.active),
@@ -250,20 +292,30 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertTrue(entry.duckRevoked)
         XCTAssertFalse(entry.cancelled)
         XCTAssertNotNil(entry.finishedAt)
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: diagnosticsFileURL(in: diagnosticsDirectory).path),
+            "成功路径不得写诊断文件"
+        )
     }
 
-    /// 机制② 复现：播报中出现 interruption began，didFinish 时协调器已非 `.active`，
-    /// `deactivate()` 返回 `.none`，因此没有平台停用调用、两个派生字段均为 false；
-    /// 随后 `shouldResume == false` 让状态回到 `.inactive`，下一次播报重新激活。
+    /// 机制② C `.interrupted` 路径：播报中出现 interruption began，didFinish 时协调器已非
+    /// `.active`，`deactivate()` 返回 `.none`，因此没有平台停用调用、两个派生字段均为 false，
+    /// 诊断文件新增 1 条 `not-applicable`（而非 `failed`）；随后 `shouldResume == false`
+    /// 让状态回到 `.inactive`，下一次播报重新激活。
     func testInterruptionDuringSpeechSuppressesDeactivationThenNextAnnouncementReactivates() {
         let session = AudioSessionSpy()
         let synthesizer = SpeechSynthesizerSpy()
         let recorder = AnnouncementTelemetryRecorder()
+        let diagnosticsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("announcement-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: diagnosticsDirectory) }
         let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
         let speaker = makeSpeaker(
             adapter: adapter,
             synthesizer: synthesizer,
-            telemetry: recorder
+            telemetry: recorder,
+            diagnostics: AnnouncementDeactivationDiagnosticsFile(directoryURL: diagnosticsDirectory)
         )
 
         speaker.speak(makeCommand(splitIndex: 1))
@@ -285,6 +337,24 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertFalse(first.cancelled)
         XCTAssertNotNil(first.finishedAt)
 
+        do {
+            let document = try readDiagnostics(in: diagnosticsDirectory)
+            XCTAssertEqual(document.version, 1)
+            XCTAssertEqual(document.outcomes.count, 1, "not-applicable 恰好一条")
+            let record = try XCTUnwrap(document.outcomes.first)
+            XCTAssertEqual(record.splitIndex, 1)
+            XCTAssertEqual(record.outcome, "not-applicable")
+            XCTAssertNil(record.errorDomain)
+            XCTAssertNil(record.errorCode)
+            XCTAssertEqual(record.coordinatorStateBefore, "interrupted")
+            XCTAssertEqual(record.coordinatorStateAfter, "interrupted")
+            XCTAssertFalse(record.platformCallIssued)
+            XCTAssertGreaterThan(record.occurredAt, 0)
+            XCTAssertFalse(document.outcomes.contains { $0.outcome == "failed" })
+        } catch {
+            XCTFail("读取诊断文件失败：\(error)")
+        }
+
         adapter.handleInterruption(.ended(shouldResume: false))
         XCTAssertEqual(adapter.state, .inactive)
         XCTAssertTrue(session.deactivations.isEmpty)
@@ -298,19 +368,24 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertTrue(second.sessionActivated)
     }
 
-    /// 机制③ 复现：`setActive(false)` 抛出后 `speak` 的 catch 吞错，协调器状态已先转
-    /// `.inactive`；落盘指纹恰为真机观测到的 `sessionActivated=true` +
-    /// `sessionDeactivated=false` + `finishedAt != nil` + `cancelled=false`。
-    func testThrownDeactivationProducesObservedFalseFingerprintAndNextActivation() {
+    /// 机制③ B 抛错路径：`setActive(false)` 抛出时错误向上抛出、`state` 保持 `.active`
+    /// （不提交、无重试、无回滚），落盘仍按真实结果写 false/false，并新增一条 `failed`
+    /// 诊断记录；下一次播报不再重复激活，但结束仍能真实停用。
+    func testThrownDeactivationKeepsActiveStateWritesFailureDiagnosticsAndRetriesNone() {
         let session = AudioSessionSpy()
-        session.deactivationError = InjectedAudioError.setActiveFalseFailed
+        let injectedError = NSError(domain: "InjectedAudioErrorDomain", code: 561_017_449)
+        session.deactivationError = injectedError
         let synthesizer = SpeechSynthesizerSpy()
         let recorder = AnnouncementTelemetryRecorder()
+        let diagnosticsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("announcement-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: diagnosticsDirectory) }
         let adapter = AudioSessionAdapter(controller: session, observesInterruptions: false)
         let speaker = makeSpeaker(
             adapter: adapter,
             synthesizer: synthesizer,
-            telemetry: recorder
+            telemetry: recorder,
+            diagnostics: AnnouncementDeactivationDiagnosticsFile(directoryURL: diagnosticsDirectory)
         )
 
         speaker.speak(makeCommand(splitIndex: 1))
@@ -318,8 +393,8 @@ final class AnnouncementSpeakerTests: XCTestCase {
         synthesizer.start()
         synthesizer.finish()
 
-        XCTAssertEqual(session.deactivations.count, 1, "平台停用调用已发起但抛出")
-        XCTAssertEqual(adapter.state, .inactive, "deactivate 先改状态、后执行平台调用")
+        XCTAssertEqual(session.deactivations.count, 1, "一次结束路径最多下发一次 setActive(false)")
+        XCTAssertEqual(adapter.state, .active, "平台调用失败时不得提交停用状态")
 
         guard let first = recorder.snapshot().first else {
             return XCTFail("缺少首条播报遥测条目")
@@ -330,13 +405,90 @@ final class AnnouncementSpeakerTests: XCTestCase {
         XCTAssertFalse(first.cancelled)
         XCTAssertNotNil(first.finishedAt)
 
+        do {
+            let document = try readDiagnostics(in: diagnosticsDirectory)
+            XCTAssertEqual(document.version, 1)
+            XCTAssertEqual(document.outcomes.count, 1, "失败恰好一条诊断记录")
+            let record = try XCTUnwrap(document.outcomes.first)
+            XCTAssertEqual(record.splitIndex, 1)
+            XCTAssertEqual(record.outcome, "failed")
+            XCTAssertEqual(record.errorDomain, injectedError.domain)
+            XCTAssertEqual(record.errorCode, injectedError.code)
+            XCTAssertEqual(record.coordinatorStateBefore, "active")
+            XCTAssertEqual(record.coordinatorStateAfter, "active")
+            XCTAssertTrue(record.platformCallIssued)
+            XCTAssertGreaterThan(record.occurredAt, 0)
+        } catch {
+            XCTFail("读取诊断文件失败：\(error)")
+        }
+
+        // 清除注入错误，验证下一次结束能真实停用成功。
+        session.deactivationError = nil
         speaker.speak(makeCommand(splitIndex: 2))
-        XCTAssertEqual(session.activations.count, 2, "状态已转 inactive，下一次播报仍能重新激活")
+        XCTAssertEqual(session.activations.count, 1, "协调器仍为 active，不再下发 setActive(true)")
         XCTAssertEqual(adapter.state, .active)
+        synthesizer.finish()
+
+        XCTAssertEqual(session.deactivations.count, 2, "下一次结束仍下发 setActive(false)")
+        XCTAssertEqual(session.activations.count, 1)
+        XCTAssertEqual(adapter.state, .inactive)
         guard let second = recorder.snapshot().last else {
             return XCTFail("缺少第二条播报遥测条目")
         }
-        XCTAssertTrue(second.sessionActivated)
+        XCTAssertFalse(second.sessionActivated)
+        XCTAssertTrue(second.sessionDeactivated)
+        XCTAssertTrue(second.duckRevoked)
+    }
+
+    /// ac-diagnostics-file-path：固定相对路径、追加保留历史、损坏文件重置、成功不写。
+    func testDiagnosticsFileAppendsOutcomesAtFixedRelativePath() {
+        XCTAssertEqual(
+            AnnouncementDeactivationDiagnosticsFile.relativePath,
+            "Diagnostics/announcement-deactivation.json"
+        )
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("announcement-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = diagnosticsFileURL(in: directory)
+        try? FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        // 损坏的历史文件应被重置为空而不是抛错。
+        try? Data("not-json".utf8).write(to: fileURL)
+
+        let writer = AnnouncementDeactivationDiagnosticsFile(directoryURL: directory)
+        writer.record(.success)
+        writer.record(
+            .failed(
+                splitIndex: 1,
+                occurredAt: Date(timeIntervalSince1970: 100),
+                error: NSError(domain: "InjectedDomain", code: 7),
+                coordinatorStateBefore: .active,
+                coordinatorStateAfter: .active,
+                platformCallIssued: true
+            )
+        )
+        writer.record(
+            .notApplicable(
+                splitIndex: 2,
+                occurredAt: Date(timeIntervalSince1970: 200),
+                coordinatorStateBefore: .interrupted,
+                coordinatorStateAfter: .interrupted
+            )
+        )
+
+        do {
+            let document = try readDiagnostics(in: directory)
+            XCTAssertEqual(document.version, 1)
+            XCTAssertEqual(document.outcomes.map(\.outcome), ["failed", "not-applicable"])
+            XCTAssertEqual(document.outcomes.map(\.splitIndex), [1, 2])
+            XCTAssertEqual(document.outcomes[0].occurredAt, 100, accuracy: 0.001)
+            XCTAssertEqual(document.outcomes[1].occurredAt, 200, accuracy: 0.001)
+        } catch {
+            XCTFail("读取诊断文件失败：\(error)")
+        }
     }
 
     /// ac-derived-fields-provenance：音频环境布尔在 `beginAnnouncement` 之后实时读取，
@@ -371,12 +523,14 @@ final class AnnouncementSpeakerTests: XCTestCase {
         session: AudioSessionSpy,
         synthesizer: SpeechSynthesizerSpy,
         telemetry: AnnouncementTelemetryRecording? = nil,
+        diagnostics: AnnouncementDeactivationDiagnosing = DiagnosticsSpy(),
         now: @escaping () -> Date = { Date() }
     ) -> SpeechAnnouncementSpeaker {
         makeSpeaker(
             adapter: AudioSessionAdapter(controller: session, observesInterruptions: false),
             synthesizer: synthesizer,
             telemetry: telemetry,
+            diagnostics: diagnostics,
             now: now
         )
     }
@@ -385,12 +539,14 @@ final class AnnouncementSpeakerTests: XCTestCase {
         adapter: AudioSessionAdapter,
         synthesizer: SpeechSynthesizerSpy,
         telemetry: AnnouncementTelemetryRecording? = nil,
+        diagnostics: AnnouncementDeactivationDiagnosing = DiagnosticsSpy(),
         now: @escaping () -> Date = { Date() }
     ) -> SpeechAnnouncementSpeaker {
         SpeechAnnouncementSpeaker(
             audioSession: adapter,
             synthesizer: synthesizer,
             telemetry: telemetry,
+            diagnostics: diagnostics,
             now: now
         )
     }
