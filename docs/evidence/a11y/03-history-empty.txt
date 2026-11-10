@@ -1,36 +1,36 @@
-Attributes: Application, 0x11aa0b350, pid: 6536, label: 'PurePace'
+Attributes: Application, 0x1039a3c30, pid: 79661, label: 'PurePace'
 Element subtree:
- →Application, 0x11aa0b350, pid: 6536, label: 'PurePace'
-    Window (Main), 0x11aa0bd20, {{0.0, 0.0}, {393.0, 852.0}}
-      Other, 0x11aa16790, {{0.0, 0.0}, {393.0, 852.0}}
-        Other, 0x11aa16170, {{0.0, 0.0}, {393.0, 852.0}}
-          Other, 0x11aa14c50, {{0.0, 0.0}, {393.0, 852.0}}
-            Other, 0x11aa139e0, {{0.0, 0.0}, {393.0, 852.0}}
-              Other, 0x11aa16290, {{0.0, 0.0}, {393.0, 852.0}}
-                Other, 0x11aa163b0, {{0.0, 0.0}, {393.0, 852.0}}
-                  Other, 0x11aa16b90, {{0.0, 0.0}, {393.0, 852.0}}
-                    Other, 0x11aa16cb0, {{0.0, 0.0}, {393.0, 852.0}}
-                      Other, 0x11aa16dd0, {{0.0, 0.0}, {393.0, 852.0}}
-                        Other, 0x11aa16ef0, {{0.0, 0.0}, {393.0, 852.0}}
-                          Other, 0x11aa17010, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
-                            NavigationBar, 0x11aa17130, {{0.0, 53.7}, {393.0, 96.0}}, identifier: 'History'
-                              StaticText, 0x11aa17250, {{16.0, 101.3}, {116.0, 40.7}}, label: 'History'
-                            Other, 0x11aa17370, {{0.0, 0.0}, {393.0, 852.0}}
-                              Other, 0x11aa17490, {{0.0, 0.0}, {393.0, 852.0}}
-                                Other, 0x11aa175b0, {{0.0, 0.0}, {393.0, 852.0}}
-                                  Other, 0x11aa176d0, {{0.0, 0.0}, {393.0, 852.0}}
-                                    StaticText, 0x11aa177f0, {{129.3, 384.3}, {134.3, 24.0}}, identifier: 'history.empty', label: '还没有跑次记录'
-                                    StaticText, 0x11aa17910, {{40.2, 424.3}, {312.7, 36.0}}, label: '完成一次跑步后，这里会按时间列出你的每一次跑次。'
-                                    Button, 0x11aa17a30, {{24.0, 476.3}, {345.0, 58.0}}, identifier: 'history.runAgain', label: '去跑一次'
-                TabBar, 0x11aa17b50, {{0.0, 769.0}, {393.0, 83.0}}, label: 'Tab Bar'
-                  Button, 0x11aa17c70, {{2.0, 770.0}, {127.0, 48.0}}, label: 'Run'
-                  Button, 0x11aa17d90, {{133.0, 770.0}, {127.0, 48.0}}, label: 'History', Selected
-                    Image, 0x11aa17eb0, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
-                  Button, 0x11aa17fd0, {{264.0, 770.0}, {127.0, 48.0}}, label: 'Settings'
+ →Application, 0x1039a3c30, pid: 79661, label: 'PurePace'
+    Window (Main), 0x1039a2f90, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x1039a3f30, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x1039a4050, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x1039a3d50, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x1039a2510, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x1039a4170, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x1039a4290, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x1039a43b0, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x1039a44d0, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x1039a45f0, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x1039a4710, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x1039a4830, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
+                            NavigationBar, 0x1039a4950, {{0.0, 53.7}, {393.0, 96.0}}, identifier: '历史'
+                              StaticText, 0x1039a4a70, {{16.0, 101.3}, {64.7, 40.7}}, label: '历史'
+                            Other, 0x1039a4b90, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x1039a4cb0, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x1039a4dd0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x1039a4ef0, {{0.0, 0.0}, {393.0, 852.0}}
+                                    StaticText, 0x1039a5010, {{129.3, 384.3}, {134.3, 24.0}}, identifier: 'history.empty', label: '还没有跑次记录'
+                                    StaticText, 0x1039a5130, {{40.0, 424.3}, {313.0, 36.0}}, label: '完成一次跑步后，这里会按时间列出你的每一次跑次。'
+                                    Button, 0x1039a5250, {{24.0, 476.3}, {345.0, 58.0}}, identifier: 'history.runAgain', label: '去跑一次'
+                TabBar, 0x1039a5370, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
+                  Button, 0x1039a5490, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
+                  Button, 0x1039a55b0, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史', Selected
+                    Image, 0x1039a56d0, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
+                  Button, 0x1039a57f0, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
 Path to element:
- →Application, 0x11aa0b350, pid: 6536, label: 'PurePace'
+ →Application, 0x1039a3c30, pid: 79661, label: 'PurePace'
 Query chain:
  →Find: Target Application 'sh.munk.purepace'
   Output: {
-    Application, 0x11aa18530, pid: 6536, label: 'PurePace'
+    Application, 0x103d12840, pid: 79661, label: 'PurePace'
   }

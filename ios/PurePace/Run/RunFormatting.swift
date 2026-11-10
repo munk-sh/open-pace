@@ -6,6 +6,9 @@ enum RunFormatting {
     /// 配速空态固定占位，便于 UI 测试稳定断言。
     static let emptyPace = "--"
 
+    /// 全仓固定时区：中文日期格式必须与设备时区无关，固定 fixture 才能稳定断言。
+    static let zhHansTimeZone = TimeZone(identifier: "Asia/Shanghai")!
+
     static func distanceText(_ distance: RunDistance) -> String {
         String(format: "%.2f km", distance.meters / 1000)
     }
@@ -33,9 +36,23 @@ enum RunFormatting {
         "\(max(0, count))"
     }
 
+    /// 历史行 / 详情共用的 zh-Hans 日期时间（分钟精度，如「2025年10月9日 16:53」）。
+    static func zhHansDateTimeText(_ date: Date, timeZone: TimeZone = zhHansTimeZone) -> String {
+        zhHansDateText(date, format: "yyyy年M月d日 HH:mm", timeZone: timeZone)
+    }
+
     /// 历史详情的起止时间：带秒，保证同一次跑次的开始/结束文本可区分。
-    static func dateTimeText(_ date: Date) -> String {
-        date.formatted(date: .abbreviated, time: .standard)
+    static func dateTimeText(_ date: Date, timeZone: TimeZone = zhHansTimeZone) -> String {
+        zhHansDateText(date, format: "yyyy年M月d日 HH:mm:ss", timeZone: timeZone)
+    }
+
+    private static func zhHansDateText(_ date: Date, format: String, timeZone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        formatter.dateFormat = format
+        return formatter.string(from: date)
     }
 
     /// 分段序号文本（`RunSplit.index` 从 1 开始）。

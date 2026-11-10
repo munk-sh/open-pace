@@ -38,7 +38,7 @@ struct HistoryView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("History")
+            .navigationTitle(L10n.historyNavigationTitle)
             .navigationDestination(isPresented: $detailPresented) {
                 if let record = detailRecord {
                     RunDetailView(record: record, exporter: exporter)
@@ -52,16 +52,16 @@ struct HistoryView: View {
 
     private var emptyState: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
-            Text("还没有跑次记录")
+            Text(L10n.historyEmptyTitle)
                 .font(DesignTokens.Typography.title)
                 .foregroundStyle(DesignTokens.Colors.primary)
                 .accessibilityIdentifier("history.empty")
-            Text("完成一次跑步后，这里会按时间列出你的每一次跑次。")
+            Text(L10n.historyEmptyBody)
                 .font(DesignTokens.Typography.body)
                 .foregroundStyle(DesignTokens.Colors.secondary)
                 .multilineTextAlignment(.center)
             Button(action: onRunAgain) {
-                Text("去跑一次")
+                Text(L10n.historyRunAgain)
                     .font(DesignTokens.Typography.control)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: DesignTokens.minTapTarget)
@@ -69,14 +69,14 @@ struct HistoryView: View {
             .buttonStyle(.borderedProminent)
             .tint(DesignTokens.Colors.accent)
             .accessibilityIdentifier("history.runAgain")
-            .accessibilityLabel("去跑一次")
+            .accessibilityLabel(Text(L10n.historyRunAgain))
         }
         .padding(DesignTokens.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func row(for record: RunRecord) -> some View {
-        let dateText = record.startedAt.formatted(date: .abbreviated, time: .shortened)
+        let dateText = RunFormatting.zhHansDateTimeText(record.startedAt)
         let metricsText = rowMetricsText(for: record)
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
             Text(dateText)

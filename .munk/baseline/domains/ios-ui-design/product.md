@@ -1,6 +1,6 @@
 # Domain: ios-ui-design
 
-PurePace iOS 三屏（Run / History / Settings）视觉层级与设计 token 收敛域：用 `ios/PurePace/Design/DesignTokens.swift` 做全仓唯一 token 真源（颜色 / 字号 / 字重 / 间距 / 圆角 / 图标尺寸 / 最小触控尺寸），三屏只引用 token；跑步页建立「主信息 ≫ 次信息」层级，历史页建立「日期 → 距离/时长/配速」层级并给空态 CTA，设置页用带分组标题的 Section + 每项说明。全部断言落在既有单测腿（`test-ios`）与静态腿（`lint-ios-shell`），不新增 UI/模拟器腿；证据为真实 `simctl` 截图 + 可及树文本。
+PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局锚定域：用 `ios/PurePace/Design/DesignTokens.swift` 做全仓唯一 token 真源（颜色 / 字号 / 字重 / 间距 / 圆角 / 图标尺寸 / 最小触控尺寸），三屏只引用 token；跑步页建立「主信息 ≫ 次信息」层级，历史页建立「日期 → 距离/时长/配速」层级并给空态 CTA，设置页用带分组标题的 Section + 每项说明。用户可见文案为 zh-Hans 单语，唯一来源是 `ios/PurePace/Resources/Localizable.xcstrings`（视图只引用 `L10n` 键）；主操作统一下沉到 TabBar 之上的底部安全区。全部断言落在既有单测腿（`test-ios`）、静态腿（`lint-ios-shell`）与既有 UI 腿（`test-ios` 的 `PurePaceUITests`），不新增 gate；证据为真实 `simctl` 截图 + 可及树文本。
 
 ## 范围
 
@@ -13,6 +13,11 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级与设计 token 收
 - `ios/PurePace/Run/RunLaunchArguments.swift` + `ios/PurePace/History/HistoryDemoRecords.swift`：`value(after:)` / `flagEnabled(_:)` 纯函数解析，演示跑次整文件 `#if DEBUG` 包裹、不落盘、不读夹具。
 - 断言：`ios/PurePaceTests/DesignTokensTests.swift`（token 不变量 L1 单测）+ `scripts/check-ios-shell.sh` 的 `validate_design_tokens`（token 唯一性、三屏无样式字面量、主/次层级、关键文案、a11y 标签、identifier、demo 入口禁令）与其 `--self-test` 正负反例。
 - 证据入仓：`docs/screenshots/run-not-started.png`、`run-running.png`、`history-detail.png`（另含 `history-empty.png` / `settings.png`）与 `docs/evidence/a11y/0{1..6}-*.txt`。
+- `ios/PurePace/Resources/Localizable.xcstrings`：String Catalog，`sourceLanguage = zh-Hans`，三屏全部用户可见文案（Tab / 导航标题 / 字段标签 / 空态 / 提示 / 按钮 / 状态 / a11y label）的唯一真源；`ios/project.yml` 声明 `developmentLanguage: zh-Hans`、`knownRegions`、`INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans` 并以 XcodeGen 重生成工程。
+- `ios/PurePace/Design/L10n.swift`：本地化键唯一入口（`LocalizedStringKey` 静态属性 + 少量 `String(localized:)` 用于拼接），视图内不得保留裸英文文案字面量。
+- `ios/PurePace/Design/{VisibleTextPolicy,VisibleDatePolicy,PrimaryActionLayoutPolicy}.swift`：三条判定的纯函数实现，与 `PurePaceTests` / `PurePaceUITests` 共用同一源文件（`project.yml` 显式列入 UITests target sources）。
+- `ios/PurePace/Run/RunView.swift`：主内容区改为 `ScrollView + VStack`，`controls` 由 `.safeAreaInset(edge: .bottom)` 承载，`.ready` / `.running` / `.paused` / 保存态共用同一底部锚点；保存态主操作 `run.viewHistory` 回历史 Tab（纯视图回调）。
+- `ios/PurePace/Run/RunFormatting.swift`：`zhHansDateTimeText`（分钟精度，历史行）与 `dateTimeText`（带秒，详情）统一走 `zh_Hans_CN` locale + 固定 `dateFormat` + 固定 `TimeZone`（`Asia/Shanghai`），历史行不再直调 `date.formatted(...)`。
 
 ## 验收
 
@@ -27,10 +32,12 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级与设计 token 收
 - ac-history-empty-state: 空态同时含非空标题、非空一句说明与 CTA「去跑一次」；空态不含样例/夹具数据。
 - ac-history-export-discoverable: 跑次详情存在可点击「导出 GPX」入口（`runDetail.export`），位于导航可达位置，导出流程与既有断言标识不变。
 - ac-settings-grouped: 设置页使用带分组标题的 Section（至少「播报」组），每项一句说明；`settings.announcementToggle` 与 `Toggle` 保留；不出现 `Stepper` / `Slider` / 示例数值 / 「暂无可配置项」。
-- ac-copy-strings: `开始`、`暂停`、`继续`、`结束`、`还没有跑次记录`、`去跑一次`、`每公里语音播报`、`导出 GPX` 均在源码中存在且非空。
+- ac-visible-copy-zh-hans: 三屏（跑步/历史/设置）可及树中全部可见 label/text 逐条匹配 zh-Hans 白名单（仅允许 `km`、`/km`、`GPX`、`PurePace` 等专有名词/单位与数字），零裸英文；判定抽成纯函数 `VisibleTextPolicy.isAllowed/violations`，单测用固定中文列表通过 + 英文反例（`Run`/`History`/`Settings`）证明能红；UI 用例把真实可及树喂给同一判定，静态腿断言 `Localizable.xcstrings` 的 `sourceLanguage == zh-Hans`、三屏视图无 `Text/Label/Button/navigationTitle/accessibilityLabel("英文…")` 裸字面量。
+- ac-run-detail-date-zh-hans: 单测以固定 `Date`（`1760000000`）+ 固定 `TimeZone`（`Asia/Shanghai`）断言详情时间形如「2025年10月9日 16:53」/带秒同形，不含英文月份集合与 `at`；历史行日期同走 `RunFormatting.zhHansDateTimeText`；`VisibleDatePolicy.isZhHansDateTime` 对 `Oct 9, 2025 at 16:53`、`10/9/25, 4:53 PM`、`2025/10/09 16:53` 等反例样本必须返回拒绝。
+- ac-primary-action-bottom-anchored: UI 用例在首屏「开始」、运行中「暂停」、结束保存态（`run.viewHistory`）三态读取主操作按钮 `frame`，判定（a）高 ≥44pt；（b）按钮底边距 TabBar 顶边 ≤24pt；（c）位于 TabBar 之上；判定抽成纯函数 `PrimaryActionLayoutPolicy.evaluate`，单测用「距安全区 200pt / 高 30pt」与「低于 TabBar」反例证明能红。
 - ac-a11y-identifiers: 主操作除 label 外必须有 `accessibilityIdentifier`；三个 Tab 与关键控件有可读 label + identifier（`run.start` / `run.pause` / `run.resume` / `run.finish` / `history.runAgain` / `history.row` / `runDetail.export` / `runDetail.root` / `settings.announcementToggle` / `tab.run` / `tab.history` / `tab.settings`）；验收 = 真实构建的可及树里可按 identifier 定位（见 `docs/evidence/a11y/`）。identifier 只用于定位与模拟器测试，不做真机驱动埋点。
 - ac-zero-demo-entry: 首屏与工作流工具栏的 demo / 示例入口数为 0；静态段对 `Button`/`ToolbarItem`/`NavigationLink`/`Label` 内出现「示例 / 样例 / Demo / demo」判失败。
-- ac-assertions-in-gates: 上述断言经既有 `test-ios`（`PurePaceTests`，含 `DesignTokensTests`）与 `lint-ios-shell`（`validate_design_tokens` + `--self-test` 正负反例）两条 gate 运行；不新增 XCUITest 用例、不新增 UI 驱动腿、不改 `code-gates.json` 门列表。
+- ac-assertions-in-gates: 上述断言经既有三条 gate 运行——`test-ios`（`PurePaceTests`：`DesignTokensTests` + `LocalizationPolicyTests`；`PurePaceUITests`：含 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction`）、`lint-ios-shell`（`validate_design_tokens` + `validate_localization` + `--self-test` 正负反例）、`build-ios`；不改 `code-gates.json` 门列表、不新增 gate id。
 - ac-local-gates-green: `bash -n scripts/check-ios-shell.sh`、`bash scripts/check-ios-shell.sh`、`bash scripts/test-ios.sh --unit-only`、`bash scripts/build-ios.sh` 本机全部退出 0。
 - ac-screenshots-archived: `docs/screenshots/run-not-started.png`（首屏）、`run-running.png`（运行中）、`history-detail.png`（历史详情）存在且为 `simctl io screenshot` 产出的非空 PNG；连同可及树文本 `docs/evidence/a11y/01..06-*.txt` 入仓；不以 XCTest attachment 顶替、不手绘。
 - ac-demo-data-gated: 运行中与历史详情所需数据只由 `#if DEBUG` + 启动参数（`-uiTestLocation` / `-screenshotHistoryDemo` / `-screenshotOpenRunDetail`）注入，Release 路径不可达、不落盘、不引用 `shared/fixtures` 或 `.gpx`/`.tcx` 夹具；截图注记「演示数据不入发布路径」。
@@ -42,23 +49,27 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级与设计 token 收
 - 不做深色模式专项适配（token 只留 `Appearance` 结构位）、不做动效/动画专项、不做 Android 视觉对齐、不做截图回归基线。
 - 不引入第三方主题系统 / 第三方 UI 依赖 / 跨端框架；不替换系统语义色与系统控件的基本行为。
 - 不改状态机与业务契约：`RunSessionViewModel` / `RunSessionOrchestrator` / `RunLocationSource` / AudioSession / TTS / 持久化 / GPX 导出与命名契约零改动。
-- 不新增/改动 XCUITest 用例与模拟器 UI 驱动腿；不改 `scripts/test-ios.sh` 与 `.github/workflows/*` 的 UI 腿；不新增 gate id。
+- 不做英文 / 双语 / 其它 locale（本期 zh-Hans 单语）；不做日期以外的本地化（数字/单位/时区以外不改）。
+- 不改 `scripts/test-ios.sh` 与 `.github/workflows/*` 的 UI 腿；UI 断言只扩既有 `PurePaceUITests` 用例（新增 1 例 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction`），不新增 gate id。
 - 不把示例/种子数据放进首屏或发布业务流；不在 `shared/` 增加夹具。
-- 不改 `project.yml` 依赖与 target 结构（新文件落既有 `PurePace` 源目录）。
+- 不改 `project.yml` 的 target 结构与依赖：只增本地化声明（`developmentLanguage` / `knownRegions` / `INFOPLIST_KEY_CFBundleDevelopmentRegion`）与把三条策略纯函数列入 UITests sources，无新 target、无新依赖。
 - 不做真机验收与设备场；真机项一律 `pending: 待人现场`。
 
 ## 实现约束
 
 - Token 只增不改语义：视图改为引用 token，不改系统语义色/控件行为；`DesignTokens.Colors` 是唯一颜色出入口，深色模式后续只在此扩展。
 - 既有 identifier 是稳定测试契约，原样保留（`run.distance` / `run.elapsed` / `run.currentPace` / `run.averagePace` / `run.splits` / `run.saved` / `history.empty` / `history.row` / `runDetail.*` / `settings.announcementToggle` 等）；新增 identifier 只做可及树定位。
-- 静态断言写在既有 `scripts/check-ios-shell.sh` 的 `validate_design_tokens`，并在 `--self-test` 补正负反例（token 文件缺失、样式字面量、空 label、缺 Tab 标识、缺控件标识、demo 入口），**不新增 gate id、不改 `code-gates.json`**；门禁用真实 `grep -Fq`/`grep -Eq` 断言，不用通配允许表。
+- 静态断言写在既有 `scripts/check-ios-shell.sh` 的 `validate_design_tokens` / `validate_localization`，并在 `--self-test` 补正负反例（token 文件缺失、样式字面量、空 label、缺 Tab 标识、缺控件标识、demo 入口、视图裸英文、缺 String Catalog），**不新增 gate id、不改 `code-gates.json`**；门禁用真实 `grep -Fq`/`grep -Eq` 断言，不用通配允许表；`pipefail` 下禁用 `cmd | grep -q`，改 here-string / 内建匹配。
+- 本地化单一来源：新增 `ios/PurePace/Resources/Localizable.xcstrings` 是唯一文案真源；视图只引用 `L10n.*`（`LocalizedStringKey`），需要拼进 `String` 的状态提示走 `String(localized:)`；`RunFormatting` 的 `km` / `/km` 单位拼接属白名单，不改硬编码文案；工程由 XcodeGen 从 `ios/project.yml` 重新生成，禁手改 `project.pbxproj`。
+- 日期判定：`RunFormatting.zhHansDateTimeText` / `dateTimeText` 显式 `zh_Hans_CN` + 固定 `dateFormat` + 固定 `TimeZone`，与设备时区/语言无关；历史行与详情共用同一实现，`VisibleDatePolicy` 只判形与字符集。
+- 底部锚定：`RunView` 主内容与操作区分离，`controls` 只经 `.safeAreaInset(edge: .bottom)` 承载（不写 `Spacer()` 顶开），主按钮 `frame(minHeight: DesignTokens.minTapTarget)`；三态共用同一容器，指标区与操作区之间不留固定大空白。
 - 设置页静态约束：`validate_settings_view` 禁止 `Stepper` / `Slider` / 「示例」/「Sample」/「暂无可配置项」，新文案须避开这些词。
 - 截图造态：只允许 DEBUG 编译期 + 启动参数门控；`HistoryDemoRecords` 整文件 `#if DEBUG` 包裹、不落盘、默认启动不可见；`xcrun simctl io <udid> screenshot` 产出，安装包来自 `bash scripts/build-ios.sh` 的 `.build/ios`。
 - 证据口径：只写模拟器 / 单测 / 静态断言结论，真机项写 `pending: 待人现场`，不得写「真机已验证」或「深色模式已适配」。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_837f0c6ab9066cf5（2026-11-11，pass）
-- 交付：新建 `DesignTokens.swift` token 单一真源；三屏样式全部改为 token 引用并建立主/次信息层级；历史空态与详情导出入口可发现；设置页分组 + 说明文案；Tab 与主操作补可及标识，`accessibilityLabel` 非空互异。
-- 断言：`DesignTokensTests`（9 例）随 `test-ios` 运行；`check-ios-shell.sh` 新增 `validate_design_tokens` 与其 7 组正负自检（28 项断言 0 失败，`--self-test` 36 项 0 失败）；`code_gates` 22 门全绿，单测 125 例 0 失败，`build-ios.sh` SUCCEEDED。
-- 证据：`docs/screenshots/{run-not-started,run-running,history-detail,history-empty,settings}.png` + `docs/evidence/a11y/01..06-*.txt`，均由真实 `simctl` 构建采集；演示数据 `#if DEBUG` + 启动参数门控。真机项 `pending: 待人现场`。
+- workItemId: wi_intake_41e9dc65e08c5971（2026-11-11，pass）
+- 交付：三屏用户可见文案全部收敛到 `Resources/Localizable.xcstrings`（`sourceLanguage = zh-Hans`）+ `Design/L10n.swift` 键入口，视图零裸英文；`project.yml` 增 `developmentLanguage` / `knownRegions` / `CFBundleDevelopmentRegion` 并经 XcodeGen 重生成；历史行与详情日期改走固定 `zh_Hans_CN` + `Asia/Shanghai` 的 `RunFormatting.zhHansDateTimeText` / `dateTimeText`；`RunView` 主内容与 `controls` 分离，操作区经 `.safeAreaInset(edge: .bottom)` 固定 TabBar 之上，`.ready` / `.running` / 保存态共用锚点，保存态主操作新增 `run.viewHistory` 回历史 Tab；既有 identifier 与 `#if DEBUG` 门控未变。
+- 判定与断言：新增纯函数 `VisibleTextPolicy` / `VisibleDatePolicy` / `PrimaryActionLayoutPolicy`（与 UITests target 共用源文件）；`LocalizationPolicyTests` 8 例（含英文反例、200pt/30pt 与低于 TabBar 反例）随 `test-ios --unit-only` 运行，125 例 0 失败；`check-ios-shell.sh` 新增 `validate_localization`（catalog `sourceLanguage`、`project.yml` 声明、三屏裸英文扫描）与其正负自检，29 项断言 0 失败；`code_gates` 22 门全绿、`build-ios` SUCCEEDED。
+- 证据：UI 用例 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 在 iPhone 16 / iOS 18.6 模拟器真实通过（`.build/evidence/zhHans-final2.xcresult`），三态实测主按钮高与底部间距均满足 ≥44pt / ≤24pt；`docs/screenshots/` 5 图与 `docs/evidence/a11y/01..06-*.txt` 已按新文案与布局重新采集。UI 腿权威在 CI `ios.yml`；真机项 `pending: 待人现场`。
