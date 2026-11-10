@@ -1,4 +1,4 @@
-# PurePace Release candidate 2c7c4f3（真机验收用，非 TestFlight 发布包）
+# PurePace Release candidate 2c7c4f3（历史候选，仅记录构建身份，非 TestFlight 发布包）
 
 本文件是产品数据目录记录
 `products/codebase_19e8ad47434ff059/artifacts/candidates/Release-candidate-2c7c4f3.txt`

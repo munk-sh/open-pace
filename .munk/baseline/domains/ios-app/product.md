@@ -74,7 +74,7 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 - ac-auth-transitions-injectable: 注入 `RunLocationManaging` 桩可驱动授权变化，XCTest 覆盖 `notDetermined → authorizedWhenInUse → authorizedAlways` 与 `denied`/`restricted` 分支，每次变化都回调 delegate；生产默认使用真实 `CLLocationManager` 包装（`SystemLocationManager` 强引用 manager 且 delegate 绑定到自身）。
 - ac-bg-ingest-continuous: 模拟锁屏/进后台/进程挂起后恢复（重叠时间窗与重复投递）时，ingest 最终样本无重复、无丢失段落，与既有 checkpoint 重启恢复结果一致；不重写持久化格式。
 - ac-ios-local-gates-green: `bash scripts/build-ios.sh` + `bash scripts/test-ios.sh`（`xcodebuild build` / `xcodebuild test`）全绿并输出 `** TEST SUCCEEDED **`，`check-ios-shell.sh`、`check-ios-scripts.sh` 等 iOS 相关门全绿，`.munk/code-gates.json` 门数不减、既有门语义不放宽。
-- ac-delivery-artifacts: Delivery 阶段产出候选 zip 与可执行 `sha256` 校验值，供真机硬门绑定（不构成真机验收结论）。
+- ac-delivery-artifacts: Delivery 阶段产出候选 zip 与可执行 `sha256` 校验值，供交付记录标注构建身份（不构成真机验收结论）。
 
 ## 非目标
 
@@ -109,7 +109,6 @@ PurePace iOS App 运行域：把 `ios/PurePace` 从空壳占位页换成真实�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_6b267814f7d23323（2026-11-09，pass）
-- 交付：`RunLocationSource` 拆出可注入 seam（`RunLocationManaging` / `RunLocationManagerHandler`，生产 `SystemLocationManager` 包装真实 `CLLocationManager` 并自任 delegate），跑步进行态 `beginUpdating()` 置 `allowsBackgroundLocationUpdates = true`，`endUpdating()`（stop / 失权）复位为 `false`；`start()` 在 `notDetermined` 请求 WhenInUse、已 WhenInUse 时每实例一次 `requestAlwaysAuthorization` 升级；`RunLocationAuthorization` 新增 `backgroundCapable` 与 `backgroundDegradationHint`，`RunView` 渲染 `run.backgroundDegraded` 提示；`project.yml` 补 `INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription`，既有 `UIBackgroundModes: location` 保留。
-- 门禁与测试同步：`check-ios-shell.sh` 新增 `validate_background_location_source`（后台开关置位/复位、Always 升级、`backgroundCapable`、`backgroundDegradationHint`、`run.backgroundDegraded`）+ 4 个单点破坏反例自检，`validate_location_config` 增加 Always 用途说明非空断言与空值反例，`unit_tests` 纳入 `RunLocationSourceTests`。新增 8 例：plist 后台模式读回、跑步态后台开关、stop/失权复位、notDetermined 先 WhenInUse、WhenInUse 升级一次性、授权迁移与降级提示、denied/restricted、后台恢复 ingest 无重复无丢段。
-- 实测：`code_gates` 23 门全绿（含 `lint-ios-shell` / `build-ios` / `test-ios` / `test-ios-run-core`）；`test-ios` 单元 131 例 0 失败（含 8 例新增）+ UI 2 例通过、两段均 `** TEST SUCCEEDED **`；`ios/RunCore`、`ios/PurePace/Harness/` 与 import 允许表零改动，门数与 command 未变。结论口径：模拟器与代码层契约通过；真机锁屏连续定位、授权 Always 实机路径仍为 `pending: 待人现场`（未做真机验收）。
+- workItemId: wi_intake_1aa34f98b6e5f9a3（2026-11-10，pass）
+- 交付：`ac-delivery-artifacts` 措辞由「供真机硬门绑定」改为「供交付记录标注构建身份」，候选 zip 与可执行 `sha256` 产出方式及本域其余断言、技术结论均不变；`ios/**` 零改动。
+- 实测：`code_gates` 22 门全绿；`bash scripts/test-ios.sh` 全量腿退出 0，单测 125 例 + UI 6 例 0 失败。真机项一律 `pending: 待人现场`。

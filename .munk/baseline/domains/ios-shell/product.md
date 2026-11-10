@@ -56,7 +56,7 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 - ac-bundle-readback: hosted 单测 `RunLocationSourceTests.testInfoPlistBundleIdentifierIsFinalProductId` 断言 `Bundle.main.bundleIdentifier == "sh.munk.purepace"`；既有背景模式用例补 `audio` 后，`Bundle.main` 读回 `UIBackgroundModes` 同时含 `location` 与 `audio`。两者失败均打印实际读回值。
 - ac-signing-unchanged: `ios/project.yml` 仍含 `CODE_SIGNING_ALLOWED: NO`；bundle id 迁移 diff 中不出现 `DEVELOPMENT_TEAM`、`PROVISIONING_PROFILE`、证书/签名身份相关新增行。
 - ac-ios-scripts-final-id: `scripts/test-ios.sh`、`verify-ios-sim-runtime.sh`、`verify-ios-ui-e2e.sh` 内所有 bundle id 字面值为 `sh.munk.purepace`（含 usage 文案与报告兜底字段），各脚本 `--help` 退出 0、`bash -n` 通过。
-- ac-legacy-bundle-id-grep-exempt: `git grep -n 'com\.chaxiu\.purepace' -- ios scripts README.md docs` 在豁免清单外零命中；豁免仅限用户冻结的 device 取证套件（`scripts/verify-ios-device-flow.sh`、`docs/device-assertion-matrix.md`）与历史证据（`docs/evidence/**`、`artifacts/**`），历史记录不改写。
+- ac-legacy-bundle-id-grep-exempt: `git grep -n 'com\.chaxiu\.purepace' -- ios scripts README.md docs` 在豁免清单外零命中；豁免仅限历史证据（`docs/evidence/**`、`artifacts/**`），历史记录不改写。
 - ac-bundle-id-rename-no-business-change: `ios/PurePace/**` 源码零改动；唯一 Swift 源码改动在 `ios/PurePaceTests/RunLocationSourceTests.swift`（新增读回归断言）；定位、音频、持久化、UI 文案、GPX 导出行为零变化，无顺手重构。
 - ac-built-plist-readback-both: `ios/PurePaceTests` 中存在经 `code_gates` 的 `test-ios` unit 腿执行的用例，用 `Data(contentsOf:)` + `PropertyListSerialization` 读取已构建 `PurePace.app/Info.plist` **文件本体**，断言 `UIBackgroundModes` 实际数组同时包含 `location` 与 `audio`；缺任一值断言失败，并有同一读取路径的负向自检（夹具缺 location / 缺 audio / 空数组）。禁止只断言 `project.yml` 文本、禁止 `XCTSkip`。既有 `RunLocationSourceTests.testInfoPlistBackgroundModesContainsLocation` 保留不弱化。
 - ac-background-modes-shell-assertion: `scripts/check-ios-shell.sh` 的 `validate_location_config` 与 `--self-test` 改为校验「project.yml 无 `INFOPLIST_KEY_UIBackgroundModes` + 数组含 `location`/`audio` + Info.plist 数组含两者」，并保留正例与缺 location / 缺 audio / 重复 setting / 缺数组反例；强度不降，不改 `scripts/*` 其它逻辑。
@@ -98,7 +98,6 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 
 ## 最近交付证明
 
-- workItemId: wi_intake_af1e1082643399d9（2026-11-10，pass）
-- 交付：iOS 工程真源收敛到 `ios/project.yml`——`git rm --cached` 取消跟踪 `ios/PurePace.xcodeproj/` 全部生成物（pbxproj / workspace / shared scheme），`.gitignore` 采用方案 A 整目录忽略，`xcodegen generate` 后 `git status` 干净；shared scheme 仍由 spec 生成，但随生成物不入库（不再需要入库理由）。`check-ios-shell.sh` 改为「生成后 pbxproj 存在 + `git ls-files` 无 tracked pbxproj + `.gitignore` 命中 + 游离 pbxproj 仍失败」，`check-ios-scripts.sh` 的脚本分支锚点补 `xcodegen generate`，均未删除/放宽既有断言。
-- 实测：先 `xcodegen generate` 并刷新 `.build/ios` 后 `code_gates` 22 门全绿；`rm -rf ios/PurePace.xcodeproj` 后按 spec 重生成成功并跑通 `bash scripts/test-ios.sh --unit-only` 真实单测腿；`git ls-files | grep project.pbxproj` 为空。结论口径：模拟器契约通过、配置契约通过；真机与 TestFlight 仍为 `pending: 待人现场`。
-- 关联：CI 侧 drift 校验步骤见 `ci` 域；模拟器三链路证据腿见 `ios-sim-runtime` 域。
+- workItemId: wi_intake_1aa34f98b6e5f9a3（2026-11-10，pass）
+- 交付：`ac-legacy-bundle-id-grep-exempt` 的豁免清单删去已移除的 device 取证脚本与 `docs/device-assertion-matrix.md`，只保留历史证据 `docs/evidence/**`、`artifacts/**`；bundle id 技术结论与其余断言不变，`scripts/**`、`ios/**` 零改动。
+- 实测：`code_gates` 22 门全绿（`lint-ios-shell` 27 项断言 0 失败）；`bash scripts/test-ios.sh` 全量腿退出 0，单测 125 例 + UI 6 例 0 失败。真机与 TestFlight 仍为 `pending: 待人现场`。

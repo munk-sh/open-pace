@@ -54,7 +54,7 @@ bash scripts/version.sh --tools
 |---|---|
 | 本机定向跑新用例 | `xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,name=iPhone 16,OS=18.6" -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact CODE_SIGNING_ALLOWED=NO` |
 | 干净容器 + 容器级断言（本地可手动跑，非本地阻断门） | `bash scripts/verify-ios-ui-e2e.sh` |
-| 真机执行（由公司排窗，本仓库不自动跑） | `xcodebuild test -destination id=00008101-001C701E0A68001E -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact` |
+| 真机手测 | 真机验收已改为交付后由人按 `docs/device-manual-acceptance.md` 手测，agent 不再执行 |
 
 证据默认写 `.build/verify-ios-ui-e2e/export-evidence.json`，字段含 `recordId` / `gpxFile` / `sha256` / `trkptCount` / `sampleCount` / `timeSpanSeconds` / `ok`；显式 `--refresh-evidence` 时另复制到 `docs/evidence/stage3-e2e/export-evidence.json`。断言口径：GPX 为 1.1 且可解析、`trkpt` 数 == `samples` 数、时间跨度差与首末时间差均 ≤1s，结论只写「模拟器 + 代码层」。
 

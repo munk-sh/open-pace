@@ -61,9 +61,9 @@ bash scripts/test-android.sh
 bash scripts/check-baseline.sh
 ```
 
-L3（真机、锁屏定位、音频实听等）由 Product Ops 发起，不在本仓库脚本范围内。
+真机不做 agent 验收：锁屏定位、音频实听、定位授权等真机项一律 `pending: 待人现场`，交付后由人按 `docs/device-manual-acceptance.md` 手测；agent 与 CI 只跑 L1 单测与模拟器 UI 腿。
 
-**CI 定位约定**：CI 的 UI 测试禁止依赖隐藏式 simulator 定位投递；UI 测试用 launch-arg 门控（`-uiTestLocation`，仅 DEBUG）的确定性测试源，真实 CoreLocation 覆盖放 `scripts/verify-ios-sim-runtime.sh`（模拟器）/真机门。
+**CI 定位约定**：CI 的 UI 测试禁止依赖隐藏式 simulator 定位投递；UI 测试用 launch-arg 门控（`-uiTestLocation`，仅 DEBUG）的确定性测试源，真实 CoreLocation 覆盖放 `scripts/verify-ios-sim-runtime.sh`（模拟器）。
 
 ## Skill 路由（`.agents/skills/<name>`）
 

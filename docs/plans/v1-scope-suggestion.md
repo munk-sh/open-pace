@@ -30,13 +30,13 @@ V1 的成功标准只有一条：**一个人在真实户外跑 5 km，全程不�
 - `AVAudioSession(.playback, .spokenAudio, [.duckOthers, .mixWithOthers])`
 - `AVSpeechSynthesizer`：每公里播报（距离 + 配速 + 用时），可关
 - 播报结束后 `setActive(false, .notifyOthersOnDeactivation)` 恢复别人的音乐
-- 验收（**必须真机**）：边听 Spotify 边跑 1 km，音乐只降不暂停、播报后恢复；锁屏 30 min 仍连续记录
+- 验收（边听 Spotify 边跑 1 km，音乐只降不暂停、播报后恢复；锁屏 30 min 仍连续记录）：真机不做 agent 验收，交付后由人手测
 
 ### S3 · 节拍（cadence metronome）
 - `AVAudioEngine` + `AVAudioPlayerNode.scheduleBuffer(at:)` 采样级排程
 - BPM 60–220（步频目标），可开关、可跟随当前步频（`CMPedometer`/CoreMotion 可选）
 - 播报期间节拍不抖（暂停-续接策略）
-- 验收（**必须真机 + 有线耳机**）：180 BPM 连续 3 min，主观无漂移；与 Spotify 同时播放互不打断
+- 验收（180 BPM 连续 3 min 主观无漂移；与 Spotify 同时播放互不打断，需有线耳机）：真机不做 agent 验收，交付后由人手测
 
 ### S4 · 条码热量（V1 的差异点）
 - `AVCaptureMetadataOutput`（EAN-13/EAN-8/UPC-A）扫码 → OFF v2 查询
@@ -81,7 +81,7 @@ V1 的成功标准只有一条：**一个人在真实户外跑 5 km，全程不�
 
 ## 3. 仍需公司/人确认的三件事（阻塞实现，不阻塞调研）
 
-1. **真机**：至少 1 台 iPhone（iOS 18+）。没有它，S2/S3/S4 无法验收，建议在开工前到位。
+1. **真机**：至少 1 台 iPhone（iOS 18+）。S2/S3/S4 的真机项不做 agent 验收，交付后由人按 `docs/device-manual-acceptance.md` 手测；设备可后到位，不阻塞开工。
 2. **平台决策**：确认"iOS 首发、Android 后置"是否可接受；若不可接受，需按 spike §2 改选 Expo 并重估周期。
 3. **分发凭据**：ASC API Key + App 记录 + 隐私政策 URL + OFF 联系邮箱（清单见 spike §6）。
 
