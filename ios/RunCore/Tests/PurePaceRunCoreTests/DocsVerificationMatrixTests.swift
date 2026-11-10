@@ -1,0 +1,96 @@
+import XCTest
+
+/// `docs/verification-matrix.md` 的结构守护（L1，无 UI）。
+///
+/// 约束：纯表格、表头逐字一致、恰 10 条接缝、6 列；本项 4 行已实测（不含 pending），
+/// 另 6 行标 `pending: 待对应 item 回填`。
+final class DocsVerificationMatrixTests: XCTestCase {
+    private static let expectedHeader = "| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |"
+    private static let pendingMarker = "pending: 待对应 item 回填"
+    private static let expectedSeamCount = 10
+    private static let measuredSeams = ["后台定位", "锁屏", "重启", "Info.plist"]
+    private static let pendingSeams = ["TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
+
+    private enum MatrixError: Error, CustomStringConvertible {
+        case repoRootNotFound(start: String)
+        case fileMissing(String)
+
+        var description: String {
+            switch self {
+            case let .repoRootNotFound(start):
+                return "无法从 \(start) 向上定位含 VERSION 的仓库根"
+            case let .fileMissing(path):
+                return "验证矩阵文件不存在: \(path)"
+            }
+        }
+    }
+
+    // MARK: - 结构断言
+
+    func testMatrixIsPureTableWithExpectedHeaderAndColumns() throws {
+        let lines = try nonEmptyLines()
+
+        XCTAssertEqual(lines.first, Self.expectedHeader, "表头必须逐字等于约定列名")
+        XCTAssertEqual(lines.count, Self.expectedSeamCount + 2, "必须恰为表头 + 分隔行 + 10 行接缝")
+
+        for (offset, line) in lines.enumerated() {
+            XCTAssertTrue(line.hasPrefix("|"), "第 \(offset + 1) 行不是表格行：\(line)")
+            let cells = line.components(separatedBy: "|")
+            XCTAssertEqual(cells.count, 8, "第 \(offset + 1) 行必须恰为 6 列（含首尾分隔）：\(line)")
+            let middle = cells.dropFirst().dropLast()
+            XCTAssertTrue(middle.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty },
+                          "第 \(offset + 1) 行存在空单元格：\(line)")
+        }
+    }
+
+    // MARK: - 覆盖与 pending 归属
+
+    func testMatrixCoversTenSeamsAndOnlyPendingRowsAreMarked() throws {
+        let dataRows = Array(try nonEmptyLines().dropFirst(2))
+        XCTAssertEqual(dataRows.count, Self.expectedSeamCount)
+
+        let pendingRows = dataRows.filter { $0.contains(Self.pendingMarker) }
+        let measuredRows = dataRows.filter { !$0.contains(Self.pendingMarker) }
+        XCTAssertEqual(pendingRows.count, 6, "另两项的 6 条接缝必须标 pending")
+        XCTAssertEqual(measuredRows.count, 4, "本项 4 条接缝必须为实测行")
+
+        for seam in Self.measuredSeams {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertNotNil(row, "缺少实测接缝：\(seam)")
+            XCTAssertFalse(row?.contains(Self.pendingMarker) ?? true, "\(seam) 属本项实测，不得标 pending")
+        }
+        for seam in Self.pendingSeams {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertNotNil(row, "缺少待回填接缝：\(seam)")
+            XCTAssertTrue(row?.contains(Self.pendingMarker) ?? false, "\(seam) 未标 \(Self.pendingMarker)")
+        }
+    }
+
+    // MARK: - 读取
+
+    private func nonEmptyLines() throws -> [String] {
+        let url = try repoRoot().appendingPathComponent("docs/verification-matrix.md")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw MatrixError.fileMissing(url.path)
+        }
+        let text = try String(contentsOf: url, encoding: .utf8)
+        return text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func repoRoot() throws -> URL {
+        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let fileManager = FileManager.default
+        for _ in 0..<12 {
+            if fileManager.fileExists(atPath: url.appendingPathComponent("VERSION").path) {
+                return url
+            }
+            let parent = url.deletingLastPathComponent()
+            if parent.path == url.path { break }
+            url = parent
+        }
+        throw MatrixError.repoRootNotFound(start: #filePath)
+    }
+}
