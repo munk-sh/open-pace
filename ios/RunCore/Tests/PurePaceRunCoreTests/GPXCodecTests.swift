@@ -131,6 +131,105 @@ final class GPXCodecTests: XCTestCase {
         XCTAssertNil(decoded.points[0].cadence)
     }
 
+    // MARK: - Inline fixture mirroring the shared 4-point sample
+
+    /// 与共享 GPX 夹具（仓库 `shared` 目录下 4 点样例）**同值**的内联夹具（4 个 trkpt）。
+    /// RunCore 测试不得跨目录引用夹具路径：本层自带自包含夹具，
+    /// 跨目录逐字段比对由 `scripts/check-gpx-export.sh` 负责。
+    private struct InlinePoint {
+        let lat: String
+        let lon: String
+        let ele: String
+        let time: String
+        let heartRate: Int
+        let cadence: Int
+    }
+
+    private static let inlineFixturePoints: [InlinePoint] = [
+        InlinePoint(
+            lat: "31.230400", lon: "121.473700", ele: "12.0",
+            time: "2026-01-01T08:00:00Z", heartRate: 112, cadence: 82
+        ),
+        InlinePoint(
+            lat: "31.232200", lon: "121.474900", ele: "12.5",
+            time: "2026-01-01T08:01:00Z", heartRate: 128, cadence: 84
+        ),
+        InlinePoint(
+            lat: "31.234000", lon: "121.476100", ele: "13.2",
+            time: "2026-01-01T08:02:00Z", heartRate: 141, cadence: 86
+        ),
+        InlinePoint(
+            lat: "31.235800", lon: "121.477300", ele: "13.8",
+            time: "2026-01-01T08:03:00Z", heartRate: 147, cadence: 85
+        )
+    ]
+
+    private func inlineTimestamp(_ value: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)!
+    }
+
+    /// 同一条内联夹具的两个反例入口：换命名空间、或删掉某个 trkpt 的 `<ele>`。
+    private func inlineFixture(
+        namespace: String = "http://www.topografix.com/GPX/1/1",
+        omittingElevationAt omittedIndex: Int? = nil
+    ) -> String {
+        let points = Self.inlineFixturePoints.enumerated().map { index, point -> String in
+            let elevation = index == omittedIndex ? "" : "<ele>\(point.ele)</ele>"
+            return """
+                  <trkpt lat="\(point.lat)" lon="\(point.lon)">\(elevation)<time>\(point.time)</time>\
+                <extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>\(point.heartRate)</gpxtpx:hr>\
+                <gpxtpx:cad>\(point.cadence)</gpxtpx:cad></gpxtpx:TrackPointExtension></extensions></trkpt>
+                """
+        }.joined(separator: "\n")
+        return """
+        <gpx version="1.1" creator="inline" xmlns="\(namespace)" \
+        xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+          <trk><name>synthetic run</name><type>running</type><trkseg>
+        \(points)
+          </trkseg></trk>
+        </gpx>
+        """
+    }
+
+    func testInlineFixtureDecodesEveryFieldOfEveryPoint() throws {
+        let track = try GPXCodec.decode(Data(inlineFixture().utf8))
+        XCTAssertEqual(track.points.count, 4)
+
+        for (point, expected) in zip(track.points, Self.inlineFixturePoints) {
+            XCTAssertEqual(point.latitude, Double(expected.lat)!, accuracy: 1e-9)
+            XCTAssertEqual(point.longitude, Double(expected.lon)!, accuracy: 1e-9)
+            XCTAssertEqual(point.altitude, Double(expected.ele)!)
+            XCTAssertEqual(point.heartRate, expected.heartRate)
+            XCTAssertEqual(point.cadence, expected.cadence)
+            XCTAssertEqual(point.timestamp, inlineTimestamp(expected.time))
+        }
+    }
+
+    /// 反例 (a)：删掉 `trkpt[1]` 的 `<ele>` → 该点 `altitude` 变 `nil`，逐字段断言失败；
+    /// 其余三点的 ele 仍精确，证明判红只由被删字段触发。
+    func testInlineFixtureMissingElevationFailsAltitudeFieldAssertion() throws {
+        let track = try GPXCodec.decode(Data(inlineFixture(omittingElevationAt: 1).utf8))
+        XCTAssertEqual(track.points.count, 4)
+        XCTAssertEqual(track.points[0].altitude, 12.0)
+        XCTAssertEqual(track.points[2].altitude, 13.2)
+        XCTAssertEqual(track.points[3].altitude, 13.8)
+        XCTAssertNil(track.points[1].altitude, "删掉 <ele> 后该点 altitude 必须为 nil")
+        XCTAssertNotEqual(track.points[1].altitude, Double(Self.inlineFixturePoints[1].ele))
+    }
+
+    /// 反例 (b)：默认命名空间改成 GPX 1.0 → `decode` 必须抛 `unsupportedNamespace`，不得静默通过。
+    func testInlineFixtureLegacyNamespaceThrowsUnsupportedNamespace() {
+        guard let error = decodeError(inlineFixture(namespace: "http://www.topografix.com/GPX/1/0"))
+        else {
+            return XCTFail("expected unsupportedNamespace")
+        }
+        guard case .unsupportedNamespace = error else {
+            return XCTFail("expected unsupportedNamespace, got \(error)")
+        }
+    }
+
     // MARK: - Rejection paths
 
     func testDecodeRejectsDocumentWithoutTrackSegment() {

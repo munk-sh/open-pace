@@ -50,8 +50,10 @@ final class AnnouncementSchedulerTests: XCTestCase {
         for index in 1...5 {
             let split = makeSplit(index)
             splits.append(split)
+            // 每次 tick 都把**累计**公里当作 `newlyCompletedSplits`（引擎重算会重复上报），
+            // 因此「去掉 lastAnnouncedSplitIndex 过滤」会让旧公里重复播报、本用例必判红。
             let emitted = scheduler.tick(
-                makeUpdate(splits: splits, newly: [split], elapsed: Double(index) * 300),
+                makeUpdate(splits: splits, newly: splits, elapsed: Double(index) * 300),
                 state: .running
             )
             XCTAssertEqual(emitted.count, 1)
