@@ -59,7 +59,7 @@
     {
       "name": "container",
       "ok": true,
-      "detail": "读取真实容器 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/371E1EB9-96E8-43C1-9675-B9FFE60E0319"
+      "detail": "读取真实容器 $HOME/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/371E1EB9-96E8-43C1-9675-B9FFE60E0319"
     },
     {
       "name": "container-assertions",
@@ -80,7 +80,7 @@
   "container": {
     "ok": true,
     "problems": [],
-    "containerPath": "/Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/371E1EB9-96E8-43C1-9675-B9FFE60E0319",
+    "containerPath": "$HOME/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/371E1EB9-96E8-43C1-9675-B9FFE60E0319",
     "runs": {
       "count": 1,
       "files": [
