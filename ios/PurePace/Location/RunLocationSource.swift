@@ -196,6 +196,8 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     private func endUpdating() {
         isUpdating = false
         manager.allowsBackgroundLocationUpdates = false
+        // 停止时把自动暂停开关一并复位，避免残留脏值影响下一次开始的策略快照。
+        manager.pausesLocationUpdatesAutomatically = false
         manager.stopUpdatingLocation()
     }
 

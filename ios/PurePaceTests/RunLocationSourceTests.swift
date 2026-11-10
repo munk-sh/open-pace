@@ -104,6 +104,7 @@ final class RunLocationSourceTests: XCTestCase {
         source.stop()
 
         XCTAssertFalse(manager.allowsBackgroundLocationUpdates, "结束/停止后必须复位后台定位更新")
+        XCTAssertFalse(manager.pausesLocationUpdatesAutomatically, "结束/停止后必须复位系统自动暂停开关")
         XCTAssertEqual(manager.stopUpdatingCount, 1)
     }
 
@@ -199,6 +200,90 @@ final class RunLocationSourceTests: XCTestCase {
 
         XCTAssertEqual(recorder.authorizations, [.authorizedAlways, .denied, .restricted])
         XCTAssertGreaterThanOrEqual(manager.stopUpdatingCount, 2)
+    }
+
+    // MARK: - ac-loc-bg-flags-counterexample（脏值预置即回归夹具）
+
+    func testStopResetsDirtyBackgroundFlagsIncludingAutoPause() {
+        let manager = StubLocationManager()
+        manager.authorizationStatus = .authorizedAlways
+        let source = RunLocationSource(manager: manager)
+
+        // 回归夹具：把两个开关预置为「脏」值，生产漏掉任一复位即判红。
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = true
+
+        source.stop()
+
+        XCTAssertFalse(manager.allowsBackgroundLocationUpdates, "stop 后必须复位后台更新开关")
+        XCTAssertFalse(manager.pausesLocationUpdatesAutomatically, "stop 后必须复位自动暂停开关")
+    }
+
+    // MARK: - ac-loc-manager-delegate-retained
+
+    private final class WeakBox<Value: AnyObject> {
+        weak var value: Value?
+    }
+
+    private struct WeakReferences {
+        let underlying: WeakBox<CLLocationManager>
+        let delegateObject: WeakBox<AnyObject>
+    }
+
+    /// 在独立函数作用域内构造并释放数据源，返回仅含弱引用的观察盒。
+    private func makeReleasedWeakReferences() throws -> WeakReferences {
+        let underlying = WeakBox<CLLocationManager>()
+        let delegateObject = WeakBox<AnyObject>()
+        try autoreleasepool {
+            let source = RunLocationSource()
+            let manager = try XCTUnwrap(source.retainedManager as? SystemLocationManager, "生产默认应注入 SystemLocationManager")
+            underlying.value = manager.underlyingManager
+            delegateObject.value = manager.underlyingManager.delegate as AnyObject?
+
+            XCTAssertNotNil(underlying.value, "数据源存活期间 CLLocationManager 必须被强引用")
+            XCTAssertNotNil(delegateObject.value, "CLLocationManager.delegate 必须绑定持有包装对象")
+            XCTAssertTrue(manager.isDelegateAttached)
+            XCTAssertTrue(source.retainedManager === manager, "强引用身份不得被替换")
+        }
+        return WeakReferences(underlying: underlying, delegateObject: delegateObject)
+    }
+
+    func testManagerAndDelegateWeakReferencesDieWithSource() throws {
+        let references = try makeReleasedWeakReferences()
+
+        XCTAssertNil(references.delegateObject.value, "包装对象释放后 delegate 弱引用链必须断开")
+        XCTAssertNil(references.underlying.value, "释放 source 后底层 CLLocationManager 不得被额外强引用")
+    }
+
+    // MARK: - ac-auth-always-upgrade / ac-auth-wheninuse-degraded
+
+    func testAlwaysUpgradeClearsDegradedHint() {
+        let degraded = RunLocationAuthorization.authorizedWhenInUse
+        let upgraded = RunLocationAuthorization.authorizedAlways
+
+        XCTAssertNotEqual(
+            degraded.backgroundDegradationHint,
+            upgraded.backgroundDegradationHint,
+            "升级到 Always 后降级提示必须与 WhenInUse 态区分（应为 nil）"
+        )
+        XCTAssertNil(upgraded.backgroundDegradationHint)
+        XCTAssertTrue(upgraded.backgroundCapable)
+    }
+
+    func testWhenInUseDegradedCounterexample() {
+        let degraded = RunLocationAuthorization.authorizedWhenInUse
+        let upgraded = RunLocationAuthorization.authorizedAlways
+
+        XCTAssertNotEqual(
+            degraded.backgroundCapable,
+            upgraded.backgroundCapable,
+            "降级态若 backgroundCapable == true 会与 Always 无法区分，必须判红"
+        )
+        XCTAssertNotEqual(
+            degraded.backgroundDegradationHint == nil,
+            upgraded.backgroundDegradationHint == nil,
+            "降级态若缺提示会与 Always 无法区分，必须判红"
+        )
     }
 
     // MARK: - ac-bg-ingest-continuous

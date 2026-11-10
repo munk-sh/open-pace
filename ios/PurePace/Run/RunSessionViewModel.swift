@@ -16,6 +16,14 @@ final class RunSessionViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     /// DEBUG + `-uiTestLocation` 时暴露的遥测摘要，供 XCUITest 断言；Release 恒为 nil。
     @Published private(set) var telemetrySummary: String?
+    /// 运行态下被单调守卫整条丢弃的等时/倒退采样条数（paused 下 drop 不计）。
+    @Published private(set) var duplicateSampleCount = 0
+    /// 当前是否处于 `protectedDataWillBecomeUnavailable` … `DidBecomeAvailable` 区间。
+    @Published private(set) var isProtectedDataLocked = false
+    /// 进入锁屏区间的时刻（注入时钟）；解锁后复位为 `nil`。
+    @Published private(set) var protectedDataUnavailableSince: Date?
+    /// 本次实例是否由 checkpoint 恢复构造。
+    @Published private(set) var didRestoreFromCheckpoint = false
 
     private var orchestrator: RunSessionOrchestrator
     private let locationSource: RunLocationProviding
@@ -29,6 +37,8 @@ final class RunSessionViewModel: ObservableObject {
     private let lifecycleSnapshotBox: RunLifecycleSnapshotBox
     private let autoStartRecording: Bool
     private let now: () -> Date
+    /// 锁屏区间观察者；非可选 `let`，生命周期跟随 ViewModel。
+    private let lockObservation: RunProtectedDataObservation
 
     private var sampleSources: [TimeInterval: RunSampleSource] = [:]
     private var backgroundSnapshot: (allows: Bool, pauses: Bool)?
@@ -48,9 +58,18 @@ final class RunSessionViewModel: ObservableObject {
         autoStartRecording: Bool = false,
         lifecycleRecorder: RunLifecycleTelemetryRecording? = nil,
         bundleInfo: BundleInfoProviding? = nil,
-        now: @escaping () -> Date = { Date() }
+        now: @escaping () -> Date = { Date() },
+        restoringCheckpoint: RunCheckpoint? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
-        let orchestrator = RunSessionOrchestrator(
+        let orchestrator = restoringCheckpoint.map {
+            RunSessionOrchestrator(
+                restoring: $0,
+                checkpointStore: checkpointStore,
+                archiveStore: archiveStore,
+                announcementsEnabled: announcementsEnabled
+            )
+        } ?? RunSessionOrchestrator(
             checkpointStore: checkpointStore,
             archiveStore: archiveStore,
             announcementsEnabled: announcementsEnabled
@@ -72,7 +91,48 @@ final class RunSessionViewModel: ObservableObject {
         self.bundleInfo = bundleInfo ?? SystemBundleInfoProvider()
         self.autoStartRecording = autoStartRecording
         self.now = now
+        self.didRestoreFromCheckpoint = restoringCheckpoint != nil
+        self.duplicateSampleCount = orchestrator.duplicateSampleCount
+        let reference = WeakViewModelReference()
+        self.lockObservation = RunProtectedDataObservation(center: notificationCenter) { isLocked in
+            guard let viewModel = reference.value else { return }
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { viewModel.applyProtectedDataLock(isLocked) }
+            } else {
+                Task { @MainActor in viewModel.applyProtectedDataLock(isLocked) }
+            }
+        }
+        reference.value = self
         locationSource.delegate = self
+        if restoringCheckpoint != nil {
+            updateLifecycleSnapshot()
+        }
+    }
+
+    /// 应用级恢复入口：从 checkpoint 文件读回最后一次有效记录并构造全新实例（含 orchestrator）。
+    ///
+    /// 尾行不完整/非法由 `RunCheckpointStore.loadLatest()` 静默丢弃并回退上一条有效记录；
+    /// 非尾行损坏原样上抛 `RunCoreError.corruptedCheckpoint`（禁止降级为零度量会话）。
+    static func makeRestored(
+        checkpointStore: RunCheckpointStore,
+        archiveStore: RunArchiveStore,
+        locationSource: RunLocationProviding,
+        announcements: AnnouncementSpeaking? = nil,
+        announcementsEnabled: Bool = true,
+        notificationCenter: NotificationCenter = .default,
+        now: @escaping () -> Date = { Date() }
+    ) throws -> RunSessionViewModel {
+        let checkpoint = try checkpointStore.loadLatest()
+        return RunSessionViewModel(
+            checkpointStore: checkpointStore,
+            archiveStore: archiveStore,
+            locationSource: locationSource,
+            announcements: announcements,
+            announcementsEnabled: announcementsEnabled,
+            now: now,
+            restoringCheckpoint: checkpoint,
+            notificationCenter: notificationCenter
+        )
     }
 
     // MARK: - 生命周期
@@ -94,6 +154,7 @@ final class RunSessionViewModel: ObservableObject {
     func start() {
         guard state == .ready else { return }
         runSampleCount = 0
+        duplicateSampleCount = 0
         updateLifecycleSnapshot()
         perform { try orchestrator.start(at: now()) }
         locationSource.start()
@@ -144,6 +205,7 @@ final class RunSessionViewModel: ObservableObject {
     func ingest(_ sample: RunSample) {
         do {
             apply(try orchestrator.ingest(sample))
+            duplicateSampleCount = orchestrator.duplicateSampleCount
         } catch {
             errorMessage = Self.describe(error)
         }
@@ -192,6 +254,12 @@ final class RunSessionViewModel: ObservableObject {
         self.state = state
         self.metrics = metrics
         updateLifecycleSnapshot()
+    }
+
+    /// 锁屏区间只写可观测状态，绝不触发 pause/resume/finish、不停定位、不补样本。
+    private func applyProtectedDataLock(_ isLocked: Bool) {
+        isProtectedDataLocked = isLocked
+        protectedDataUnavailableSince = isLocked ? now() : nil
     }
 
     /// 事件快照只看本跑次：样本计数在 `start()` 归零，距离/时长取编排器度量。
@@ -274,5 +342,44 @@ extension RunSessionViewModel: RunLocationSourceDelegate {
 
     func locationSource(_ source: RunLocationProviding, didChangeAuthorization authorization: RunLocationAuthorization) {
         self.authorization = authorization
+    }
+}
+
+/// 弱引用盒：让锁屏观察闭包不直接捕获尚未完成初始化的 `self`。
+final class WeakViewModelReference: @unchecked Sendable {
+    weak var value: RunSessionViewModel?
+}
+
+/// 锁屏区间观察者：只把两条 protected-data 通知映射为「已锁定」布尔。
+///
+/// 不做任何会话动作（不 pause/resume/finish、不停定位、不补样本）；回调按 `queue: nil`
+/// 在投递线程同步执行，`deinit` 移除 token。与 `RunLifecycleTelemetryRecorder` 同构。
+final class RunProtectedDataObservation: @unchecked Sendable {
+    private let center: NotificationCenter
+    private var tokens: [NSObjectProtocol] = []
+
+    init(center: NotificationCenter, onChange: @escaping @Sendable (Bool) -> Void) {
+        self.center = center
+        let willBecomeUnavailable = center.addObserver(
+            forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            onChange(true)
+        }
+        let didBecomeAvailable = center.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            onChange(false)
+        }
+        self.tokens = [willBecomeUnavailable, didBecomeAvailable]
+    }
+
+    deinit {
+        for token in tokens {
+            center.removeObserver(token)
+        }
     }
 }

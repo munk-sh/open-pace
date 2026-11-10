@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
-# GPX 1.1 导出外部校验（.munk/code-gates.json 的 check-gpx-export 门真实执行体）。
+# GPX 1.1 导出外部校验（.munk/code-gates.json 的 check-gpx-export 门真实执行体，也是
+# `.github/workflows/ios.yml` lint 腿的独立一行）。
 # 构建 PurePaceGpxTool，把共享夹具真实写入临时 .gpx，再用 xmllint 与 python3
 # 逐点比对 lat/lon/ele/time/hr/cad。任何工具缺失或字段不一致都必须失败，禁止 skip。
+#
+# 反例自证：本脚本还会对同一夹具造两个反例副本（删 `<ele>`、换成 GPX 1.0 命名空间），
+# 断言逐字段比对必须判红。CI 与本地跑的是同一 runner 镜像（macOS + swift/xmllint/python3
+# 全部预装），所以这两个反例在 CI 的 lint 腿里同样真实执行，不需要另起 job。
+#
+# 阈值先定后测（写进实现在前，跑测试在后；全部有推导依据，禁止看红再调）：
+#   - 坐标/高程数值容差 1e-6：夹具写 6 位小数（≈0.11 m/格）；GPX 文本往返是十进制字符串，
+#     Double→文本→Double 在 6 位小数下误差 < 1e-9；1e-6 是同坐标判定上界，远小于 GPS 噪声
+#     （~1 m），足以判出任何真实字段漂移而对纯格式往返保持放行。
+#   - trkpt 数量必须恰为 4：共享夹具冻结 4 点，导出器对该输入必须不丢点也不补点；
+#     因此不设数量容差（任何 ±N 容差都会让丢点反例漏判）。
+#   - time 必须同一瞬间（不设时间容差）：GPX 1.1 xs:dateTime 秒级精度，夹具与导出同精度，
+#     秒以下无合法误差来源，任何时间差都是真实缺陷。
+#   - hr/cad 整数精确相等：整数生命体征无浮点往返，容差会让 112 vs 113 漏判。
 set -euo pipefail
 
 usage() {
@@ -15,6 +30,8 @@ usage() {
   - 输出文件存在且非空，xmllint --noout 解析通过
   - 输出根元素为 GPX 1.1 gpx，creator 非空，默认命名空间与 gpxtpx 命名空间精确匹配
   - trkpt 恰好 4 个，逐点 lat/lon/ele 数值差 <= 1e-6、time 按同一瞬间、hr/cad 整数相等
+  - 反例自证：删某个 trkpt 的 <ele>、或把默认命名空间改成 GPX 1.0 后，逐字段比对必须判红
+    （CI 与本地同一 runner 镜像，反例在 lint 腿里同样真实执行）
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -150,7 +167,11 @@ from datetime import datetime, timezone
 
 GPX = "http://www.topografix.com/GPX/1/1"
 TPX = "http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+# 阈值先定后测：夹具 6 位小数（≈0.11 m/格），十进制文本往返误差 < 1e-9，
+# 故 1e-6 是「同一坐标」判定上界；远小于 GPS 噪声（~1 m），能判出真实漂移又不误杀格式往返。
 TOLERANCE = 1e-6
+# 夹具冻结 4 个 trkpt，导出器对该输入必须不丢点不补点：数量不设容差。
+EXPECTED_POINT_COUNT = 4
 
 
 def record(errors, message):
@@ -230,8 +251,11 @@ def main():
 
     fixture_points = track_points(fixture_root)
     output_points = track_points(output_root)
-    if len(output_points) != 4:
-        record(errors, "输出 trkpt 数量应为 4，实际 %d" % len(output_points))
+    if len(output_points) != EXPECTED_POINT_COUNT:
+        record(
+            errors,
+            "输出 trkpt 数量应为 %d，实际 %d" % (EXPECTED_POINT_COUNT, len(output_points)),
+        )
     if len(fixture_points) != len(output_points):
         record(
             errors,
@@ -278,6 +302,59 @@ if python3 "$tmp_dir/compare.py" "$fixture" "$output" >"$compare_log" 2>&1; then
   pass "fixture-fields-match"
 else
   fail "fixture-fields-match" "$(tr '\n' ' ' < "$compare_log")"
+fi
+
+# ------------------------------------------------------- 反例自证（CI 实跑一次）
+# 对同一夹具造反例副本（仓库夹具零改动），断言逐字段比对真能判红且指向被破坏字段。
+red_ele="$tmp_dir/red-missing-ele.gpx"
+if python3 - "$fixture" "$red_ele" <<'PY'
+import re
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+text = open(source, encoding="utf-8").read()
+text, removed = re.subn(r"\n[ \t]*<ele>[^<]*</ele>", "", text, count=1)
+if removed != 1:
+    raise SystemExit("反例构造失败：没有找到可删除的 <ele>")
+open(target, "w", encoding="utf-8").write(text)
+PY
+then
+  red_ele_log="$tmp_dir/red-missing-ele.log"
+  if python3 "$tmp_dir/compare.py" "$fixture" "$red_ele" >"$red_ele_log" 2>&1; then
+    fail "red-proof-missing-ele" "删掉 <ele> 的反例仍判定一致，逐字段比对无法判红"
+  elif grep -q 'trkpt\[0\]\.ele' "$red_ele_log"; then
+    pass "red-proof-missing-ele"
+  else
+    fail "red-proof-missing-ele" "反例判红但未定位到 ele 字段: $(tr '\n' ' ' < "$red_ele_log")"
+  fi
+else
+  fail "red-proof-missing-ele" "反例夹具构造失败（删除 <ele>）"
+fi
+
+red_ns="$tmp_dir/red-gpx10.gpx"
+if python3 - "$fixture" "$red_ns" <<'PY'
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+text = open(source, encoding="utf-8").read()
+replaced = text.replace(
+    "http://www.topografix.com/GPX/1/1", "http://www.topografix.com/GPX/1/0", 1
+)
+if replaced == text:
+    raise SystemExit("反例构造失败：没有找到 GPX 1.1 默认命名空间")
+open(target, "w", encoding="utf-8").write(replaced)
+PY
+then
+  red_ns_log="$tmp_dir/red-gpx10.log"
+  if python3 "$tmp_dir/compare.py" "$fixture" "$red_ns" >"$red_ns_log" 2>&1; then
+    fail "red-proof-namespace" "GPX 1.0 命名空间反例仍判定一致，逐字段比对无法判红"
+  elif grep -q 'GPX 1.1 gpx' "$red_ns_log"; then
+    pass "red-proof-namespace"
+  else
+    fail "red-proof-namespace" "反例判红但未定位到命名空间: $(tr '\n' ' ' < "$red_ns_log")"
+  fi
+else
+  fail "red-proof-namespace" "反例夹具构造失败（改成 GPX 1.0 命名空间）"
 fi
 
 summary_and_exit
