@@ -321,6 +321,28 @@ else
 fi
 rm -rf "$timeout_sandbox"
 
+# ------------------- 预算记账/墙钟看门狗确定性单测随 lint-ios-scripts 门执行（无模拟器）
+budget_test_out="$(bash scripts/tests/test-ios-budget.sh 2>&1)" && budget_test_rc=0 || budget_test_rc=$?
+if [ "$budget_test_rc" -eq 0 ]; then
+  pass "ac-ios-budget-unit-tests"
+else
+  fail "ac-ios-budget-unit-tests" "$(printf '%s' "$budget_test_out" | tr '\n' ' ')"
+fi
+
+# 反例自检：沙箱里把墙钟判定改回轮询计数，预算单测必须报错。
+budget_selftest_dir="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-budget-unit.XXXXXX")"
+mkdir -p "$budget_selftest_dir/scripts/lib" "$budget_selftest_dir/scripts/tests"
+cp scripts/test-ios.sh "$budget_selftest_dir/scripts/test-ios.sh"
+cp scripts/lib/ios-budget.sh "$budget_selftest_dir/scripts/lib/ios-budget.sh"
+cp scripts/tests/test-ios-budget.sh "$budget_selftest_dir/scripts/tests/test-ios-budget.sh"
+printf '%s\n' '    waited=$((waited + 1))' >> "$budget_selftest_dir/scripts/test-ios.sh"
+if ( cd "$budget_selftest_dir" && bash scripts/tests/test-ios-budget.sh >/dev/null 2>&1 ); then
+  fail "ac-ios-budget-unit-tests (self-test)" "注入轮询计数记账的违规样本未被识别"
+else
+  pass "ac-ios-budget-unit-tests (self-test)"
+fi
+rm -rf "$budget_selftest_dir"
+
 # ---------------- verify-ios-sim-runtime.sh 真实 CoreLocation 注入不得被误删
 sim_runtime_problems() {
   local file="$1" out=""

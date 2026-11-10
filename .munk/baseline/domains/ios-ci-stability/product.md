@@ -93,6 +93,7 @@ PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全�
 - 本地门拓扑（22 门）：只留快而确定腿，`test-ios` 固定 `--unit-only`，`verify-ios-*` 移出本地阻断（保留可手动串行）；权威全量在 `ios.yml` 的 `test` 步，workflow 出现 `--unit-only` 即判失败。
 - UI 腿排除真机取证套件：`DeviceFlowUITests`（4 条真机/分阶段取证用例）被编进 `PurePaceUITests`，整包执行时无设备前置即 4/4 确定性失败并撞满 600s。修法为单点窄改 `scripts/test-ios.sh`：UI 腿加 `-skip-testing:PurePaceUITests/DeviceFlowUITests`，选择器在 `usage()` / `echo` / 实际参数块三处同源一致；单测腿零改动。**保序硬约束**：`check-ios-scripts.sh` 以 `-only-testing:PurePaceUITests` 独占行为顺序锚点，skip 行必须紧随其后、不可同行或调换。取证套件本体与 `scripts/verify-ios-device-flow.sh` 零改动。
 - 公司约束（本域长期）：单一可发候选 + 冻结新验证/基建期间，不为「承载层分类补全」扩 `infra_pattern`、不新增 `check-ios-workflow.sh` 分类断言；CI 红项定性仍由人工按 run 原文判（`Application failed preflight checks` / `Failed to install or launch the test runner` 目前**不**自动命中重试）。
+- 预算记账明细（墙钟看门狗、attempt = step − 重试余量、腿预算 `min(600, attempt 剩余)`、124 归口承载层）已迁至 `domains/ios-ci-budget`；`ac-budget-per-leg-independent` / `ac-ui-budget-below-min-fails` 中「腿各享一份独立 600s」「失败行逐字前缀」由该域 AC 取代，本域其余预热/锁/确定性定位源契约不变。
 
 ## 最近交付证明
 
