@@ -20,21 +20,28 @@ struct SettingsView: View {
                         }
                         .padding(.vertical, DesignTokens.Spacing.xxs)
                     }
+                    .tint(DesignTokens.Colors.accent)
                     .frame(minHeight: DesignTokens.minTapTarget)
+                    .listRowBackground(DesignTokens.Colors.surface)
+                    .listRowSeparatorTint(DesignTokens.Colors.separator)
                     .accessibilityIdentifier("settings.announcementToggle")
                     .accessibilityLabel(Text(L10n.settingsAnnouncementTitle))
                 } header: {
                     Text(L10n.settingsSectionAnnouncement)
                         .font(DesignTokens.Typography.sectionHeader)
                         .foregroundStyle(DesignTokens.Colors.secondary)
+                        .textCase(nil)
                 } footer: {
                     Text(L10n.settingsFooterAnnouncement)
                         .font(DesignTokens.Typography.caption)
                         .foregroundStyle(DesignTokens.Colors.secondary)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(DesignTokens.Colors.background)
             .navigationTitle(L10n.settingsNavigationTitle)
         }
+        .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.settings")
     }
 }

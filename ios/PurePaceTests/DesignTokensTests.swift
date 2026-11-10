@@ -83,8 +83,31 @@ final class DesignTokensTests: XCTestCase {
         XCTAssertEqual(DesignTokens.Radius.scale.count, 3)
     }
 
-    func testDarkModeIsStructurallyReservedButOff() {
-        // 本期不做深色模式专项适配；token 结构留位，后续可无痛接入。
-        XCTAssertFalse(DesignTokens.Appearance.supportsDarkMode)
+    func testDarkModeIsEnabledAndPaletteIsComplete() {
+        // ac-dark-mode-real：深色模式真实开启，且每个语义色都有 light/dark 成对值。
+        XCTAssertTrue(DesignTokens.Appearance.supportsDarkMode)
+        let expected = [
+            "background", "surface", "surfaceMuted", "primary", "secondary", "accent",
+            "onAccent", "accentSoft", "separator", "warning", "onWarning", "warningSoft",
+            "success", "onSuccess", "successSoft", "danger", "onDanger", "dangerSoft"
+        ]
+        XCTAssertEqual(DesignTokens.Colors.palette.count, expected.count)
+        for name in expected {
+            guard let pair = DesignTokens.Colors.palette[name] else {
+                XCTFail("调色板缺少语义色 \(name)")
+                continue
+            }
+            XCTAssertTrue(pair.light.isInRange, "\(name).light 分量越界")
+            XCTAssertTrue(pair.dark.isInRange, "\(name).dark 分量越界")
+            XCTAssertNotEqual(pair.light, pair.dark, "\(name) 的 light/dark必须是两组真实取值")
+        }
+    }
+
+    func testBrandPrimaryTokenIsSingleAndMutedSurfacesAreDeclared() {
+        // ac-brand-primary-token：唯一品牌主色 + 记录态弱底 + 卡片弱面同时存在。
+        XCTAssertNotNil(DesignTokens.Colors.palette["accent"])
+        XCTAssertNotNil(DesignTokens.Colors.palette["accentSoft"])
+        XCTAssertNotNil(DesignTokens.Colors.palette["surfaceMuted"])
+        XCTAssertNotNil(DesignTokens.Colors.palette["separator"])
     }
 }

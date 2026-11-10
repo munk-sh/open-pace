@@ -4,15 +4,17 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 
 ## 范围
 
-- `ios/PurePace/Design/DesignTokens.swift`：无状态 `enum` 命名空间，含 `Colors` / `Typography` / `Spacing` / `Radius` / `Icon` / `Appearance` / `minTapTarget`；颜色一律系统语义色派生，字号阶梯 caption 12 < body 15 < title 20 < primaryValue 34 < display 56，间距 4/8/12/16/24/32，圆角 12/16/20，图标 16/20/24，`minTapTarget == 44`，`Appearance.supportsDarkMode = false` 为深色模式留位。
+- `ios/PurePace/Design/DesignTokens.swift`：无状态 `enum` 命名空间，含 `Colors` / `Typography` / `Spacing` / `Radius` / `Stroke` / `Icon` / `Appearance` / `minTapTarget`；颜色以 `SRGB`（0...1 三分量）+ `ColorPair { light, dark }` 表达，18 个语义色（background / surface / surfaceMuted / primary / secondary / accent / onAccent / accentSoft / separator / warning+onWarning+warningSoft / success+onSuccess+successSoft / danger+onDanger+dangerSoft）全部 light/dark 成对，动态 `Color` 走 `Color(uiColor: UIColor { trait in ... })` 且只 `import SwiftUI`；唯一品牌主色 `Colors.accent`（松针青 `#0B6F60` / 暗色薄荷青 `#5ED6C4`），记录态 / 主操作 / 强调共用；字号阶梯 caption 12 < body 15 < title 20 < primaryValue 34 < display 56，间距 4/8/12/16/24/32，圆角 12/16/20，图标 16/20/24，`minTapTarget == 44`，`Appearance.supportsDarkMode = true`。
+- `ios/PurePace/Design/ContrastPolicy.swift`（新增）：Foundation-only 纯函数，按 WCAG 2.x 相对亮度计算成对 sRGB token 对比度（`ratio(foreground:background:) -> Double?` / `problems(for:) -> [String]` / `ratios(for:)`），阈值常量 body 4.5 / large 3.0，缺对、空名、分量越界一律 fail-closed。
 - `ios/PurePace/Run/RunView.swift`：距离用 `Typography.display`，时长/当前配速用 `primaryValue`，平均配速/分段/说明用 `caption` + `Colors.secondary`；开始/暂停/继续/结束四按钮带非空互异 `accessibilityLabel` 与既有 identifier，主操作强调色、结束用警示色，四态互斥渲染不变。
 - `ios/PurePace/History/HistoryView.swift`：列表行第一行日期（title 级）、第二行距离/时长/配速（caption + 次要色）；空态 = 标题「还没有跑次记录」+ 一句说明 + CTA「去跑一次」（`history.runAgain`，带 `accessibilityLabel`）；行可点击进详情。
 - `ios/PurePace/Settings/SettingsView.swift`：带分组标题的 Section（含「播报」组），每项一句说明文案，字号不低于 caption；保留 `settings.announcementToggle` 与 `Toggle`。
 - `ios/PurePace/History/RunDetailView.swift`：导出入口「导出 GPX」（`runDetail.export`，带 `accessibilityLabel`）保持在导航可达位置，导出流程与状态标识不变。
 - `ios/PurePace/ContentView.swift`：三个 Tab 的 `Label` 文案保留，并给 tabItem 加 `tab.run` / `tab.history` / `tab.settings` 标识；新增 DEBUG-only 截图启动参数接线（`-screenshotInitialTab` / `-screenshotHistoryDemo` / `-screenshotOpenRunDetail`）。
 - `ios/PurePace/Run/RunLaunchArguments.swift` + `ios/PurePace/History/HistoryDemoRecords.swift`：`value(after:)` / `flagEnabled(_:)` 纯函数解析，演示跑次整文件 `#if DEBUG` 包裹、不落盘、不读夹具。
-- 断言：`ios/PurePaceTests/DesignTokensTests.swift`（token 不变量 L1 单测）+ `scripts/check-ios-shell.sh` 的 `validate_design_tokens`（token 唯一性、三屏无样式字面量、主/次层级、关键文案、a11y 标签、identifier、demo 入口禁令）与其 `--self-test` 正负反例。
-- 证据入仓：`docs/screenshots/run-not-started.png`、`run-running.png`、`history-detail.png`（另含 `history-empty.png` / `settings.png`）与 `docs/evidence/a11y/0{1..6}-*.txt`。
+- 断言：`ios/PurePaceTests/DesignTokensTests.swift`（token 不变量 L1 单测，暗色开关 true）+ `ios/PurePaceTests/ContrastPolicyTests.swift`（7 例对比度，逐对打印 `ac-contrast`）+ `scripts/check-ios-shell.sh` 的 `validate_design_tokens`（token 唯一性、三屏无样式字面量、字面色值、零散字体、暗色开关、surface 卡片面、四层、等宽数字、三态色、主/次层级、关键文案、a11y 标签、identifier 冻结、demo 入口禁令）与其 `--self-test` 正负反例。
+- `ios/PurePace/Design/DesignComponents.swift`（可选的视图内复用件）：只允许引用 token，不允许字面色值与零散字体修饰符；本轮以视图内联修饰实现，未新增独立文件。
+- 证据入仓：`docs/screenshots/` 的 `run-not-started.png`、`run-running.png`、`history-detail.png`、`history-empty.png`、`settings.png` 与新增暗色运行态 `run-running-dark.png`，连同 `docs/evidence/a11y/0{1..6}-*.txt`。
 - `ios/PurePace/Resources/Localizable.xcstrings`：String Catalog，`sourceLanguage = zh-Hans`，三屏全部用户可见文案（Tab / 导航标题 / 字段标签 / 空态 / 提示 / 按钮 / 状态 / a11y label）的唯一真源；`ios/project.yml` 声明 `developmentLanguage: zh-Hans`、`knownRegions`、`INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans` 并以 XcodeGen 重生成工程。
 - `ios/PurePace/Design/L10n.swift`：本地化键唯一入口（`LocalizedStringKey` 静态属性 + 少量 `String(localized:)` 用于拼接），视图内不得保留裸英文文案字面量。
 - `ios/PurePace/Design/{VisibleTextPolicy,VisibleDatePolicy,PrimaryActionLayoutPolicy,RunLayoutBalancePolicy}.swift`：四条判定的纯函数实现，与 `PurePaceTests` / `PurePaceUITests` 共用同一源文件（`project.yml` 显式列入 UITests target sources）。
@@ -44,10 +46,23 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - ac-demo-data-gated: 运行中与历史详情所需数据只由 `#if DEBUG` + 启动参数（`-uiTestLocation` / `-screenshotHistoryDemo` / `-screenshotOpenRunDetail`）注入，Release 路径不可达、不落盘、不引用 `shared/fixtures` 或 `.gpx`/`.tcx` 夹具；截图注记「演示数据不入发布路径」。
 - ac-no-ui-leg-change: `scripts/test-ios.sh` 与 `.github/workflows/*` 的 UI 腿无 diff；既有 identifier 字符串原样保留，新增 identifier 仅用于可及树定位与模拟器测试。
 - ac-no-sample-in-release: 首屏与发布业务流不出现任何示例/种子跑次。
+- ac-brand-primary-token: 全仓只有一个品牌主色语义 token（`DesignTokens.Colors.accent`），记录态 / 主操作 / 强调共用它；`accent` / `onAccent` 与全部语义色均 light/dark 成对定义；RunView / HistoryView / SettingsView / RunDetailView / ContentView 与 `Design/**` 组件文件中 `Color(`、`Color.`、`UIColor`、`#colorLiteral`、`.foregroundStyle(.` 命中数为 0；静态门正例通过，追加字面色值的反例必须判红。
+- ac-brand-contrast: `ContrastPolicy` 纯函数按 WCAG 2.x 计算 token 对比度；正文/小字（primary、secondary、warning、success、danger 及其弱底）light/dark 均 ≥4.5:1，hero 大数字 ≥3:1；逐对实测值打印为 `ac-contrast <pair> <ratio>` 日志并写入 digest；单测必须含达标正例通过、低对比反例（如 `#AAAAAA` on `#FFFFFF`）判红、分量越界 fail-closed。
+- ac-monospaced-metrics: 距离、用时、当前配速、平均配速、分段以及历史行、详情数值全部使用 `.monospacedDigit()`；hero 指标固定为距离（`Typography.display`），用时/当前配速为次级主值（`Typography.primaryValue`），平均配速/分段为再次级（`Typography.caption`）；三屏与详情无 `spacing: <数字>`、`.padding(<数字`、`minHeight: <数字>`、`.system(size: <数字>` 样式字面量。
+- ac-typography-token-only: 字号、字重、行距只从 `DesignTokens.Typography` 取；视图与 Design 组件中 `.font(.`、`.fontWeight(`、`.fontDesign(`、`.lineSpacing(<数字` 命中数为 0（`DesignTokens.Typography.*` 与 `.monospacedDigit()` 除外）；静态门正例通过，追加零散字体修饰符的反例必须判红。
+- ac-run-four-layers: 首屏与运行态可一眼分出四层：hero 距离（display，最大）→ 次级指标（primaryValue：用时/当前配速；caption：平均配速/分段）→ 提示（caption + 次要色/警示色，带弱底）→ 主操作（底部 accent 按钮）；静态断言检查 display / primaryValue / caption / `safeAreaInset(edge: .bottom)` 与状态色引用；6 图证据可见该层级。
+- ac-surface-history-detail: 历史列表与跑次详情统一使用 `Colors.surface` 卡片面、`Radius.card` 圆角、`Spacing.*` 内边距、`Colors.separator` 分隔，不保留 `.listStyle(.grouped)` / `.listStyle(.insetGrouped)` 的系统默认 grouped 观感；静态断言要求两个视图都引用 surface/radius/separator，移除 surface 引用的反例必须判红。
+- ac-run-state-visuals: 记录中 / 暂停 / 保存三态各有明确视觉状态：running 用 `accent`、paused 用 `warning`、saved 用 `success`，记录态与主操作强调共用 accent；三态主操作 identifier、按钮文案与行为不变；静态断言检查三态色引用，把 running 改错为 warning 的反例必须判红。
+- ac-a11y-identifier-set-frozen: app 内可及 identifier 集合与基线完全一致（33 项：`history.empty`/`history.row`/`history.runAgain`/`run.averagePace`/`run.backgroundDegraded`/`run.currentPace`/`run.distance`/`run.elapsed`/`run.finish`/`run.pause`/`run.resume`/`run.saved`/`run.splits`/`run.start`/`run.telemetry`/`run.viewHistory`/`runDetail.activeDuration`/`runDetail.averagePace`/`runDetail.distance`/`runDetail.endedAt`/`runDetail.export`/`runDetail.exportFailed`/`runDetail.exported`/`runDetail.root`/`runDetail.share`/`runDetail.splitRow`/`runDetail.splits`/`runDetail.splitsEmpty`/`runDetail.startedAt`/`settings.announcementToggle`/`tab.history`/`tab.run`/`tab.settings`），不新增、不改名、不删除；`validate_design_tokens` 以固定集合逐项比对且总数必须相等，重命名 `run.start` 或追加 `run.extra` 的反例必须判红；既有 6 棵可及树重新采集后集合不变。
+- ac-dark-mode-real: `Appearance.supportsDarkMode == true`；全部语义色带 dark 值；暗色下正文/小字对比度 ≥4.5:1、大数字 ≥3:1；真实 dark appearance 模拟器运行（`xcrun simctl ui <udid> appearance dark`）产出 `docs/screenshots/run-running-dark.png`，不得手绘或旧图改色；若暗色确不可用，digest 必须如实写 `pending` 并给出 token 计划。
+- ac-screenshots-refreshed: `run-not-started.png` / `run-running.png` / `history-detail.png` / `history-empty.png` / `settings.png` 五张同名覆盖，新增 `run-running-dark.png`；六个文件均为非空 PNG 且来自本轮真实 xcodebuild / simctl 产物；逐文件 sha256 写入 digest；不复用旧图、不手绘、不改色。
+- ac-gates-green: `.munk/code-gates.json` 的 22 门全部退出 0；不新增 gate id、不改门列表；`lint-ios-shell --self-test` 全过（46 项断言）；`test-ios --unit-only` 执行到新增对比度单测；`build-ios` 真实构建成功；既有布局 / 文案 / 日期三条断言的阈值与策略文件零 diff。
+- ac-diff-scope-bounded: 代码 diff 仅含 DesignTokens、ContrastPolicy（及可选 DesignComponents）、四个视图 + ContentView 的样式、`scripts/check-ios-shell.sh`、PurePaceTests 断言、`docs/screenshots/*`、`docs/evidence/a11y/*`；状态机、定位、音频、GPX、CI、Android、`project.yml`、本地化键、页面/路由全部零改动。
+- ac-digest-receipt: digest.md 三样回执齐全：①新截图路径 + sha256；②新增/扩展断言名 + 关键日志（含反例能红的那一行）；③diff 范围清单；另含设备/OS/Xcode、暗色生成命令、light/dark 对比度数值与 pending 项。
 
 ## 非目标
 
-- 不做深色模式专项适配（token 只留 `Appearance` 结构位）、不做动效/动画专项、不做 Android 视觉对齐、不做截图回归基线。
+- 深色模式已在阶段 1 收口落地（`supportsDarkMode == true` + 真实暗色模拟器截图），不做深色以外的主题、不做动效/动画专项、不做 Android 视觉对齐、不做截图回归基线。
 - 不引入第三方主题系统 / 第三方 UI 依赖 / 跨端框架；不替换系统语义色与系统控件的基本行为。
 - 不改状态机与业务契约：`RunSessionViewModel` / `RunSessionOrchestrator` / `RunLocationSource` / AudioSession / TTS / 持久化 / GPX 导出与命名契约零改动。
 - 不做英文 / 双语 / 其它 locale（本期 zh-Hans 单语）；不做日期以外的本地化（数字/单位/时区以外不改）。
@@ -58,19 +73,20 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 
 ## 实现约束
 
-- Token 只增不改语义：视图改为引用 token，不改系统语义色/控件行为；`DesignTokens.Colors` 是唯一颜色出入口，深色模式后续只在此扩展。
+- Token 为唯一真源：`DesignTokens.Colors` 是唯一颜色出入口（`SRGB` + `ColorPair`，18 对语义色，动态色只 `import SwiftUI` + `UIColor` trait 闭包，不新增 `UIKit` import），视图只引用 token、不改系统控件行为；任何 hex 微调必须用同一 `ContrastPolicy` 重算，把新数值写进 digest 与断言日志，且不得低于 body 4.5:1 / large 3:1 阈值。
 - 既有 identifier 是稳定测试契约，原样保留（`run.distance` / `run.elapsed` / `run.currentPace` / `run.averagePace` / `run.splits` / `run.saved` / `history.empty` / `history.row` / `runDetail.*` / `settings.announcementToggle` 等）；新增 identifier 只做可及树定位。
 - 静态断言写在既有 `scripts/check-ios-shell.sh` 的 `validate_design_tokens` / `validate_localization`，并在 `--self-test` 补正负反例（token 文件缺失、样式字面量、空 label、缺 Tab 标识、缺控件标识、demo 入口、视图裸英文、缺 String Catalog），**不新增 gate id、不改 `code-gates.json`**；门禁用真实 `grep -Fq`/`grep -Eq` 断言，不用通配允许表；`pipefail` 下禁用 `cmd | grep -q`，改 here-string / 内建匹配。
 - 本地化单一来源：新增 `ios/PurePace/Resources/Localizable.xcstrings` 是唯一文案真源；视图只引用 `L10n.*`（`LocalizedStringKey`），需要拼进 `String` 的状态提示走 `String(localized:)`；`RunFormatting` 的 `km` / `/km` 单位拼接属白名单，不改硬编码文案；工程由 XcodeGen 从 `ios/project.yml` 重新生成，禁手改 `project.pbxproj`。
 - 日期判定：`RunFormatting.zhHansDateTimeText` / `dateTimeText` 显式 `zh_Hans_CN` + 固定 `dateFormat` + 固定 `TimeZone`，与设备时区/语言无关；历史行与详情共用同一实现，`VisibleDatePolicy` 只判形与字符集。
-- 底部锚定与居中：`RunView` 主内容与操作区分离，`controls` 只经 `.safeAreaInset(edge: .bottom)` 承载（不写 `Spacer()` 顶开），主按钮 `frame(minHeight: DesignTokens.minTapTarget)`；三态共用同一容器；指标内容块整体（含提示/保存文案）在「导航栏下沿 → 控制区上沿」间垂直居中，取值只用既有 `DesignTokens.Spacing`（`DesignTokens.swift` 零 diff → 不改/不新增 token）。
+- 底部锚定与居中：`RunView` 主内容与操作区分离，`controls` 只经 `.safeAreaInset(edge: .bottom)` 承载（不写 `Spacer()` 顶开），主按钮 `frame(minHeight: DesignTokens.minTapTarget)`；三态共用同一容器；指标内容块整体（含提示/保存文案）在「导航栏下沿 → 控制区上沿」间垂直居中，取值只用 `DesignTokens.Spacing` / `Radius` / `Stroke`；新增 card / 状态条 / 弱底提示不得把内容撑进 `ViewThatFits` 的滚动分支，也不得改变底部锚点。
+- 卡片面与列表：History / Detail 优先保留 `List` + `.plain`（`scrollContentBackground(.hidden)` + token 化行背景 / 圆角 / 内边距 / 分隔），确保 `runDetail.export` 在首屏可见且 UI 用例可直接点击；如改自绘卡片必须证明同一 UI 用例仍能点到导出按钮。
 - 设置页静态约束：`validate_settings_view` 禁止 `Stepper` / `Slider` / 「示例」/「Sample」/「暂无可配置项」，新文案须避开这些词。
 - 截图造态：只允许 DEBUG 编译期 + 启动参数门控；`HistoryDemoRecords` 整文件 `#if DEBUG` 包裹、不落盘、默认启动不可见；`xcrun simctl io <udid> screenshot` 产出，安装包来自 `bash scripts/build-ios.sh` 的 `.build/ios`。
-- 证据口径：只写模拟器 / 单测 / 静态断言结论，真机项写 `pending: 待人现场`，不得写「真机已验证」或「深色模式已适配」。
+- 证据口径：只写模拟器 / 单测 / 静态断言结论；深色只能写「真实 dark appearance 模拟器产物」，不得写「真机已验证」；真机项（锁屏后台定位、音频实听、定位授权弹窗观感）一律写 `pending: 待人现场`。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_ade4b64dc04c7ccf（2026-11-11，pass）
-- 交付：跑步页指标内容块三态（未开始 / 运行中 / 保存态）改为在「导航栏下沿 → 底部控制区上沿」间整体垂直居中（`ViewThatFits` 首选分支上下等量 `Spacer(minLength: .md)`，小屏/大字号退回 `ScrollView`）；`safeAreaInset(edge: .bottom)` 控制区、44pt 主操作与 TabBar 间距不动，`DesignTokens.swift` 零 diff；DEBUG `run.telemetry` 诊断摘要改内容区底部 overlay，避免挤偏居中块。
-- 判定与断言：新增纯函数 `RunLayoutBalancePolicy`（阈值 `maximumGap = 160` / `maximumImbalance = 40`），`project.yml` 列入 UITests sources 并经 XcodeGen 重生成；`LocalizationPolicyTests` 新增 5 例（旧布局底部空洞 251.6pt / 上下差 223.6pt 两条判据均红、居中正例、上下悬殊反例、空采集反例、阈值常量）；UI 用例 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 三态调用 `assertRunMetricsBalanced`。
-- 证据：iPhone 16 / iOS 18.6 模拟器 `** TEST SUCCEEDED **`，三态实测上下留白 139.83 / 139.83 / 119.83pt、最大单一空洞同上、上下差 ≈0；既有 `ac-visible-copy-zh-hans` / `ac-run-detail-date-zh-hans` / `ac-primary-action-bottom-anchored` 保持绿（高 58.0pt、底部间距 12.0pt）；`docs/screenshots/` 5 图与 `docs/evidence/a11y/01..06-*.txt` 同名覆盖重采，sha256 与生成命令记入 `.munk/changes/wi_intake_ade4b64dc04c7ccf/digest.md`；`code_gates` 22 门全绿。真机项 `pending: 待人现场`。
+- workItemId: wi_intake_a6d5c85453b8ceab（2026-11-11，pass）
+- 交付：三屏视觉体系阶段 1 收口。`DesignTokens` 重写为 `SRGB` + `ColorPair`，18 个语义色 light/dark 成对，唯一品牌主色 `Colors.accent`（`#0B6F60` / `#5ED6C4`）供记录态、主操作、强调共用，`supportsDarkMode = true`；新增 Foundation-only `ContrastPolicy`（body 4.5 / large 3.0，缺对/越界 fail-closed）；RunView 建立 hero 距离 → 次级指标 → 提示 → 底部主操作四层并给 running(accent)/paused(warning)/saved(success) 三态可视，全部数字 `.monospacedDigit()`；History / RunDetail / Settings 统一 `surface` 卡片面 + `Radius.card` + `Spacing.*` + `separator`，移除系统 grouped 观感；`ContentView` TabView tint = accent。
+- 判定与断言：`validate_design_tokens` 扩展 9 类断言（字面色值、零散字体修饰符、暗色开关、surface 卡片面、四层引用、等宽数字、三态色、identifier 冻结 33 项），`--self-test` 46 项含 8 条反例自检（字面色值 / 零散字体 / 暗色关闭 / 移除 surface / running 错配 warning / identifier 重命名 / identifier 追加）全部判红；新增 `ContrastPolicyTests` 7 例（逐对打印 `ac-contrast`、低对比反例判红、分量越界 fail-closed）；不新增 gate id、未改 `code-gates.json`。
+- 证据：iPhone 16 / iOS 18.6 模拟器、Xcode 26.3；6 图（含真实 dark appearance 的 `run-running-dark.png`）+ 6 棵可及树重采，identifier 集合 diff 为 0（12/13/7/14/6/14），sha256 与生成命令记入 `.munk/changes/wi_intake_a6d5c85453b8ceab/digest.md`；对比度 light 4.81–16.79 / dark 6.86–16.95 全部达标；`code_gates` 22 门全绿。真机项 `pending: 待人现场`。

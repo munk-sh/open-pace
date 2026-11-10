@@ -33,9 +33,21 @@ struct HistoryView: View {
                                 row(for: record)
                             }
                             .accessibilityIdentifier("history.row")
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: DesignTokens.Spacing.xs,
+                                    leading: DesignTokens.Spacing.md,
+                                    bottom: DesignTokens.Spacing.xs,
+                                    trailing: DesignTokens.Spacing.md
+                                )
+                            )
+                            .listRowBackground(DesignTokens.Colors.background)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(DesignTokens.Colors.background)
                 }
             }
             .navigationTitle(L10n.historyNavigationTitle)
@@ -45,6 +57,7 @@ struct HistoryView: View {
                 }
             }
         }
+        .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.history")
         .onAppear(perform: load)
         .onChange(of: refreshToken) { _, _ in load() }
@@ -63,16 +76,29 @@ struct HistoryView: View {
             Button(action: onRunAgain) {
                 Text(L10n.historyRunAgain)
                     .font(DesignTokens.Typography.control)
+                    .foregroundStyle(DesignTokens.Colors.onAccent)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: DesignTokens.minTapTarget)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(DesignTokens.Colors.accent)
+            .background(
+                DesignTokens.Colors.accent,
+                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+            )
             .accessibilityIdentifier("history.runAgain")
             .accessibilityLabel(Text(L10n.historyRunAgain))
         }
         .padding(DesignTokens.Spacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator)
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .background(DesignTokens.Colors.background)
     }
 
     private func row(for record: RunRecord) -> some View {
@@ -85,9 +111,22 @@ struct HistoryView: View {
             Text(metricsText)
                 .font(DesignTokens.Typography.body)
                 .foregroundStyle(DesignTokens.Colors.secondary)
+                .monospacedDigit()
         }
-        .padding(.vertical, DesignTokens.Spacing.xs)
-        .frame(minHeight: DesignTokens.minTapTarget, alignment: .leading)
+        .padding(DesignTokens.Spacing.sm)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: DesignTokens.minTapTarget,
+            alignment: .leading
+        )
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(dateText)，\(metricsText)")
     }
