@@ -1,0 +1,5 @@
+test-ios: 阶段 xcodebuild-test 硬超时（1s），强制终止 PID 47067
+../../../../scripts/lib/ios-budget.sh: line 113: 47067 Terminated: 15          "$@" > "${out_log}" 2>&1
+test-ios: runner bootstrap 挂起：xcodebuild test 在 1s 硬超时前未完成（未进入产品断言）
+test-ios: 承载层硬超时：墙钟已用 1s ≥ 腿预算 1s，归口承载层预算/硬超时
+test-ios: 超时前已执行的测试摘要：

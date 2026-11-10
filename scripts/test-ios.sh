@@ -551,7 +551,9 @@ test_with_xcodebuild() {
   echo "info: PurePaceTests 摘要（先于 UI 落盘：${unit_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$unit_log" 2>/dev/null | tail -n 10 || true
   if [ "$unit_status" -eq 124 ]; then
-    echo "test-ios: 承载层硬超时：单测腿在 ${unit_budget}s 腿预算内未完成（来源：attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s；归口承载层预算，不计为产品用例）" >&2
+    # 归口复用 ios-budget.sh 的同一判定：同日志已出现 failed 用例时不得再写成承载层预算。
+    ios_timeout_classification_message "单测腿" "$unit_log" "" "$unit_budget" \
+      "attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s"
     return 124
   fi
   if [ "$unit_status" -ne 0 ]; then
@@ -616,7 +618,9 @@ test_with_xcodebuild() {
   echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
   grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true
   if [ "$ui_status" -eq 124 ]; then
-    echo "test-ios: 承载层硬超时：UI 腿在 ${ui_available}s 腿预算内未完成（来源：attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s；归口承载层预算，不计为产品用例）" >&2
+    # 与看门狗同一分类：UI 日志里有 failed 用例 → 产品用例失败；没有才归口承载层预算。
+    ios_timeout_classification_message "UI 腿" "$ui_log" "${phase_ui_seconds}" "$ui_available" \
+      "attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s"
   elif [ "$ui_status" -ne 0 ]; then
     echo "test-ios: 阶段 xcodebuild-ui 失败：xcodebuild test 退出 ${ui_status}（模拟器 ${sim_udid}）" >&2
   fi

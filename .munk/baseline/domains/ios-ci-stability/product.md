@@ -1,6 +1,6 @@
 # Domain: ios-ci-stability
 
-PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全新 macOS runner + 全新 iOS 18.6 模拟器**上可重复跑绿。当前契约已从「CI 内真实 `simctl location` 注入」切换为**UI 测试走 DEBUG + launch-arg 门控的确定性测试源**（`-uiTestLocation`），真实 CoreLocation 链路由 `scripts/verify-ios-sim-runtime.sh` 门独立覆盖；单测与 UI 测试拆成两次 `xcodebuild test`，单测结论先落盘不被 UI 失败吞掉，单次 attempt 静默等待 ≤600s，承载层重试仍最多 1 次。真实定位/距离计算、`RunLocationSource` 授权与采样契约、RunCore 与持久化/导出契约零改动，UI 断言一条不减。本机 `code_gates` 为 22 门快腿（`test-ios` 固定 `--unit-only`，`verify-ios-*` 重腿不本地阻断），全量单测 + UI 由 `.github/workflows/ios.yml` 的 `test` 步权威承载；同机多 worktree 的 iOS 门共用 `/tmp/purepace-ios-gate.lock` 串行化。预算口径**按腿独立**：单测腿与 UI 腿各享一份 `IOS_XCODEBUILD_TIMEOUT`（默认 600s），UI 腿另有最小阈值（默认 300s），可用预算不足即显式打印一行并失败退出（不再被共享聚合算法饿死）；`ios.yml` 在 attempt2 之前先算 step 剩余预算，不足 900s 直接跳过重试并保留 attempt1 退出码；每次 attempt 输出经 `2>&1 | tee -a` 落盘、并以 `if: always()` 上传 3 天，SIGTERM 击杀也留 partial 日志。承载层预热段已再收敛：冷启走显式非阻塞 `simctl boot` + 有界 `bootstatus` 轮询（`PUREPACE_IOS_BOOT_TIMEOUT_SECONDS` 默认 1200s），已 Booted 且持锁时不再 `shutdown all` 而直接复用同一设备给单测/UI 两腿，冷启把 boot 与 `build-for-testing` 在同一 attempt 内重叠，并输出 `[timing]` 分段计时行。
+PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全新 macOS runner + 全新 iOS 18.6 模拟器**上可重复跑绿。当前契约已从「CI 内真实 `simctl location` 注入」切换为**UI 测试走 DEBUG + launch-arg 门控的确定性测试源**（`-uiTestLocation`），真实 CoreLocation 链路由 `scripts/verify-ios-sim-runtime.sh` 门独立覆盖；单测与 UI 测试拆成两次 `xcodebuild test`，单测结论先落盘不被 UI 失败吞掉，单次 attempt 静默等待 ≤600s，承载层重试仍最多 1 次。真实定位/距离计算、`RunLocationSource` 授权与采样契约、RunCore 与持久化/导出契约零改动。本机 `code_gates` 为 22 门快腿（`test-ios` 固定 `--unit-only`，`verify-ios-*` 重腿不本地阻断），全量单测 + UI 由 `.github/workflows/ios.yml` 的 `test` 步权威承载；同机多 worktree 的 iOS 门共用 `/tmp/purepace-ios-gate.lock` 串行化。预算按腿独立（单测/UI 各一份 600s，UI 最小阈值 300s，不足即显式失败退出），`ios.yml` 在 attempt2 前先算 step 剩余、不足 900s 跳过重试并保留 attempt1 退出码；每次 attempt 经 `2>&1 | tee -a` 落盘并以 `if: always()` 上传 3 天。承载层预热：冷启走非阻塞 `simctl boot` + 有界 `bootstatus`（`PUREPACE_IOS_BOOT_TIMEOUT_SECONDS` 默认 1200s），已 Booted 且持锁时复用同一设备给两腿，冷启把 boot 与 `build-for-testing` 同 attempt 重叠，并输出 `[timing]` 分段行。
 
 ## 范围
 
@@ -21,6 +21,7 @@ PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全�
 
 - ac-ui-tests-deterministic-source: `RunFlowUITests` 通过 `app.launchArguments` 传入 `-uiTestLocation` 启动 App；在没有任何 `simctl location` 投递的 hosted runner 上，开跑后 10s 内距离从 `0.00 km` 发生变化。
 - ac-ui-assertions-intact: `RunFlowUITests` 仍恰有 2 个 `func test...`，`XCTAssert*` 出现次数不低于 68；距离增长、暂停/继续、结束保存、History 出现 1 条、详情/导出/分享、播报开关跨重启持久化等断言全部保留。
+- ac-ui-zero-baseline-before-tap: `testRunPauseResumeFinishAndHistory` 的 `run.distance` 零值断言发生在 `start.tap()` **之前**（`startedDistance` 读取并 `XCTAssertEqual(..., "0.00 km", "开跑起点距离必须为零")`，`startedElapsed` 同法前移），tap 后不再出现「读距离后与 `"0.00 km"` 相等」的竞态读法；零值语义不弱化（不删断言、不改范围/容差/集合放行、不改「允许 0.00 或 0.01」）、不引入固定 `sleep`/`Thread.sleep`；首样本仍由谓词式 `waitForFirstLocationSample(distance:baseline:)`（baseline = tap 前读数）判定，10s 超时仍落 `location-probe-failed`；`RunFlowUITests` 其余 3 个用例与其他测试文件零改动。
 - ac-test-source-debug-and-arg-gated: 确定性测试源整体位于 `#if DEBUG`；仅当启动参数 `-uiTestLocation` 存在时由 `ContentView` 组合根注入；参数缺失或 Release 构建时仍使用 `RunLocationSource`；测试源只实现既有 `RunLocationProviding` / delegate 契约，首个样本 ≤1s、之后约 1s 一个、约 10 m/s 推进，授权等价 `authorizedWhenInUse`。
 - ac-production-location-unchanged: `RunLocationSource` 仍用 `CLLocationManager`、`requestWhenInUseAuthorization`、`activityType = .fitness`、`distanceFilter = kCLDistanceFilterNone`、`pausesLocationUpdatesAutomatically = false`；RunCore 距离/配速/分段、播报、持久化、GPX 导出契约零改动。
 - ac-test-ios-two-invocations: `scripts/test-ios.sh` 在 bootstatus 之后先跑 `-only-testing:PurePaceTests` 再跑 `-only-testing:PurePaceUITests`（UI 腿同时带 `-skip-testing:PurePaceUITests/DeviceFlowUITests`）；两次调用日志/结果分文件，单测摘要先于 UI 输出；任一失败脚本非零退出，单测通过结论不被 UI 失败覆盖；脚本正文不再出现任何 `simctl location` 调用。
@@ -88,7 +89,7 @@ PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全�
 - 远端 shell 为 macOS bash 3.2：参数展开一律 `${var}`，禁止 `$var` 紧邻全角字符（否则 `unbound variable`）；固定字面量不得为适配 runner 删除：`iPhone 16` / `iOS 18.6`、`com.chaxiu.purepace`、`com.chaxiu.purepace.uitests.xctrunner`、`-destination 'platform=iOS Simulator,name=iPhone 16'`。
 - 工程文件如需刷新只能 `xcodegen generate`，禁止手改 `.xcodeproj`；`RunFlowUITests` 禁用 `Thread.sleep` 作为成功判据。
 - 预热竞态锚点：`prepare_simulator_for_ui_tests()` 的 `simctl launch` + `simctl terminate` 后，`xcodebuild test` 以 `terminate_running_process = 1` 拉起同一 bundle，`SBMainWorkspace` 会返回 `Busy` / `Application failed preflight checks` / `Failed to install or launch the test runner`。修法：保留预热并在 `terminate` 后有界轮询 `simctl spawn "$sim_udid" launchctl list` 直到 `$bundle_id` 消失（≤10s，超界非零）；**不得**删除 warmup（门禁断言 `simctl launch` / `simctl terminate` 字样）。
-- boot/timing 落点：`wait_for_simulator_boot()` 内 `xcrun simctl boot` + 有界 `bootstatus` 轮询（`PUREPACE_IOS_BOOT_TIMEOUT_SECONDS`，默认 1200s）；锁内已 Booted 且 quiescent 走 `[sim] reuse booted` 复用分支；`[timing]` 行 append 到 `.build/logs/test-ios-timing.log`；冷启先发 boot 再跑 `build-for-testing`，不得以裸 `sleep` 当同步原语。
+- boot/timing 落点：`wait_for_simulator_boot()` 内 `xcrun simctl boot` + 有界 `bootstatus` 轮询；冷启先发 boot 再跑 `build-for-testing`，不得以裸 `sleep` 当同步原语。
 - 同机多 worktree 并发跑 iOS 门会互踩同一台模拟器（`shutdown all` / `erase` / `xcodebuild` 交叉），因此 `test-ios.sh` / `verify-ios-sim-runtime.sh` / `verify-ios-ui-e2e.sh` 共用 `/tmp/purepace-ios-gate.lock`：`mkdir` 原子取锁 + pid + `PUREPACE_IOS_GATE_LOCK_HELD=1` 可重入 + 有界等待 1200s + 陈旧锁（无 pid 且 mtime >900s）清理 + `trap` 释放；取锁后先有界（600s）等 `xcodebuild|simctl` 归零，设备已 Booted 则复用、否则才清场，有并发时禁止 `shutdown` / `erase`。禁止无限循环与裸 `sleep` 定时器当同步原语。
 - 本地门拓扑（22 门）：只留快而确定腿，`test-ios` 固定 `--unit-only`，`verify-ios-*` 移出本地阻断（保留可手动串行）；权威全量在 `ios.yml` 的 `test` 步，workflow 出现 `--unit-only` 即判失败。
 - UI 腿排除真机取证套件：`DeviceFlowUITests`（4 条真机/分阶段取证用例）被编进 `PurePaceUITests`，整包执行时无设备前置即 4/4 确定性失败并撞满 600s。修法为单点窄改 `scripts/test-ios.sh`：UI 腿加 `-skip-testing:PurePaceUITests/DeviceFlowUITests`，选择器在 `usage()` / `echo` / 实际参数块三处同源一致；单测腿零改动。**保序硬约束**：`check-ios-scripts.sh` 以 `-only-testing:PurePaceUITests` 独占行为顺序锚点，skip 行必须紧随其后、不可同行或调换。取证套件本体与 `scripts/verify-ios-device-flow.sh` 零改动。
@@ -97,8 +98,7 @@ PurePace iOS 测试链路稳定性域：让 `bash scripts/test-ios.sh` 在**全�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_05f6250b373972aa（2026-11-10，pass）
-- 交付：`scripts/test-ios.sh` 承载层预热段改造——冷启显式 `simctl boot` + 有界 `bootstatus` 轮询（`PUREPACE_IOS_BOOT_TIMEOUT_SECONDS` 默认 1200s）、已 Booted 且持锁时 `[sim] reuse booted` 复用同一设备、boot 与 `build-for-testing` 同 attempt 重叠、每次运行 `[timing]` 分段行 append 到 `.build/logs/test-ios-timing.log`；`ios.yml` 只在实测必要时加一个最小预热/缓存 hunk。
-- 口径变更（推翻旧约束）：`ac-boot-warmup` 的「`bootstatus -b` 必须先阻塞通过」作废，改为非阻塞 boot + 有界轮询并打印 `[boot] elapsed`；锁内「必先 `simctl shutdown all`」改为「已 Booted 即复用」，锁原语与 1200s 有界等待不变；用例数基线由 58/2 更新为 78/4。
-- 验证：本 worktree `code_gates` 22 门已通过；boot 秒数与 test 步总时长：pending: 待 guard 观测（未取到前不写「CI 已通过」、不声称已达 150s）。
-- 零改动：`ios/**`、`shared/**`、`android/**`、`.github/workflows/android.yml`、`DeviceFlowUITests.swift`、`verify-ios-device-flow.sh`、`scripts/check-*.sh`；PASS/FAIL 行集合与退出码语义不变。
+- workItemId: wi_intake_5bfc7f2e9537b5fa（2026-11-10，pass）
+- 交付：`RunFlowUITests/testRunPauseResumeFinishAndHistory` 起点距离断言去竞态——`startedDistance` / `startedElapsed` 与 `XCTAssertEqual(startedDistance, "0.00 km", "开跑起点距离必须为零")` 前移到 `start.tap()` 之前，tap 之后只留 `waitForFirstLocationSample(distance:baseline:)`（基线 = tap 前读数）与时长增长探针；断言未删未弱化、无固定 sleep、其余 3 用例零改动。
+- 验证：持锁串行本地 UI 腿 2 次均 `** TEST SUCCEEDED **`（`.build/logs/ui-runflow-race-{1,2}.log`，用例 40.2s / 37.2s）；`bash scripts/test-ios.sh --unit-only` rc=0（单测 6s / RunCore 13s）；未重跑全量模拟器门，CI 结论仍以 `ios.yml` 为准。
+- 同轮拆分：超时归口的条件分类落在 `domains/ios-ci-budget`（本域预热/锁/确定性定位源契约不变）。
