@@ -957,7 +957,7 @@ release_deterministic_problems() {
 
   if [ -d "$root/ios/PurePaceUITests" ] \
     && grep -rFq -- "$flag" "$root/ios/PurePaceUITests" 2>/dev/null; then
-    out="$out UI 测试出现 $flag（Debug 用例语义被改）;"
+    out="$out UI 测试出现 ${flag}（Debug 用例语义被改）;"
   fi
 
   if [ -f "$run_source" ] && grep -Fq -- "$flag" "$run_source"; then
