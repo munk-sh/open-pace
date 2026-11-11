@@ -24,7 +24,7 @@ DEBUG `run.telemetry` 诊断摘要为内容区底部 overlay，不挤偏居中�
 
 ## 设置页（SettingsView）
 
-带分组标题的 Section（含「播报」组），每项一句说明；`Toggle` tint 用 `accent`；保留 `settings.announcementToggle`，不新增控件与文案。
+`List` + `.plain` + `scrollContentBackground(.hidden)`，与 History / RunDetail 同源；单个显式 Section（header `sectionHeader` + 次要色 + `textCase(nil)`，含「播报」组）。播报行 = `Toggle`（tint `accent`、`minTapTarget` 最小高、`Radius.card` + `hairline` 描边、行底 `surface`）+ `body`/`primary` 标题 + `caption`/`secondary` 说明；组尾说明为同 Section 只读行（`listRowBackground` 取页面底色，不借用系统 footer 槽位，避免 `systemBackground` 色带）。保留 `settings.announcementToggle`，不新增控件与文案。
 
 ## 关键取舍
 
