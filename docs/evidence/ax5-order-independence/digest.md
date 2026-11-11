@@ -59,7 +59,9 @@
 - 干净容器单用例（`uninstall → install → warmup → grant location/location-always`，AX5 字号）：
   `-only-testing:PurePaceUITests/EvidenceCaptureUITests/testEvidenceAx5Layout` → **exit 0**（`ax5-single-green.log`）。
 - 同容器整包（`-only-testing:PurePaceUITests`，标准字号档 large，与 ios.yml 权威腿同口径）：
-  见 `ax5-pack-standard.log` 与回执（跑不齐则如实记未跑）。
+  整包腿未跑齐。事实依据：`ax5-pack-standard.log` 被截断，末行停在后续用例 `t = 7.67s`
+  （`Waiting 10.0s for NavigationBar (First Match) to exist`），无整包结论。已绿范围只到单用例
+  `testEvidenceAx5Layout` exit 0 与两条反例/正向对照（`ax5-counterexamples.log`）。
 - 反例/口径证据：`ax5-counterexamples.log`（两条合成反例 + 正向对照）。
 - 未修清单（第三处及以上，只记录不动手）：
   1) 标准字号档 `03-run-finished`：`run.backgroundDegraded` (22.2, 806.0, 348.7, 31.3) 与 `run.save`
