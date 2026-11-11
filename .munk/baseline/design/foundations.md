@@ -25,14 +25,17 @@ Token 真源：`ios/PurePace/Design/DesignTokens.swift`（唯一）。视图与�
 
 ## 字号 / 间距 / 圆角 / 描边
 
-- `Typography`：`caption 12` → `body 15` → `title 20` → `primaryValue 34`（rounded semibold）→ `display 56`（rounded bold）；另有 `control`（控件）与 `sectionHeader`（分组标题）。
-- `Spacing`：`xxs 4 / xs 8 / sm 12 / md 16 / lg 24 / xl 32`（严格递增）。
+- `Typography`：`metricLabel 11` = `metricUnit 11`（指标三行角色）→ `caption 12` → `body 15` → `title 20` → `primaryValue 34`（rounded semibold）→ `display 56`（rounded bold）；另有 `control`（控件）与 `sectionHeader`（分组标题）。`sizes` 为严格递增 6 档 `[11,12,15,20,34,56]`；`roleLadder` 按字号非递减描述 7 角色（非相邻重复仅 label/unit）；`numericRoleNames = ["primaryValue","display"]` 是唯一的等宽数字角色集合，其余角色不得标记。
+- `Spacing`：`xxs 4 / xs 8 / sm 12 / md 16 / lg 24 / xl 32`（严格递增）；语义项 `screenTop 24` / `cardGap 16` / `sectionGap 12` / `metricGroupSpacing 8`（指标组内）/ `metricGroupGap 16`（指标组之间）/ `cardPadding 16`，全部落在上述档位。
 - `Radius`：`control 12 / card 16 / panel 20`（严格递增）。
 - `Stroke.hairline = 1`：卡片内分隔线与控制区上沿描边。
 - `Icon`：`inline 16 / row 20 / control 24`；`minTapTarget = 44`。
+- `Motion`：`durationShort 0.2s`（数值/色块原地过渡）、`durationState 0.32s`（记录态切换）、`reducedMotionDuration = 0`，降级解析是纯函数 `Motion.duration(_:reduceMotion:)`（`reduceMotion == true` 一律 0）。本域只提供常量，动画接线在视图层后续落地。
 
 ## 对比度（WCAG 2.x）
 
 `ios/PurePace/Design/ContrastPolicy.swift` 为 Foundation-only 纯函数：`ratio(foreground:background:) -> Double?`、`problems(for:) -> [String]`、`ratios(for:)`；阈值常量 body 4.5 / large 3.0，缺对、空名、分量越界一律 fail-closed。
+
+成对矩阵单点声明在该文件（`pairMatrix`，36 对、18 个语义键全覆盖、只引用 palette 键、零十六进制），按 `Tier` 分三档：正文/小字 4.5、非文本 UI 3.0、装饰分隔 1.10（`separator` 仅装饰，不作为唯一信息载体）；`checks(for:)` 在 light 与 dark 两侧求解整张矩阵。18 个语义键的机器可读用途注册表为 `DesignTokens.Colors.purposes`（键集必须等于 `palette`）。
 
 实测最低值：light 4.81（success/successSoft）、dark 6.86（danger/dangerSoft）；onAccent/accent 6.07（light）/ 9.57（dark）。任何 hex 微调必须用同一函数重算并写入 digest，不得低于阈值。
