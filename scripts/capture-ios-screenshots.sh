@@ -77,6 +77,7 @@ scheme="PurePace"
 project="ios/PurePace.xcodeproj"
 derived=".build/ios"
 work_dir=".build/evidence"
+archive_snapshot="$work_dir/archive-snapshot"
 shots_dir="docs/screenshots"
 a11y_dir="docs/evidence/a11y"
 ax5_dir="docs/evidence/evidence-freeze/ax5"
@@ -226,6 +227,7 @@ stage_trees() {
   container="$(app_container)" || fail "未找到 App 容器"
   say "archive: $container/Documents/Runs"
   ls -l "$container/Documents/Runs"
+  snapshot_archive
 }
 
 # ------------------------------------------------ 阶段：12 张浅/深截图
@@ -240,9 +242,31 @@ require_archive() {
   say "info: 复用真实归档 $container/Documents/Runs（$count 个文件）"
 }
 
+# UI 用例重新安装 App 会换掉数据容器，故把 trees 阶段产出的真实归档先快照、再按需还原；
+# 还原的仍是同一份归档文件（同名同内容），不产生第二条跑次。
+snapshot_archive() {
+  local container
+  container="$(app_container)" || fail "未找到 App 容器"
+  [ -d "$container/Documents/Runs" ] || fail "容器内无 Documents/Runs"
+  mkdir -p "$archive_snapshot"
+  cp -R "$container/Documents/Runs/." "$archive_snapshot/"
+  say "snapshot: $archive_snapshot（$(find "$archive_snapshot" -type f | wc -l | tr -d ' ') 个文件）"
+}
+
+restore_archive() {
+  local container count
+  container="$(app_container)" || fail "App 未安装，无法还原归档"
+  count="$(find "$archive_snapshot" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$count" -ge 1 ] || fail "归档快照为空（$archive_snapshot），先跑 trees 阶段"
+  mkdir -p "$container/Documents/Runs"
+  cp -R "$archive_snapshot/." "$container/Documents/Runs/"
+  say "restore: 已还原真实归档到 $container/Documents/Runs（$count 个文件）"
+}
+
 stage_screenshots() {
   say "== screenshots: 六屏 × 浅/深（UDID $udid）"
   boot_device
+  restore_archive
   require_archive
   local original_appearance
   original_appearance="$(xcrun simctl ui "$udid" appearance)"
@@ -309,6 +333,7 @@ stage_screenshots() {
 stage_ax5() {
   say "== ax5: content_size accessibility-extra-extra-extra-large（UDID $udid）"
   boot_device
+  restore_archive
   require_archive
   local before after original_appearance
   original_appearance="$(xcrun simctl ui "$udid" appearance)"
@@ -324,6 +349,8 @@ stage_ax5() {
   export_trees "$bundle" "$ax5_dir" \
     ax5-01-run-not-started ax5-03-run-finished ax5-05-history-detail ax5-06-settings
 
+  # UI 用例重新安装 App 会换掉数据容器：还原同一份真实归档，供 AX5 详情实拍。
+  restore_archive
   clear_checkpoint
   launch_app -uiTestLocation
   sleep 5

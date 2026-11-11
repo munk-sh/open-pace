@@ -231,7 +231,9 @@ final class EvidenceCaptureUITests: XCTestCase {
         var overlaps: [String] = []
         for element in elements {
             let frame = element.frame
-            if frame == primaryFrame { continue }
+            // 主操作自身与其子元素（frame 被主操作 frame 包含，如开关行内的标题/滑块）
+            // 属于主操作的一部分，不计作「其它内容」。
+            if frame == primaryFrame || primaryFrame.contains(frame) { continue }
             if frame.contains(primaryFrame) { continue }
             if frame.intersects(primaryFrame) {
                 overlaps.append("\(element.elementType.rawValue):\(element.identifier):\(frame)")
