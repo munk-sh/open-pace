@@ -134,6 +134,7 @@ final class RunFlowUITests: XCTestCase {
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        saveFinishedRun(app)
 
         XCTAssertTrue(
             app.staticTexts["run.saved"].waitForExistence(timeout: 10),
@@ -284,6 +285,7 @@ final class RunFlowUITests: XCTestCase {
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        saveFinishedRun(app)
         XCTAssertTrue(
             app.staticTexts["run.saved"].waitForExistence(timeout: 10),
             "结束后缺少「已保存」反馈"
@@ -376,6 +378,7 @@ final class RunFlowUITests: XCTestCase {
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少「已保存」反馈")
         attachScreenshot(app, name: "e2e-finish")
 
@@ -537,6 +540,7 @@ final class RunFlowUITests: XCTestCase {
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
         let viewHistory = app.buttons["run.viewHistory"]
         XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
@@ -827,6 +831,13 @@ final class RunFlowUITests: XCTestCase {
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
+    }
+
+    /// 结束只进入「待决策」：按可读 label 点保存主操作，落盘后才出现 `run.saved`。
+    private func saveFinishedRun(_ app: XCUIApplication) {
+        let save = app.buttons["保存本次跑步"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10), "结束待决策态缺少保存主操作")
+        save.tap()
     }
 
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {

@@ -39,6 +39,16 @@ struct RunView: View {
                     }
             }
             .onAppear { viewModel.onAppear() }
+            // 倒计时只按注入时钟判定到点：未到点仅刷新剩余读数，不产生任何记录。
+            .task(id: viewModel.isCountingDown) {
+                while !Task.isCancelled {
+                    let counting = await MainActor.run { viewModel.isCountingDown }
+                    guard counting, !Task.isCancelled else { return }
+                    try? await Task.sleep(for: .milliseconds(100))
+                    if Task.isCancelled { return }
+                    await MainActor.run { viewModel.advanceCountdown() }
+                }
+            }
         }
         .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.run")
@@ -229,6 +239,13 @@ struct RunView: View {
     @ViewBuilder
     private var hintLayer: some View {
         VStack(spacing: DesignTokens.Spacing.xs) {
+            if viewModel.isCountingDown {
+                Text(viewModel.countdownText)
+                    .font(DesignTokens.Typography.primaryValue)
+                    .foregroundStyle(DesignTokens.Colors.accent)
+                    .monospacedDigit()
+            }
+
             if let message = statusMessage {
                 hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
             }
@@ -236,6 +253,10 @@ struct RunView: View {
             if let hintMessage = viewModel.authorization.backgroundDegradationHint {
                 hint(hintMessage, tint: DesignTokens.Colors.warning, soft: DesignTokens.Colors.warningSoft)
                     .accessibilityIdentifier("run.backgroundDegraded")
+            }
+
+            if let action = readinessAction {
+                readinessControl(action)
             }
 
             if viewModel.didSave {
@@ -246,6 +267,39 @@ struct RunView: View {
                     .padding(.vertical, DesignTokens.Spacing.xxs)
                     .background(DesignTokens.Colors.successSoft, in: Capsule())
                     .accessibilityIdentifier("run.saved")
+            }
+        }
+    }
+
+    /// 定位不可用时的下一步动作：只在未开始（非倒计时）态展示，避免记录中打断。
+    private var readinessAction: RunLocationReadiness.NextAction? {
+        guard viewModel.state == .ready, !viewModel.isCountingDown, !viewModel.didSave else {
+            return nil
+        }
+        return viewModel.locationReadiness.nextAction
+    }
+
+    /// 恢复入口只给 `L10n` 可读 label（identifier 集合冻结，不新增标识）。
+    @ViewBuilder
+    private func readinessControl(_ action: RunLocationReadiness.NextAction) -> some View {
+        switch action {
+        case .openSettings:
+            if let url = viewModel.locationSettingsURL {
+                Link(destination: url) {
+                    Text(L10n.runActionOpenSettings)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.accent)
+                        .frame(minHeight: DesignTokens.minTapTarget)
+                }
+            }
+        case .retry:
+            Button {
+                viewModel.retryLocation()
+            } label: {
+                Text(L10n.runActionRetryLocation)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.accent)
+                    .frame(minHeight: DesignTokens.minTapTarget)
             }
         }
     }
@@ -266,15 +320,11 @@ struct RunView: View {
         if let error = viewModel.errorMessage {
             return error
         }
-        if viewModel.state == .ready {
-            switch viewModel.authorization {
-            case .denied, .restricted:
-                return L10n.locationDenied
-            case .notDetermined:
-                return L10n.waitingAuthorization
-            case .authorizedWhenInUse, .authorizedAlways:
-                return nil
-            }
+        if let decision = viewModel.decisionErrorMessage {
+            return decision
+        }
+        if viewModel.state == .ready, !viewModel.isCountingDown {
+            return viewModel.locationReadiness.message
         }
         return nil
     }
@@ -289,7 +339,8 @@ struct RunView: View {
         switch viewModel.state {
         case .running, .ready: return DesignTokens.Colors.onAccent
         case .paused: return DesignTokens.Colors.onWarning
-        case .finished: return DesignTokens.Colors.onSuccess
+        // 待决策主操作（保存）与未开始共用中性/品牌底色，文字取主色底上的同款反白。
+        case .finished: return DesignTokens.Colors.onAccent
         }
     }
 
@@ -297,10 +348,16 @@ struct RunView: View {
     private var controls: some View {
         switch viewModel.state {
         case .ready:
-            primaryControl(L10n.runActionStart, label: L10n.runStartLabel) {
-                viewModel.start()
+            if viewModel.isCountingDown {
+                secondaryControl(L10n.runActionCancel, label: L10n.runCancelCountdownLabel) {
+                    viewModel.cancelCountdown()
+                }
+            } else {
+                primaryControl(L10n.runActionStart, label: L10n.runStartLabel) {
+                    viewModel.start()
+                }
+                .accessibilityIdentifier("run.start")
             }
-            .accessibilityIdentifier("run.start")
         case .running:
             HStack(spacing: DesignTokens.Spacing.sm) {
                 primaryControl(L10n.runActionPause, label: L10n.runPauseLabel) { viewModel.pause() }
@@ -321,6 +378,16 @@ struct RunView: View {
                     onShowHistory()
                 }
                 .accessibilityIdentifier("run.viewHistory")
+            } else {
+                // 待决策：保存为唯一填充主操作，丢弃是弱化的破坏性次操作。
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    primaryControl(L10n.runActionSave, label: L10n.runSaveLabel) {
+                        viewModel.saveFinished()
+                    }
+                    secondaryControl(L10n.runActionDiscard, label: L10n.runDiscardLabel) {
+                        viewModel.discardFinished()
+                    }
+                }
             }
         }
     }

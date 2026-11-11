@@ -40,6 +40,10 @@ public struct RunSessionOrchestrator: Sendable {
     private var archivedSamples: [RunSample]
     private var startedAt: Date?
     private var lastArchivedSampleTimestamp: Date?
+    /// 结束快照：`prepareFinish` 生成并持有，保存成功前不落盘。
+    private var pendingRecord: RunRecord?
+    /// 已成功归档的结束快照：重复保存直接复用它，保证恰写一次。
+    private var archivedRecord: RunRecord?
 
     public init(
         checkpointStore: RunCheckpointStore,
@@ -56,6 +60,8 @@ public struct RunSessionOrchestrator: Sendable {
         self.archivedSamples = []
         self.startedAt = nil
         self.lastArchivedSampleTimestamp = nil
+        self.pendingRecord = nil
+        self.archivedRecord = nil
     }
 
     /// 由 checkpoint 恢复：状态机/度量引擎按既有 additive 恢复语义重建，不追加、不改写文件。
@@ -83,6 +89,23 @@ public struct RunSessionOrchestrator: Sendable {
             $0.timestamp.addingTimeInterval(-checkpoint.elapsed)
         }
         self.lastArchivedSampleTimestamp = checkpoint.lastSample?.timestamp
+        self.pendingRecord = nil
+        self.archivedRecord = nil
+    }
+
+    /// 结束快照（待决策）；未结束或已丢弃时为 `nil`。
+    public var finishedSnapshot: RunRecord? {
+        pendingRecord
+    }
+
+    /// 已成功归档的结束快照；重复保存返回同一记录。
+    public var savedRecord: RunRecord? {
+        archivedRecord
+    }
+
+    /// 是否处于「已结束 + 待决策」：已有快照但尚未归档。
+    public var isAwaitingDecision: Bool {
+        state == .finished && pendingRecord != nil && archivedRecord == nil
     }
 
     /// 当前度量快照（距离/时长/配速/分段全部来自 `RunMetricsEngine`）。
@@ -145,10 +168,24 @@ public struct RunSessionOrchestrator: Sendable {
         return snapshot(announcements: exposed(commands))
     }
 
-    /// 结束会话：归档一次并清空 checkpoint；已结束后返回 `nil` 且不重复归档。
+    /// 结束会话并归档一次（既有语义，幂等）：无待决策快照时自动补一次 `prepareFinish`。
+    ///
+    /// 已结束（无论已保存还是待决策）一律返回 `nil`，不重复生成快照、不重复归档。
     @discardableResult
     public mutating func finish(at date: Date) throws -> RunRecord? {
         guard state != .finished else { return nil }
+        _ = try prepareFinish(at: date)
+        return try saveFinished()
+    }
+
+    /// 结束会话并生成结束快照，**不落盘**：迁移到 `finished`、停表、清 checkpoint。
+    ///
+    /// 已结束时直接返回既有快照（已保存优先），保证重复「结束」不重复生成。
+    @discardableResult
+    public mutating func prepareFinish(at date: Date) throws -> RunRecord? {
+        if state == .finished {
+            return archivedRecord ?? pendingRecord
+        }
         try machine.finish()
         engine.finish(at: date)
         state = machine.state
@@ -170,9 +207,41 @@ public struct RunSessionOrchestrator: Sendable {
         ) else {
             throw RunArchiveError.invalidRecord("编排器组装的跑次记录不满足契约")
         }
-        try archiveStore.save(record)
         try checkpointStore.reset()
+        pendingRecord = record
         return record
+    }
+
+    /// 保存待决策的结束快照：归档恰一次，重复保存返回同一记录且不新增/不重写文件。
+    ///
+    /// 失败时不改动快照，调用方可原地重试；不会留下半条文件（由 `RunArchiveStore` 保证）。
+    @discardableResult
+    public mutating func saveFinished() throws -> RunRecord {
+        if let archivedRecord {
+            return archivedRecord
+        }
+        guard let record = pendingRecord else {
+            throw RunCoreError.invalidStateTransition(from: state, to: .finished)
+        }
+        try archiveStore.save(record)
+        archivedRecord = record
+        return record
+    }
+
+    /// 丢弃待决策的结束快照并重建为全新 `ready`；归档文件不动，内存草稿全部清空。
+    public mutating func discard() throws {
+        guard state == .finished else {
+            throw RunCoreError.invalidStateTransition(from: state, to: .ready)
+        }
+        machine = RunSessionMachine()
+        engine = RunMetricsEngine()
+        scheduler = AnnouncementScheduler()
+        archivedSamples = []
+        startedAt = nil
+        lastArchivedSampleTimestamp = nil
+        pendingRecord = nil
+        archivedRecord = nil
+        state = .ready
     }
 
     // MARK: - 采样摄入

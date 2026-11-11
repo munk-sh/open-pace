@@ -330,6 +330,7 @@ final class RunTelemetryTests: XCTestCase {
             announcementRecorder: AnnouncementTelemetryRecorder(),
             authorizationProbe: probe,
             telemetryDebugEnabled: true,
+            countdownDuration: 0,
             now: { clock.date }
         )
         return (viewModel, clock)
@@ -348,6 +349,7 @@ final class RunTelemetryTests: XCTestCase {
         }
         clock.date = Date(timeIntervalSince1970: t0 + 30)
         viewModel.finish()
+        viewModel.saveFinished()
         XCTAssertTrue(viewModel.didSave, "结束必须归档一次")
     }
 
