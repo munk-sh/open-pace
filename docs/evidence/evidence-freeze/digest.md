@@ -7,7 +7,7 @@
 ## 0. 预算回执
 
 - 开工预算：预计 25–30 分钟；门禁轮次上限 2 轮；期望收口：开工后 40 分钟内。
-- 实际时间线（日志 / 文件 mtime 实测）：采集 `15:17:17` 开始（`trees-20261111151717.xcresult`）→ `15:22:34` 采集结束（`capture-log-3.txt` 收尾）；门禁首轮 22 门中 `check-shell-expansion` 退出码 1（脚本裸变量紧跟中文，见 §7），修复后 `15:25:39`–`15:26:27` 复跑全 22 门退出码 0。门禁轮次 2 轮，未超预算。
+- 实际时间线（日志 / 文件 mtime 实测）：采集 `15:17:17` 开始（`trees-20261111151717.xcresult`）→ `15:22:34` 采集结束（`capture-log-3.txt` 收尾）；门禁首轮 22 门中 `check-shell-expansion` 退出码 1（脚本裸变量紧跟中文，见 §7），修复后 `15:25:39`–`15:26:27` 复跑全 22 门退出码 0；证据入库提交完成后又对最终工作树复跑一次，22 门退出码仍全为 0（§7 表内耗时取自最后一次复跑）。门禁轮次 2 轮（复跑计内），未超预算。
 
 ## 1. 环境与构建
 
@@ -259,25 +259,25 @@ AX5 同档实测树：
 |---|---|---|---|
 | 1 | `lint` | 0 | 0.0s |
 | 2 | `lint-baseline` | 0 | 0.0s |
-| 3 | `lint-ios-core` | 0 | 0.3s |
-| 4 | `lint-ios-scripts` | 0 | 13.8s |
-| 5 | `lint-ios-release` | 0 | 0.2s |
+| 3 | `lint-ios-core` | 0 | 0.9s |
+| 4 | `lint-ios-scripts` | 0 | 14.1s |
+| 5 | `lint-ios-release` | 0 | 0.3s |
 | 6 | `lint-ios-shell` | 0 | 2.5s |
-| 7 | `lint-ios-workflow` | 0 | 1.5s |
-| 8 | `lint-android` | 0 | 8.9s |
+| 7 | `lint-ios-workflow` | 0 | 1.8s |
+| 8 | `lint-android` | 0 | 9.0s |
 | 9 | `lint-android-workflow` | 0 | 0.7s |
-| 10 | `lint-ios-run-core` | 0 | 0.3s |
-| 11 | `build-ios-core` | 0 | 0.4s |
-| 12 | `build-ios-run-core` | 0 | 0.4s |
-| 13 | `build-ios` | 0 | 1.3s |
+| 10 | `lint-ios-run-core` | 0 | 0.8s |
+| 11 | `build-ios-core` | 0 | 0.7s |
+| 12 | `build-ios-run-core` | 0 | 0.7s |
+| 13 | `build-ios` | 0 | 2.0s |
 | 14 | `test-ios-core` | 0 | 0.5s |
 | 15 | `test-ios-run-core` | 0 | 0.6s |
-| 16 | `test-ios` | 0 | 12.1s |
-| 17 | `build-android` | 0 | 0.5s |
-| 18 | `test-android` | 0 | 3.2s |
+| 16 | `test-ios` | 0 | 13.1s |
+| 17 | `build-android` | 0 | 0.6s |
+| 18 | `test-android` | 0 | 3.4s |
 | 19 | `test` | 0 | 0.1s |
 | 20 | `check-shared` | 0 | 0.1s |
-| 21 | `check-gpx-export` | 0 | 0.7s |
+| 21 | `check-gpx-export` | 0 | 0.8s |
 | 22 | `check-shell-expansion` | 0 | 0.1s |
 
 - 门禁首轮实测：`check-shell-expansion` 退出码 1，失败原文为脚本 `scripts/capture-ios-screenshots.sh` 中裸变量紧跟非 ASCII 字节（如 `$file（`、`$udid）`、`$archive_snapshot（`）。修复为 `${file}` / `${udid}` / `${archive_snapshot}` 写法后复跑，上表 22 门全为 0。该修复只改字符串展开写法，不改变采集行为。
