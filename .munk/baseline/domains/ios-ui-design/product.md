@@ -12,7 +12,7 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - `ios/PurePace/History/RunDetailView.swift`：导出入口「导出 GPX」（`runDetail.export`，带 `accessibilityLabel`）保持在导航可达位置，导出流程与状态标识不变。
 - `ios/PurePace/ContentView.swift`：三个 Tab 的 `Label` 文案保留，并给 tabItem 加 `tab.run` / `tab.history` / `tab.settings` 标识；新增 DEBUG-only 截图启动参数接线（`-screenshotInitialTab` / `-screenshotHistoryDemo` / `-screenshotOpenRunDetail`）。
 - `ios/PurePace/Run/RunLaunchArguments.swift` + `ios/PurePace/History/HistoryDemoRecords.swift`：`value(after:)` / `flagEnabled(_:)` 纯函数解析，演示跑次整文件 `#if DEBUG` 包裹、不落盘、不读夹具。
-- 断言：`ios/PurePaceTests/DesignTokensTests.swift`（token 不变量 L1 单测，暗色开关 true）+ `ios/PurePaceTests/ContrastPolicyTests.swift`（7 例对比度，逐对打印 `ac-contrast`）+ `scripts/check-ios-shell.sh` 的 `validate_design_tokens`（token 唯一性、三屏无样式字面量、字面色值、零散字体、暗色开关、surface 卡片面、四层、等宽数字、三态色、主/次层级、关键文案、a11y 标签、identifier 冻结、demo 入口禁令）与其 `--self-test` 正负反例。
+- 断言：`ios/PurePaceTests/DesignTokensTests.swift`（token 不变量 L1 单测，暗色开关 true）+ `ios/PurePaceTests/ContrastPolicyTests.swift`（7 例对比度，逐对打印 `ac-contrast`）+ `scripts/check-ios-shell.sh` 的 `validate_design_tokens`（受管面结构性派生 + 令牌分组/唯一性/18 色对/阶梯冻结 + 零字面色值/零散字体/动效字面量 + 三屏层级、identifier 冻结、demo 入口禁令；规则契约见域 `design-token-gates`）与其 `--self-test` 正负反例。
 - `ios/PurePace/Design/DesignComponents.swift`（可选的视图内复用件）：只允许引用 token，不允许字面色值与零散字体修饰符；本轮以视图内联修饰实现，未新增独立文件。
 - 证据入仓：`docs/screenshots/` 的 `run-not-started.png`、`run-running.png`、`history-detail.png`、`history-empty.png`、`settings.png` 与新增暗色运行态 `run-running-dark.png`，连同 `docs/evidence/a11y/0{1..6}-*.txt`。
 - `ios/PurePace/Resources/Localizable.xcstrings`：String Catalog，`sourceLanguage = zh-Hans`，三屏全部用户可见文案（Tab / 导航标题 / 字段标签 / 空态 / 提示 / 按钮 / 状态 / a11y label）的唯一真源；`ios/project.yml` 声明 `developmentLanguage: zh-Hans`、`knownRegions`、`INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans` 并以 XcodeGen 重生成工程。
@@ -69,7 +69,7 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - ac-a11y-identifier-set-frozen: app 内可及 identifier 集合与基线完全一致（33 项，覆盖 `history.*` / `run.*` / `runDetail.*` / `settings.announcementToggle` / `tab.*`，逐项固定集合以 `scripts/check-ios-shell.sh` 的断言为正本），不新增、不改名、不删除；`validate_design_tokens` 以固定集合逐项比对且总数必须相等，重命名 `run.start` 或追加 `run.extra` 的反例必须判红；既有 6 棵可及树重新采集后集合不变。
 - ac-dark-mode-real: `Appearance.supportsDarkMode == true`；全部语义色带 dark 值；暗色下正文/小字对比度 ≥4.5:1、大数字 ≥3:1；真实 dark appearance 模拟器运行（`xcrun simctl ui <udid> appearance dark`）产出 `docs/screenshots/run-running-dark.png`，不得手绘或旧图改色；若暗色确不可用，digest 必须如实写 `pending` 并给出 token 计划。
 - ac-screenshots-refreshed: `run-not-started.png` / `run-running.png` / `history-detail.png` / `history-empty.png` / `settings.png` 五张同名覆盖，新增 `run-running-dark.png`；六个文件均为非空 PNG 且来自本轮真实 xcodebuild / simctl 产物；逐文件 sha256 写入 digest；不复用旧图、不手绘、不改色。
-- ac-gates-green: `.munk/code-gates.json` 的 22 门全部退出 0；不新增 gate id、不改门列表；`lint-ios-shell --self-test` 全过（52 项断言，含本轮新增正负反例）；`test-ios --unit-only` 执行到新增对比度与布局阈值单测；`build-ios` 真实构建成功。
+- ac-gates-green: `.munk/code-gates.json` 的 22 门全部退出 0；不新增 gate id、不改门列表；`lint-ios-shell --self-test` 全过（≥84 项断言，含本轮与令牌门禁项新增正负反例）；`test-ios --unit-only` 执行到新增对比度与布局阈值单测；`build-ios` 真实构建成功。
 - ac-diff-scope-bounded: 代码 diff 仅含 DesignTokens、ContrastPolicy（及可选 DesignComponents）、四个视图 + ContentView 的样式、`scripts/check-ios-shell.sh`、PurePaceTests 断言、`docs/screenshots/*`、`docs/evidence/a11y/*`；状态机、定位、音频、GPX、CI、Android、`project.yml`、本地化键、页面/路由全部零改动。
 - ac-digest-receipt: digest.md 三样回执齐全：①新截图路径 + sha256；②新增/扩展断言名 + 关键日志（含反例能红的那一行）；③diff 范围清单；另含设备/OS/Xcode、暗色生成命令、light/dark 对比度数值与 pending 项。
 
