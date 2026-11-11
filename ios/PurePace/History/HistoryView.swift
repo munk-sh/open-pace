@@ -14,22 +14,19 @@ struct HistoryView: View {
     /// 仅截图取证用：加载后直接进入首条记录详情；Release 路径恒为 `false`。
     var autoOpenFirstDetail: Bool = false
 
-    @State private var records: [RunRecord] = []
-    @State private var detailPresented = false
-    @State private var detailRecord: RunRecord?
-    @State private var didAutoOpenDetail = false
+    @State private var state = HistoryViewState()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $state.path) {
             Group {
-                if records.isEmpty {
+                if state.didFail {
+                    failureState
+                } else if state.isEmpty {
                     emptyState
                 } else {
                     List {
-                        ForEach(records, id: \.id) { record in
-                            NavigationLink {
-                                RunDetailView(record: record, exporter: exporter)
-                            } label: {
+                        ForEach(state.records, id: \.id) { record in
+                            NavigationLink(value: record.id) {
                                 row(for: record)
                             }
                             .accessibilityIdentifier("history.row")
@@ -51,15 +48,15 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle(L10n.historyNavigationTitle)
-            .navigationDestination(isPresented: $detailPresented) {
-                if let record = detailRecord {
+            .navigationDestination(for: UUID.self) { recordID in
+                if let record = state.records.first(where: { $0.id == recordID }) {
                     RunDetailView(record: record, exporter: exporter)
                 }
             }
         }
         .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.history")
-        .onAppear(perform: load)
+        .onAppear { load() }
         .onChange(of: refreshToken) { _, _ in load() }
     }
 
@@ -75,7 +72,10 @@ struct HistoryView: View {
                 .font(DesignTokens.Typography.body)
                 .foregroundStyle(DesignTokens.Colors.secondary)
                 .multilineTextAlignment(.center)
-            Button(action: onRunAgain) {
+            Button {
+                state.popToRoot()
+                onRunAgain()
+            } label: {
                 Text(L10n.historyRunAgain)
                     .font(DesignTokens.Typography.control)
                     .foregroundStyle(DesignTokens.Colors.onAccent)
@@ -89,6 +89,38 @@ struct HistoryView: View {
             )
             .accessibilityIdentifier("history.runAgain")
             .accessibilityLabel(Text(L10n.historyRunAgain))
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator)
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .background(DesignTokens.Colors.background)
+    }
+
+    /// 读取失败态：与「真的没有跑次」区分，只给唯一可重试操作（复用既有重试文案键）。
+    private var failureState: some View {
+        VStack(spacing: DesignTokens.Spacing.metricGroupSpacing) {
+            Button {
+                load(force: true)
+            } label: {
+                Text(L10n.runActionRetryLocation)
+                    .font(DesignTokens.Typography.control)
+                    .foregroundStyle(DesignTokens.Colors.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: DesignTokens.minTapTarget)
+            }
+            .background(
+                DesignTokens.Colors.accent,
+                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+            )
+            .accessibilityLabel(Text(L10n.runActionRetryLocation))
         }
         .padding(DesignTokens.Spacing.lg)
         .background(
@@ -149,17 +181,16 @@ struct HistoryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func load() {
-        if let injectedRecords {
-            records = injectedRecords
-        } else {
-            records = (try? archiveStore.list()) ?? []
+    /// 读取触发点只有「首次出现」与「`refreshToken` 变化」；同一 token 不重复读取。
+    /// `force` 仅由失败态的重试入口使用，可重复执行。
+    private func load(force: Bool = false) {
+        state.load(token: refreshToken, force: force) { () throws -> [RunRecord] in
+            if let injectedRecords {
+                return injectedRecords
+            }
+            return try archiveStore.list()
         }
-        if autoOpenFirstDetail, !didAutoOpenDetail, let first = records.first {
-            didAutoOpenDetail = true
-            detailRecord = first
-            detailPresented = true
-        }
+        state.openFirstDetailIfNeeded(autoOpen: autoOpenFirstDetail)
     }
 }
 
