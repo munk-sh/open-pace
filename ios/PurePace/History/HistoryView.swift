@@ -25,9 +25,9 @@ struct HistoryView: View {
                     emptyState
                 } else {
                     List {
-                        ForEach(state.records, id: \.id) { record in
-                            NavigationLink(value: record.id) {
-                                row(for: record)
+                        ForEach(state.summaries, id: \.id) { summary in
+                            NavigationLink(value: summary.id) {
+                                row(for: summary)
                             }
                             .accessibilityIdentifier("history.row")
                             .listRowSeparator(.hidden)
@@ -49,7 +49,9 @@ struct HistoryView: View {
             }
             .navigationTitle(L10n.historyNavigationTitle)
             .navigationDestination(for: UUID.self) { recordID in
-                if let record = state.records.first(where: { $0.id == recordID }) {
+                // 详情按 id 懒解码完整 samples（列表只持摘要）；注入取证路径直接给已解码记录。
+                if let record = injectedRecords?.first(where: { $0.id == recordID })
+                    ?? (try? archiveStore.record(withID: recordID)) {
                     RunDetailView(record: record, exporter: exporter)
                 }
             }
@@ -137,8 +139,8 @@ struct HistoryView: View {
     }
 
     /// 行三层：日期 `title` / 三数值 `body` 等宽同排 / 三标签 `metricLabel` 逐一对应。
-    private func row(for record: RunRecord) -> some View {
-        let content = HistoryRowContent(record: record)
+    private func row(for summary: RunRecordSummary) -> some View {
+        let content = HistoryRowContent(summary: summary)
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.metricGroupSpacing) {
             Text(content.dateText)
                 .font(DesignTokens.Typography.title)
@@ -184,11 +186,11 @@ struct HistoryView: View {
     /// 读取触发点只有「首次出现」与「`refreshToken` 变化」；同一 token 不重复读取。
     /// `force` 仅由失败态的重试入口使用，可重复执行。
     private func load(force: Bool = false) {
-        state.load(token: refreshToken, force: force) { () throws -> [RunRecord] in
+        state.load(token: refreshToken, force: force) { () throws -> [RunRecordSummary] in
             if let injectedRecords {
-                return injectedRecords
+                return injectedRecords.map(RunRecordSummary.init(record:))
             }
-            return try archiveStore.list()
+            return try archiveStore.listSummaries()
         }
         state.openFirstDetailIfNeeded(autoOpen: autoOpenFirstDetail)
     }
@@ -208,6 +210,16 @@ struct HistoryRowContent: Equatable {
         durationText = RunFormatting.elapsedText(record.activeDuration)
         paceText = RunFormatting.paceText(
             RunPace(distance: record.distance, duration: record.activeDuration)
+        )
+    }
+
+    /// 列表轻量索引版：字段全部来自 `RunRecordSummary`，不解码 `samples`。
+    init(summary: RunRecordSummary) {
+        dateText = RunFormatting.zhHansDateTimeText(summary.startedAt)
+        distanceText = RunFormatting.distanceText(summary.distance)
+        durationText = RunFormatting.elapsedText(summary.activeDuration)
+        paceText = RunFormatting.paceText(
+            RunPace(distance: summary.distance, duration: summary.activeDuration)
         )
     }
 

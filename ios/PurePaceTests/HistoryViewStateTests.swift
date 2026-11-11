@@ -19,21 +19,25 @@ final class HistoryViewStateTests: XCTestCase {
         )!
     }
 
-    private func throwingLoader(_ error: Error) -> () throws -> [RunRecord] {
+    private func makeSummary(offset: TimeInterval) -> RunRecordSummary {
+        RunRecordSummary(record: makeRecord(offset: offset))
+    }
+
+    private func throwingLoader(_ error: Error) -> () throws -> [RunRecordSummary] {
         { throw error }
     }
 
-    private func recordsLoader(_ records: [RunRecord], calls: @escaping () -> Void = {}) -> () throws -> [RunRecord] {
+    private func summariesLoader(_ summaries: [RunRecordSummary], calls: @escaping () -> Void = {}) -> () throws -> [RunRecordSummary] {
         {
             calls()
-            return records
+            return summaries
         }
     }
 
     func testEmptyArchiveAndFailureAreDistinctStates() {
         var state = HistoryViewState()
 
-        state.load(token: 0, using: recordsLoader([]))
+        state.load(token: 0, using: summariesLoader([]))
         XCTAssertTrue(state.isEmpty)
         XCTAssertFalse(state.didFail)
         XCTAssertEqual(state.outcome, .loaded([]))
@@ -47,14 +51,14 @@ final class HistoryViewStateTests: XCTestCase {
 
     func testRetryRecoversIntoRecords() {
         var state = HistoryViewState()
-        let record = makeRecord(offset: 0)
+        let summary = makeSummary(offset: 0)
 
         state.load(token: 0, using: throwingLoader(LoadFailure()))
         XCTAssertTrue(state.didFail)
 
-        XCTAssertTrue(state.load(token: 0, force: true, using: recordsLoader([record])))
+        XCTAssertTrue(state.load(token: 0, force: true, using: summariesLoader([summary])))
         XCTAssertFalse(state.didFail)
-        XCTAssertEqual(state.records, [record])
+        XCTAssertEqual(state.summaries, [summary])
         XCTAssertFalse(state.isEmpty)
     }
 
@@ -64,7 +68,7 @@ final class HistoryViewStateTests: XCTestCase {
         state.load(token: 0, using: throwingLoader(LoadFailure()))
         XCTAssertTrue(state.didFail)
 
-        XCTAssertTrue(state.load(token: 0, force: true, using: recordsLoader([])))
+        XCTAssertTrue(state.load(token: 0, force: true, using: summariesLoader([])))
         XCTAssertFalse(state.didFail)
         XCTAssertTrue(state.isEmpty)
     }
@@ -77,28 +81,28 @@ final class HistoryViewStateTests: XCTestCase {
         XCTAssertTrue(state.didFail)
 
         XCTAssertTrue(state.shouldLoad(token: 0, force: true))
-        XCTAssertTrue(state.load(token: 0, force: true, using: recordsLoader([makeRecord(offset: 0)])))
+        XCTAssertTrue(state.load(token: 0, force: true, using: summariesLoader([makeSummary(offset: 0)])))
         XCTAssertFalse(state.didFail)
     }
 
     func testSameTokenLoadsOnceAcrossDrilldownAndBack() {
         var state = HistoryViewState()
-        let records = [makeRecord(offset: 30), makeRecord(offset: 0)]
+        let summaries = [makeSummary(offset: 30), makeSummary(offset: 0)]
         var calls = 0
-        let loader = recordsLoader(records) { calls += 1 }
+        let loader = summariesLoader(summaries) { calls += 1 }
 
         XCTAssertTrue(state.load(token: 0, using: loader))
-        let orderBeforeDrilldown = state.records
+        let orderBeforeDrilldown = state.summaries
 
-        state.open(recordID: records[0].id)
-        XCTAssertEqual(state.path, [records[0].id])
+        state.open(recordID: summaries[0].id)
+        XCTAssertEqual(state.path, [summaries[0].id])
         state.popToRoot()
         XCTAssertEqual(state.path, [])
 
         // 返回列表根时再次触发读取：同一 token 必须被守卫拦下。
         XCTAssertFalse(state.load(token: 0, using: loader))
         XCTAssertEqual(calls, 1)
-        XCTAssertEqual(state.records, orderBeforeDrilldown)
+        XCTAssertEqual(state.summaries, orderBeforeDrilldown)
 
         // 刷新令牌变化时再读一次。
         XCTAssertTrue(state.load(token: 1, using: loader))
@@ -107,43 +111,43 @@ final class HistoryViewStateTests: XCTestCase {
 
     func testRefreshClearsStaleDetailAndKeepsExistingDetail() {
         var state = HistoryViewState()
-        let kept = makeRecord(offset: 0)
-        let removed = makeRecord(offset: 30)
+        let kept = makeSummary(offset: 0)
+        let removed = makeSummary(offset: 30)
 
-        state.load(token: 0, using: recordsLoader([removed, kept]))
+        state.load(token: 0, using: summariesLoader([removed, kept]))
         state.open(recordID: kept.id)
-        state.load(token: 1, using: recordsLoader([kept]))
+        state.load(token: 1, using: summariesLoader([kept]))
         XCTAssertEqual(state.path, [kept.id])
 
-        state.load(token: 2, using: recordsLoader([kept]))
+        state.load(token: 2, using: summariesLoader([kept]))
         state.open(recordID: removed.id)
         XCTAssertEqual(state.path, [removed.id])
-        state.load(token: 3, using: recordsLoader([kept]))
+        state.load(token: 3, using: summariesLoader([kept]))
         XCTAssertEqual(state.path, [])
     }
 
     func testRunAgainClearsPathAndPreservesLoadedRecords() {
         var state = HistoryViewState()
-        let records = [makeRecord(offset: 0)]
-        state.load(token: 0, using: recordsLoader(records))
-        state.open(recordID: records[0].id)
-        XCTAssertEqual(state.path, [records[0].id])
+        let summaries = [makeSummary(offset: 0)]
+        state.load(token: 0, using: summariesLoader(summaries))
+        state.open(recordID: summaries[0].id)
+        XCTAssertEqual(state.path, [summaries[0].id])
 
         // 空态 CTA：只清空 History 导航路径；state 不持有任何运行会话命令。
         state.popToRoot()
         XCTAssertEqual(state.path, [])
-        XCTAssertEqual(state.records, records)
+        XCTAssertEqual(state.summaries, summaries)
         XCTAssertFalse(state.didFail)
         XCTAssertFalse(state.isEmpty)
     }
 
     func testFailureClearsOpenDetailPath() {
         var state = HistoryViewState()
-        let record = makeRecord(offset: 0)
+        let summary = makeSummary(offset: 0)
 
-        state.load(token: 0, using: recordsLoader([record]))
-        state.open(recordID: record.id)
-        XCTAssertEqual(state.path, [record.id])
+        state.load(token: 0, using: summariesLoader([summary]))
+        state.open(recordID: summary.id)
+        XCTAssertEqual(state.path, [summary.id])
 
         state.load(token: 1, using: throwingLoader(LoadFailure()))
         XCTAssertTrue(state.didFail)
@@ -152,10 +156,10 @@ final class HistoryViewStateTests: XCTestCase {
 
     func testAutoOpenFirstDetailRunsOnlyOnce() {
         var state = HistoryViewState()
-        let first = makeRecord(offset: 30)
-        let second = makeRecord(offset: 0)
+        let first = makeSummary(offset: 30)
+        let second = makeSummary(offset: 0)
 
-        state.load(token: 0, using: recordsLoader([first, second]))
+        state.load(token: 0, using: summariesLoader([first, second]))
         state.openFirstDetailIfNeeded(autoOpen: true)
         XCTAssertEqual(state.path, [first.id])
 

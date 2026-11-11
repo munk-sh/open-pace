@@ -3,7 +3,7 @@ import PurePaceRunCore
 
 /// 归档读取结果：读取成功（0 条也是成功）与读取失败是两个可判等区分的状态。
 enum HistoryLoadOutcome: Equatable {
-    case loaded([RunRecord])
+    case loaded([RunRecordSummary])
     case failed
 }
 
@@ -18,10 +18,10 @@ struct HistoryViewState: Equatable {
     private(set) var loadedToken: Int?
     private var didAutoOpenDetail = false
 
-    /// 读取成功时的记录集合；失败或未读时为空数组。
-    var records: [RunRecord] {
-        guard case .loaded(let records) = outcome else { return [] }
-        return records
+    /// 读取成功时的轻量摘要集合（不含 `samples`）；失败或未读时为空数组。
+    var summaries: [RunRecordSummary] {
+        guard case .loaded(let summaries) = outcome else { return [] }
+        return summaries
     }
 
     /// 读取失败态（与「成功且 0 条」互相独立）。
@@ -31,8 +31,8 @@ struct HistoryViewState: Equatable {
 
     /// 成功读取且确实 0 条时才进入空态。
     var isEmpty: Bool {
-        guard case .loaded(let records) = outcome else { return false }
-        return records.isEmpty
+        guard case .loaded(let summaries) = outcome else { return false }
+        return summaries.isEmpty
     }
 
     /// 是否应在当前 token 下再次读取；`force` 供失败态重试使用。
@@ -45,7 +45,7 @@ struct HistoryViewState: Equatable {
     mutating func load(
         token: Int,
         force: Bool = false,
-        using loader: () throws -> [RunRecord]
+        using loader: () throws -> [RunRecordSummary]
     ) -> Bool {
         guard shouldLoad(token: token, force: force) else { return false }
         loadedToken = token
@@ -69,7 +69,7 @@ struct HistoryViewState: Equatable {
 
     /// 截图取证门控：首次读取后直接进入首条记录详情，只执行一次。
     mutating func openFirstDetailIfNeeded(autoOpen: Bool) {
-        guard autoOpen, !didAutoOpenDetail, let first = records.first else { return }
+        guard autoOpen, !didAutoOpenDetail, let first = summaries.first else { return }
         didAutoOpenDetail = true
         path = [first.id]
     }
@@ -77,7 +77,7 @@ struct HistoryViewState: Equatable {
     /// 刷新后路径指向的记录已不存在时清栈回列表根；失败态同样回根。
     private mutating func reconcilePath() {
         guard let current = path.first else { return }
-        guard records.contains(where: { $0.id == current }) else {
+        guard summaries.contains(where: { $0.id == current }) else {
             path = []
             return
         }
