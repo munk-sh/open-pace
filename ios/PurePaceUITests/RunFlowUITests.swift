@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 import PurePaceRunCore
 
 /// 真实链路 UI 测试：跑步会话由启动参数 `-uiTestLocation` 注入的确定性测试定位源驱动
@@ -113,6 +114,7 @@ final class RunFlowUITests: XCTestCase {
 
         let pause = app.buttons["run.pause"]
         XCTAssertTrue(pause.waitForExistence(timeout: 10), "运行时缺少暂停按钮")
+        assertRenderedAccent(pause, evidence: "运行中暂停按钮")
         pause.tap()
 
         XCTAssertTrue(
@@ -120,7 +122,10 @@ final class RunFlowUITests: XCTestCase {
             "暂停后未进入可恢复状态"
         )
         XCTAssertEqual(app.staticTexts["run.currentPace"].label, "--", "暂停时当前配速必须为空")
-        assertTabBarVisibility(app, state: .paused, didSave: false, screen: "暂停")
+        assertTabBarVisibility(
+            app, state: .paused, didSave: false, screen: "暂停",
+            evidence: "ac-tabbar-hidden-paused"
+        )
         assertRunMetricsBalanced(app, primaryAction: app.buttons["run.resume"], state: "暂停")
         let pausedDistance = distance.label
         let pausedElapsed = elapsed.label
@@ -135,19 +140,111 @@ final class RunFlowUITests: XCTestCase {
             waitUntil(timeout: 30) { distance.label != pausedDistance },
             "恢复后距离没有继续增长"
         )
-        assertTabBarVisibility(app, state: .running, didSave: false, screen: "恢复运行")
+        assertTabBarVisibility(
+            app, state: .running, didSave: false, screen: "恢复运行",
+            evidence: "ac-tabbar-hidden-recording"
+        )
 
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
+        assertRenderedAccent(finish, evidence: "结束按钮")
         finish.tap()
-        assertTabBarVisibility(app, state: .finished, didSave: false, screen: "结束待保存")
+        assertTabBarVisibility(
+            app, state: .finished, didSave: false, screen: "结束待保存",
+            evidence: "ac-tabbar-hidden-finished-pending"
+        )
+
+        // 破坏性丢弃只经确认层：屏上先有入口、无 run.discard；sheet 内才出现，取消后状态不变。
+        XCTAssertTrue(app.buttons["run.discardRequest"].exists, "结束待保存态缺少丢弃确认入口")
+        XCTAssertFalse(app.buttons["run.discard"].exists, "确认层出现前不得直接暴露破坏性丢弃按钮")
+        // 打开确认层前冻结读数：取消只关闭确认层，距离/时长必须逐字节不变。
+        let pendingDistance = distance.label
+        let pendingElapsed = elapsed.label
+        app.buttons["run.discardRequest"].tap()
+        XCTAssertTrue(
+            app.buttons["run.discard"].waitForExistence(timeout: 10),
+            "确认层未出现破坏性丢弃按钮"
+        )
+        app.buttons["run.discardCancel"].tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 5) { !app.buttons["run.discard"].exists },
+            "取消确认层后破坏性丢弃按钮应消失"
+        )
+        XCTAssertTrue(app.buttons["run.discardRequest"].exists, "取消后应回到结束待保存态")
+        XCTAssertTrue(app.buttons["run.save"].exists, "取消后保存主操作应仍在")
+        // 取消是纯关闭动作：屏幕与读数都必须零变更（未丢弃、未重置会话）。
+        XCTAssertFalse(
+            app.buttons["run.discard"].exists,
+            "取消后破坏性丢弃按钮不得留在屏上：取消不得触发丢弃"
+        )
+        XCTAssertEqual(
+            distance.label,
+            pendingDistance,
+            "取消确认层不得改变距离读数：期望仍为 \(pendingDistance)，实际 \(distance.label)"
+        )
+        XCTAssertEqual(
+            elapsed.label,
+            pendingElapsed,
+            "取消确认层不得改变时长读数：期望仍为 \(pendingElapsed)，实际 \(elapsed.label)"
+        )
+
+        // 正向确认路径：确认后才真正丢弃，并回到 `ready` 未开始态。
+        let discardEntry = app.buttons["run.discardRequest"]
+        XCTAssertTrue(discardEntry.exists, "结束待保存态缺少丢弃确认入口，无法走确认路径")
+        discardEntry.tap()
+        let discardConfirm = app.buttons["run.discard"]
+        XCTAssertTrue(
+            discardConfirm.waitForExistence(timeout: 10),
+            "再次打开确认层后缺少破坏性丢弃按钮"
+        )
+        discardConfirm.tap()
+        let restartedStart = app.buttons["run.start"]
+        XCTAssertTrue(
+            restartedStart.waitForExistence(timeout: 10),
+            "确认丢弃后应回到 ready 未开始态并出现开始按钮"
+        )
+        XCTAssertFalse(app.buttons["run.discard"].exists, "确认丢弃后破坏性按钮必须随确认层消失")
+        XCTAssertFalse(app.buttons["run.discardRequest"].exists, "ready 态不得再有丢弃确认入口")
+        XCTAssertFalse(app.buttons["run.save"].exists, "丢弃后不得再出现保存主操作")
+
+        // 确认丢弃已把会话复位到 ready，保存链路需在新一轮会话上继续验证
+        // （既有保存/历史/详情断言一条不删不改，只换承载会话）。
+        restartedStart.tap()
+        XCTAssertTrue(
+            app.buttons["run.pause"].waitForExistence(timeout: 15),
+            "丢弃后重新开跑未进入运行态（倒计时结束应出现暂停按钮）"
+        )
+        // 倒计时结束后的即时读数作基线：用复位后的 0.00 km 判「已增长」会把空记录当成功。
+        let restartedBaselineDistance = distance.label
+        XCTAssertTrue(
+            waitUntil(timeout: 30) { distance.label != restartedBaselineDistance },
+            "重新开跑后距离没有随定位样本增长，当前 \(distance.label)"
+        )
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { elapsed.label != "00:00" },
+            "重新开跑后时长没有随真实采样增长，当前 \(elapsed.label)"
+        )
+        let restartedFinish = app.buttons["run.finish"]
+        XCTAssertTrue(restartedFinish.waitForExistence(timeout: 10), "重新开跑后缺少结束按钮")
+        restartedFinish.tap()
+        XCTAssertTrue(
+            app.buttons["run.save"].waitForExistence(timeout: 10),
+            "重新结束后未回到结束待保存态"
+        )
+
+        let save = app.buttons["run.save"]
+        XCTAssertTrue(save.exists, "结束待保存态缺少保存主操作")
+        assertRenderedAccent(save, evidence: "保存主操作")
         saveFinishedRun(app)
 
         XCTAssertTrue(
             app.staticTexts["run.saved"].waitForExistence(timeout: 10),
             "结束后缺少「已保存」反馈"
         )
-        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
+        assertTabBarVisibility(
+            app, state: .finished, didSave: true, screen: "保存态",
+            evidence: "ac-tabbar-restore-no-deadend"
+        )
         XCTAssertFalse(app.buttons["run.finish"].exists, "结束后不应再有结束按钮")
         attachScreenshot(app, name: "e2e-finish")
 
@@ -553,7 +650,8 @@ final class RunFlowUITests: XCTestCase {
         finish.tap()
         assertTabBarVisibility(app, state: .finished, didSave: false, screen: "结束待保存")
         XCTAssertTrue(app.buttons["run.save"].exists, "结束待保存态缺少保存主操作")
-        XCTAssertTrue(app.buttons["run.discard"].exists, "结束待保存态缺少丢弃操作")
+        XCTAssertTrue(app.buttons["run.discardRequest"].exists, "结束待保存态缺少丢弃确认入口")
+        XCTAssertFalse(app.buttons["run.discard"].exists, "确认层出现前不得直接暴露破坏性丢弃按钮")
         saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
         assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
@@ -629,15 +727,17 @@ final class RunFlowUITests: XCTestCase {
     ) {
         let tabBar = app.tabBars.firstMatch
         let anchor: CGRect
-        if tabBar.exists {
+        // 记录态 Tab 栏已收起：hidden 状态下 firstMatch 仍可能命中零帧元素（minY = 0），
+        // 只以落在底部的有效 frame 判定可见 Tab 栏，否则退回窗口底边扣除 Home Indicator 的等价锚点。
+        if tabBar.exists && tabBar.frame.minY > 0 && tabBar.frame.height > 0 {
             anchor = tabBar.frame
         } else {
             let window = app.windows.firstMatch.frame
             anchor = CGRect(
                 x: window.minX,
-                y: window.minY,
+                y: window.maxY - Self.homeIndicatorInset,
                 width: window.width,
-                height: window.height - Self.homeIndicatorInset
+                height: Self.homeIndicatorInset
             )
         }
         let evaluation = PrimaryActionLayoutPolicy.evaluate(
@@ -698,7 +798,8 @@ final class RunFlowUITests: XCTestCase {
         _ app: XCUIApplication,
         state: RunSessionState,
         didSave: Bool,
-        screen: String
+        screen: String,
+        evidence: String = "ac-tabbar-hidden"
     ) {
         let observed = app.tabBars.count
         let evaluation = TabBarVisibilityPolicy.evaluate(
@@ -707,7 +808,7 @@ final class RunFlowUITests: XCTestCase {
             observedTabBarCount: observed
         )
         print(
-            "ac-tabbar-hidden \(screen): state=\(state.rawValue) didSave=\(didSave) "
+            "\(evidence) \(screen): state=\(state.rawValue) didSave=\(didSave) "
                 + "tabBarCount=\(observed) expected=\(evaluation.expectedCount)"
         )
         XCTAssertTrue(evaluation.passes, "\(screen) Tab 栏可见性与状态不一致：\(evaluation.problems)")
@@ -737,6 +838,82 @@ final class RunFlowUITests: XCTestCase {
         )
         XCTAssertGreaterThan(hint.frame.minY, distance.maxY, "降级提示不得压在距离 hero 之上")
         XCTAssertGreaterThan(hint.frame.minY, averagePace.maxY, "降级提示必须在指标卡内/之后，不得插在 hero 与指标卡之间")
+    }
+
+    /// ac-finish-ui-rendered-accent：对按钮截图做真实像素采样，期望值从 `DesignTokens` 的
+    /// `accent` light token 派生（不在测试里另写颜色字面量），容差 ≤ 2/255。
+    /// 采样点取按钮左缘 1pt 的非文字竖线：填充主操作命中 accent 底，accent 描边命中边框，
+    /// 旧 warning 描边 / 无 accent 填充实现采不到 accent 像素，必须判红。
+    private func assertRenderedAccent(_ element: XCUIElement, evidence: String) {
+        guard let expected = DesignTokens.Colors.palette["accent"]?.light else {
+            XCTFail("\(evidence) 缺少 accent token")
+            return
+        }
+        let frame = element.frame
+        guard frame.width > 0, frame.height > 0 else {
+            XCTFail("\(evidence) 无有效 frame")
+            return
+        }
+        let image = element.screenshot().image
+        guard let cgImage = image.cgImage else {
+            XCTFail("\(evidence) 无法取得截图")
+            return
+        }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: &pixels,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            XCTFail("\(evidence) 无法建立采样位图")
+            return
+        }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let expectedR = Int((expected.red * 255).rounded())
+        let expectedG = Int((expected.green * 255).rounded())
+        let expectedB = Int((expected.blue * 255).rounded())
+        let scaleX = CGFloat(width) / frame.width
+        let scaleY = CGFloat(height) / frame.height
+        let sampleX = min(width - 1, max(0, Int((1 * scaleX).rounded())))
+
+        var matches = 0
+        var nearest = (r: 0, g: 0, b: 0)
+        var nearestDelta = Int.max
+        var y = Int((frame.height * 0.2 * scaleY).rounded())
+        let yEnd = Int((frame.height * 0.8 * scaleY).rounded())
+        while y <= min(height - 1, yEnd) {
+            let offset = (y * width + sampleX) * 4
+            let r = Int(pixels[offset])
+            let g = Int(pixels[offset + 1])
+            let b = Int(pixels[offset + 2])
+            let delta = max(abs(r - expectedR), max(abs(g - expectedG), abs(b - expectedB)))
+            if delta < nearestDelta {
+                nearestDelta = delta
+                nearest = (r, g, b)
+            }
+            if delta <= 2 {
+                matches += 1
+            }
+            y += max(1, Int(scaleY.rounded()))
+        }
+
+        print(
+            "ac-finish-ui-rendered-accent \(evidence): expected=(\(expectedR),\(expectedG),\(expectedB)) "
+                + "nearest=(\(nearest.r),\(nearest.g),\(nearest.b)) delta=\(nearestDelta) matches=\(matches)"
+        )
+        XCTAssertGreaterThan(
+            matches, 0,
+            "\(evidence) 未采到 accent 渲染像素（最近 \(nearest)，期望 \(expectedR),\(expectedG),\(expectedB)）"
+        )
     }
 
     /// 以固定名称保存可及树文本（lifetime = .keepAlways），供证据导出。

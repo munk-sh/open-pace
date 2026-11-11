@@ -847,13 +847,15 @@ EOF
     || problems="$problems 跑步页主操作未底部锚定（safeAreaInset）;"
   grep -Fq 'DesignTokens.Colors.accent' "$run_view" || problems="$problems 跑步页未引用品牌主色 accent;"
 
-  # 三态视觉：记录中 accent / 暂停 warning / 保存 success（改错一行必须判红）。
-  grep -Fq 'case .running: return DesignTokens.Colors.accent' "$run_view" \
-    || problems="$problems 记录态未用 accent;"
-  grep -Fq 'case .paused: return DesignTokens.Colors.warning' "$run_view" \
-    || problems="$problems 暂停态未用 warning;"
-  grep -Fq 'if viewModel.didSave { return DesignTokens.Colors.success }' "$run_view" \
-    || problems="$problems 保存态未用 success;"
+  # 三态视觉：hero 主值色的单一真源在 `RunInteractionPlan.heroTint`（记录中 / 暂停 accent，
+  # warning 只作非阻断内联提示；保存 success），RunView 只消费 `plan.heroTint`，不再各自 switch 颜色。
+  local run_plan="ios/PurePace/Run/RunInteractionPlan.swift"
+  grep -Fq 'case .running, .paused: return .accent' "$run_plan" \
+    || problems="$problems 记录态/暂停态 hero 未用 accent;"
+  grep -Fq 'if didSave { return .success }' "$run_plan" \
+    || problems="$problems 保存态 hero 未用 success;"
+  grep -Fq 'valueTint: color(for: plan.heroTint)' "$run_view" \
+    || problems="$problems 跑步页 hero 未走 plan.heroTint 单一真源;"
 
   # 卡片面：历史列表与跑次详情统一 surface / Radius.card / separator，且不退回系统 grouped 默认观感。
   local card_token
@@ -1406,7 +1408,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 37 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 39 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"

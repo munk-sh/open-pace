@@ -114,7 +114,7 @@ final class RunInteractionPlanTests: XCTestCase {
 
     func testEveryDisplayStateHasAnExitAction() {
         let exitActions: Set<RunInteractionPlan.Action> = [
-            .start, .cancelCountdown, .pause, .resume, .finish, .save, .discard, .viewHistory
+            .start, .cancelCountdown, .pause, .resume, .finish, .save, .discardRequest, .discard, .viewHistory
         ]
         for reduceMotion in [false, true] {
             for state in displayStates(reduceMotion: reduceMotion) {
@@ -129,6 +129,8 @@ final class RunInteractionPlanTests: XCTestCase {
 
     // MARK: - ac-plan-destructive-secondary
 
+    /// 旧口径（finish=secondary / warning 描边）已废弃：finish 归主操作 accent 族，
+    /// 同屏唯一填充主操作仍是 pause/resume；破坏性 discard 只在确认层且为 danger。
     func testDestructiveActionsStaySecondary() {
         let running = makePlan(state: .running)
         let paused = makePlan(state: .paused)
@@ -136,17 +138,93 @@ final class RunInteractionPlanTests: XCTestCase {
 
         for plan in [running, paused] {
             let finish = plan.items.first { $0.action == .finish }
-            XCTAssertEqual(finish?.emphasis, .secondary)
-            let primary = plan.items.first { $0.emphasis == .primary }
-            XCTAssertNotEqual(primary?.action, .finish)
+            XCTAssertEqual(finish?.emphasis, .accent)
+            XCTAssertEqual(finish?.tint, .accent)
+            XCTAssertEqual(finish?.style, .accentOutline)
+            XCTAssertFalse(finish?.fillsWithTint ?? true)
+            let filled = plan.items.filter { $0.fillsWithTint }
+            XCTAssertEqual(filled.count, 1)
+            XCTAssertTrue(filled.first?.action == .pause || filled.first?.action == .resume)
+            XCTAssertNotEqual(filled.first?.action, .finish)
         }
 
-        let discard = pending.items.first { $0.action == .discard }
+        let entry = pending.items.first { $0.action == .discardRequest }
         let save = pending.items.first { $0.action == .save }
-        XCTAssertEqual(discard?.emphasis, .secondary)
+        XCTAssertEqual(entry?.emphasis, .secondary)
+        XCTAssertEqual(entry?.tint, .secondary)
         XCTAssertEqual(save?.emphasis, .primary)
-        XCTAssertNotEqual(discard?.action, save?.action)
+        XCTAssertEqual(save?.tint, .accent)
+        XCTAssertNotEqual(entry?.action, save?.action)
         XCTAssertEqual(pending.items.count, 2)
+        XCTAssertNil(pending.items.first { $0.action == .discard }, "破坏性 discard 不得直接出现在待保存屏")
+
+        let confirmation = pending.discardConfirmation
+        XCTAssertEqual(confirmation?.cancel.emphasis, .secondary)
+        XCTAssertEqual(confirmation?.confirm.action, .discard)
+        XCTAssertEqual(confirmation?.confirm.emphasis, .danger)
+        XCTAssertEqual(confirmation?.confirm.tint, .danger)
+        XCTAssertFalse(confirmation?.confirm.fillsWithTint ?? true)
+        XCTAssertNil(running.discardConfirmation)
+        XCTAssertNil(paused.discardConfirmation)
+
+        // 旧口径反例：finish 若回退 secondary，tint 不再是 accent，必须判红。
+        let legacyFinish = RunInteractionPlan.Item(action: .finish, emphasis: .secondary)
+        XCTAssertNotEqual(legacyFinish.tint, .accent)
+        XCTAssertNotEqual(legacyFinish.style, .accentOutline)
+    }
+
+    // MARK: - ac-primary-family-accent
+
+    func testPrimaryActionFamilyResolvesAccent() {
+        let plans: [(String, RunInteractionPlan, [RunInteractionPlan.Action])] = [
+            ("ready", makePlan(state: .ready), [.start]),
+            ("running", makePlan(state: .running), [.pause, .finish]),
+            ("paused", makePlan(state: .paused), [.resume, .finish]),
+            ("finished pending", makePlan(state: .finished), [.save])
+        ]
+        for (name, plan, expected) in plans {
+            for action in expected {
+                let item = plan.items.first { $0.action == action }
+                XCTAssertEqual(item?.tint, .accent, "\(name).\(action) 必须解析为 accent")
+                XCTAssertNotEqual(item?.tint, .warning, "\(name).\(action) 不得解析为 warning")
+                XCTAssertNotEqual(item?.tint, .secondary, "\(name).\(action) 不得解析为 secondary")
+            }
+        }
+    }
+
+    // MARK: - ac-warning-inline-only
+
+    func testWarningOnlyServesInlineNotices() {
+        let notices: [RunInteractionPlan.Notice] = [
+            .recordingError, .decisionFailed, .locationDenied,
+            .locationUnavailable, .waitingAuthorization, .backgroundDegraded
+        ]
+        for notice in notices {
+            XCTAssertEqual(notice.tint, .warning, "\(notice) 必须只解析为 warning 内联提示")
+        }
+
+        for reduceMotion in [false, true] {
+            for state in displayStates(reduceMotion: reduceMotion) {
+                for item in state.plan.items {
+                    XCTAssertNotEqual(item.tint, .warning, "\(state.name).\(item.action) 不得解析为 warning")
+                }
+                XCTAssertNotEqual(state.plan.heroTint, .warning, "\(state.name) hero 主值色不得为 warning")
+            }
+        }
+
+        // hero 主值：记录中 / 暂停取 accent（暂停不切 warning），已保存取 success，未开始中性 primary。
+        XCTAssertEqual(makePlan(state: .running).heroTint, .accent)
+        XCTAssertEqual(makePlan(state: .paused).heroTint, .accent)
+        XCTAssertEqual(makePlan(state: .ready).heroTint, .primary)
+        XCTAssertEqual(makePlan(state: .finished, didSave: true).heroTint, .success)
+        // 反例：若 hero 回退到旧 warning 口径必须判红。
+        XCTAssertNotEqual(makePlan(state: .paused).heroTint, .warning)
+        XCTAssertNotEqual(makePlan(state: .running).heroTint, .warning)
+
+        // 反例：warning 填充主按钮必须判红。
+        let warningFill = RunInteractionPlan.Item(action: .pause, emphasis: .primary)
+        XCTAssertNotEqual(warningFill.tint, .warning)
+        XCTAssertTrue(warningFill.fillsWithTint)
     }
 
     // MARK: - ac-countdown-visible-metrics
@@ -219,7 +297,7 @@ final class RunInteractionPlanTests: XCTestCase {
         XCTAssertEqual(plan.notice, .decisionFailed)
         XCTAssertEqual(plan.items, [
             .init(action: .save, emphasis: .primary),
-            .init(action: .discard, emphasis: .secondary)
+            .init(action: .discardRequest, emphasis: .secondary)
         ])
         XCTAssertEqual(plan.metrics, sampleMetrics)
     }
