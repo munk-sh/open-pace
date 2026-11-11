@@ -1301,7 +1301,8 @@ run_self_test() {
   # 本地化单一来源与视图零裸英文正负反例（正例直接复制真实源码）。
   local loc_good="$tmp_dir/localization-good"
   mkdir -p "$loc_good/ios/PurePace/Resources" "$loc_good/ios/PurePace/Run" \
-    "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings"
+    "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings" \
+    "$loc_good/ios/PurePace/Track"
   cp ios/PurePace/Resources/Localizable.xcstrings "$loc_good/ios/PurePace/Resources/"
   cp ios/project.yml "$loc_good/ios/project.yml"
   cp ios/PurePace/ContentView.swift "$loc_good/ios/PurePace/"
@@ -1309,6 +1310,7 @@ run_self_test() {
   cp ios/PurePace/History/HistoryView.swift "$loc_good/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailView.swift "$loc_good/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$loc_good/ios/PurePace/Settings/"
+  cp ios/PurePace/Track/TrackMapView.swift "$loc_good/ios/PurePace/Track/"
   check_ok "本地化单一来源正例" "$(validate_localization "$loc_good")"
 
   local loc_bad="$tmp_dir/localization-bad"
@@ -1325,7 +1327,8 @@ run_self_test() {
   # 设计 token 单一真源与三屏契约正负反例（正例直接复制真实源码）。
   local design_root="$tmp_dir/design-good"
   mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
-    "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings"
+    "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings" \
+    "$design_root/ios/PurePace/Track"
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
@@ -1334,9 +1337,10 @@ run_self_test() {
   cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailContent.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
+  cp ios/PurePace/Track/TrackMapView.swift "$design_root/ios/PurePace/Track/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 38 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 42 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_bad="$tmp_dir/design-no-token"
@@ -1424,7 +1428,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 39 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 43 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"
