@@ -10,6 +10,8 @@ struct RunView: View {
     @ObservedObject var viewModel: RunSessionViewModel
     /// 保存态主操作：切到历史 Tab（纯视图回调，不触碰状态机）。
     var onShowHistory: () -> Void = {}
+    /// Reduce Motion 打开时时长归零（无动画）；读取环境，不用 `UIAccessibility` 单例。
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -24,6 +26,9 @@ struct RunView: View {
             // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
             .overlay(alignment: .bottom) { telemetryOverlay }
             .background(DesignTokens.Colors.background)
+            // 状态过渡只走 Motion token：Reduce Motion 打开时时长归零、无动画。
+            .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.state)
+            .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.didSave)
             .navigationTitle(L10n.runNavigationTitle)
             // 主操作固定底部控制区：安全区上方、TabBar 之上，三态共用同一锚点。
             .safeAreaInset(edge: .bottom) {
@@ -239,24 +244,20 @@ struct RunView: View {
     @ViewBuilder
     private var hintLayer: some View {
         VStack(spacing: DesignTokens.Spacing.xs) {
-            if viewModel.isCountingDown {
-                Text(viewModel.countdownText)
+            // 倒计时读数留在提示层，不覆盖 hero / 指标卡。
+            if let countdownText = plan.countdownText {
+                Text(countdownText)
                     .font(DesignTokens.Typography.primaryValue)
                     .foregroundStyle(DesignTokens.Colors.accent)
                     .monospacedDigit()
             }
 
-            if let message = statusMessage {
-                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            if let notice = plan.notice {
+                noticeRow(notice)
             }
 
-            if let hintMessage = viewModel.authorization.backgroundDegradationHint {
-                hint(hintMessage, tint: DesignTokens.Colors.warning, soft: DesignTokens.Colors.warningSoft)
-                    .accessibilityIdentifier("run.backgroundDegraded")
-            }
-
-            if let action = readinessAction {
-                readinessControl(action)
+            if let recovery = plan.recovery {
+                readinessControl(recovery)
             }
 
             if viewModel.didSave {
@@ -271,18 +272,36 @@ struct RunView: View {
         }
     }
 
-    /// 定位不可用时的下一步动作：只在未开始（非倒计时）态展示，避免记录中打断。
-    private var readinessAction: RunLocationReadiness.NextAction? {
-        guard viewModel.state == .ready, !viewModel.isCountingDown, !viewModel.didSave else {
-            return nil
+    /// 同屏只出一条提示，优先级由 plan 固定。
+    @ViewBuilder
+    private func noticeRow(_ notice: RunInteractionPlan.Notice) -> some View {
+        switch notice {
+        case .recordingError:
+            if let message = viewModel.errorMessage {
+                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            }
+        case .decisionFailed:
+            if let message = viewModel.decisionErrorMessage {
+                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            }
+        case .locationDenied:
+            hint(L10n.locationDenied, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+        case .locationUnavailable:
+            hint(L10n.locationUnavailable, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+        case .waitingAuthorization:
+            hint(L10n.waitingAuthorization, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+        case .backgroundDegraded:
+            if let message = viewModel.authorization.backgroundDegradationHint {
+                hint(message, tint: DesignTokens.Colors.warning, soft: DesignTokens.Colors.warningSoft)
+                    .accessibilityIdentifier("run.backgroundDegraded")
+            }
         }
-        return viewModel.locationReadiness.nextAction
     }
 
     /// 恢复入口只给 `L10n` 可读 label（identifier 集合冻结，不新增标识）。
     @ViewBuilder
-    private func readinessControl(_ action: RunLocationReadiness.NextAction) -> some View {
-        switch action {
+    private func readinessControl(_ recovery: RunInteractionPlan.Recovery) -> some View {
+        switch recovery {
         case .openSettings:
             if let url = viewModel.locationSettingsURL {
                 Link(destination: url) {
@@ -292,7 +311,7 @@ struct RunView: View {
                         .frame(minHeight: DesignTokens.minTapTarget)
                 }
             }
-        case .retry:
+        case .retryLocation:
             Button {
                 viewModel.retryLocation()
             } label: {
@@ -316,17 +335,9 @@ struct RunView: View {
 
     // MARK: - 主操作
 
-    private var statusMessage: String? {
-        if let error = viewModel.errorMessage {
-            return error
-        }
-        if let decision = viewModel.decisionErrorMessage {
-            return decision
-        }
-        if viewModel.state == .ready, !viewModel.isCountingDown {
-            return viewModel.locationReadiness.message
-        }
-        return nil
+    /// 视图唯一决策入口：所有可见操作 / 提示 / 恢复动作 / 过渡时长都来自 plan。
+    private var plan: RunInteractionPlan {
+        RunInteractionPlan(viewModel: viewModel, reduceMotion: reduceMotion)
     }
 
     /// 主操作强调色：未开始与记录中共用唯一品牌 accent。
@@ -346,49 +357,73 @@ struct RunView: View {
 
     @ViewBuilder
     private var controls: some View {
-        switch viewModel.state {
-        case .ready:
-            if viewModel.isCountingDown {
-                secondaryControl(L10n.runActionCancel, label: L10n.runCancelCountdownLabel) {
-                    viewModel.cancelCountdown()
-                }
-            } else {
-                primaryControl(L10n.runActionStart, label: L10n.runStartLabel) {
-                    viewModel.start()
-                }
-                .accessibilityIdentifier("run.start")
-            }
-        case .running:
+        if plan.items.count == 1, let item = plan.items.first {
+            control(for: item)
+        } else {
             HStack(spacing: DesignTokens.Spacing.sm) {
-                primaryControl(L10n.runActionPause, label: L10n.runPauseLabel) { viewModel.pause() }
-                    .accessibilityIdentifier("run.pause")
-                secondaryControl(L10n.runActionFinish, label: L10n.runFinishLabel) { viewModel.finish() }
-                    .accessibilityIdentifier("run.finish")
-            }
-        case .paused:
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                primaryControl(L10n.runActionResume, label: L10n.runResumeLabel) { viewModel.resume() }
-                    .accessibilityIdentifier("run.resume")
-                secondaryControl(L10n.runActionFinish, label: L10n.runFinishLabel) { viewModel.finish() }
-                    .accessibilityIdentifier("run.finish")
-            }
-        case .finished:
-            if viewModel.didSave {
-                primaryControl(L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
-                    onShowHistory()
-                }
-                .accessibilityIdentifier("run.viewHistory")
-            } else {
-                // 待决策：保存为唯一填充主操作，丢弃是弱化的破坏性次操作。
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    primaryControl(L10n.runActionSave, label: L10n.runSaveLabel) {
-                        viewModel.saveFinished()
-                    }
-                    secondaryControl(L10n.runActionDiscard, label: L10n.runDiscardLabel) {
-                        viewModel.discardFinished()
-                    }
+                ForEach(plan.items, id: \.action) { item in
+                    control(for: item)
                 }
             }
+        }
+    }
+
+    /// 动作 → 既有 `L10n` 文案；强调级别由 plan 的 `emphasis` 决定。
+    @ViewBuilder
+    private func control(for item: RunInteractionPlan.Item) -> some View {
+        switch item.action {
+        case .start:
+            styledControl(item, title: L10n.runActionStart, label: L10n.runStartLabel) {
+                viewModel.start()
+            }
+            .accessibilityIdentifier("run.start")
+        case .cancelCountdown:
+            styledControl(item, title: L10n.runActionCancel, label: L10n.runCancelCountdownLabel) {
+                viewModel.cancelCountdown()
+            }
+        case .pause:
+            styledControl(item, title: L10n.runActionPause, label: L10n.runPauseLabel) {
+                viewModel.pause()
+            }
+            .accessibilityIdentifier("run.pause")
+        case .resume:
+            styledControl(item, title: L10n.runActionResume, label: L10n.runResumeLabel) {
+                viewModel.resume()
+            }
+            .accessibilityIdentifier("run.resume")
+        case .finish:
+            styledControl(item, title: L10n.runActionFinish, label: L10n.runFinishLabel) {
+                viewModel.finish()
+            }
+            .accessibilityIdentifier("run.finish")
+        case .save:
+            styledControl(item, title: L10n.runActionSave, label: L10n.runSaveLabel) {
+                viewModel.saveFinished()
+            }
+        case .discard:
+            styledControl(item, title: L10n.runActionDiscard, label: L10n.runDiscardLabel) {
+                viewModel.discardFinished()
+            }
+        case .viewHistory:
+            styledControl(item, title: L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
+                onShowHistory()
+            }
+            .accessibilityIdentifier("run.viewHistory")
+        }
+    }
+
+    @ViewBuilder
+    private func styledControl(
+        _ item: RunInteractionPlan.Item,
+        title: LocalizedStringKey,
+        label: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        switch item.emphasis {
+        case .primary:
+            primaryControl(title, label: label, action: action)
+        case .secondary:
+            secondaryControl(title, label: label, action: action)
         }
     }
 
