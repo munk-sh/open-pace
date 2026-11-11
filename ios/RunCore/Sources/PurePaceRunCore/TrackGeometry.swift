@@ -190,3 +190,22 @@ public extension TrackGeometry {
         return hypot(point.x - projectionX, point.y - projectionY)
     }
 }
+
+public extension TrackCoordinate {
+    /// WGS-84 合法性：经纬度均为有限值且落在 ±90 / ±180 内。
+    /// 越界值（如 180.0001）视为非法，渲染层据此走空态，不把非法坐标交给地图。
+    var isValidWGS84: Bool {
+        latitude.isFinite && longitude.isFinite
+            && latitude >= -90 && latitude <= 90
+            && longitude >= -180 && longitude <= 180
+    }
+}
+
+public extension TrackGeometry {
+    /// 过滤非法坐标后的采样：保序、不重排、不补点；跨 180° 经线的点位照常保留。
+    static func validSamples(from samples: [RunSample]) -> [RunSample] {
+        samples.filter {
+            TrackCoordinate(latitude: $0.latitude, longitude: $0.longitude).isValidWGS84
+        }
+    }
+}

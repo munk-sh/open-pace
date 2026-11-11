@@ -301,6 +301,10 @@ enum DesignTokens {
     enum Stroke {
         /// 分隔线 / 描边宽度。
         static let hairline: CGFloat = 1
+        /// 轨迹主描边宽度（地图主轨迹 4pt）。
+        static let track: CGFloat = 4
+        /// 轨迹光晕宽度：由主轨迹派生并覆盖在其下方，不新增独立档位。
+        static let trackHalo: CGFloat = track * 2
     }
 
     // MARK: - 图标尺寸

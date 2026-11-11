@@ -41,6 +41,76 @@
         }
       }
     },
+    "run.finished.splits.empty" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本轮无分段数据"
+          }
+        }
+      }
+    },
+    "run.map.empty.body" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位未产生有效坐标，暂时无法绘制路线地图。"
+          }
+        }
+      }
+    },
+    "run.map.empty.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本轮没有可用轨迹"
+          }
+        }
+      }
+    },
+    "run.map.preview.label" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本轮轨迹预览"
+          }
+        }
+      }
+    },
+    "run.map.single.body" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次跑步只记录到一个点位，无法绘制路线。"
+          }
+        }
+      }
+    },
+    "run.map.single.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轨迹只有一个点"
+          }
+        }
+      }
+    },
+    "run.splits.detail.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分段明细"
+          }
+        }
+      }
+    },
     "run.action.cancel" : {
       "localizations" : {
         "zh-Hans" : {

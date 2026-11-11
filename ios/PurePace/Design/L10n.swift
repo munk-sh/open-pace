@@ -42,6 +42,16 @@ enum L10n {
     static var runDiscardConfirmCancel: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.cancel") }
     static var runViewHistoryLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.viewHistory") }
 
+    // MARK: - 轨迹地图
+
+    static var runMapEmptyTitle: LocalizedStringKey { LocalizedStringKey("run.map.empty.title") }
+    static var runMapEmptyBody: LocalizedStringKey { LocalizedStringKey("run.map.empty.body") }
+    static var runMapSingleTitle: LocalizedStringKey { LocalizedStringKey("run.map.single.title") }
+    static var runMapSingleBody: LocalizedStringKey { LocalizedStringKey("run.map.single.body") }
+    static var runMapPreviewLabel: LocalizedStringKey { LocalizedStringKey("run.map.preview.label") }
+    static var runSplitsDetailTitle: LocalizedStringKey { LocalizedStringKey("run.splits.detail.title") }
+    static var runFinishedSplitsEmpty: LocalizedStringKey { LocalizedStringKey("run.finished.splits.empty") }
+
     /// 授权提示是需要拼接进 `String?` 的纯文本。
     static var locationDenied: String {
         String(localized: "run.status.locationDenied")
