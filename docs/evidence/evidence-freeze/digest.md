@@ -318,7 +318,8 @@ docs/evidence/evidence-freeze/ax5/ax5-06-settings.txt
 ```
 
 - 两列不同的成因：截图来自 `e4f2fc1` 的构建产物，证据文件本身在该构建之后另提交入库，因此「被测构建 SHA」与「证据入库 SHA」分列，不混用。
-- `docs/screenshots/SHA256SUMS` 与 `docs/evidence/evidence-freeze/digest.md` 是清单与报告，同属本次入库提交；任何文件都无法内嵌承载自身的提交 SHA（自引用），其实取值用 `git log --format=%H -1 -- <file>` 实取，未写猜测值。
+- `docs/screenshots/SHA256SUMS` 是逐文件校验清单，其最近改动 commit（`git log --format=%H -1 -- docs/screenshots/SHA256SUMS` 实取）为 `a4e0de1d71aa382cfef6075ea48fc74eca37715c`。
+- `docs/evidence/evidence-freeze/digest.md` 是报告本体：任何文件都无法在内容里内嵌承载自身的提交 SHA（提交内容决定自身 SHA 的自引用），因此本文件自身的最近改动 commit 用 `git log --format=%H -1 -- docs/evidence/evidence-freeze/digest.md` 实取，未写猜测值。
 
 ## 9. 本项改动范围
 
