@@ -292,7 +292,12 @@ struct RunView: View {
             hint(L10n.waitingAuthorization, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
         case .backgroundDegraded:
             if let message = viewModel.authorization.backgroundDegradationHint {
-                hint(message, tint: DesignTokens.Colors.warning, soft: DesignTokens.Colors.warningSoft)
+                // 后台定位降级降为指标卡下方的紧凑 `caption` 次级行：无胶囊底、无整宽弱底，
+                // 不再以整行 warning 横幅压在距离 / 用时主数据之上；identifier 与文案不变。
+                Text(message)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .multilineTextAlignment(.center)
                     .accessibilityIdentifier("run.backgroundDegraded")
             }
         }
