@@ -1,8 +1,11 @@
 import SwiftUI
+import PurePaceRunCore
 
-/// 首屏跑步页：距离 / 时长 / 当前配速为强主信息，平均配速与分段为次信息；
-/// 开始 / 暂停 / 继续 / 结束是唯一主操作区，三态可辨。样式全部取自 `DesignTokens`。
-/// 所有数值来自 `RunSessionViewModel`（即 `RunSessionOrchestrator.metrics`），View 只做绑定与格式化。
+/// 首屏跑步页：距离是唯一 hero（`display`），用时 / 当前配速是次级主值（`primaryValue`），
+/// 平均配速 / 分段退为 `caption`；三态（未开始 / 跑步中 / 已保存总结）共用同一四层结构，
+/// 只靠 hero 数值色与提示胶囊区分。样式全部取自 `DesignTokens`：零字面色值、零投影、
+/// 分组只用 hairline 与 surface 明度差。所有数值来自 `RunSessionViewModel`（即
+/// `RunSessionOrchestrator.metrics`），View 只做绑定与格式化。
 struct RunView: View {
     @ObservedObject var viewModel: RunSessionViewModel
     /// 保存态主操作：切到历史 Tab（纯视图回调，不触碰状态机）。
@@ -70,72 +73,127 @@ struct RunView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// 第一层：hero 距离，全屏最大字号；底色随三态变化。
+    /// 第一层：hero 距离。全屏唯一 `display` 主值，面板底只用中性 surface，
+    /// 三态区分只落在数值色上，不铺满整块状态弱底。
     private var distanceHero: some View {
-        VStack(spacing: DesignTokens.Spacing.xxs) {
-            Text(viewModel.distanceText)
-                .font(DesignTokens.Typography.display)
-                .foregroundStyle(stateTint)
-                .monospacedDigit()
-                .accessibilityIdentifier("run.distance")
-            Text(L10n.runMetricDistance)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignTokens.Spacing.xs)
+        metricBlock(
+            label: L10n.runMetricDistance,
+            value: RunFormatting.distanceValueText(viewModel.metrics.distance),
+            unit: RunFormatting.distanceUnitText,
+            valueFont: DesignTokens.Typography.display,
+            valueTint: stateTint,
+            identifier: "run.distance",
+            accessibilityText: viewModel.distanceText
+        )
+        .monospacedDigit()
+        .padding(.vertical, DesignTokens.Spacing.lg)
+        .padding(.horizontal, DesignTokens.Spacing.md)
         .background(
-            stateSoft,
+            DesignTokens.Colors.surfaceMuted,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.panel)
         )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.panel)
-                .stroke(DesignTokens.Colors.separator)
+                .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
         }
     }
 
-    /// 第二层：surface 卡片面里的时长 / 当前配速（primaryValue）与平均配速 / 分段（caption）。
+    /// 第二层：surface 卡片。用时 / 当前配速 `primaryValue`，平均配速 / 分段 `caption`；
+    /// 两组之间只用 hairline 分层，不叠双描边卡片。
     private var metricsPanel: some View {
-        VStack(spacing: DesignTokens.Spacing.xl) {
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                primaryMetric(
-                    title: L10n.runMetricTime,
+        VStack(spacing: DesignTokens.Spacing.metricGroupGap) {
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.metricGroupGap) {
+                metricBlock(
+                    label: L10n.runMetricTime,
                     value: viewModel.elapsedText,
-                    identifier: "run.elapsed"
+                    unit: nil,
+                    valueFont: DesignTokens.Typography.primaryValue,
+                    valueTint: DesignTokens.Colors.primary,
+                    identifier: "run.elapsed",
+                    accessibilityText: viewModel.elapsedText
                 )
-                primaryMetric(
-                    title: L10n.runMetricCurrent,
-                    value: viewModel.currentPaceText,
-                    identifier: "run.currentPace"
+                .monospacedDigit()
+                metricBlock(
+                    label: L10n.runMetricCurrent,
+                    value: RunFormatting.paceValueText(viewModel.metrics.currentPace),
+                    unit: RunFormatting.paceUnitText(viewModel.metrics.currentPace),
+                    valueFont: DesignTokens.Typography.primaryValue,
+                    valueTint: DesignTokens.Colors.primary,
+                    identifier: "run.currentPace",
+                    accessibilityText: viewModel.currentPaceText
                 )
+                .monospacedDigit()
             }
 
             Rectangle()
                 .fill(DesignTokens.Colors.separator)
                 .frame(height: DesignTokens.Stroke.hairline)
 
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                secondaryMetric(
-                    title: L10n.runMetricAverage,
-                    value: viewModel.averagePaceText,
-                    identifier: "run.averagePace"
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.metricGroupGap) {
+                metricBlock(
+                    label: L10n.runMetricAverage,
+                    value: RunFormatting.paceValueText(viewModel.metrics.averagePace),
+                    unit: RunFormatting.paceUnitText(viewModel.metrics.averagePace),
+                    valueFont: DesignTokens.Typography.caption,
+                    valueTint: DesignTokens.Colors.secondary,
+                    identifier: "run.averagePace",
+                    accessibilityText: viewModel.averagePaceText
                 )
-                secondaryMetric(
-                    title: L10n.runMetricSplits,
+                .monospacedDigit()
+                metricBlock(
+                    label: L10n.runMetricSplits,
                     value: viewModel.splitCountText,
-                    identifier: "run.splits"
+                    unit: nil,
+                    valueFont: DesignTokens.Typography.caption,
+                    valueTint: DesignTokens.Colors.secondary,
+                    identifier: "run.splits",
+                    accessibilityText: viewModel.splitCountText
                 )
+                .monospacedDigit()
             }
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(DesignTokens.Spacing.cardPadding)
         .background(
             DesignTokens.Colors.surface,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
         )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
-                .stroke(DesignTokens.Colors.separator)
+                .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
         }
+    }
+
+    // MARK: - 指标块
+
+    /// 指标块统一三行：上置标签（`metricLabel`）→ 数值（等宽）→ 下置单位（`metricUnit`）。
+    /// 无单位项（用时 / 分段 / 空配速）不渲染空单位行；可及 label 复原合并串，
+    /// 保证既有 UI 用例的 label 相等断言不变。
+    private func metricBlock(
+        label: LocalizedStringKey,
+        value: String,
+        unit: String?,
+        valueFont: Font,
+        valueTint: Color,
+        identifier: String,
+        accessibilityText: String
+    ) -> some View {
+        VStack(spacing: DesignTokens.Spacing.metricGroupSpacing) {
+            Text(label)
+                .font(DesignTokens.Typography.metricLabel)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+            Text(value)
+                .font(valueFont)
+                .foregroundStyle(valueTint)
+                .accessibilityIdentifier(identifier)
+                .accessibilityLabel(Text(accessibilityText))
+            if let unit {
+                Text(unit)
+                    .font(DesignTokens.Typography.metricUnit)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// DEBUG 门控的遥测诊断摘要（非用户可见文案），不参与指标区居中。
@@ -166,56 +224,6 @@ struct RunView: View {
         }
     }
 
-    /// 与 `stateTint` 配套的弱底：记录态 / 暂停 / 保存各有一块可辨认的底。
-    private var stateSoft: Color {
-        if viewModel.didSave { return DesignTokens.Colors.successSoft }
-        switch viewModel.state {
-        case .running: return DesignTokens.Colors.accentSoft
-        case .paused: return DesignTokens.Colors.warningSoft
-        default: return DesignTokens.Colors.surfaceMuted
-        }
-    }
-
-    // MARK: - 主信息
-
-    private func primaryMetric(
-        title: LocalizedStringKey,
-        value: String,
-        identifier: String
-    ) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xxs) {
-            Text(value)
-                .font(DesignTokens.Typography.primaryValue)
-                .foregroundStyle(DesignTokens.Colors.primary)
-                .monospacedDigit()
-                .accessibilityIdentifier(identifier)
-            Text(title)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - 次信息
-
-    private func secondaryMetric(
-        title: LocalizedStringKey,
-        value: String,
-        identifier: String
-    ) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xxs) {
-            Text(value)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-                .monospacedDigit()
-                .accessibilityIdentifier(identifier)
-            Text(title)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
     // MARK: - 第三层：提示
 
     @ViewBuilder
@@ -232,7 +240,7 @@ struct RunView: View {
 
             if viewModel.didSave {
                 Text(L10n.runStatusSaved)
-                    .font(DesignTokens.Typography.title)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundStyle(DesignTokens.Colors.success)
                     .padding(.horizontal, DesignTokens.Spacing.sm)
                     .padding(.vertical, DesignTokens.Spacing.xxs)
@@ -317,6 +325,7 @@ struct RunView: View {
         }
     }
 
+    /// 每态唯一填充主操作：同高（`minTapTarget`）、同行高、同一底部安全区锚点。
     private func primaryControl(
         _ title: LocalizedStringKey,
         label: LocalizedStringKey,
@@ -336,6 +345,8 @@ struct RunView: View {
         .accessibilityLabel(Text(label))
     }
 
+    /// 结束（破坏性）操作：内在宽度 + warning 描边、无填充底，明显弱于同排主操作，
+    /// 但仍保留 ≥ `minTapTarget` 点按区与同一可及 label。
     private func secondaryControl(
         _ title: LocalizedStringKey,
         label: LocalizedStringKey,
@@ -343,18 +354,14 @@ struct RunView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(DesignTokens.Typography.control)
+                .font(DesignTokens.Typography.body)
                 .foregroundStyle(DesignTokens.Colors.warning)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
-        .background(
-            DesignTokens.Colors.warningSoft,
-            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
-        )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
-                .stroke(DesignTokens.Colors.warning)
+                .stroke(DesignTokens.Colors.warning, lineWidth: DesignTokens.Stroke.hairline)
         }
         .accessibilityLabel(Text(label))
     }

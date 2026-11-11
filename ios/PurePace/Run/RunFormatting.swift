@@ -10,8 +10,16 @@ enum RunFormatting {
     static let zhHansTimeZone = TimeZone(identifier: "Asia/Shanghai")!
 
     static func distanceText(_ distance: RunDistance) -> String {
-        String(format: "%.2f km", distance.meters / 1000)
+        "\(distanceValueText(distance)) \(distanceUnitText)"
     }
+
+    /// 距离数值（不含单位）：hero 数值行专用，单位拆到独立单位行渲染。
+    static func distanceValueText(_ distance: RunDistance) -> String {
+        String(format: "%.2f", distance.meters / 1000)
+    }
+
+    /// 距离单位。
+    static let distanceUnitText = "km"
 
     static func elapsedText(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded(.down)))
@@ -28,8 +36,24 @@ enum RunFormatting {
         guard let pace else {
             return emptyPace
         }
+        return "\(paceValueText(pace)) \(paceUnit)"
+    }
+
+    /// 配速数值（不含单位）；空态仍为 `--`，视图据此不渲染单位行。
+    static func paceValueText(_ pace: RunPace?) -> String {
+        guard let pace else {
+            return emptyPace
+        }
         let total = max(0, Int(pace.secondsPerKilometer.rounded()))
-        return String(format: "%d:%02d /km", total / 60, total % 60)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    /// 配速单位（合并串里与数值同源）。
+    static let paceUnit = "/km"
+
+    /// 配速单位行：空配速不渲染单位，避免 `-- /km`。
+    static func paceUnitText(_ pace: RunPace?) -> String? {
+        pace == nil ? nil : paceUnit
     }
 
     static func splitCountText(_ count: Int) -> String {
