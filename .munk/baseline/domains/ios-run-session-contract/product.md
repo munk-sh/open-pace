@@ -8,7 +8,7 @@
 - `ios/RunCore/Sources/PurePaceRunCore/RunSessionOrchestrator.swift`（additive）：`prepareFinish(at:)`（迁移 `finished` + 停表 + 生成并持有结束快照 + 清 checkpoint，**不归档**）、`saveFinished()`（`RunArchiveStore.save` 恰一次，重复调用返回同一记录）、`discard()`（重建全新 `ready`，归档文件不动）、只读 `finishedSnapshot` / `savedRecord` / `isAwaitingDecision`；既有 `finish(at:)` 保留「归档一次且幂等」语义，无待决策快照时自动补一次 `prepareFinish`。
 - `ios/PurePace/Run/RunLocationReadiness.swift`（新增）：`RunLocationReadiness`（`ready` / `awaitingAuthorization` / `permissionDenied` / `unavailable`）+ `NextAction`（`openSettings` / `retry`）+ `messageKey` / `message`（经 `L10n`）；由既有 `RunLocationAuthorization` 派生，`RunLocationAuthorization` 取值与 `clRawValue` 不变。
 - `ios/PurePace/Run/RunSessionViewModel.swift`：`isCountingDown` / `countdownRemaining` / `countdownText` / `cancelCountdown()` / `advanceCountdown()` / `saveFinished()` / `discardFinished()` / `decisionErrorMessage` / `locationReadiness` / `retryLocation()` / `locationSettingsURL` / `acceptedSamples`；`start()` 语义改为「进入倒计时」，`-autoStartRecording` 一次性越过（零 sleep）；定位 delegate 采样门改为 `guard state == .running`。
-- `ios/PurePace/Run/RunView.swift`：倒计时态显示剩余读数 + 取消次操作；结束态保存为唯一填充主操作、丢弃为弱化破坏性次操作；就绪态按 `readinessAction` 渲染「去设置」/「重试」入口。新增控件只给 `L10n` 可读 label，**不给 identifier**。
+- `ios/PurePace/Run/RunView.swift`：倒计时态显示剩余读数 + 取消次操作；结束态保存为唯一填充主操作、丢弃为弱化破坏性次操作；就绪态按 `readinessAction` 渲染「去设置」/「重试」入口。新增控件带 `L10n` 可读 label；取消 / 保存 / 丢弃三个主操作的 identifier 由后续 WI 按门禁「只增不改」契约补齐（`run.cancelCountdown` / `run.save` / `run.discard`，见域 `ios-run-interaction`），本域逻辑不依赖其名称。
 - `ios/PurePace/Design/L10n.swift` + `ios/PurePace/Resources/Localizable.xcstrings`：新增 10 键（`run.action.cancel|save|discard|openSettings|retryLocation`、`run.a11y.cancelCountdown|saveRun|discardRun`、`run.status.saveFailed|locationUnavailable`），仅 zh-Hans、单一 catalog。
 - 测试落点：`ios/RunCore/Tests/PurePaceRunCoreTests/RunSessionDecisionTests.swift`（11 例）、`ios/PurePaceTests/RunSessionContractTests.swift`（15 例）；既有 `RunSessionViewModelTests` / `RunTelemetryTests` / 锁屏与恢复用例仅按新语义补倒计时注入与待决策路径。
 
@@ -26,7 +26,7 @@
 - ac-location-two-recoverable-states: `denied` → `permissionDenied` + `openSettings` + `run.status.locationDenied`；`restricted` → `unavailable` + `retry` + `run.status.locationUnavailable`；两者状态/动作/提示键三者互不相等；`authorizedWhenInUse`/`authorizedAlways` → `ready` 无提示；`notDetermined` → `awaitingAuthorization` 沿用既有键。
 - ac-location-retry-restarts: 「不可用」态触发重试 → 定位源 `start` 次数 +1；重试后源报告 `authorizedWhenInUse` → readiness 立即变 `ready` 且提示消失（同会话内恢复，无需重启）；非 `retry` 态调用重试被忽略。
 - ac-l10n-single-catalog: 本项新增文案只存在于 `Localizable.xcstrings` 的 zh-Hans，全部经 `L10n` 暴露；受管 UI 面零裸字面量（`validate_localization` 与裸英文扫描保持绿）。
-- ac-identifier-set-frozen: 既有 33 项 accessibility identifier 逐项不变（不增/不改/不删）；新增控件（取消/保存/丢弃/去设置/重试）只带 `L10n` 可读 label。
+- ac-identifier-frozen-then-appended: 既定 33 项 accessibility identifier 逐项不变（不改名 / 不删除）；本域落地时新增控件只带 `L10n` label，后续 WI 已补 `run.cancelCountdown` / `run.save` / `run.discard`，门禁按「冻结 33 + 必需新增 3」计数下限断言。
 - ac-existing-contracts-intact: `RunSessionState` 仍恰 4 态、`RunSessionMachine` 合法迁移仍恰 5 条；checkpoint JSONL 字段、归档格式/命名、`RunRecord` 校验、GPX 导出契约零改动；`RunCore` 既有测试除本项显式改变语义的用例外零回归。
 - ac-gates-green: `.munk/code-gates.json` 全部 22 门退 0（含 `check-ios-run-core` / `test-ios-run-core` / `test-ios --unit-only` / `check-ios-shell` 及 `--self-test`）；新增用例为纯增量，不含睡眠、真实时钟或网络。
 
@@ -36,7 +36,7 @@
 - 不改 checkpoint JSONL 字段、归档目录/文件命名、`RunRecord` 结构、GPX 导出契约；不做「待决策」跨进程恢复（决策前崩溃即丢失该跑次，明确不做）。
 - 不改 `DesignTokens.swift` / `ContrastPolicy.swift`、`scripts/**`、`.munk/code-gates.json`、`ios/project.yml`、CI、`android/`、`shared/`、`VERSION`。
 - 不改 History / Settings 页面与文案；不新增 Tab、屏或路由；不重做 Run 三态四层视觉结构，只在结束决策态补必要控件、倒计时态补取消控件。
-- 不接动画与 Reduce Motion 到视图层；不新增/改名/删除 accessibility identifier。
+- 不接动画与 Reduce Motion 到视图层；不改既有 33 项 accessibility identifier（只增不改由域 `design-token-gates` 约束）。
 - 不做真机验收、不归档新截图、不改 UI 腿断言；真机/模拟器观感项一律 `pending: 待人现场`。
 
 ## 实现约束
@@ -54,4 +54,4 @@
 - workItemId: wi_ws_dfff3bb3517c6e1c（2026-11-11，pass）
 - 交付：新增 `RunStartCountdown` 纯值类型（deadline + 注入时钟，无定时器）与 `RunLocationReadiness`（4 态 + 2 个下一步动作 + 文案键）；`RunSessionOrchestrator` additive 出 `prepareFinish` / `saveFinished` / `discard` / `finishedSnapshot` / `savedRecord` / `isAwaitingDecision`，`finish` 收敛为「必要时自动 prepare + 归档一次」；VM 暴露倒计时/待决策/定位读数与动作，`start()` 改为进入倒计时、采样门收紧到 `state == .running`；`RunView` 增倒计时取消读数与结束态保存/丢弃控件、就绪态按 readiness 渲染去设置/重试；10 个新文案键只进单一 catalog。
 - 验证：`code_gates` 22 门全绿——`test-ios-run-core` 152 例 0 失败（+11 `RunSessionDecisionTests`）、`test-ios --unit-only` 199 例 0 失败（+15 `RunSessionContractTests`）、`check-ios-shell` 含 `--self-test` 全 PASS、`build-ios` BUILD SUCCEEDED；identifier 33 项不变；`scripts/**`、`.munk/code-gates.json`、`ios/project.yml`、`shared/**`、`android/`、`VERSION` 零改动。
-- 偏差/有意未做：PRD 写「identifier 只增不改」，与 `check-ios-shell` 33 项等值冻结 + `--self-test` 反例冲突，按 PRD「实现约束 3」裁决为**集合完全不变**（新增控件只带 `L10n` label）；待决策跨进程恢复明确不做；真机/模拟器观感 `pending: 待人现场`。
+- 偏差/有意未做：本域落地时 PRD 写「identifier 只增不改」而门禁仍为 33 项等值，故当时裁决为集合完全不变；该契约已由 wi_ws_42e0654f761029c3 改为「冻结 33 项只增不改 + 计数下限」，三主操作 identifier 已补齐（见域 `ios-run-interaction`）。待决策跨进程恢复明确不做；真机/模拟器观感 `pending: 待人现场`。

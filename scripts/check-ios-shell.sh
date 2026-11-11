@@ -19,7 +19,8 @@ usage() {
   - Harness 文件清单 + 真实跑步 UI 文件清单 + 无障碍标识
   - 受管 UI 面（Run/History/Settings/ContentView/Design 去 token 真源）零字面色值、
     零散字体修饰符、零动效时长字面量；令牌分组完整（18 色对逐键 light/dark 成对、
-    阶梯单调冻结、Motion 三常量、minTapTarget 44）且无重复/缺项；33 项 identifier 不退化
+    阶梯单调冻结、Motion 三常量、minTapTarget 44）且无重复/缺项；33 项 identifier 冻结
+    （改名/删除必红）+ 只增不改（新增非空/唯一/带可读 label、计数单调）；发布路径 demo 入口 = 0
   - XCTest 与 XCUITest 源码落点（真实流程断言、无固定 sleep）
   - scripts/build-ios.sh、scripts/test-ios.sh 真实执行 xcodebuild
 
@@ -476,6 +477,61 @@ non_comment_hits() { # file, extended-regex
   grep -nE "$2" "$1" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(///|//|/\*)' || true
 }
 
+# 收集 ios/PurePace 下全部可及 identifier，保留去重前的原始出现（既有 tab.* 重复是既定事实）。
+raw_identifier_occurrences() { # root
+  {
+    grep -rhoE --include='*.swift' \
+      'accessibilityIdentifier\("(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"\)' \
+      "$1/ios/PurePace" 2>/dev/null || true
+    grep -rhoE --include='*.swift' \
+      'identifier: "(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"' \
+      "$1/ios/PurePace" 2>/dev/null || true
+  } | sed -E 's/.*"([^"]*)".*/\1/' | LC_ALL=C sort
+}
+
+# 去重后的 identifier 计数（通过路径与自检的「计数单调」都读它）。
+count_identifiers() { # root
+  local ids
+  ids="$(raw_identifier_occurrences "$1" | LC_ALL=C sort -u)"
+  if [ -n "$ids" ]; then
+    printf '%s\n' "$ids" | wc -l | tr -d ' '
+  else
+    printf '0\n'
+  fi
+}
+
+# 新增 identifier 必须挂在带非空可读 label 的控件上：标识出现处 ±4 行内须有 `L10n` 文案键。
+identifier_has_readable_label() { # root, identifier
+  local escaped="$2"
+  escaped="${escaped//./\\.}"
+  local file line start end
+  while IFS=: read -r file line _; do
+    [ -n "$file" ] || continue
+    start=$(( line > 4 ? line - 4 : 1 ))
+    end=$(( line + 4 ))
+    if sed -n "${start},${end}p" "$file" 2>/dev/null \
+      | grep -Eq 'accessibilityLabel\(Text\(L10n\.[A-Za-z0-9]+\)\)|label: L10n\.[A-Za-z0-9]+'; then
+      return 0
+    fi
+  done < <(grep -rnoE --include='*.swift' \
+      "accessibilityIdentifier\(\"$escaped\"\)|identifier: \"$escaped\"" \
+      "$1/ios/PurePace" 2>/dev/null || true)
+  return 1
+}
+
+# 发布路径 ios/PurePace/**/*.swift 中用户可达的 demo / 示例入口计数（整行注释不计）。
+demo_entry_count() { # root
+  local file hits total=0
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    hits="$(non_comment_hits "$file" \
+      '(Button|ToolbarItem|NavigationLink|Label)[^(]*[({].*(示例|样例|[Dd]emo|[Ss]ample)|L10n\.(demo|sample|fixture)[A-Za-z0-9]*' \
+      | wc -l | tr -d ' ')"
+    total=$(( total + hits ))
+  done < <(find "$1/ios/PurePace" -type f -name '*.swift' 2>/dev/null | LC_ALL=C sort)
+  printf '%s\n' "$total"
+}
+
 validate_design_tokens() {
   local root="$1"
   local problems=""
@@ -804,28 +860,70 @@ EOF
   mono_count="$(grep -c 'monospacedDigit()' "$detail_view" || true)"
   [ "$mono_count" -ge 1 ] || problems="$problems 详情数值缺少等宽数字;"
 
-  # 可及 identifier 集合冻结：固定 33 项，逐项比对且总数必须相等。
-  local expected_ids expected_count actual_ids actual_count
-  expected_ids="history.empty history.row history.runAgain run.averagePace run.backgroundDegraded run.currentPace run.distance run.elapsed run.finish run.pause run.resume run.saved run.splits run.start run.telemetry run.viewHistory runDetail.activeDuration runDetail.averagePace runDetail.distance runDetail.endedAt runDetail.export runDetail.exportFailed runDetail.exported runDetail.root runDetail.share runDetail.splitRow runDetail.splits runDetail.splitsEmpty runDetail.startedAt settings.announcementToggle tab.history tab.run tab.settings"
-  actual_ids="$( {
-    grep -rhoE --include='*.swift' \
-      'accessibilityIdentifier\("(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"\)' \
-      "$root/ios/PurePace" 2>/dev/null || true
-    grep -rhoE --include='*.swift' \
-      'identifier: "(run|runDetail|history|tab|settings)\.[A-Za-z0-9_.]+"' \
-      "$root/ios/PurePace" 2>/dev/null || true
-  } | sed -E 's/.*"([^"]*)".*/\1/' | LC_ALL=C sort -u | tr '\n' ' ' | sed -e 's/ $//')"
-  expected_count="$(printf '%s\n' $expected_ids | wc -l | tr -d ' ')"
-  actual_count="$(printf '%s\n' $actual_ids | wc -l | tr -d ' ')"
-  if [ "$expected_count" != "33" ]; then
-    problems="$problems 冻结 identifier 清单必须为 33 项（实际 ${expected_count}）;"
+  # 可及 identifier 契约：既有 33 项冻结（改名 / 删除必红）+ 允许新增
+  # （新增须非空、唯一、带可读 label，且整体计数单调不减）。
+  local frozen_ids frozen_count
+  frozen_ids="history.empty history.row history.runAgain run.averagePace run.backgroundDegraded run.currentPace run.distance run.elapsed run.finish run.pause run.resume run.saved run.splits run.start run.telemetry run.viewHistory runDetail.activeDuration runDetail.averagePace runDetail.distance runDetail.endedAt runDetail.export runDetail.exportFailed runDetail.exported runDetail.root runDetail.share runDetail.splitRow runDetail.splits runDetail.splitsEmpty runDetail.startedAt settings.announcementToggle tab.history tab.run tab.settings"
+  frozen_count="$(printf '%s\n' $frozen_ids | wc -l | tr -d ' ')"
+  if [ "$frozen_count" != "33" ]; then
+    problems="$problems 冻结 identifier 清单必须为 33 项（实际 ${frozen_count}）;"
   fi
-  if [ "$actual_count" != "$expected_count" ]; then
-    problems="$problems 可及 identifier 数量必须为 ${expected_count}（实际 ${actual_count}: ${actual_ids}）;"
+
+  # 新增项以「必需新增 + 计数下限」表达，禁止下次退回「完全等值」。
+  local required_new_ids required_new_count min_identifier_count
+  required_new_ids="run.cancelCountdown run.discard run.save"
+  required_new_count="$(printf '%s\n' $required_new_ids | wc -l | tr -d ' ')"
+  min_identifier_count=$(( frozen_count + required_new_count ))
+
+  local raw_ids actual_ids actual_count
+  raw_ids="$(raw_identifier_occurrences "$root")"
+  actual_ids=""
+  if [ -n "$raw_ids" ]; then
+    actual_ids="$(printf '%s\n' "$raw_ids" | LC_ALL=C sort -u | tr '\n' ' ' | sed -e 's/ $//')"
   fi
-  if [ "$actual_ids" != "$expected_ids" ]; then
-    problems="$problems 可及 identifier 集合与冻结清单不一致（实际: ${actual_ids}）;"
+  actual_count=0
+  if [ -n "$actual_ids" ]; then
+    actual_count="$(printf '%s\n' $actual_ids | wc -l | tr -d ' ')"
   fi
+
+  local id
+  for id in $frozen_ids; do
+    if ! printf '%s\n' $actual_ids | grep -Fxq "$id"; then
+      problems="$problems 冻结 identifier 缺失或改名（不得删除 / 改名）: ${id};"
+    fi
+  done
+  for id in $required_new_ids; do
+    if ! printf '%s\n' $actual_ids | grep -Fxq "$id"; then
+      problems="$problems 缺少必需新增主操作 identifier: ${id};"
+    fi
+  done
+  if [ "$actual_count" -lt "$min_identifier_count" ]; then
+    problems="$problems 可及 identifier 计数必须单调不减（下限 ${min_identifier_count}，实际 ${actual_count}）;"
+  fi
+
+  local empty_id_count
+  empty_id_count="$( {
+    grep -rnoE --include='*.swift' 'accessibilityIdentifier\([[:space:]]*""[[:space:]]*\)' "$root/ios/PurePace" 2>/dev/null || true
+    grep -rnoE --include='*.swift' 'identifier:[[:space:]]*""' "$root/ios/PurePace" 2>/dev/null || true
+  } | wc -l | tr -d ' ')"
+  if [ "$empty_id_count" != "0" ]; then
+    problems="$problems 可及 identifier 不得为空串（${empty_id_count} 处）;"
+  fi
+
+  # 新增项（冻结清单之外）：非空、全局唯一（去重前原始出现次数为 1）且带非空可读 label。
+  local occurrences
+  for id in $actual_ids; do
+    case " $frozen_ids " in
+      *" $id "*) continue ;;
+    esac
+    occurrences="$(printf '%s\n' "$raw_ids" | grep -Fxc "$id" || true)"
+    if [ "$occurrences" != "1" ]; then
+      problems="$problems 新增 identifier 必须全局唯一（${id} 出现 ${occurrences} 次）;"
+    fi
+    if ! identifier_has_readable_label "$root" "$id"; then
+      problems="$problems 新增 identifier 缺少非空可读 accessibilityLabel（${id}）;"
+    fi
+  done
 
   # 关键文案必须走 L10n 键（真实值在 Localizable.xcstrings，见 validate_localization）。
   local key
@@ -863,10 +961,11 @@ EOF
       || problems="$problems ${file#"$root"/} 缺少可及标识 $control_id;"
   done
 
-  # 首屏 / 工作流工具栏不得出现 demo / 示例入口按钮（演示态只允许启动参数门控注入）。
-  if grep -Eq '(Button|ToolbarItem|NavigationLink|Label)[^"]*"[^"]*(示例|样例|Demo|demo)' \
-    "$run_view" "$history_view" "$settings_view" "$detail_view" "$content_view"; then
-    problems="$problems 首屏/工具栏出现 demo/示例入口;"
+  # 发布路径 demo / 示例入口必须为 0（可计数断言；DEBUG 块内的示例按钮同样计入）。
+  local demo_entries
+  demo_entries="$(demo_entry_count "$root")"
+  if [ "$demo_entries" != "0" ]; then
+    problems="$problems 发布路径 demo/示例入口必须为 0（实际 ${demo_entries} 处）;"
   fi
 
   # Tab 可读标签与标识：Label 文案走 L10n 键，tab.<name> 标识成对出现。
@@ -1017,6 +1116,14 @@ run_self_test() {
         failures=$((failures + 1))
         ;;
     esac
+  }
+  # 真实计数断言：验证「新增放行且计数递增」与计数单调不可静默回退。
+  check_count() { # name, expected, actual
+    checks=$((checks + 1))
+    if [ "$2" != "$3" ]; then
+      echo "[FAIL] self-test: $1（期望计数 $2，实际 $3）" >&2
+      failures=$((failures + 1))
+    fi
   }
 
   check_ok "本地 path package 正例" "$(validate_packages "$tmp_dir/good.yml")"
@@ -1195,6 +1302,8 @@ run_self_test() {
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
+  check_count "冻结基线 identifier 计数" 36 "$(count_identifiers "$design_root")"
+  check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_bad="$tmp_dir/design-no-token"
   cp -R "$design_root" "$design_bad"
@@ -1227,7 +1336,16 @@ run_self_test() {
   cp -R "$design_root" "$design_bad"
   printf '\nprivate let demoEntry = Button("示例跑次") {}\n' \
     >> "$design_bad/ios/PurePace/ContentView.swift"
-  check_fail "demo/示例入口反例" "$(validate_design_tokens "$design_bad")"
+  check_fail_reason "demo/示例入口反例" \
+    "$(validate_design_tokens "$design_bad")" "demo/示例入口必须为 0"
+
+  # DEBUG 块不是豁免：示例按钮同样经 UI 可达，必须判红。
+  design_bad="$tmp_dir/design-demo-debug"
+  cp -R "$design_root" "$design_bad"
+  printf '\n#if DEBUG\nprivate let demoEntry = Button("示例跑次") {}\n#endif\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail_reason "DEBUG 块内 demo 入口反例" \
+    "$(validate_design_tokens "$design_bad")" "demo/示例入口必须为 0"
 
   design_bad="$tmp_dir/design-literal-color"
   cp -R "$design_root" "$design_bad"
@@ -1263,19 +1381,43 @@ run_self_test() {
   cp -R "$design_root" "$design_bad"
   sed -i '' 's/accessibilityIdentifier("run\.start")/accessibilityIdentifier("run.started")/' \
     "$design_bad/ios/PurePace/Run/RunView.swift"
-  check_fail "identifier 重命名反例" "$(validate_design_tokens "$design_bad")"
+  check_fail_reason "冻结 identifier 改名反例" \
+    "$(validate_design_tokens "$design_bad")" "冻结 identifier"
 
+  # 只增不改：带非空 L10n label 且全局唯一的新 identifier 必须放行，且计数递增。
   design_bad="$tmp_dir/design-extra-id"
   cp -R "$design_root" "$design_bad"
-  printf '\nprivate let extraEntry = Button("扩展") {}\n.accessibilityIdentifier("run.extra")\n' \
+  printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
-  check_fail "identifier 追加反例" "$(validate_design_tokens "$design_bad")"
+  check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
+  check_count "identifier 新增计数递增" 37 "$(count_identifiers "$design_bad")"
+
+  design_bad="$tmp_dir/design-extra-id-unlabeled"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.unlabeled")\n  .accessibilityLabel(Text(""))\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail_reason "新增 identifier 空 label 反例" \
+    "$(validate_design_tokens "$design_bad")" "新增 identifier 缺少非空可读"
+
+  design_bad="$tmp_dir/design-empty-id"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("")\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail_reason "新增空串 identifier 反例" \
+    "$(validate_design_tokens "$design_bad")" "不得为空串"
+
+  design_bad="$tmp_dir/design-duplicate-id"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let extraEntryA = Button("扩展") {}\n  .accessibilityIdentifier("run.dup")\n  .accessibilityLabel(Text(L10n.runStartLabel))\nprivate let extraEntryB = Button("扩展") {}\n  .accessibilityIdentifier("run.dup")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail_reason "新增 identifier 重复反例" \
+    "$(validate_design_tokens "$design_bad")" "新增 identifier 必须全局唯一"
 
   design_bad="$tmp_dir/design-deleted-id"
   cp -R "$design_root" "$design_bad"
   sed -i '' '/accessibilityIdentifier("run.saved")/d' "$design_bad/ios/PurePace/Run/RunView.swift"
-  check_fail_reason "identifier 少一项反例" \
-    "$(validate_design_tokens "$design_bad")" "可及 identifier"
+  check_fail_reason "冻结 identifier 删除反例" \
+    "$(validate_design_tokens "$design_bad")" "冻结 identifier 缺失或改名"
 
   design_bad="$tmp_dir/design-layout-thresholds"
   cp -R "$design_root" "$design_bad"
@@ -1786,8 +1928,10 @@ fi
 
 # ------------------------------------------------ 设计 token 与三屏层级
 design_problems="$(validate_design_tokens .)"
+design_identifier_count="$(count_identifiers .)"
+design_demo_count="$(demo_entry_count .)"
 if [ -z "$design_problems" ]; then
-  pass "ac-design-tokens (单一 token 真源 + 三屏引用 + 可读标签)"
+  pass "ac-design-tokens (单一 token 真源 + 三屏引用 + 可读标签；identifier: ${design_identifier_count}（冻结 33 + 新增 $(( design_identifier_count - 33 ))）；demo/示例入口: ${design_demo_count})"
 else
   fail "ac-design-tokens" "$design_problems"
 fi

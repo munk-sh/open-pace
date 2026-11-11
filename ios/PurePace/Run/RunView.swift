@@ -381,6 +381,7 @@ struct RunView: View {
             styledControl(item, title: L10n.runActionCancel, label: L10n.runCancelCountdownLabel) {
                 viewModel.cancelCountdown()
             }
+            .accessibilityIdentifier("run.cancelCountdown")
         case .pause:
             styledControl(item, title: L10n.runActionPause, label: L10n.runPauseLabel) {
                 viewModel.pause()
@@ -400,10 +401,12 @@ struct RunView: View {
             styledControl(item, title: L10n.runActionSave, label: L10n.runSaveLabel) {
                 viewModel.saveFinished()
             }
+            .accessibilityIdentifier("run.save")
         case .discard:
             styledControl(item, title: L10n.runActionDiscard, label: L10n.runDiscardLabel) {
                 viewModel.discardFinished()
             }
+            .accessibilityIdentifier("run.discard")
         case .viewHistory:
             styledControl(item, title: L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
                 onShowHistory()
