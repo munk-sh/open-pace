@@ -12,6 +12,8 @@ struct RunView: View {
     var onShowHistory: () -> Void = {}
     /// Reduce Motion 打开时时长归零（无动画）；读取环境，不用 `UIAccessibility` 单例。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 动态字号档：结束态总结（地图预览 + 分段明细）据此压缩垂直预算，保证 AX5 不溢屏。
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 丢弃确认层开合：结束待保存屏的破坏性动作必须先经过这里。
     @State private var showsDiscardConfirmation = false
 
@@ -96,7 +98,7 @@ struct RunView: View {
     /// 三态共用的四层内容块：hero 距离 → 次级指标 → 提示 → （底部）主操作。
     /// 仅作为 ViewThatFits 的滚动退路，垂直余量不是本分支的职责。
     private var metricsContent: some View {
-        VStack(spacing: DesignTokens.Spacing.sectionGap) {
+        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
             distanceHero
             metricsPanel
             if viewModel.state == .finished {
@@ -207,20 +209,25 @@ struct RunView: View {
     /// 结束态专属：轨迹预览卡（与详情页同一 `TrackMapView`）+ 分段明细。
     /// 记录态 / 暂停 / 未开始一律不出现这些块。
     private var finishedTrackSummary: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
+        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
             TrackMapView(
                 samples: viewModel.acceptedSamples,
                 emptyIdentifier: "run.mapEmpty",
                 singlePointIdentifier: "run.mapEmpty.single"
             )
-            .frame(height: 180)
+            .frame(height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: usesCompactFinishedSummary))
             splitsDetail
         }
     }
 
+    /// 辅助字号档下结束态总结使用压缩口径（地图更矮、间距更小），标准字号档逐字沿用既有视觉。
+    private var usesCompactFinishedSummary: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
     /// 分段明细：有分段逐段渲染「序号 + 配速」，无分段给明确中文替代文案。
     private var splitsDetail: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.metricGroupSpacing) {
+        VStack(alignment: .leading, spacing: RunFinishedSummaryLayoutPolicy.rowSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
             Text(L10n.runSplitsDetailTitle)
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Colors.secondary)
@@ -251,7 +258,7 @@ struct RunView: View {
                 }
             }
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(RunFinishedSummaryLayoutPolicy.cardPadding(isAccessibilitySize: usesCompactFinishedSummary))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             DesignTokens.Colors.surface,
