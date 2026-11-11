@@ -5,7 +5,7 @@
 ## 范围
 
 - 主要改动落点在 `scripts/check-ios-shell.sh`（唯一逻辑改动文件）：扩写 `validate_design_tokens`（受管面派生 + 五类规则 + identifier 契约 + demo 计数）与 `run_self_test`（`check_fail_reason` / `check_count` 校验 + 新断言），同步 `usage()` 文案；源码侧只允许 `ios/PurePace/Run/RunView.swift` 追加主操作 identifier 与必需新增清单对齐；不重构其余 validate 函数。
-- 受管 UI 面 = `ios/PurePace/Run/**`、`ios/PurePace/History/**`、`ios/PurePace/Settings/**`、`ios/PurePace/ContentView.swift`、`ios/PurePace/Design/*.swift`，由 `find` 目录/通配派生后去掉 token 真源，不再依赖硬编码视图文件名清单；新增视图文件自动进扫描。
+- 受管 UI 面 = `ios/PurePace/Run/**`、`ios/PurePace/History/**`、`ios/PurePace/Settings/**`、`ios/PurePace/Track/**`、`ios/PurePace/ContentView.swift`、`ios/PurePace/Design/*.swift`，由 `find` 目录/通配派生后去掉 token 真源，不再依赖硬编码视图文件名清单；新增视图文件（如 `Track/TrackMapView.swift`）自动进扫描。
 - 仅两处结构性豁免，且必须写进脚本注释：①`ios/PurePace/Design/DesignTokens.swift`（字面色值唯一合法来源，靠 `palette`/`purposes`/阶梯断言约束）；②`ios/PurePace/Harness/**`（DEBUG-only 测试夹具，不在发布 UI 面，含 `Color.clear` 这类结构性常量）。禁止为变绿新增白名单。
 - 五类规则：零字面色值、零散字体修饰符、零动效时长字面量、令牌分组完整性/唯一性/18 色对成对/`purposes` 键集、阶梯单调与冻结值；identifier 契约由「33 项完全等值」改为「冻结 33 项只增不改」：既有逐项存在 + 必需新增项 + 计数单调不减 + 新增项唯一/非空/带可读 label，另加发布路径 demo/示例入口计数为 0。
 - 兼容 macOS `/bin/bash` 3.2：禁 `declare -A` / `mapfile` / `${var,,}` / `[[ =~ ]]`；只用脚本已在用的 `grep -E` / `sed -E` / `awk` / `sort -u` / `tr` / `printf`；`set -euo pipefail` 下可能空匹配的 `grep` 必须 `|| true`。
@@ -13,7 +13,7 @@
 
 ## 验收
 
-- ac-scan-scope-derived: 受管文件集合由目录/通配派生（含 `Run/**`、`History/**`、`Settings/**`、`ContentView.swift`、`Design/*.swift` 去 token 真源），不依赖硬编码视图名清单；反例「在受管目录新增一个此前不存在的视图文件并塞 `Color(red: 0.1, green: 0.2, blue: 0.3)`」判红且原因串含「字面色值」；现存 `History/RunDetailContent.swift` 被断言属受管面。
+- ac-scan-scope-derived: 受管文件集合由目录/通配派生（含 `Run/**`、`History/**`、`Settings/**`、`Track/**`、`ContentView.swift`、`Design/*.swift` 去 token 真源），不依赖硬编码视图名清单；反例「在受管目录新增一个此前不存在的视图文件并塞 `Color(red: 0.1, green: 0.2, blue: 0.3)`」判红且原因串含「字面色值」；现存 `History/RunDetailContent.swift` 与 `Track/TrackMapView.swift` 被断言属受管面。
 - ac-no-literal-colors: 受管面内 `Color(`、`Color.<Name>`、`UIColor`、`#colorLiteral`、`SRGB(hex: 0x…)`、裸 `0x[0-9A-Fa-f]{6}`、`.foregroundStyle(.<Name>)`、`.background(.<Name>)` 任一命中即判红；`Color(red:…)` / `Color.white` / `#colorLiteral(...)` / `SRGB(hex: 0xFFFFFF)` / `.foregroundStyle(.red)` 各一条反例判红且原因串含「字面色值」；真实源码正例零命中、判绿。
 - ac-no-stray-font: 受管面内 `.font(.`、裸 `Font.system(` / `Font.custom(`、`.fontWeight(`、`.fontDesign(`、`.lineSpacing(<数字>)` 任一命中判红；`.font(.system(size: 20))` 与裸 `Font.system(size: 18, weight: .bold)` 判红且原因串含「零散字体修饰符」；`.font(DesignTokens.Typography.body)` 判绿（证明不误红合法引用）。
 - ac-no-motion-literals: 受管面内 `.animation(` / `withAnimation(` / `Animation.` / `.transition(` 所在行不含 `DesignTokens.Motion.` 判红；`duration: <数字>` / `duration: 0.` 判红；`.animation(.easeInOut(duration: 0.3), value:)` 与 `withAnimation(.linear(duration: 0.25))` 判红且原因串含「动效时长字面量」，`.animation(… duration: DesignTokens.Motion.durationShort …)` 判绿，真实视图 `duration: record.activeDuration` / `activeDuration / 3` 零误红。
@@ -29,7 +29,7 @@
 - ac-identifier-addition-duplicate-red: 同一新增 id 在源码出现两次 → 判红（原因串含「必须全局唯一」）；唯一性按 `sort -u` 去重前的原始出现次数判定，既有 `tab.run` 在 `ContentView.swift` 与 `RunView.swift` 各一次属既定事实，不因此判红。
 - ac-new-main-action-ids: `run.cancelCountdown` / `run.save` / `run.discard` 三个必需新增主操作 identifier 必须存在（缺失原因串含「缺少必需新增主操作 identifier」），且既有 33 项字面逐个未变。
 - ac-demo-entry-zero: 发布路径 `ios/PurePace/**/*.swift` 全量文件中用户可达 demo / 示例入口计数必须为 0（整行注释不计，沿用既有口径）；`#if DEBUG` 块内的示例按钮同样判红（原因串含「demo/示例入口必须为 0」）。
-- ac-selftest-red-green: `bash scripts/check-ios-shell.sh --self-test` 退出 0、断言数 ≥ 92（上一轮 91，本轮加方向 A accent 回退反例后 92），覆盖「改名判红 / 删除判红 / 新增放行并计数 / 空 label 判红 / 空串判红 / 重复判红 / demo 入口判红（含 DEBUG 块）/ 方向 A hex 不一致判红」；每条新规则至少 1 条正例（真实源码副本，不得手写简化正例）+ 1 条反例，反例必须命中预期原因串（只判「非空」不算通过）；自检在 `mktemp -d` 内完成，运行前后 `git status --porcelain` 不因自检新增改动。
+- ac-selftest-red-green: `bash scripts/check-ios-shell.sh --self-test` 退出 0、断言数 ≥ 94（当前 94），覆盖「改名判红 / 删除判红 / 新增放行并计数 / 空 label 判红 / 空串判红 / 重复判红 / demo 入口判红（含 DEBUG 块）/ 方向 A hex 不一致判红 / MapKit 允许表正例与越界判红」；每条新规则至少 1 条正例（真实源码副本，不得手写简化正例）+ 1 条反例，反例必须命中预期原因串（只判「非空」不算通过）；自检在 `mktemp -d` 内完成，运行前后 `git status --porcelain` 不因自检新增改动。
 - ac-digest-red-green-evidence: 交付回执（change pack `digest.md` 或本域「最近交付证明」）记录全量 `bash scripts/check-ios-shell.sh` 绿跑（含 `N 项断言，0 项失败` 与退出码 0）、`--self-test` 输出（断言数与 0 失败）、以及至少一次真实红跑原始片段（受管面注入字面色值/动效字面量 → 非零退出 + 原因串 + 还原后 `git status --porcelain` 证据）；不得只写「已加固」结论。
 - ac-gate-list-unchanged: `.munk/code-gates.json` 零 diff（22 个 gate id 与 `command` 不变），不新增 gate id、不改 `lint-ios-shell` 的 command、不新建脚本文件（允许拆同文件内函数）；`bash -n scripts/check-ios-shell.sh` 退出 0，`--help` 文案同步更新且退出 0。
 - ac-token-and-view-freeze: 相对本项起始提交，令牌取值与 `purposes` 文案零 diff（该轮冻结已由方向 A 色板替换覆盖，现行取值以 `design-palette-a` 与本域 `ac-scale-monotonic-frozen` 为准），`Run/**`（仅允许 `RunView.swift` 追加三个 `accessibilityIdentifier`）、`History/**`、`Settings/**`、`ContentView.swift`、`Resources/**`、`Design/**`、`ios/project.yml`、`ios/PurePaceTests/**`、`ios/PurePaceUITests/**`、`android/**`、`shared/**` 的 `git diff --name-only` 除该例外均为空；若门禁暴露既有违规，只允许字面量等价替换为既有 token 引用（视觉零变化）并在 digest 逐条列出文件名/行号/替换前后。
@@ -52,7 +52,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_1d3cee7d621efc36（2026-11-11，pass）
-- 交付：`validate_design_tokens` 增方向 A 36 hex 逐键锁值（18 条 `key:light:dark` 期望表，按 `palette_key:light:dark` 解析后逐侧比对，缺键原因串「方向 A 期望表缺键」、不一致「方向 A 表不一致」）；冻结档位更新为字号 `11/13/15/20/36/64`、圆角 `10/14/20`；`run_self_test` 新增「accent 回退青绿」反例（`0xB4400B/0xFF9A5C` → `0x0B6F60`），断言数 91 → 92，其余既有反例的夹具字面随新值同步（`surface` dark `0x16181A`、caption `13`、card `14`）。
-- 判定：`bash scripts/check-ios-shell.sh --self-test` → `92 项断言，0 项失败` / `self-test OK` / 退出 0；全量 `bash scripts/check-ios-shell.sh` → `30 项断言，0 项失败` / `ios shell OK` / 退出 0，pass 行 `identifier: 36（冻结 33 + 新增 3）；demo/示例入口: 0`；`code_gates` 22 门全绿（attempt 001，`.munk/runs/run_intake_1d3cee7d621efc36/code-gates/attempts/001/lint-ios-shell.log`）。
-- 边界：`.munk/code-gates.json` 22 个 gate id 与 command 零 diff；未新增脚本文件；本域只改 `scripts/check-ios-shell.sh`，色值与对比度定义归 `design-palette-a`；地图/结束态/截图证据仍 `pending`。
+- workItemId: wi_intake_7b9d19bc1e3be0ee（2026-11-12，pass）
+- 交付：受管面新增 `ios/PurePace/Track/**`（`managed_files` 的 `find` 增 `ios/PurePace/Track`），`validate_localization` 视图清单增 `Track/TrackMapView.swift`；`validate_app_imports` 精确放行 `import MapKit` 仅 `ios/PurePace/Track/TrackMapView.swift`，并补「MapKit 在唯一壳绿 / 在 Harness 与 History 判红」三条自检；`ac-live-run-ui` 段改为断言 `listSummaries()` + `record(withID: recordID)` 并对 `archiveStore.list()` 反向判红，新增地图壳绘制 / 相机 padding 0.10 / `onMapCameraChanged` 不回写 / 仅 finished 接线的静态断言。
+- 判定：`bash scripts/check-ios-shell.sh` → `30 项断言，0 项失败` / `ios shell OK` / 退出 0；`--self-test` → `94 项断言，0 项失败` / `self-test OK` / 退出 0（其中三处自检预期在本轮同步修正：`design-good` / `localization-good` 夹具补 `Track/TrackMapView.swift`，identifier 计数期望 38→42、39→43）；`code_gates` 22 门全绿（attempt 001）。
+- 边界：`.munk/code-gates.json` 22 个 gate id 与 command 零 diff，未新增脚本文件；identifier 基线由「33 项等值」演进为「冻结 33 项只增不改、当前 42」，下限断言（36）未放宽。

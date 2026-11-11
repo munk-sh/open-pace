@@ -28,10 +28,16 @@
 - list 索引的量化耗时（数据量 / 耗时）未采集，仅有结构性单测（`testListSummariesFormsRowEvenWhenSamplesAreHugeOrMalformed` 等）。
 
 
+## 交付阶段修正（delivery，事实）
+
+- `bash scripts/check-ios-shell.sh --self-test` 在交付复核时实测 3 项判红，均为本轮自检夹具预期未同步（非生产逻辑缺陷）：`design-good` 与 `localization-good` 夹具缺 `Track/TrackMapView.swift`、identifier 计数期望仍为 38 / 39（实际 41 / 42）。
+- 修正（`scripts/check-ios-shell.sh`，只动自检夹具与计数预期）：两处夹具补 `Track/TrackMapView.swift`；`冻结基线 identifier 计数` 38→42、`identifier 新增计数递增` 39→43。
+- 修正后实测：`--self-test` → `94 项断言，0 项失败` / `self-test OK` / 退出 0；全量 `check-ios-shell.sh` → `30 项断言，0 项失败` / `ios shell OK` / 退出 0；`git status --porcelain` 不因自检产生改动。
+
 ## 已过门（实跑，原样结论）
 
 - `swift test --package-path ios/RunCore`：**173 tests, 0 failures**（含 `DocsVerificationMatrixTests` 2 passed、`TrackGeometryTests` 全部 passed）。
-- `bash scripts/check-ios-shell.sh`：**29 项断言，0 项失败 / ios shell OK**；`ac-design-tokens` identifier 42（冻结 33 + 新增 9）、demo 入口 0；`ac-built-plist-readback` 因无 `.build/ios` 产物 SKIP（既有行为）。
+- `bash scripts/check-ios-shell.sh`：**30 项断言，0 项失败 / ios shell OK**；`--self-test` **94 项断言，0 项失败**（见下节交付阶段修正）；`ac-design-tokens` identifier 42（冻结 33 + 新增 9）、demo 入口 0；`ac-built-plist-readback` 因无 `.build/ios` 产物 SKIP（既有行为）。
 - `bash scripts/test-ios.sh --unit-only`：**TEST BUILD SUCCEEDED / TEST EXECUTE SUCCEEDED**，含 `HistoryViewStateTests`、`RunDetailContentTests` 全绿，RunCore SwiftPM 173 tests 0 failures；`[timing] build=11s unit=7s runcore=1s total=23s`（TrackMapView 已随 App target 编译通过）。
 - 未跑：`bash scripts/check-ios-run-core.sh`、`bash scripts/check-gpx-export.sh`、UI 用例、模拟器截图取证腿。
 - `.munk/code-gates.json` 未新增/删除门、未改阈值。
