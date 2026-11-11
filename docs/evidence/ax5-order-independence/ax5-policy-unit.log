@@ -1,0 +1,41 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD" -derivedDataPath .build/ios "-only-testing:PurePaceTests/RunFinishedSummaryLayoutPolicyTests" CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_17fe09b83e2a3df0/ios/RunCore
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+2026-11-12 03:17:06.924672+0800 PurePace[4203:160427070] [library] load_eligibility_plist: Failed to open /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/E4357AA2-7FDF-4BEE-AFD9-52D8E2B3C698/private/var/db/eligibilityd/eligibility.plist: No such file or directory(2)
+Test Suite 'Selected tests' started at 2026-11-12 03:17:07.893.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-12 03:17:07.893.
+Test Suite 'RunFinishedSummaryLayoutPolicyTests' started at 2026-11-12 03:17:07.893.
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testAccessibilitySizesCompressEveryVerticalSlot]' started.
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testAccessibilitySizesCompressEveryVerticalSlot]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testAccessibilitySlotsAreStrictlyNotLarger]' started.
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testAccessibilitySlotsAreStrictlyNotLarger]' passed (0.000 seconds).
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testStandardSizesKeepExistingTrackPreviewHeight]' started.
+Test Case '-[PurePaceTests.RunFinishedSummaryLayoutPolicyTests testStandardSizesKeepExistingTrackPreviewHeight]' passed (0.000 seconds).
+Test Suite 'RunFinishedSummaryLayoutPolicyTests' passed at 2026-11-12 03:17:07.896.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'PurePaceTests.xctest' passed at 2026-11-12 03:17:07.896.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'Selected tests' passed at 2026-11-12 03:17:07.896.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+2026-11-12 03:17:08.183 xcodebuild[4161:160426613] [MT] IDETestOperationsObserverDebug: 2.619 elapsed -- Testing started completed.
+2026-11-12 03:17:08.183 xcodebuild[4161:160426613] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-12 03:17:08.183 xcodebuild[4161:160426613] [MT] IDETestOperationsObserverDebug: 2.619 sec, +2.619 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_17fe09b83e2a3df0/.build/ios/Logs/Test/Test-PurePace-2026.11.12_03-17-05-+0800.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
