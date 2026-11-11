@@ -17,6 +17,9 @@ usage() {
   - App import 允许表（CoreLocation 仅限 ios/PurePace/Harness/ 与 Location/）
   - project.yml 定位用途说明与后台定位模式声明非空
   - Harness 文件清单 + 真实跑步 UI 文件清单 + 无障碍标识
+  - 受管 UI 面（Run/History/Settings/ContentView/Design 去 token 真源）零字面色值、
+    零散字体修饰符、零动效时长字面量；令牌分组完整（18 色对逐键 light/dark 成对、
+    阶梯单调冻结、Motion 三常量、minTapTarget 44）且无重复/缺项；33 项 identifier 不退化
   - XCTest 与 XCUITest 源码落点（真实流程断言、无固定 sleep）
   - scripts/build-ios.sh、scripts/test-ios.sh 真实执行 xcodebuild
 
@@ -406,6 +409,73 @@ validate_localization() {
 }
 
 # 设计 token 单一真源 + 三屏只引用 token + 主按钮可读标签；输出为空字符串表示通过。
+# token 文件中某个一级分组的源码块（4 空格缩进 `enum <Group> {` 到同级 `}`）。
+token_enum_block() {
+  awk -v header="    enum $2 {" '
+    $0 == header { inblock = 1 }
+    inblock { print }
+    inblock && $0 == "    }" { exit }
+  ' "$1"
+}
+
+# token 文件中某个数组常量的元素块（`static let <name> ... = [` 到缩进 `]`）。
+token_array_block() {
+  awk -v header="$2" '
+    !inblock && index($0, header) { inblock = 1; print; next }
+    inblock && $0 ~ /^[[:space:]]*\][[:space:]]*$/ { exit }
+    inblock { print }
+  ' "$1"
+}
+
+# 分组块内某个数值常量的字面量（CGFloat / TimeInterval 等，找不到输出空）。
+token_number_value() { # block-text, name
+  printf '%s\n' "$1" \
+    | sed -nE "s/^[[:space:]]*static let $2: [A-Za-z]+ = (-?[0-9]+(\.[0-9]+)?).*$/\\1/p" \
+    | head -n 1
+}
+
+# 数组常量的元素串（支持元素自身换行或与常量声明同行）。
+token_scale_elements() { # block-text, array-name
+  printf '%s\n' "$1" | tr '\n' ' ' \
+    | sed -E "s/.*static let $2[^=]*= *\[([^]]*)\].*/\1/" \
+    | tr ',' ' ' | tr -s ' '
+}
+
+# 数组元素逐个解析为数值：常量名回查分组块内 `static let <name>: <Type> = <num>`。
+token_resolved_values() { # block-text, array-name
+  local elements element resolved out=""
+  elements="$(token_scale_elements "$1" "$2")"
+  for element in $elements; do
+    case "$element" in
+      '' | *[!0-9.]*) resolved="$(token_number_value "$1" "$element")" ;;
+      *) resolved="$element" ;;
+    esac
+    out="$out ${resolved:-?}"
+  done
+  printf '%s' "$out"
+}
+
+# 阶梯严格递增断言：空输出表示通过。
+token_scale_order_problem() { # label, resolved-values
+  local label="$1" value prev=""
+  for value in $2; do
+    if [ "$value" = "?" ]; then
+      printf '%s 含无法解析档位' "$label"
+      return
+    fi
+    if [ -n "$prev" ] && ! awk -v a="$prev" -v b="$value" 'BEGIN { exit !(b > a) }'; then
+      printf '%s 未严格递增（%s -> %s）' "$label" "$prev" "$value"
+      return
+    fi
+    prev="$value"
+  done
+}
+
+# 扫描命中行，跳过整行注释（注释里的示例不是真实样式用法）。
+non_comment_hits() { # file, extended-regex
+  grep -nE "$2" "$1" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(///|//|/\*)' || true
+}
+
 validate_design_tokens() {
   local root="$1"
   local problems=""
@@ -481,23 +551,207 @@ validate_design_tokens() {
     problems="$problems 语义色 light/dark 未成对（light=${light_count} dark=${dark_count}）;"
   fi
 
-  # 字面色值 / 零散字体修饰符：扫描四个视图 + ContentView + Design 下非 token 真源的组件文件。
-  local style_files="$run_view $history_view $settings_view $detail_view $content_view"
-  local design_file
-  for design_file in "$root"/ios/PurePace/Design/*.swift; do
-    [ -f "$design_file" ] || continue
-    [ "$design_file" = "$token_file" ] && continue
-    style_files="$style_files $design_file"
+  # 令牌分组完整性：每个分组只允许出现一次（重复分组判红），必需成员逐个存在。
+  local group group_count group_block
+  for group in Colors Typography Spacing Radius Stroke Icon Motion Appearance; do
+    group_count="$(grep -cE "^    enum $group \\{" "$token_file" || true)"
+    if [ "$group_count" -eq 0 ]; then
+      problems="$problems Token 缺枚举 $group;"
+    elif [ "$group_count" -gt 1 ]; then
+      problems="$problems 令牌分组重复 enum ${group}（出现 ${group_count} 次）;"
+    fi
   done
 
+  local colors_block typography_block spacing_block radius_block stroke_block icon_block motion_block appearance_block
+  colors_block="$(token_enum_block "$token_file" Colors)"
+  typography_block="$(token_enum_block "$token_file" Typography)"
+  spacing_block="$(token_enum_block "$token_file" Spacing)"
+  radius_block="$(token_enum_block "$token_file" Radius)"
+  stroke_block="$(token_enum_block "$token_file" Stroke)"
+  icon_block="$(token_enum_block "$token_file" Icon)"
+  motion_block="$(token_enum_block "$token_file" Motion)"
+  appearance_block="$(token_enum_block "$token_file" Appearance)"
+
+  local required_member member
+  for required_member in \
+    'Colors:palette' 'Colors:purposes' 'Typography:sizes' 'Spacing:scale' \
+    'Radius:scale' 'Stroke:hairline' 'Icon:scale' 'Motion:durationShort' \
+    'Motion:durationState' 'Motion:reducedMotionDuration'; do
+    group="${required_member%%:*}"
+    member="${required_member##*:}"
+    case "$group" in
+      Colors) group_block="$colors_block" ;;
+      Typography) group_block="$typography_block" ;;
+      Spacing) group_block="$spacing_block" ;;
+      Radius) group_block="$radius_block" ;;
+      Stroke) group_block="$stroke_block" ;;
+      Icon) group_block="$icon_block" ;;
+      Motion) group_block="$motion_block" ;;
+    esac
+    printf '%s\n' "$group_block" | grep -Fq "static let $member" \
+      || problems="$problems Token 缺少 $group.$member;"
+  done
+  printf '%s\n' "$appearance_block" | grep -Fq 'supportsDarkMode = true' \
+    || problems="$problems Appearance.supportsDarkMode 必须为 true;"
+
+  # 调色板：18 键、键集冻结、无重复；每键恰有一条 light/dark 成对且两侧不相等的 hex 色对。
+  local palette_block purposes_block palette_keys palette_key_count
+  local expected_palette_keys palette_duplicates palette_line palette_key light_hex dark_hex
+  palette_block="$(token_array_block "$token_file" 'static let palette: [String: ColorPair] = [')"
+  purposes_block="$(token_array_block "$token_file" 'static let purposes: [String: String] = [')"
+  expected_palette_keys="accent accentSoft background danger dangerSoft onAccent onDanger onSuccess onWarning primary secondary separator success successSoft surface surfaceMuted warning warningSoft"
+  palette_keys="$(printf '%s\n' "$palette_block" \
+    | sed -nE 's/^[[:space:]]*"([^"]+)".*/\1/p' | LC_ALL=C sort | tr '\n' ' ' | sed -e 's/ $//')"
+  palette_key_count="$(printf '%s\n' "$palette_keys" | tr ' ' '\n' | sed '/^$/d' | wc -l | tr -d ' ')"
+  [ "$palette_key_count" -eq 18 ] \
+    || problems="$problems 调色板键数必须为 18（实际 ${palette_key_count}）;"
+  [ "$palette_keys" = "$expected_palette_keys" ] \
+    || problems="$problems 调色板键集与冻结清单不一致（缺项或多键）;"
+  palette_duplicates="$(printf '%s\n' "$palette_block" \
+    | sed -nE 's/^[[:space:]]*"([^"]+)".*/\1/p' | LC_ALL=C sort | uniq -d | tr '\n' ' ' | sed -e 's/ $//')"
+  [ -z "$palette_duplicates" ] \
+    || problems="$problems 令牌重复：palette 键重复定义 ${palette_duplicates};"
+
+  while IFS= read -r palette_line; do
+    case "$palette_line" in
+      *'"'*) ;;
+      *) continue ;;
+    esac
+    palette_key="$(printf '%s' "$palette_line" | sed -E 's/^[[:space:]]*"([^"]+)".*/\1/')"
+    case "$palette_line" in
+      *'light:'*) ;;
+      *)
+        problems="$problems 色对缺 light（${palette_key}）;"
+        continue
+        ;;
+    esac
+    case "$palette_line" in
+      *'dark:'*) ;;
+      *)
+        problems="$problems 色对缺 dark（${palette_key}）;"
+        continue
+        ;;
+    esac
+    light_hex="$(printf '%s' "$palette_line" \
+      | sed -nE 's/.*light: SRGB\(hex: 0x([0-9A-Fa-f]{6})\).*/\1/p' | tr 'a-f' 'A-F')"
+    dark_hex="$(printf '%s' "$palette_line" \
+      | sed -nE 's/.*dark: SRGB\(hex: 0x([0-9A-Fa-f]{6})\).*/\1/p' | tr 'a-f' 'A-F')"
+    if [ -z "$light_hex" ] || [ -z "$dark_hex" ]; then
+      problems="$problems 色对缺合法 hex（${palette_key}）;"
+    elif [ "$light_hex" = "$dark_hex" ]; then
+      problems="$problems 色对 light/dark 相同（${palette_key}）;"
+    fi
+  done <<EOF
+$palette_block
+EOF
+
+  # 用途注册表：键集与调色板完全相等；用途不得为空、不得复读键名。
+  local purposes_keys purpose_line purpose_key purpose_value
+  purposes_keys="$(printf '%s\n' "$purposes_block" \
+    | sed -nE 's/^[[:space:]]*"([^"]+)".*/\1/p' | LC_ALL=C sort | tr '\n' ' ' | sed -e 's/ $//')"
+  [ "$purposes_keys" = "$palette_keys" ] \
+    || problems="$problems 用途注册表键集与调色板不一致（缺用途或多用途）;"
+  while IFS= read -r purpose_line; do
+    case "$purpose_line" in
+      *'"'*) ;;
+      *) continue ;;
+    esac
+    purpose_key="$(printf '%s' "$purpose_line" | sed -E 's/^[[:space:]]*"([^"]+)".*/\1/')"
+    purpose_value="$(printf '%s' "$purpose_line" | sed -E 's/^[[:space:]]*"[^"]+": *"([^"]*)".*/\1/')"
+    if [ -z "$purpose_value" ]; then
+      problems="$problems 空用途（${purpose_key}）;"
+    elif [ "$purpose_value" = "$purpose_key" ]; then
+      problems="$problems 用途复读键名（${purpose_key}）;"
+    fi
+  done <<EOF
+$purposes_block
+EOF
+
+  # 语义色 static let 必须与调色板逐键对应（缺项/多键判红）。
+  local color_refs
+  color_refs="$(grep -oE 'static let [A-Za-z0-9_]+ = color\("[^"]+"\)' "$token_file" \
+    | sed -E 's/.*color\("([^"]+)"\).*/\1/' | LC_ALL=C sort | tr '\n' ' ' | sed -e 's/ $//' || true)"
+  [ "$color_refs" = "$palette_keys" ] \
+    || problems="$problems 语义色 static let 与调色板键集不一致（缺项或多键）;"
+
+  # 阶梯单调且冻结：字号/间距/圆角/图标/描边/Motion 任一档被改、被删或被重排都判红。
+  local typography_values spacing_values radius_values icon_values order_problem hairline_value
+  local duration_short duration_state reduced_duration
+  typography_values="$(token_resolved_values "$typography_block" sizes)"
+  spacing_values="$(token_resolved_values "$spacing_block" scale)"
+  radius_values="$(token_resolved_values "$radius_block" scale)"
+  icon_values="$(token_resolved_values "$icon_block" scale)"
+
+  [ "$typography_values" = " 11 12 15 20 34 56" ] \
+    || problems="$problems 字号阶梯必须为 [11, 12, 15, 20, 34, 56]（实际:${typography_values}）;"
+  order_problem="$(token_scale_order_problem '字号阶梯' "$typography_values")"
+  [ -z "$order_problem" ] || problems="$problems ${order_problem};"
+
+  [ "$spacing_values" = " 4 8 12 16 24 32" ] \
+    || problems="$problems 间距档位必须为 [4, 8, 12, 16, 24, 32]（实际:${spacing_values}）;"
+  order_problem="$(token_scale_order_problem '间距档位' "$spacing_values")"
+  [ -z "$order_problem" ] || problems="$problems ${order_problem};"
+
+  [ "$radius_values" = " 12 16 20" ] \
+    || problems="$problems 圆角档位必须为 [12, 16, 20]（实际:${radius_values}）;"
+  order_problem="$(token_scale_order_problem '圆角档位' "$radius_values")"
+  [ -z "$order_problem" ] || problems="$problems ${order_problem};"
+
+  [ "$icon_values" = " 16 20 24" ] \
+    || problems="$problems 图标档位必须为 [16, 20, 24]（实际:${icon_values}）;"
+  order_problem="$(token_scale_order_problem '图标档位' "$icon_values")"
+  [ -z "$order_problem" ] || problems="$problems ${order_problem};"
+
+  hairline_value="$(token_number_value "$stroke_block" hairline)"
+  [ "$hairline_value" = "1" ] \
+    || problems="$problems 描边档位 hairline 必须为 1（实际:${hairline_value:-缺}）;"
+
+  duration_short="$(token_number_value "$motion_block" durationShort)"
+  duration_state="$(token_number_value "$motion_block" durationState)"
+  reduced_duration="$(token_number_value "$motion_block" reducedMotionDuration)"
+  if [ "$duration_short" != "0.2" ] || [ "$duration_state" != "0.32" ]; then
+    problems="$problems Motion 时长必须为 durationShort=0.2 / durationState=0.32（实际:${duration_short:-缺}/${duration_state:-缺}）;"
+  fi
+  if [ -z "$duration_short" ] || [ -z "$duration_state" ] \
+    || ! awk -v a="$duration_short" -v b="$duration_state" 'BEGIN { exit !(a > 0 && b > a) }'; then
+    problems="$problems Motion 必须满足 0 < durationShort < durationState;"
+  fi
+  [ "$reduced_duration" = "0" ] \
+    || problems="$problems Motion reducedMotionDuration 必须为 0（实际:${reduced_duration:-缺}）;"
+
+  # 受管 UI 面由目录/通配结构性派生（新增视图文件自动进扫描，不再依赖硬编码清单）：
+  #   ios/PurePace/Run/**、History/**、Settings/**、ContentView.swift、Design/*.swift。
+  # 仅两处结构性豁免：① Design/DesignTokens.swift —— 字面色值的唯一合法来源，
+  # 其内部由 palette/purposes/阶梯断言约束；② ios/PurePace/Harness/** —— DEBUG-only
+  # 测试夹具，不在发布 UI 面，且含 Color.clear 这类结构性常量。
+  local managed_files managed_file design_file
+  managed_files="$( {
+    find "$root/ios/PurePace/Run" "$root/ios/PurePace/History" "$root/ios/PurePace/Settings" \
+      -type f -name '*.swift' 2>/dev/null || true
+    find "$root/ios/PurePace/Design" -maxdepth 1 -type f -name '*.swift' 2>/dev/null || true
+    printf '%s\n' "$content_view"
+  } | LC_ALL=C sort)"
+
   local hits
-  for file in $style_files; do
-    hits="$(grep -nE 'Color\(|Color\.|UIColor|#colorLiteral|\.foregroundStyle\(\.[A-Za-z]' "$file" || true)"
+  for file in $managed_files; do
+    if [ "$file" = "$token_file" ]; then
+      continue
+    fi
+    hits="$(non_comment_hits "$file" \
+      'Color\(|Color\.[A-Za-z]|UIColor|#colorLiteral|SRGB\(hex: *0x|0x[0-9A-Fa-f]{6}|\.foregroundStyle\(\.[A-Za-z]|\.background\(\.[A-Za-z]')"
     [ -z "$hits" ] \
       || problems="$problems ${file#"$root"/} 含字面色值: $(printf '%s' "$hits" | tr '\n' ' ');"
-    hits="$(grep -nE '\.font\(\.|\.fontWeight\(|\.fontDesign\(|\.lineSpacing\([0-9]' "$file" || true)"
+    hits="$(non_comment_hits "$file" \
+      '\.font\(\.|Font\.system\(|Font\.custom\(|\.fontWeight\(|\.fontDesign\(|\.lineSpacing\([0-9]')"
     [ -z "$hits" ] \
       || problems="$problems ${file#"$root"/} 含零散字体修饰符: $(printf '%s' "$hits" | tr '\n' ' ');"
+    hits="$(non_comment_hits "$file" '\.animation\(|withAnimation\(|Animation\.|\.transition\(' \
+      | sed -E 's#//.*$##' | grep -vF 'DesignTokens.Motion.' || true)"
+    [ -z "$hits" ] \
+      || problems="$problems ${file#"$root"/} 动效时长字面量（未走 DesignTokens.Motion）: $(printf '%s' "$hits" | tr '\n' ' ');"
+    hits="$(non_comment_hits "$file" 'duration *: *-?[0-9]')"
+    [ -z "$hits" ] \
+      || problems="$problems ${file#"$root"/} 含动效时长字面量: $(printf '%s' "$hits" | tr '\n' ' ');"
   done
 
   # 三屏不得出现样式字面量，且必须引用 token 与最小触控尺寸。
@@ -748,6 +1002,22 @@ run_self_test() {
       failures=$((failures + 1))
     fi
   }
+  # 反例必须因预期规则判红：输出里必须含指定原因串，避免被别的规则掩盖。
+  check_fail_reason() {
+    checks=$((checks + 1))
+    if [ -z "$2" ]; then
+      echo "[FAIL] self-test: $1（反例未被判失败）" >&2
+      failures=$((failures + 1))
+      return
+    fi
+    case "$2" in
+      *"$3"*) ;;
+      *)
+        echo "[FAIL] self-test: $1（判红原因不含 '$3': $2）" >&2
+        failures=$((failures + 1))
+        ;;
+    esac
+  }
 
   check_ok "本地 path package 正例" "$(validate_packages "$tmp_dir/good.yml")"
   check_fail "url 远程包反例" "$(validate_packages "$tmp_dir/remote-url.yml")"
@@ -921,6 +1191,7 @@ run_self_test() {
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
   cp ios/PurePace/History/HistoryView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
+  cp ios/PurePace/History/RunDetailContent.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
@@ -1000,6 +1271,12 @@ run_self_test() {
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_fail "identifier 追加反例" "$(validate_design_tokens "$design_bad")"
 
+  design_bad="$tmp_dir/design-deleted-id"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' '/accessibilityIdentifier("run.saved")/d' "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_fail_reason "identifier 少一项反例" \
+    "$(validate_design_tokens "$design_bad")" "可及 identifier"
+
   design_bad="$tmp_dir/design-layout-thresholds"
   cp -R "$design_root" "$design_bad"
   sed -i '' \
@@ -1024,6 +1301,220 @@ run_self_test() {
     -e 's/Spacer(minLength: DesignTokens.Spacing.sectionGap)/Spacer(minLength: DesignTokens.Spacing.md)/' \
     "$design_bad/ios/PurePace/Run/RunView.swift"
   check_fail "首屏余量未用语义间距反例" "$(validate_design_tokens "$design_bad")"
+
+  # ---- 静态门加固：受管面结构性派生 + 零字面量 / 令牌完整性，正负两向且校验原因串 ----
+  design_bad="$tmp_dir/design-new-managed-view"
+  cp -R "$design_root" "$design_bad"
+  printf 'import SwiftUI\nprivate let magic = Color(red: 0.1, green: 0.2, blue: 0.3)\n' \
+    > "$design_bad/ios/PurePace/Run/NewlyAddedScreen.swift"
+  check_fail_reason "新增受管视图字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-detail-content-color"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicDetail = Color.white\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason "RunDetailContent 受管面字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-color-literal"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicLiteral = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1)\n' \
+    >> "$design_bad/ios/PurePace/History/HistoryView.swift"
+  check_fail_reason "#colorLiteral 字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-srgb-hex"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicHex = SRGB(hex: 0xFFFFFF)\n' \
+    >> "$design_bad/ios/PurePace/Settings/SettingsView.swift"
+  check_fail_reason "SRGB(hex:) 字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-shorthand-color"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicTint = EmptyView().foregroundStyle(.red)\n' \
+    >> "$design_bad/ios/PurePace/ContentView.swift"
+  check_fail_reason "foregroundStyle(.<Name>) 字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-shorthand-background"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicBackground = EmptyView().background(.blue)\n' \
+    >> "$design_bad/ios/PurePace/ContentView.swift"
+  check_fail_reason "background(.<Name>) 字面色值反例" \
+    "$(validate_design_tokens "$design_bad")" "字面色值"
+
+  design_bad="$tmp_dir/design-no-color-refs"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' '/static let [A-Za-z0-9_]* = color(/d' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "语义色 static let 全缺反例（不得静默中止）" \
+    "$(validate_design_tokens "$design_bad")" "语义色 static let 与调色板"
+
+  design_bad="$tmp_dir/design-system-font"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicFont = EmptyView().font(.system(size: 20))\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason ".font(.system(size:)) 零散字体反例" \
+    "$(validate_design_tokens "$design_bad")" "零散字体修饰符"
+
+  design_bad="$tmp_dir/design-bare-font"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let bareFont = Font.system(size: 18, weight: .bold)\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason "裸 Font.system 零散字体反例" \
+    "$(validate_design_tokens "$design_bad")" "零散字体修饰符"
+
+  local design_ok="$tmp_dir/design-legal-font"
+  cp -R "$design_root" "$design_ok"
+  printf '\nprivate let legalFont = EmptyView().font(DesignTokens.Typography.body)\n' \
+    >> "$design_ok/ios/PurePace/History/RunDetailContent.swift"
+  check_ok "合法 token 字体引用正例" "$(validate_design_tokens "$design_ok")"
+
+  design_bad="$tmp_dir/design-animation-literal"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicAnimation = EmptyView().animation(.easeInOut(duration: 0.3), value: flag)\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason ".animation 动效时长字面量反例" \
+    "$(validate_design_tokens "$design_bad")" "动效时长字面量"
+
+  design_bad="$tmp_dir/design-with-animation-literal"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate func magicWithAnimation() { withAnimation(.linear(duration: 0.25)) { } }\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason "withAnimation 动效时长字面量反例" \
+    "$(validate_design_tokens "$design_bad")" "动效时长字面量"
+
+  design_bad="$tmp_dir/design-duration-literal"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicDuration = Ease(duration: -0.3)\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason "duration 字面量（含负数）反例" \
+    "$(validate_design_tokens "$design_bad")" "动效时长字面量"
+
+  design_bad="$tmp_dir/design-comment-bypass"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let magicComment = EmptyView().transition(.opacity) // DesignTokens.Motion.durationShort\n' \
+    >> "$design_bad/ios/PurePace/History/RunDetailContent.swift"
+  check_fail_reason "行尾注释伪豁免反例" \
+    "$(validate_design_tokens "$design_bad")" "动效时长字面量"
+
+  design_ok="$tmp_dir/design-legal-motion"
+  cp -R "$design_root" "$design_ok"
+  printf '\nprivate let legalMotion = EmptyView().animation(.easeInOut(duration: DesignTokens.Motion.durationShort), value: flag)\n' \
+    >> "$design_ok/ios/PurePace/History/RunDetailContent.swift"
+  check_ok "合法 Motion token 动效正例" "$(validate_design_tokens "$design_ok")"
+
+  design_bad="$tmp_dir/design-no-motion-enum"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' '/^    enum Motion {$/,/^    }$/d' "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "缺枚举 Motion 反例" \
+    "$(validate_design_tokens "$design_bad")" "缺枚举 Motion"
+
+  design_bad="$tmp_dir/design-no-reduced-motion"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' '/static let reducedMotionDuration/d' "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "缺 reducedMotionDuration 反例" \
+    "$(validate_design_tokens "$design_bad")" "Token 缺少 Motion.reducedMotionDuration"
+
+  design_bad="$tmp_dir/design-duplicate-motion"
+  cp -R "$design_root" "$design_bad"
+  token_enum_block ios/PurePace/Design/DesignTokens.swift Motion \
+    >> "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "枚举 Motion 重复分组反例" \
+    "$(validate_design_tokens "$design_bad")" "重复"
+
+  design_bad="$tmp_dir/design-duplicate-palette-key"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"surfaceMuted": ColorPair/"surface": ColorPair/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "palette 键重复定义反例" \
+    "$(validate_design_tokens "$design_bad")" "重复"
+
+  design_bad="$tmp_dir/design-pair-missing-dark"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x141F1D))/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF))/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "色对缺 dark 反例" \
+    "$(validate_design_tokens "$design_bad")" "色对缺 dark"
+
+  design_bad="$tmp_dir/design-pair-equal"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/dark: SRGB(hex: 0x141F1D))/dark: SRGB(hex: 0xFFFFFF))/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "色对 light/dark 相同反例" \
+    "$(validate_design_tokens "$design_bad")" "色对"
+
+  design_bad="$tmp_dir/design-pair-spaced-key"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x141F1D))/"surface" : ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0xFFFFFF))/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "色对键名与冒号间有空格的同值反例" \
+    "$(validate_design_tokens "$design_bad")" "色对"
+
+  design_bad="$tmp_dir/design-missing-purpose"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' '/"surface": "卡片面与底部控制区",/d' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "缺用途注册项反例" \
+    "$(validate_design_tokens "$design_bad")" "用途"
+
+  design_bad="$tmp_dir/design-type-ladder"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let captionSize: CGFloat = 12/static let captionSize: CGFloat = 15/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "字号阶梯未严格递增反例" \
+    "$(validate_design_tokens "$design_bad")" "阶梯"
+
+  design_bad="$tmp_dir/design-type-order"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/metricLabelSize, captionSize, bodySize/captionSize, metricLabelSize, bodySize/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "字号阶梯乱序反例" \
+    "$(validate_design_tokens "$design_bad")" "未严格递增"
+
+  design_bad="$tmp_dir/design-spacing-ladder"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let sm: CGFloat = 12/static let sm: CGFloat = 8/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "间距档位重复反例" \
+    "$(validate_design_tokens "$design_bad")" "档位"
+
+  design_bad="$tmp_dir/design-radius-ladder"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let card: CGFloat = 16/static let card: CGFloat = 18/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "圆角档位漂移反例" \
+    "$(validate_design_tokens "$design_bad")" "档位"
+
+  design_bad="$tmp_dir/design-icon-ladder"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let row: CGFloat = 20/static let row: CGFloat = 18/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "图标档位漂移反例" \
+    "$(validate_design_tokens "$design_bad")" "档位"
+
+  design_bad="$tmp_dir/design-stroke-hairline"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let hairline: CGFloat = 1/static let hairline: CGFloat = 2/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "描边档位漂移反例" \
+    "$(validate_design_tokens "$design_bad")" "档位"
+
+  design_bad="$tmp_dir/design-motion-duration"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/static let durationShort: TimeInterval = 0.2/static let durationShort: TimeInterval = 0.25/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "Motion 时长漂移反例" \
+    "$(validate_design_tokens "$design_bad")" "Motion"
+
+  design_bad="$tmp_dir/design-min-tap-target"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/minTapTarget: CGFloat = 44/minTapTarget: CGFloat = 43/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "minTapTarget 非 44 反例" \
+    "$(validate_design_tokens "$design_bad")" "44"
 
   # 竖屏锁定正负反例（portrait-only + family 1；改成横屏 / family 2 必须判红）。
   mkdir -p "$tmp_dir/orientation-good/ios"
