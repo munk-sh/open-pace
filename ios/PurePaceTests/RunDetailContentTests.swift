@@ -67,6 +67,34 @@ final class RunDetailContentTests: XCTestCase {
         XCTAssertEqual(content.splitsSummaryText, "分段 · 0")
     }
 
+    func testHistoryRowSharesDetailTextsAndDatePrefix() {
+        let record = makeRecord(distanceMeters: 5120, activeDuration: 1860, splits: [])
+        let row = HistoryRowContent(record: record)
+        let detail = RunDetailContent(record: record)
+
+        XCTAssertEqual(row.distanceText, detail.distanceText)
+        XCTAssertEqual(row.durationText, detail.activeDurationText)
+        XCTAssertEqual(row.paceText, detail.averagePaceText)
+        XCTAssertEqual(row.metrics, [detail.distanceText, detail.activeDurationText, detail.averagePaceText])
+        XCTAssertTrue(
+            detail.startedAtText.hasPrefix(row.dateText),
+            "行日期必须是详情开始时间（秒精度）的前缀：\(row.dateText) / \(detail.startedAtText)"
+        )
+    }
+
+    func testHistoryRowLabelCarriesDateAndThreeMetrics() {
+        let record = makeRecord(distanceMeters: 1000, activeDuration: 300, splits: [])
+        let row = HistoryRowContent(record: record)
+
+        XCTAssertEqual(
+            row.accessibilityLabel,
+            "\(row.dateText)，\(row.distanceText)，\(row.durationText)，\(row.paceText)"
+        )
+        XCTAssertTrue(row.accessibilityLabel.contains(" km"))
+        XCTAssertTrue(row.accessibilityLabel.contains(":"))
+        XCTAssertTrue(row.accessibilityLabel.contains("/km"))
+    }
+
     func testPaceFallsBackToPlaceholderWhenDataMissing() {
         let zeroDistance = makeRecord(distanceMeters: 0, activeDuration: 300, splits: [])
         XCTAssertEqual(RunDetailContent(record: zeroDistance).averagePaceText, RunFormatting.emptyPace)
