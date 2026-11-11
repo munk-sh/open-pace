@@ -69,7 +69,7 @@ A 授权遥测 / B 音频机器自证 → 已拆至独立工作项，本项不�
 - **将来新增英文 README 时**：不得内嵌任何 UI 截图，只写一句 `Interface language: Simplified Chinese`，并链到中文图集 `docs/screenshots/`。
 - **图集与登记**：截图集在 [`docs/screenshots/`](./docs/screenshots/)，逐文件校验清单为 [`docs/screenshots/SHA256SUMS`](./docs/screenshots/SHA256SUMS)。新增或替换截图必须同步更新该清单：登记文件 sha256（`shasum -a 256 <file>` 实取）与最近改动 commit 全 sha（`git log --format=%H -1 -- <file>` 实取，不许猜），在仓库根用 `shasum -a 256 -c docs/screenshots/SHA256SUMS` 可校验。
 
-以下为界面图集的三张关键屏（完整 6 张见 `docs/screenshots/`）：
+以下为界面图集的三张关键屏（完整 12 张：Run 首屏 / 跑步中 / 结束总结 / History 列表 / History 详情 / Settings 六屏浅色与深色见 `docs/screenshots/`）：
 
 ![开始跑步前](docs/screenshots/run-not-started.png)
 

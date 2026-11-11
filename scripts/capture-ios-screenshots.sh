@@ -207,13 +207,13 @@ write_sha256sums() {
   awk '/^[0-9a-f][0-9a-f]*  docs\//{exit} {print}' "$file" >"$tmp"
   shasum -a 256 "$shots_dir"/*.png >>"$tmp"
   mv "$tmp" "$file"
-  say "info: 已重写 $file（覆盖目录内全部 PNG）"
+  say "info: 已重写 ${file}（覆盖目录内全部 PNG）"
 }
 
 # ------------------------------------------------ 阶段：六屏可及树 + 真实归档
 
 stage_trees() {
-  say "== trees: EvidenceCaptureUITests/testEvidenceTreesAndRealArchive（UDID $udid）"
+  say "== trees: EvidenceCaptureUITests/testEvidenceTreesAndRealArchive（UDID ${udid}）"
   boot_device
   # 空容器起步，保证归档里只有本次真实链路产生的跑次。
   xcrun simctl uninstall "$udid" "$bundle_id" >/dev/null 2>&1 || true
@@ -248,23 +248,25 @@ snapshot_archive() {
   local container
   container="$(app_container)" || fail "未找到 App 容器"
   [ -d "$container/Documents/Runs" ] || fail "容器内无 Documents/Runs"
+  # 快照必须只含本次真实链路产生的归档：先清空上次残留，避免旧跑次混进截图/树。
+  rm -rf "$archive_snapshot"
   mkdir -p "$archive_snapshot"
   cp -R "$container/Documents/Runs/." "$archive_snapshot/"
-  say "snapshot: $archive_snapshot（$(find "$archive_snapshot" -type f | wc -l | tr -d ' ') 个文件）"
+  say "snapshot: ${archive_snapshot}（$(find "$archive_snapshot" -type f | wc -l | tr -d ' ') 个文件）"
 }
 
 restore_archive() {
   local container count
   container="$(app_container)" || fail "App 未安装，无法还原归档"
   count="$(find "$archive_snapshot" -type f 2>/dev/null | wc -l | tr -d ' ')"
-  [ "$count" -ge 1 ] || fail "归档快照为空（$archive_snapshot），先跑 trees 阶段"
+  [ "$count" -ge 1 ] || fail "归档快照为空（${archive_snapshot}），先跑 trees 阶段"
   mkdir -p "$container/Documents/Runs"
   cp -R "$archive_snapshot/." "$container/Documents/Runs/"
   say "restore: 已还原真实归档到 $container/Documents/Runs（$count 个文件）"
 }
 
 stage_screenshots() {
-  say "== screenshots: 六屏 × 浅/深（UDID $udid）"
+  say "== screenshots: 六屏 × 浅/深（UDID ${udid}）"
   boot_device
   restore_archive
   require_archive
@@ -331,7 +333,7 @@ stage_screenshots() {
 # ------------------------------------------------ 阶段：AX5 实测
 
 stage_ax5() {
-  say "== ax5: content_size accessibility-extra-extra-extra-large（UDID $udid）"
+  say "== ax5: content_size accessibility-extra-extra-extra-large（UDID ${udid}）"
   boot_device
   restore_archive
   require_archive

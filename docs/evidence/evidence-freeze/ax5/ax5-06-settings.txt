@@ -1,0 +1,64 @@
+Attributes: Application, 0x141baace0, pid: 73090, label: 'PurePace'
+Element subtree:
+ →Application, 0x141baace0, pid: 73090, label: 'PurePace'
+    Window (Main), 0x141bc0180, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x141bc0550, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x141bc0670, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x141bc02a0, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x141bc03c0, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x141bc0790, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x141bc08b0, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x141bc09d0, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x141bc0af0, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x141bc0c10, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x141bc0d30, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x141bc0e50, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.settings'
+                            NavigationBar, 0x141bc0f70, {{0.0, 53.7}, {393.0, 117.0}}, identifier: '设置'
+                              StaticText, 0x141bc1090, {{16.0, 97.7}, {113.3, 71.7}}, label: '设置'
+                            Other, 0x141bc11b0, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x141bc12d0, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x141bc13f0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x141bc1510, {{0.0, 0.0}, {393.0, 852.0}}
+                                    CollectionView, 0x141bc1630, {{0.0, 0.0}, {393.0, 852.0}}
+                                      Other, 0x141bc1750, {{0.0, -1533.3}, {393.0, 3600.3}}
+                                      Cell, 0x141bc1870, {{0.0, 192.7}, {393.0, 26.0}}
+                                        Other, 0x141bc1990, {{0.0, 192.7}, {393.0, 26.0}}
+                                        Other, 0x141bc1ab0, {{0.0, 192.7}, {393.0, 26.0}}
+                                          Other, 0x141bc1bd0, {{0.0, 192.7}, {393.0, 26.0}}
+                                            Other, 0x141bc1cf0, {{0.0, 192.7}, {393.0, 26.0}}
+                                              StaticText, 0x141bc1e10, {{0.0, 192.7}, {393.0, 26.0}}, label: '播报'
+                                      Cell, 0x141bc1f30, {{0.0, 218.7}, {393.0, 100.3}}
+                                        Other, 0x141bc2050, {{0.0, 218.7}, {393.0, 100.3}}
+                                          Other, 0x141bc2170, {{0.0, 218.7}, {393.0, 100.3}}
+                                            Other, 0x141bc2290, {{0.0, 218.7}, {393.0, 100.3}}
+                                        Other, 0x141bc23b0, {{0.0, 218.7}, {393.0, 100.3}}
+                                          Other, 0x141bc24d0, {{0.0, 218.7}, {393.0, 100.3}}
+                                            Other, 0x141bc25f0, {{0.0, 218.7}, {393.0, 100.3}}
+                                              Switch, 0x141bc2710, {{0.0, 218.7}, {393.0, 100.3}}, identifier: 'settings.announcementToggle', label: '每公里语音播报', value: 1
+                                                StaticText, 0x141bc2830, {{32.0, 250.7}, {104.3, 18.0}}, label: '每公里语音播报'
+                                                StaticText, 0x141bc2950, {{32.0, 272.7}, {220.7, 14.3}}, label: '每跑满一公里时朗读当前配速与累计时长。'
+                                                Switch, 0x141bc2a70, {{312.0, 253.3}, {51.0, 31.0}}, value: 1
+                                      Cell, 0x141bc2b90, {{0.0, 319.0}, {393.0, 44.0}}
+                                        Other, 0x141bc2cb0, {{0.0, 319.0}, {393.0, 44.0}}
+                                          Other, 0x141bc2dd0, {{0.0, 319.0}, {393.0, 44.0}}
+                                            Other, 0x141bc2ef0, {{0.0, 319.0}, {393.0, 44.0}}
+                                        Other, 0x141bc3010, {{0.0, 319.0}, {393.0, 44.0}}
+                                          Other, 0x141bc3130, {{0.0, 319.0}, {393.0, 44.0}}
+                                            Other, 0x141bc3250, {{0.0, 319.0}, {393.0, 44.0}}
+                                              StaticText, 0x141bc3370, {{0.0, 319.0}, {393.0, 44.0}}, label: '关闭后跑步过程中的语音播报会立即停止。'
+                                      Other, 0x141bc3490, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x141bc35b0, {{387.0, 759.0}, {3.0, 7.0}}
+                                      Other, 0x141bc36d0, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x141bc37f0, {{387.0, 759.0}, {3.0, 7.0}}
+                TabBar, 0x141bc3910, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
+                  Button, 0x141bc3a30, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
+                  Button, 0x141bc3b50, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史'
+                  Button, 0x141bc3c70, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置', Selected
+                    Image, 0x141bc3d90, {{313.3, 773.7}, {28.0, 28.0}}, identifier: 'gearshape.fill', label: 'gearshape.fill'
+Path to element:
+ →Application, 0x141baace0, pid: 73090, label: 'PurePace'
+Query chain:
+ →Find: Target Application 'sh.munk.purepace'
+  Output: {
+    Application, 0x141bc3eb0, pid: 73090, label: 'PurePace'
+  }
