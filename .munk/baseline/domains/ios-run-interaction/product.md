@@ -23,10 +23,11 @@
 - ac-plan-discard-confirm-only: 待保存态 `items` 只含 `save`(primary) + `discardRequest`(secondary)，破坏性 `discard` 不出现在 `items`；`discardConfirmation` 仅在 `finished && !didSave` 非 nil，载荷为 `cancel`(secondary) + `discard`(danger)，`danger` 解析为 `Tint.danger` 且非 accent 填充；其余态 `discardConfirmation == nil`（反例：待保存态直接塞 `discard` 进 `items` 判红）。
 - ac-plan-hero-tint-single-source: `heroTint` 为 hero 主值色唯一真源（running/paused=accent、saved=success、ready=primary，永不 warning）；`RunView` 只消费 `valueTint: color(for: plan.heroTint)`，视图内零 `switch` 取色；把 paused 改回 warning 的反例必须判红。
 - ac-countdown-visible-metrics: 倒计时态 `countdownText` 非 nil（取 VM 读数）、`showsMetrics == true`，5 组指标文本仍由 plan 暴露且与进入倒计时前逐项一致——倒计时不以覆盖方式遮挡主信息。
+- ac-finished-summary-blocks: `state == .finished` 同屏含 距离 / 时长 / 平均配速 三数值 + 轨迹预览卡（共用 `TrackMapView`）+ 分段明细（每段「序号 + 配速」，标识 `run.finished.splitRow`，标题 `run.finished.splits`）；无分段给 `L10n` 替代文案 `run.finished.splitsEmpty`，不留空卡；running / paused / ready 不出现这些块（门脚本断言 `viewModel.state == .finished` 门控）。保存仍是同屏唯一填充主操作（accent 实底、`Radius.control`），`discard` 仍只在确认层，语义重映射与既有 plan 单测不动。反例：删任一块、把地图放进记录态、保存改弱底，必须判红。
 - ac-notice-priority: 同屏只出一条提示，优先级固定 记录错误 > 决策失败 > 定位状态（拒绝/不可用/等待授权）> 后台降级；`decisionErrorMessage != nil` 时 `notice == decisionFailed`，且 items 仍为 save+discard、指标文本非空（失败不吞已完成数据）。
 - ac-recovery-two-actions: `denied` → `recovery == openSettings` 且 `notice == locationDenied`；`restricted` → `recovery == retryLocation` 且 `notice == locationUnavailable`；两者互不相等；`authorizedWhenInUse`/`authorizedAlways` → `recovery == nil`；recovery 仅在 `state == ready` 且非倒计时且非已保存时出现，running/paused/finished 恒为 nil。
 - ac-motion-token-reduce-motion: `transitionDuration` 在 reduceMotion == true 时恒为 `DesignTokens.Motion.reducedMotionDuration`（0），false 时等于 `DesignTokens.Motion.durationState`；plan 内无任何时长数字字面量（反例：硬编码 0.32 判红）。
-- ac-identifiers-append-only: 既有 33 项可及 identifier 逐项不变（不改名 / 不删除）；倒计时取消、结束保存、结束丢弃、丢弃入口、确认层取消分别带 `run.cancelCountdown` / `run.save` / `run.discard` / `run.discardRequest` / `run.discardCancel` 且 `accessibilityLabel` 为非空 `L10n` 键，仓库 identifier 总数 38（冻结 33 + 新增 5）；其余控件（去设置 / 重试）只带 `L10n` 可读 label。
+- ac-identifiers-append-only: 既有 33 项可及 identifier 逐项不变（不改名 / 不删除）；倒计时取消、结束保存、结束丢弃、丢弃入口、确认层取消分别带 `run.cancelCountdown` / `run.save` / `run.discard` / `run.discardRequest` / `run.discardCancel` 且 `accessibilityLabel` 为非空 `L10n` 键；仓库 identifier 总数单调不减（当前 42：冻结 33 + 地图/分段 5 + 主操作 4）；其余控件（去设置 / 重试）只带 `L10n` 可读 label。
 - ac-gates-green: `.munk/code-gates.json` 全部 22 门退 0，`lint-ios-shell`（含 `--self-test` ≥84 项）、`test-ios --unit-only`（≥199 例）、`test-ios-run-core`（≥152 例）无退化；新增用例纯增量，无 sleep / 真实时钟 / 网络 / 模拟器。
 - ac-l10n-and-tokens-only: 受管 UI 面（含 plan 文件与确认层）零字面色值、零散字体修饰符、零动效时长字面量；确认层四键（标题 / 说明 / 确认 / 取消）只落在 `Localizable.xcstrings`（`sourceLanguage=zh-Hans` 单语）与 `L10n` 入口，视图零裸英文字面量；其余文案仍全部来自既有 `L10n`。
 - ac-tabbar-hidden-recording: 记录态（`running` 与 `paused` 均实测）`XCUIApplication().tabBars.count == 0`，且「跑步 / 历史 / 设置」三个 Tab 按钮均不可见、不可点；`run.pause` / `run.resume` 仍可点，距离与用时继续增长。
@@ -67,7 +68,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_e7e73d829e61fa7a（2026-11-12，pass）
-- 交付：视图层用途重映射落到 plan 单一真源。`RunInteractionPlan` 新增 `Tint` / `Item.tint` / `Item.style` 机械派生、`heroTint`（running/paused=accent、saved=success、ready=primary）与 `discardConfirmation`（cancel=secondary / confirm=discard@danger），`finish` 由 `secondary` 升为 accent 主操作族；`RunView` 删除视图内 `stateTint` switch，hero 只消费 `plan.heroTint`，`warning` 只剩非阻断内联提示与其弱底，结束待保存屏只出 `run.discardRequest`，`run.discard` 仅在确认 sheet 内（danger 描边、不填充），取消回同态且距离 / 会话状态不变；`.toolbar(.hidden, for: .tabBar)` 由 `ContentView` 移入 `RunView` 的 `NavigationStack`（记录态 Tab 真正收起），确认层四键走 `Localizable.xcstrings` + `L10n`。identifier 38（冻结 33 + 5）。
-- 验证：`code_gates` 22 门 attempt 001 全绿；`RunInteractionPlanTests` 覆盖 finish accent 正例与旧口径反例、heroTint 三态与 warning 反例、确认层载荷；`RunFlowUITests` 实跑四行 tabbar 断言（0/0/0/1）、像素断言 `ac-finish-ui-rendered-accent`（暂停 / 结束 / 保存三处 delta=0）、`run.discard` 仅 sheet 内且取消后逐字节不变；`check-ios-shell` 30 项 / `--self-test` 92 项 / `check-ios-scripts` 27 项 0 失败。
-- 偏差/未闭合：`finished && !didSave` 的旧期望（`run.discard` 在屏）按新语义改写为「入口在、破坏性按钮不在屏」；已保存态唯一填充主操作仍是 `viewHistory`(success)，未纳入「记录态主操作族」；截图与可及树按 C 项范围未重出，`pending: 待人现场`。
+- workItemId: wi_intake_7b9d19bc1e3be0ee（2026-11-12，pass）
+- 交付：结束态（`state == .finished`）新增 `finishedTrackSummary` 块——`TrackMapView(samples: viewModel.acceptedSamples, emptyIdentifier: "run.mapEmpty", singlePointIdentifier: "run.mapEmpty.single")` 轨迹预览（高 180pt）+ `splitsDetail` 分段明细（逐段序号 + `RunFormatting.paceText`，无分段给 `L10n.runFinishedSplitsEmpty`，标识 `run.finished.splits` / `run.finished.splitRow` / `run.finished.splitsEmpty`）；标准与小屏 `ScrollView` 两条布局路径都只在 finished 分支插入。保存 / 丢弃语义、`RunInteractionPlan` 的 emphasis/style/tint 映射与既有单测零改动。
+- 判定与断言：`check-ios-shell.sh` 29 项断言 0 失败（`viewModel.state == .finished` 门控 + `TrackMapView(` 接线双向断言）；identifier 总数 42（冻结 33 + 新增 9），门禁下限 36 仍满足；`code_gates` 22 门全绿（attempt 001）。
+- 边界：结束态三块的可视化截图未重出（`pending: 待人现场`）；分段数据源沿用 `viewModel.metrics.splits`，未改 VM 计算。

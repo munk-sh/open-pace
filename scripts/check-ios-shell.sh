@@ -118,7 +118,7 @@ validate_app_imports() {
   local module
   for module in $app_imports; do
     case "$module" in
-      SwiftUI|Foundation|AVFoundation|CoreLocation|PurePaceRunCore) ;;
+      SwiftUI|Foundation|AVFoundation|CoreLocation|PurePaceRunCore|MapKit) ;;
       *) problems="$problems App 含非允许 import '$module';" ;;
     esac
   done
@@ -140,9 +140,18 @@ validate_app_imports() {
     esac
   done <<< "$(grep -rlE --include='*.swift' 'CoreLocation' "$app_dir" 2>/dev/null || true)"
 
-  if grep -rEq --include='*.swift' 'HealthKit|MapKit|CoreMotion|UserNotifications|URLSession' "$app_dir" 2>/dev/null; then
+  if grep -rEq --include='*.swift' 'HealthKit|CoreMotion|UserNotifications|URLSession' "$app_dir" 2>/dev/null; then
     problems="$problems App 源码引用了非允许的业务/网络框架;"
   fi
+
+  # MapKit 精确放行：只允许 App 内唯一地图壳 ios/PurePace/Track/TrackMapView.swift。
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in
+      "$app_dir"/Track/TrackMapView.swift) ;;
+      *) problems="$problems MapKit 只允许出现在 ios/PurePace/Track/TrackMapView.swift: $file;" ;;
+    esac
+  done <<< "$(grep -rlE --include='*.swift' 'import MapKit' "$app_dir" 2>/dev/null || true)"
 
   printf '%s' "$problems"
 }
@@ -395,7 +404,7 @@ validate_localization() {
 
   local view hits
   for view in ContentView.swift Run/RunView.swift History/HistoryView.swift \
-    History/RunDetailView.swift Settings/SettingsView.swift; do
+    History/RunDetailView.swift Track/TrackMapView.swift Settings/SettingsView.swift; do
     if [ ! -f "$root/ios/PurePace/$view" ]; then
       problems="$problems 缺少 ios/PurePace/$view;"
       continue
@@ -800,7 +809,7 @@ EOF
   local managed_files managed_file design_file
   managed_files="$( {
     find "$root/ios/PurePace/Run" "$root/ios/PurePace/History" "$root/ios/PurePace/Settings" \
-      -type f -name '*.swift' 2>/dev/null || true
+      "$root/ios/PurePace/Track" -type f -name '*.swift' 2>/dev/null || true
     find "$root/ios/PurePace/Design" -maxdepth 1 -type f -name '*.swift' 2>/dev/null || true
     printf '%s\n' "$content_view"
   } | LC_ALL=C sort)"
@@ -1149,12 +1158,13 @@ run_self_test() {
   check_fail "非 RunCore path 包反例" "$(validate_packages "$tmp_dir/remote-path.yml")"
 
   # import 作用域正负反例
-  mkdir -p "$tmp_dir/app/Harness" "$tmp_dir/app/Audio" "$tmp_dir/app/Location"
+  mkdir -p "$tmp_dir/app/Harness" "$tmp_dir/app/Audio" "$tmp_dir/app/Location" "$tmp_dir/app/Track"
   printf 'import SwiftUI\n' > "$tmp_dir/app/PurePaceApp.swift"
   printf 'import CoreLocation\nimport Foundation\n' > "$tmp_dir/app/Harness/LocationSource.swift"
   printf 'import CoreLocation\nimport Foundation\n' > "$tmp_dir/app/Location/RunLocationSource.swift"
   printf 'import AVFoundation\n' > "$tmp_dir/app/Audio/AudioSessionAdapter.swift"
-  check_ok "App import 允许表正例（Harness + Location 双作用域）" "$(validate_app_imports "$tmp_dir/app")"
+  printf 'import MapKit\nimport SwiftUI\n' > "$tmp_dir/app/Track/TrackMapView.swift"
+  check_ok "App import 允许表正例（Harness + Location 双作用域 + 唯一地图壳 MapKit）" "$(validate_app_imports "$tmp_dir/app")"
 
   mkdir -p "$tmp_dir/app-bad-corelocation"
   printf 'import CoreLocation\n' > "$tmp_dir/app-bad-corelocation/ContentView.swift"
@@ -1167,6 +1177,11 @@ run_self_test() {
   mkdir -p "$tmp_dir/app-bad-framework/Harness"
   printf 'import MapKit\n' > "$tmp_dir/app-bad-framework/Harness/Map.swift"
   check_fail "禁用业务框架反例" "$(validate_app_imports "$tmp_dir/app-bad-framework")"
+  check_fail "MapKit 越界到 Harness 反例" "$(validate_app_imports "$tmp_dir/app-bad-framework")"
+
+  mkdir -p "$tmp_dir/app-bad-mapkit-scope/History"
+  printf 'import MapKit\n' > "$tmp_dir/app-bad-mapkit-scope/History/RunDetailView.swift"
+  check_fail "MapKit 在非唯一地图壳目录反例" "$(validate_app_imports "$tmp_dir/app-bad-mapkit-scope")"
 
   mkdir -p "$tmp_dir/app-bad-av"
   printf 'import AVFoundation\n' > "$tmp_dir/app-bad-av/Other.swift"
@@ -1286,7 +1301,8 @@ run_self_test() {
   # 本地化单一来源与视图零裸英文正负反例（正例直接复制真实源码）。
   local loc_good="$tmp_dir/localization-good"
   mkdir -p "$loc_good/ios/PurePace/Resources" "$loc_good/ios/PurePace/Run" \
-    "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings"
+    "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings" \
+    "$loc_good/ios/PurePace/Track"
   cp ios/PurePace/Resources/Localizable.xcstrings "$loc_good/ios/PurePace/Resources/"
   cp ios/project.yml "$loc_good/ios/project.yml"
   cp ios/PurePace/ContentView.swift "$loc_good/ios/PurePace/"
@@ -1294,6 +1310,7 @@ run_self_test() {
   cp ios/PurePace/History/HistoryView.swift "$loc_good/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailView.swift "$loc_good/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$loc_good/ios/PurePace/Settings/"
+  cp ios/PurePace/Track/TrackMapView.swift "$loc_good/ios/PurePace/Track/"
   check_ok "本地化单一来源正例" "$(validate_localization "$loc_good")"
 
   local loc_bad="$tmp_dir/localization-bad"
@@ -1310,7 +1327,8 @@ run_self_test() {
   # 设计 token 单一真源与三屏契约正负反例（正例直接复制真实源码）。
   local design_root="$tmp_dir/design-good"
   mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
-    "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings"
+    "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings" \
+    "$design_root/ios/PurePace/Track"
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
@@ -1319,9 +1337,10 @@ run_self_test() {
   cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailContent.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
+  cp ios/PurePace/Track/TrackMapView.swift "$design_root/ios/PurePace/Track/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 38 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 42 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_bad="$tmp_dir/design-no-token"
@@ -1409,7 +1428,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 39 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 43 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"
@@ -1920,9 +1939,13 @@ if [ -z "$problems" ]; then
   # History / Settings 诚实态
   grep -Fq '"history.empty"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.empty 空态;"
   grep -Fq '"history.row"' ios/PurePace/History/HistoryView.swift || problems="$problems History 缺少 history.row 行标识;"
-  grep -Fq 'archiveStore.list()' ios/PurePace/History/HistoryView.swift || problems="$problems History 未读取真实归档;"
+  grep -Fq 'archiveStore.listSummaries()' ios/PurePace/History/HistoryView.swift || problems="$problems History 未走轻量索引 listSummaries();"
+  if grep -Fq 'archiveStore.list()' ios/PurePace/History/HistoryView.swift; then
+    problems="$problems History 生产路径仍在调 list() 解码全量 samples;"
+  fi
   grep -Fq 'RunFormatting.paceText' ios/PurePace/History/HistoryView.swift || problems="$problems History 行未补平均配速;"
   grep -Fq 'RunDetailView(record:' ios/PurePace/History/HistoryView.swift || problems="$problems History 未接入跑次详情;"
+  grep -Fq 'record(withID: recordID)' ios/PurePace/History/HistoryView.swift || problems="$problems History 详情未按 id 懒解码 record(withID:);"
   # 跑次详情：字段来自 RunRecord 与 RunDetailContent，稳定标识供 UI 测试
   grep -Fq 'RunDetailContent(record: record)' ios/PurePace/History/RunDetailView.swift || problems="$problems 详情页未使用 RunDetailContent;"
   for id in runDetail.root runDetail.startedAt runDetail.endedAt runDetail.distance runDetail.activeDuration runDetail.averagePace runDetail.splits runDetail.splitRow runDetail.splitsEmpty runDetail.export runDetail.exported runDetail.share runDetail.exportFailed; do
@@ -1939,6 +1962,20 @@ if [ -z "$problems" ]; then
   # Settings：真实播报开关（禁止「暂无可配置项」/示例数值/Stepper/Slider）
   settings_problems="$(validate_settings_view ios/PurePace/Settings/SettingsView.swift)"
   [ -z "$settings_problems" ] || problems="$problems $settings_problems"
+  # 轨迹地图：唯一壳、绘制契约、相机一次定位、仅结束态/详情引用
+  map_shell="ios/PurePace/Track/TrackMapView.swift"
+  grep -Fq 'MapPolyline(coordinates:' "$map_shell" || problems="$problems 地图壳未在 body 外构造 MapPolyline;"
+  grep -Fq 'DesignTokens.Colors.accentSoft' "$map_shell" || problems="$problems 轨迹光晕未用 accentSoft;"
+  grep -Fq 'DesignTokens.Colors.accent' "$map_shell" || problems="$problems 主轨迹未用 accent;"
+  grep -Fq 'DesignTokens.Stroke.track' "$map_shell" || problems="$problems 轨迹描边未走 Stroke.track;"
+  grep -Fq 'TrackGeometry.cameraBox' "$map_shell" || problems="$problems 相机未经 TrackGeometry.cameraBox;"
+  grep -Fq 'cameraPaddingRatio: Double = 0.10' "$map_shell" || problems="$problems 相机 padding 非固定 10%;"
+  if sed -n '/onMapCameraChange/,/^        }/p' "$map_shell" | grep -Eq 'cameraPosition[[:space:]]*='; then
+    problems="$problems onMapCameraChange 内回写了 cameraPosition;"
+  fi
+  grep -Fq 'viewModel.state == .finished' ios/PurePace/Run/RunView.swift || problems="$problems 跑步页未按 finished 门控地图;"
+  grep -Fq 'TrackMapView(' ios/PurePace/Run/RunView.swift || problems="$problems 结束态未接入 TrackMapView;"
+  grep -Fq 'TrackMapView(' ios/PurePace/History/RunDetailView.swift || problems="$problems 详情页未接入 TrackMapView;"
   # 无内置样例、无夹具引用、无假计时
   fixture_problems="$(validate_no_fixture_data ios/PurePace)"
   [ -z "$fixture_problems" ] || problems="$problems $fixture_problems"

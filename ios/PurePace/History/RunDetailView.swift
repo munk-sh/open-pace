@@ -19,6 +19,7 @@ struct RunDetailView: View {
             metaSection
             heroSection
             metricGridSection
+            mapSection
             splitsSection
             exportSection
         }
@@ -85,6 +86,25 @@ struct RunDetailView: View {
                     )
                 }
             }
+        }
+    }
+
+    /// 第三块（地图）：与结束态共用同一 `TrackMapView`；空/单点轨迹走详情空态。
+    private var mapSection: some View {
+        Section {
+            cardRow {
+                TrackMapView(
+                    samples: record.samples,
+                    emptyIdentifier: "runDetail.mapEmpty",
+                    singlePointIdentifier: "runDetail.mapEmpty.single"
+                )
+                .frame(height: 200)
+            }
+        } header: {
+            Text(L10n.runMapPreviewLabel)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .textCase(nil)
         }
     }
 

@@ -99,7 +99,119 @@ final class TrackGeometryTests: XCTestCase {
         XCTAssertNil(TrackGeometry.cameraBox(for: [], paddingRatio: 0.10))
     }
 
+    // MARK: - ac-break-60s / ac-single-and-boundary-longitude
+
+    func testBreakThresholdIsStrictlyGreaterThanSixty() {
+        XCTAssertEqual(TrackGeometry.maxSegmentGapSeconds, 60)
+        XCTAssertEqual(TrackGeometry.segments(from: samples(at: [0, 60])).count, 1, "恰 60s 不得断线（`>` 而非 `>=`）")
+        XCTAssertEqual(TrackGeometry.segments(from: samples(at: [0, 61])).count, 2, "61s 必须断线")
+    }
+
+    func testSinglePointHasOneSegmentButNoRenderSegment() {
+        let single = samples(at: [0])
+        XCTAssertEqual(TrackGeometry.segments(from: single).count, 1, "分段层单点保留 1 段")
+        XCTAssertEqual(TrackGeometry.renderSegments(from: single).count, 0, "渲染层过滤 <2 点段")
+    }
+
+    func testEmptyInputHasNoSegmentsAndNoCameraBox() {
+        XCTAssertEqual(TrackGeometry.segments(from: []).count, 0)
+        XCTAssertEqual(TrackGeometry.renderSegments(from: []).count, 0)
+        XCTAssertNil(TrackGeometry.cameraBox(for: [], paddingRatio: 0.10))
+        XCTAssertNil(TrackGeometry.boundingBox(of: []))
+    }
+
+    func testTrackCoordinateValidityBoundaries() {
+        XCTAssertTrue(TrackCoordinate(latitude: 90, longitude: 180).isValidWGS84)
+        XCTAssertTrue(TrackCoordinate(latitude: -90, longitude: -180).isValidWGS84)
+        XCTAssertFalse(TrackCoordinate(latitude: 31, longitude: 180.0001).isValidWGS84, "越界经度必须判非法")
+        XCTAssertFalse(TrackCoordinate(latitude: 90.0001, longitude: 121).isValidWGS84)
+        XCTAssertFalse(TrackCoordinate(latitude: .nan, longitude: 121).isValidWGS84)
+    }
+
+    func testValidSamplesKeepsLegalCoordinatesWithoutReordering() {
+        let east = makeSample(latitude: 31.0, longitude: 179.999, seconds: 0)
+        let west = makeSample(latitude: 31.0, longitude: -179.999, seconds: 20)
+        let filtered = TrackGeometry.validSamples(from: [east, west])
+        XCTAssertEqual(filtered.map(\.longitude), [179.999, -179.999], "合法点保序、不重排")
+
+        // 越界坐标在采样层即被拒绝，绝不允许流进渲染层。
+        XCTAssertNil(RunSample(
+            latitude: 31.0,
+            longitude: 180.0001,
+            altitude: nil,
+            timestamp: Date(timeIntervalSince1970: 1_760_000_000),
+            heartRate: nil,
+            cadence: nil
+        ), "180.0001 必须被拒绝")
+    }
+
+    func testCrossDatelineFixtureKeepsEveryPointAndDoesNotCrash() {
+        let points = [
+            TrackCoordinate(latitude: 31.0, longitude: 179.999),
+            TrackCoordinate(latitude: 31.0005, longitude: 180.0),
+            TrackCoordinate(latitude: 31.001, longitude: -179.999)
+        ]
+        let simplified = TrackGeometry.simplify(points)
+        XCTAssertEqual(simplified, points, "跨 180° 夹具不丢点、不重排")
+        XCTAssertNotNil(TrackGeometry.boundingBox(of: points), "相机包围盒纯函数不得崩")
+        XCTAssertNotNil(TrackGeometry.cameraBox(for: points, paddingRatio: 0.10))
+        XCTAssertTrue(points.allSatisfy(\.isValidWGS84))
+    }
+
+    // MARK: - ac-rdp-epsilon-3m / ac-rdp-render-only
+
+    func testDefaultEpsilonStaysThreeMeters() {
+        XCTAssertEqual(TrackGeometry.simplificationEpsilonMeters, 3.0, "默认 ε 必须为 3m，禁止改成 8")
+        let fixture = deviationFixture()
+        let defaultSimplified = TrackGeometry.simplify(fixture.points)
+        XCTAssertLessThanOrEqual(maxDeviation(from: fixture.samples, to: defaultSimplified), 3.0)
+
+        // 同 commit 反例：显式放大 ε 到 8m 后，偏差必然 >3m（证明 3m 阈值真的在起作用）。
+        let loose = TrackGeometry.simplify(fixture.points, epsilonMeters: 8)
+        XCTAssertLessThan(loose.count, defaultSimplified.count, "ε=8 必须比 ε=3 抽得更狠")
+        XCTAssertGreaterThan(maxDeviation(from: fixture.samples, to: loose), 3.0, "ε=8 反例必须 >3m")
+    }
+
+    func testRenderingNeverMutatesArchiveSamples() {
+        let fixture = deviationFixture()
+        let before = fixture.samples
+        _ = TrackGeometry.renderSegments(from: fixture.samples)
+        _ = TrackGeometry.simplify(fixture.points)
+        XCTAssertEqual(fixture.samples, before, "渲染抽稀不得写回归档 samples")
+    }
+
     // MARK: - helpers
+
+    /// 30m 直线 + 1m/8m 两点偏移的固定夹具：ε=3 抽掉 1m 点，ε=8 连同 8m 点一起抽掉。
+    private func deviationFixture() -> (samples: [RunSample], points: [TrackCoordinate]) {
+        let latitude = 31.0
+        let metersPerDegreeLatitude = 111_320.0
+        let metersPerDegreeLongitude = 111_320.0 * cos(latitude * .pi / 180)
+        var samples: [RunSample] = []
+        for index in 0...3 {
+            let offsetMeters = Double(index) * 10
+            samples.append(makeSample(
+                latitude: latitude,
+                longitude: 121.0 + offsetMeters / metersPerDegreeLongitude,
+                seconds: Double(index) * 10
+            ))
+        }
+        samples.insert(makeSample(
+            latitude: latitude + 1 / metersPerDegreeLatitude,
+            longitude: 121.0 + 10 / metersPerDegreeLongitude,
+            seconds: 5
+        ), at: 1)
+        samples.insert(makeSample(
+            latitude: latitude + 8 / metersPerDegreeLatitude,
+            longitude: 121.0 + 20 / metersPerDegreeLongitude,
+            seconds: 15
+        ), at: 3)
+        samples.sort { $0.timestamp < $1.timestamp }
+        return (
+            samples,
+            samples.map { TrackCoordinate(latitude: $0.latitude, longitude: $0.longitude) }
+        )
+    }
 
     private func samples(at seconds: [Double]) -> [RunSample] {
         seconds.compactMap { second in

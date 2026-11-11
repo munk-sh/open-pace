@@ -82,6 +82,9 @@ struct RunView: View {
             distanceHero
             Spacer(minLength: DesignTokens.Spacing.cardGap)
             metricsPanel
+            if viewModel.state == .finished {
+                finishedTrackSummary
+            }
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
             hintLayer
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
@@ -96,6 +99,9 @@ struct RunView: View {
         VStack(spacing: DesignTokens.Spacing.sectionGap) {
             distanceHero
             metricsPanel
+            if viewModel.state == .finished {
+                finishedTrackSummary
+            }
             hintLayer
         }
         .padding(DesignTokens.Spacing.cardGap)
@@ -186,6 +192,67 @@ struct RunView: View {
         .padding(DesignTokens.Spacing.cardPadding)
         // 指标卡底部补 4pt 既有空白，把等权 Spacer 的余量从底部分走一档。
         .padding(.bottom, DesignTokens.Spacing.xxs)
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
+        }
+    }
+
+    // MARK: - 结束态总结（仅 finished）
+
+    /// 结束态专属：轨迹预览卡（与详情页同一 `TrackMapView`）+ 分段明细。
+    /// 记录态 / 暂停 / 未开始一律不出现这些块。
+    private var finishedTrackSummary: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            TrackMapView(
+                samples: viewModel.acceptedSamples,
+                emptyIdentifier: "run.mapEmpty",
+                singlePointIdentifier: "run.mapEmpty.single"
+            )
+            .frame(height: 180)
+            splitsDetail
+        }
+    }
+
+    /// 分段明细：有分段逐段渲染「序号 + 配速」，无分段给明确中文替代文案。
+    private var splitsDetail: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.metricGroupSpacing) {
+            Text(L10n.runSplitsDetailTitle)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .accessibilityIdentifier("run.finished.splits")
+                .accessibilityLabel(Text(L10n.runSplitsDetailTitle))
+            if viewModel.metrics.splits.isEmpty {
+                Text(L10n.runFinishedSplitsEmpty)
+                    .font(DesignTokens.Typography.body)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .accessibilityIdentifier("run.finished.splitsEmpty")
+                    .accessibilityLabel(Text(L10n.runFinishedSplitsEmpty))
+            } else {
+                ForEach(viewModel.metrics.splits, id: \.index) { split in
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Text(RunFormatting.splitIndexText(split.index))
+                            .font(DesignTokens.Typography.body)
+                            .foregroundStyle(DesignTokens.Colors.primary)
+                            .monospacedDigit()
+                        Spacer(minLength: DesignTokens.Spacing.xs)
+                        Text(RunFormatting.paceText(split.pace))
+                            .font(DesignTokens.Typography.body)
+                            .foregroundStyle(DesignTokens.Colors.secondary)
+                            .monospacedDigit()
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("run.finished.splitRow")
+                    .accessibilityLabel(Text(L10n.runSplitsDetailTitle))
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             DesignTokens.Colors.surface,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)

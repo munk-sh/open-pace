@@ -12,6 +12,7 @@
 4. **主操作**：`.safeAreaInset(edge: .bottom)` 固定底部，未开始与记录中共用 `accent`，暂停 `warning`，保存 `success`，`minHeight = 44`。
 
 三态（running / paused / saved）只用颜色与弱底区分，不新增文案、identifier 与行为。
+结束态（`state == .finished`）在主指标下方追加两块：**轨迹预览卡**（`TrackMapView`，高 180pt，与详情页同一壳；空/单点走 `run.mapEmpty` 中文空态）与**分段明细**（逐段「序号 + 配速」，无分段给 `run.finished.splitsEmpty` 替代文案）；记录态 / 暂停 / 未开始不出现。
 DEBUG `run.telemetry` 诊断摘要为内容区底部 overlay，不挤偏居中块。
 
 ## 历史页（HistoryView）
