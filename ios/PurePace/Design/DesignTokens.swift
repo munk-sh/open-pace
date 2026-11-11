@@ -1,6 +1,7 @@
+import Foundation
 import SwiftUI
 
-/// 全仓唯一设计 token 真源：颜色 / 字号 / 字重 / 间距 / 圆角 / 图标尺寸 / 最小触控尺寸。
+/// 全仓唯一设计 token 真源：颜色 / 字号 / 字重 / 间距 / 圆角 / 图标尺寸 / 动效 / 最小触控尺寸。
 /// 视图只引用本文件，不写样式字面量；语义色一律 light/dark 成对定义，深色模式真实可用。
 enum DesignTokens {
     // MARK: - 颜色
@@ -71,6 +72,53 @@ enum DesignTokens {
             "dangerSoft": ColorPair(light: SRGB(hex: 0xFCEBE9), dark: SRGB(hex: 0x3A1A17))
         ]
 
+        /// 18 个语义键的机器可读用途；键集必须与 `palette` 完全相等，且用途不得为空或复读键名。
+        static let purposes: [String: String] = [
+            "background": "页面底色，承载全部内容的最底层",
+            "surface": "卡片面与底部控制区",
+            "surfaceMuted": "次级面板与提示弱底",
+            "primary": "正文与 hero 数字",
+            "secondary": "次文、字段标签与说明",
+            "accent": "唯一品牌主色：记录态、主操作与选中态",
+            "onAccent": "主色底上的文字",
+            "accentSoft": "记录态弱底",
+            "separator": "卡片描边与分隔线，仅装饰，不作为唯一信息载体",
+            "warning": "暂停、结束与降级提示",
+            "onWarning": "警示底上的文字",
+            "warningSoft": "警示弱底",
+            "success": "已保存成功态",
+            "onSuccess": "成功底上的文字",
+            "successSoft": "成功弱底",
+            "danger": "失败与危险态",
+            "onDanger": "危险底上的文字",
+            "dangerSoft": "危险弱底"
+        ]
+
+        /// 用途注册表的 fail-closed 校验：缺键 / 多键 / 空用途 / 复读键名都产出可读问题。
+        static func purposeProblems(
+            paletteEntries: [String: ColorPair] = palette,
+            registry: [String: String] = purposes
+        ) -> [String] {
+            var problems: [String] = []
+            let paletteKeys = Set(paletteEntries.keys)
+            let registryKeys = Set(registry.keys)
+            for key in paletteKeys.subtracting(registryKeys).sorted() {
+                problems.append("缺用途 \(key)")
+            }
+            for key in registryKeys.subtracting(paletteKeys).sorted() {
+                problems.append("多余用途 \(key)")
+            }
+            for key in paletteKeys.intersection(registryKeys).sorted() {
+                let trimmed = (registry[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    problems.append("空用途 \(key)")
+                } else if trimmed == key {
+                    problems.append("复读键名 \(key)")
+                }
+            }
+            return problems
+        }
+
         /// 页面底色。
         static let background = color("background")
         /// 卡片面 / 底部控制区。
@@ -124,15 +172,69 @@ enum DesignTokens {
     // MARK: - 字号
 
     enum Typography {
+        /// 指标三行结构的小标签（上置，配合 `secondary` 色）。
+        static let metricLabelSize: CGFloat = 11
+        /// 指标三行结构的单位（下置，与标签同档）。
+        static let metricUnitSize: CGFloat = 11
         static let captionSize: CGFloat = 12
         static let bodySize: CGFloat = 15
         static let titleSize: CGFloat = 20
         static let primaryValueSize: CGFloat = 34
         static let displaySize: CGFloat = 56
 
-        /// 由小到大的字号阶梯，供不变量断言使用。
-        static let sizes: [CGFloat] = [captionSize, bodySize, titleSize, primaryValueSize, displaySize]
+        /// 由小到大的字号阶梯，供不变量断言使用；label/unit 共享 11 这一档。
+        static let sizes: [CGFloat] = [
+            metricLabelSize, captionSize, bodySize, titleSize, primaryValueSize, displaySize
+        ]
 
+        /// 语义角色阶梯：按字号非递减排列，label/unit 允许同字号一次。
+        struct Role: Equatable, Sendable {
+            let name: String
+            let size: CGFloat
+            let needsMonospacedDigits: Bool
+        }
+
+        /// 需要等宽数字的角色；仅 `primaryValue` / `display` 两个数值角色。
+        static let numericRoleNames: [String] = ["primaryValue", "display"]
+
+        static let roleLadder: [Role] = [
+            Role(name: "metricLabel", size: metricLabelSize, needsMonospacedDigits: false),
+            Role(name: "metricUnit", size: metricUnitSize, needsMonospacedDigits: false),
+            Role(name: "caption", size: captionSize, needsMonospacedDigits: false),
+            Role(name: "body", size: bodySize, needsMonospacedDigits: false),
+            Role(name: "title", size: titleSize, needsMonospacedDigits: false),
+            Role(name: "primaryValue", size: primaryValueSize, needsMonospacedDigits: true),
+            Role(name: "display", size: displaySize, needsMonospacedDigits: true)
+        ]
+
+        /// 角色阶梯的 fail-closed 校验：乱序、非法同字号、数值角色集合漂移都产出问题。
+        static func roleProblems(_ ladder: [Role] = roleLadder) -> [String] {
+            var problems: [String] = []
+            for index in 1..<ladder.count where ladder[index].size < ladder[index - 1].size {
+                problems.append("角色阶梯必须按字号非递减: \(ladder[index].name)")
+            }
+
+            let allowedDuplicates: Set<String> = ["metricLabel", "metricUnit"]
+            let grouped = Dictionary(grouping: ladder, by: \.size)
+            for size in grouped.keys.sorted() where (grouped[size]?.count ?? 0) > 1 {
+                let names = Set(grouped[size]?.map(\.name) ?? [])
+                if names != allowedDuplicates {
+                    problems.append("仅 metricLabel/metricUnit 允许同字号: \(size)")
+                }
+            }
+
+            let marked = Set(ladder.filter(\.needsMonospacedDigits).map(\.name))
+            if marked != Set(numericRoleNames) {
+                problems.append("数值角色标记必须与 numericRoleNames 一致")
+            }
+            if marked != Set(["primaryValue", "display"]) {
+                problems.append("数值角色必须恰为 primaryValue / display")
+            }
+            return problems
+        }
+
+        static let metricLabel = Font.system(size: metricLabelSize, weight: .medium)
+        static let metricUnit = Font.system(size: metricUnitSize, weight: .regular)
         static let caption = Font.system(size: captionSize, weight: .regular)
         static let body = Font.system(size: bodySize, weight: .regular)
         static let title = Font.system(size: titleSize, weight: .semibold)
@@ -165,6 +267,12 @@ enum DesignTokens {
         static let cardGap: CGFloat = md
         /// 指标卡片 / 提示片 / 底部主操作之间的层间距（= sm 12）。
         static let sectionGap: CGFloat = sm
+        /// 指标三行（标签 / 数值 / 单位）组内间距（= xs 8）。
+        static let metricGroupSpacing: CGFloat = xs
+        /// 相邻指标组之间的间距（= md 16）。
+        static let metricGroupGap: CGFloat = md
+        /// 卡片内容内边距（= md 16）。
+        static let cardPadding: CGFloat = md
 
         /// 由小到大的间距档，供单调递增断言使用。
         static let scale: [CGFloat] = [xxs, xs, sm, md, lg, xl]
@@ -195,6 +303,23 @@ enum DesignTokens {
         static let control: CGFloat = 24
 
         static let scale: [CGFloat] = [inline, row, control]
+    }
+
+    // MARK: - 动效
+
+    /// 动效时长的唯一常量来源（单位：秒）；视图接线留给后续波次。
+    enum Motion {
+        /// 数值 / 色块原地过渡（200ms）。
+        static let durationShort: TimeInterval = 0.2
+        /// 记录态切换（320ms）。
+        static let durationState: TimeInterval = 0.32
+        /// Reduce Motion 打开时的时长：无动画。
+        static let reducedMotionDuration: TimeInterval = 0
+
+        /// 纯函数降级解析：`reduceMotion == true` 一律返回 0，否则返回原时长。
+        static func duration(_ duration: TimeInterval, reduceMotion: Bool) -> TimeInterval {
+            reduceMotion ? reducedMotionDuration : duration
+        }
     }
 
     // MARK: - 外观
