@@ -2,14 +2,18 @@ import XCTest
 
 /// `docs/verification-matrix.md` 的结构守护（L1，无 UI）。
 ///
-/// 约束：纯表格、表头逐字一致、恰 10 条接缝、6 列；全部行回填后为
-/// 10 行实测 + 0 行显式缺口，不再保留 `pending: 待对应 item 回填`。
+/// 约束：纯表格、表头逐字一致、恰 15 条接缝、6 列；全部行回填后为
+/// 15 行实测 + 0 行显式缺口，不再保留 `pending: 待对应 item 回填`。
 final class DocsVerificationMatrixTests: XCTestCase {
     private static let expectedHeader = "| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |"
     private static let pendingMarker = "pending: 待对应 item 回填"
     private static let gapMarker = "缺口"
-    private static let expectedSeamCount = 10
-    private static let seams = ["后台定位", "锁屏", "重启", "Info.plist", "TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
+    private static let expectedSeamCount = 15
+    private static let baseSeams = ["后台定位", "锁屏", "重启", "Info.plist", "TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
+    /// 本项（wi_intake_e7e73d829e61fa7a）新增的 5 条接缝：每行必须带本项标识归属。
+    private static let workItemSeams = ["palette", "accent↔warning", "深色中性 chroma", "finish=accent", "discard 仅在确认层"]
+    private static let seams = baseSeams + workItemSeams
+    private static let workItemId = "wi_intake_e7e73d829e61fa7a"
 
     private enum MatrixError: Error, CustomStringConvertible {
         case repoRootNotFound(start: String)
@@ -31,7 +35,7 @@ final class DocsVerificationMatrixTests: XCTestCase {
         let lines = try nonEmptyLines()
 
         XCTAssertEqual(lines.first, Self.expectedHeader, "表头必须逐字等于约定列名")
-        XCTAssertEqual(lines.count, Self.expectedSeamCount + 2, "必须恰为表头 + 分隔行 + 10 行接缝")
+        XCTAssertEqual(lines.count, Self.expectedSeamCount + 2, "必须恰为表头 + 分隔行 + \(Self.expectedSeamCount) 行接缝")
 
         for (offset, line) in lines.enumerated() {
             XCTAssertTrue(line.hasPrefix("|"), "第 \(offset + 1) 行不是表格行：\(line)")
@@ -58,7 +62,7 @@ final class DocsVerificationMatrixTests: XCTestCase {
         let measuredRows = dataRows.filter {
             !$0.contains(Self.pendingMarker) && !$0.contains(Self.gapMarker)
         }
-        XCTAssertEqual(measuredRows.count, 10, "回填后 10 条接缝必须全部为实测行")
+        XCTAssertEqual(measuredRows.count, Self.expectedSeamCount, "回填后 \(Self.expectedSeamCount) 条接缝必须全部为实测行")
 
         let dynamicTypeRow = dataRows.first { $0.contains("Dynamic Type") }
         XCTAssertNotNil(dynamicTypeRow, "缺少 Dynamic Type 行")
@@ -82,6 +86,13 @@ final class DocsVerificationMatrixTests: XCTestCase {
             let row = dataRows.first { $0.contains(seam) }
             XCTAssertFalse(row?.contains(Self.pendingMarker) ?? true, "\(seam) 已实测，不得标 pending")
             XCTAssertFalse(row?.contains(Self.gapMarker) ?? true, "\(seam) 已实测，不得含缺口标记")
+        }
+
+        for seam in Self.workItemSeams {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertNotNil(row, "缺少接缝：\(seam)")
+            XCTAssertTrue(row?.contains("本项实测") ?? false, "\(seam) 现状必须写明本项实测口径")
+            XCTAssertTrue(row?.contains(Self.workItemId) ?? false, "\(seam) 必须归属 \(Self.workItemId)")
         }
     }
 

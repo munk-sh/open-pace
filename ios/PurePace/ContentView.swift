@@ -127,14 +127,6 @@ struct ContentView: View {
                 .tag(Tab.settings)
         }
         .tint(DesignTokens.Colors.accent)
-        // 记录态（running / paused）与结束待保存态收起底部三 Tab；idle / 保存总结 / 历史 / 设置
-        // 显式恢复可见，同一进程内不留只能杀进程的断头路。判定只读状态与 `didSave`。
-        .toolbar(
-            TabBarVisibilityPolicy.hidesTabBar(state: runModel.state, didSave: runModel.didSave)
-                ? .hidden
-                : .visible,
-            for: .tabBar
-        )
         .onChange(of: settings.isEnabled) { _, enabled in
             runModel.setAnnouncementsEnabled(enabled)
         }

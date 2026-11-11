@@ -61,6 +61,46 @@
         }
       }
     },
+    "run.discardConfirm.cancel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留本次跑步"
+          }
+        }
+      }
+    },
+    "run.discardConfirm.confirm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认丢弃"
+          }
+        }
+      }
+    },
+    "run.discardConfirm.message" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距离与用时将被清空且不会保存，此操作不可撤销。"
+          }
+        }
+      }
+    },
+    "run.discardConfirm.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃这次跑步？"
+          }
+        }
+      }
+    },
     "run.action.finish" : {
       "localizations" : {
         "zh-Hans" : {

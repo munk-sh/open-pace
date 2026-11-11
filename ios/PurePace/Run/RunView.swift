@@ -12,6 +12,8 @@ struct RunView: View {
     var onShowHistory: () -> Void = {}
     /// Reduce Motion 打开时时长归零（无动画）；读取环境，不用 `UIAccessibility` 单例。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 丢弃确认层开合：结束待保存屏的破坏性动作必须先经过这里。
+    @State private var showsDiscardConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -30,6 +32,15 @@ struct RunView: View {
             .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.state)
             .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.didSave)
             .navigationTitle(L10n.runNavigationTitle)
+            // 记录态（running / paused）与结束待保存态收起底部三 Tab；idle / 保存总结
+            // 显式恢复可见。判定只读状态与 `didSave`，同一进程内不留只能杀进程的断头路。
+            .toolbar(
+                TabBarVisibilityPolicy.hidesTabBar(
+                    state: viewModel.state,
+                    didSave: viewModel.didSave
+                ) ? .hidden : .visible,
+                for: .tabBar
+            )
             // 主操作固定底部控制区：安全区上方、TabBar 之上，三态共用同一锚点。
             .safeAreaInset(edge: .bottom) {
                 controls
@@ -57,6 +68,9 @@ struct RunView: View {
         }
         .tint(DesignTokens.Colors.accent)
         .accessibilityIdentifier("tab.run")
+        .sheet(isPresented: $showsDiscardConfirmation) {
+            discardConfirmationSheet
+        }
     }
 
     // MARK: - 指标内容块
@@ -96,12 +110,14 @@ struct RunView: View {
             value: RunFormatting.distanceValueText(viewModel.metrics.distance),
             unit: RunFormatting.distanceUnitText,
             valueFont: DesignTokens.Typography.display,
-            valueTint: stateTint,
+            valueTint: color(for: plan.heroTint),
             identifier: "run.distance",
             accessibilityText: viewModel.distanceText
         )
         .monospacedDigit()
-        .padding(.vertical, DesignTokens.Spacing.lg)
+        // hero 卡只留上呼吸位：把既有底部空白让给层间 Spacer，
+        // 使 hero→指标卡的空洞落在 80pt 上界内（无新增占位、无阈值改动）。
+        .padding(.top, DesignTokens.Spacing.sm)
         .padding(.horizontal, DesignTokens.Spacing.md)
         .background(
             DesignTokens.Colors.surfaceMuted,
@@ -168,6 +184,8 @@ struct RunView: View {
             }
         }
         .padding(DesignTokens.Spacing.cardPadding)
+        // 指标卡底部补 4pt 既有空白，把等权 Spacer 的余量从底部分走一档。
+        .padding(.bottom, DesignTokens.Spacing.xxs)
         .background(
             DesignTokens.Colors.surface,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
@@ -227,18 +245,6 @@ struct RunView: View {
 #endif
     }
 
-    // MARK: - 三态视觉
-
-    /// 记录中 accent / 暂停 warning / 保存 success / 未开始 primary。
-    private var stateTint: Color {
-        if viewModel.didSave { return DesignTokens.Colors.success }
-        switch viewModel.state {
-        case .running: return DesignTokens.Colors.accent
-        case .paused: return DesignTokens.Colors.warning
-        default: return DesignTokens.Colors.primary
-        }
-    }
-
     // MARK: - 第三层：提示
 
     @ViewBuilder
@@ -278,25 +284,25 @@ struct RunView: View {
         switch notice {
         case .recordingError:
             if let message = viewModel.errorMessage {
-                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+                hint(message, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
             }
         case .decisionFailed:
             if let message = viewModel.decisionErrorMessage {
-                hint(message, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+                hint(message, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
             }
         case .locationDenied:
-            hint(L10n.locationDenied, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            hint(L10n.locationDenied, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
         case .locationUnavailable:
-            hint(L10n.locationUnavailable, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            hint(L10n.locationUnavailable, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
         case .waitingAuthorization:
-            hint(L10n.waitingAuthorization, tint: DesignTokens.Colors.secondary, soft: DesignTokens.Colors.surfaceMuted)
+            hint(L10n.waitingAuthorization, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
         case .backgroundDegraded:
             if let message = viewModel.authorization.backgroundDegradationHint {
-                // 后台定位降级降为指标卡下方的紧凑 `caption` 次级行：无胶囊底、无整宽弱底，
-                // 不再以整行 warning 横幅压在距离 / 用时主数据之上；identifier 与文案不变。
+                // 后台定位降级降为指标卡下方的紧凑 `caption` 次级行：无胶囊底、无整宽弱底。
+                // 仍是 warning 语义的非阻断内联提示，不进入 hero / 主操作着色。
                 Text(message)
                     .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .foregroundStyle(color(for: notice.tint))
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("run.backgroundDegraded")
             }
@@ -345,19 +351,14 @@ struct RunView: View {
         RunInteractionPlan(viewModel: viewModel, reduceMotion: reduceMotion)
     }
 
-    /// 主操作强调色：未开始与记录中共用唯一品牌 accent。
+    /// 主操作强调色：记录态主操作族（开始 / 暂停 / 继续 / 结束 / 保存）统一品牌 accent，
+    /// 已保存总结仍取 success；warning 不参与任何主操作着色。
     private var actionTint: Color {
-        viewModel.state == .ready ? DesignTokens.Colors.accent : stateTint
+        viewModel.didSave ? DesignTokens.Colors.success : DesignTokens.Colors.accent
     }
 
     private var actionOnTint: Color {
-        if viewModel.didSave { return DesignTokens.Colors.onSuccess }
-        switch viewModel.state {
-        case .running, .ready: return DesignTokens.Colors.onAccent
-        case .paused: return DesignTokens.Colors.onWarning
-        // 待决策主操作（保存）与未开始共用中性/品牌底色，文字取主色底上的同款反白。
-        case .finished: return DesignTokens.Colors.onAccent
-        }
+        viewModel.didSave ? DesignTokens.Colors.onSuccess : DesignTokens.Colors.onAccent
     }
 
     @ViewBuilder
@@ -407,16 +408,41 @@ struct RunView: View {
                 viewModel.saveFinished()
             }
             .accessibilityIdentifier("run.save")
-        case .discard:
+        case .discardRequest:
+            // 结束待保存屏只给确认层入口：破坏性动作不得直调 `discardFinished()`。
             styledControl(item, title: L10n.runActionDiscard, label: L10n.runDiscardLabel) {
+                showsDiscardConfirmation = true
+            }
+            .accessibilityIdentifier("run.discardRequest")
+        case .discard:
+            // 仅确认层渲染；确认后才真正丢弃并回到 ready。
+            styledControl(item, title: L10n.runDiscardConfirmConfirm, label: L10n.runDiscardLabel) {
+                showsDiscardConfirmation = false
                 viewModel.discardFinished()
             }
             .accessibilityIdentifier("run.discard")
+        case .cancel:
+            styledControl(item, title: L10n.runDiscardConfirmCancel, label: L10n.runActionCancel) {
+                showsDiscardConfirmation = false
+            }
+            .accessibilityIdentifier("run.discardCancel")
         case .viewHistory:
             styledControl(item, title: L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
                 onShowHistory()
             }
             .accessibilityIdentifier("run.viewHistory")
+        }
+    }
+
+    /// plan 的 tint → palette 唯一着色入口；View 不再按动作各自 `switch` 颜色。
+    private func color(for tint: RunInteractionPlan.Tint) -> Color {
+        switch tint {
+        case .accent: return DesignTokens.Colors.accent
+        case .success: return DesignTokens.Colors.success
+        case .secondary: return DesignTokens.Colors.secondary
+        case .primary: return DesignTokens.Colors.primary
+        case .danger: return DesignTokens.Colors.danger
+        case .warning: return DesignTokens.Colors.warning
         }
     }
 
@@ -427,11 +453,19 @@ struct RunView: View {
         label: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
-        switch item.emphasis {
-        case .primary:
+        switch item.style {
+        case .primaryAccent:
             primaryControl(title, label: label, action: action)
-        case .secondary:
-            secondaryControl(title, label: label, action: action)
+        case .accentOutline:
+            outlineControl(
+                title,
+                label: label,
+                tint: color(for: item.tint),
+                lineWidth: DesignTokens.Stroke.hairline * 2,
+                action: action
+            )
+        case .neutralOutline, .dangerOutline:
+            outlineControl(title, label: label, tint: color(for: item.tint), action: action)
         }
     }
 
@@ -455,24 +489,53 @@ struct RunView: View {
         .accessibilityLabel(Text(label))
     }
 
-    /// 结束（破坏性）操作：内在宽度 + warning 描边、无填充底，明显弱于同排主操作，
-    /// 但仍保留 ≥ `minTapTarget` 点按区与同一可及 label。
-    private func secondaryControl(
+    /// 非填充描边控件：结束取 accent、入口取中性、确认层丢弃取 danger；
+    /// 无填充底（不与唯一填充主操作同形状并列），仍保留 ≥ `minTapTarget` 点按区与可及 label。
+    private func outlineControl(
         _ title: LocalizedStringKey,
         label: LocalizedStringKey,
+        tint: Color,
+        lineWidth: CGFloat = DesignTokens.Stroke.hairline,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(DesignTokens.Typography.body)
-                .foregroundStyle(DesignTokens.Colors.warning)
+                .foregroundStyle(tint)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
-                .stroke(DesignTokens.Colors.warning, lineWidth: DesignTokens.Stroke.hairline)
+                .strokeBorder(tint, lineWidth: lineWidth)
         }
         .accessibilityLabel(Text(label))
+    }
+
+    // MARK: - 丢弃确认层
+
+    /// 唯一破坏性确认层：标题 / 说明 / 取消 / 丢弃全部走 `L10n`，丢弃为 danger 描边无填充。
+    @ViewBuilder
+    private var discardConfirmationSheet: some View {
+        if let confirmation = plan.discardConfirmation {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                Text(L10n.runDiscardConfirmTitle)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(DesignTokens.Colors.primary)
+                Text(L10n.runDiscardConfirmMessage)
+                    .font(DesignTokens.Typography.body)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    control(for: confirmation.cancel)
+                    control(for: confirmation.confirm)
+                }
+            }
+            .padding(DesignTokens.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DesignTokens.Colors.surface)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 }

@@ -36,6 +36,10 @@ enum L10n {
     static var runCancelCountdownLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.cancelCountdown") }
     static var runSaveLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.saveRun") }
     static var runDiscardLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.discardRun") }
+    static var runDiscardConfirmTitle: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.title") }
+    static var runDiscardConfirmMessage: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.message") }
+    static var runDiscardConfirmConfirm: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.confirm") }
+    static var runDiscardConfirmCancel: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.cancel") }
     static var runViewHistoryLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.viewHistory") }
 
     /// 授权提示是需要拼接进 `String?` 的纯文本。

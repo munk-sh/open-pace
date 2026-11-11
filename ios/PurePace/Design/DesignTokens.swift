@@ -136,7 +136,7 @@ enum DesignTokens {
         static let primary = color("primary")
         /// 次文 / 字段标签 / 说明。
         static let secondary = color("secondary")
-        /// 唯一品牌主色：记录态、主操作、强调共用。
+        /// 唯一品牌主色：记录态主操作族（开始 / 暂停 / 继续 / 结束 / 保存）与强调共用。
         static let accent = color("accent")
         /// 主色底上的文字。
         static let onAccent = color("onAccent")
@@ -144,7 +144,8 @@ enum DesignTokens {
         static let accentSoft = color("accentSoft")
         /// 卡片描边 / 分隔线。
         static let separator = color("separator")
-        /// 暂停 / 结束 / 降级提示。
+        /// 非阻断内联提示（权限缺失 / GPS 弱 / 保存失败横幅）与其弱底；
+        /// 不作暂停 tint、不作填充主按钮、不作结束按钮样式。
         static let warning = color("warning")
         /// 警示底上的文字。
         static let onWarning = color("onWarning")
@@ -156,7 +157,7 @@ enum DesignTokens {
         static let onSuccess = color("onSuccess")
         /// 成功弱底。
         static let successSoft = color("successSoft")
-        /// 失败态。
+        /// 丢弃等破坏性操作：仅出现在确认层文本或描边按钮，不作主操作填充。
         static let danger = color("danger")
         /// 危险底上的文字。
         static let onDanger = color("onDanger")

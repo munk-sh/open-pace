@@ -94,6 +94,8 @@ targets:
       - path: PurePace/Design/PrimaryActionLayoutPolicy.swift
       - path: PurePace/Design/RunLayoutBalancePolicy.swift
       - path: PurePace/Design/TabBarVisibilityPolicy.swift
+      # UI 像素样式断言从 token 派生期望值，避免测试里另写颜色字面量。
+      - path: PurePace/Design/DesignTokens.swift
     # 测试侧后台音频声明：真机 audio 阶段的音源由 UITests runner 自播（无人操作），
     # 需要 runner 侧声明 audio 后台模式；产品 App 的 Info.plist 保持零 diff。
     info:
