@@ -537,13 +537,14 @@ validate_design_tokens() {
   local problems=""
   local token_file="$root/ios/PurePace/Design/DesignTokens.swift"
   local run_view="$root/ios/PurePace/Run/RunView.swift"
+  local run_plan="$root/ios/PurePace/Run/RunInteractionPlan.swift"
   local history_view="$root/ios/PurePace/History/HistoryView.swift"
   local settings_view="$root/ios/PurePace/Settings/SettingsView.swift"
   local detail_view="$root/ios/PurePace/History/RunDetailView.swift"
   local content_view="$root/ios/PurePace/ContentView.swift"
 
   local file
-  for file in "$token_file" "$run_view" "$history_view" "$settings_view" "$detail_view" "$content_view"; do
+  for file in "$token_file" "$run_view" "$run_plan" "$history_view" "$settings_view" "$detail_view" "$content_view"; do
     [ -f "$file" ] || problems="$problems 缺少 ${file#"$root"/};"
   done
   if [ -n "$problems" ]; then
@@ -849,7 +850,6 @@ EOF
 
   # 三态视觉：hero 主值色的单一真源在 `RunInteractionPlan.heroTint`（记录中 / 暂停 accent，
   # warning 只作非阻断内联提示；保存 success），RunView 只消费 `plan.heroTint`，不再各自 switch 颜色。
-  local run_plan="ios/PurePace/Run/RunInteractionPlan.swift"
   grep -Fq 'case .running, .paused: return .accent' "$run_plan" \
     || problems="$problems 记录态/暂停态 hero 未用 accent;"
   grep -Fq 'if didSave { return .success }' "$run_plan" \
@@ -1314,13 +1314,14 @@ run_self_test() {
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
+  cp ios/PurePace/Run/RunInteractionPlan.swift "$design_root/ios/PurePace/Run/"
   cp ios/PurePace/History/HistoryView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailView.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/History/RunDetailContent.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 36 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 38 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_bad="$tmp_dir/design-no-token"
@@ -1391,8 +1392,8 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-wrong-running-tint"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/case \.running: return DesignTokens\.Colors\.accent/case .running: return DesignTokens.Colors.warning/' \
-    "$design_bad/ios/PurePace/Run/RunView.swift"
+  sed -i '' 's/case \.running, \.paused: return \.accent/case .running, .paused: return .warning/' \
+    "$design_bad/ios/PurePace/Run/RunInteractionPlan.swift"
   check_fail "记录态改错为 warning 反例" "$(validate_design_tokens "$design_bad")"
 
   design_bad="$tmp_dir/design-renamed-id"
