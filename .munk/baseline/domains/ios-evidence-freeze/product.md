@@ -8,6 +8,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - `docs/evidence/a11y/`：恰六棵与六屏一一对应的可及树（`01-run-not-started` / `02-run-running` / `03-run-finished` / `04-history-list` / `05-history-detail` / `06-settings`），由 `XCTAttachment(string: app.debugDescription)` 产出并 `xcrun xcresulttool export attachments` 导出；不对应六屏的旧树（`03-history-empty` / `06-tabs`）不在该目录。
 - `docs/evidence/evidence-freeze/ax5/`：`content_size accessibility-extra-extra-extra-large` 档下 4 张关键屏实拍（Run 首屏 / 结束总结 / History 详情 / Settings）与同档实测树。
 - `docs/evidence/evidence-freeze/digest.md`：预算回执、环境与构建、逐张生成命令、History 归档来源、六树与「一屏一主操作」清单、AX5 frame 实测、Dynamic Type 既有口径、22 门退出码、commit 绑定、改动范围。
+- `docs/evidence/ax5-order-independence/digest.md`：AX5 取证腿顺序无关回执，含「干净容器单用例绿 / 同容器整包腿状态 / 反例与正向对照」三条口径，只写实测事实、日志文件名与未修清单。
 - `scripts/capture-ios-screenshots.sh`：唯一采集入口（`--stage all|shots|trees|ax5`），只用 `xcrun simctl` / `xcodebuild`，不做后处理。
 - `ios/PurePaceUITests/EvidenceCaptureUITests.swift`：取证用例（真实记录链路造归档、六树导出、AX5 布局实测、主操作记录）。
 - DEBUG-only 截图门控：`ios/PurePace/Run/RunLaunchArguments.swift` 的 `-screenshotRunFinished`（配合 `-autoStartRecording`，真实采样约 30s 后结束到待保存总结态、不落盘、`#if DEBUG` 内）与既有 `-screenshotInitialTab` / `-screenshotOpenRunDetail` / `-autoStartRecording` / `-uiTestLocation` / `-uiTestResetArchive`；`-screenshotHistoryDemo` 本域禁用。
@@ -37,7 +38,11 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - ac-explicit-terminate: AX5 每次换新 `XCUIApplication` 前（含 seed 前后、详情检测前后、设置页前）都有显式 `app.terminate()`，跨 launch 不残留上一进程状态。
 - ac-assertions-only-added: 断言只增不减——AX5 的 4 处 `assertFitsAndNoOverlap` 与超时值（30 / 60 / 30 / 30）及「缺少…」失败文案逐字保留，trees 的 6 处 `XCTAssertTrue` 保留；不靠放宽超时或用例重排转绿。
 - ac-counterexample-red-proof: 反例必须真跑并留同 commit 日志 `docs/evidence/ax5-order-independence/ax5-counterexamples.log`：滚动感知口径的两条合成反例（静态文本宽 420 > 窗宽 393、交互元素 `isHittable=false`）各红在不同判据，另有正向对照（仅静态文本垂直滚出视口）不误判；红/绿日志同 commit 入库，不得只口述。
-- ac-pack-leg: 同容器紧接整包（`-only-testing:PurePaceUITests`，或至少 `EvidenceCaptureUITests` 两用例按默认字母序）退出码 0 且两用例全过；受墙钟预算未跑完时回执须显式记「未跑整包」并列出未闭合点，不得静默缺失。
+- ac-pack-leg: 同容器紧接整包（`-only-testing:PurePaceUITests`，或至少 `EvidenceCaptureUITests` 两用例按默认字母序）退出码 0 且两用例全过；未跑齐时按 `ac-pack-leg-explicit` 的无条件事实口径记录并列出未闭合点，不得静默缺失或用条件句省略事实。
+- ac-pack-leg-explicit: `docs/evidence/ax5-order-independence/digest.md` 第 5 节「腿状态」的整包条目为无条件事实表述，同时含三要素——「整包腿未跑齐」、`ax5-pack-standard.log` 被截断且末行停在后续用例 `t = 7.67s`（`Waiting 10.0s for NavigationBar (First Match) to exist`）无整包结论、已绿范围仅到单用例 `testEvidenceAx5Layout` exit 0 与两条反例/正向对照（`ax5-counterexamples.log`）；条件句「跑不齐则如实记未跑」不再出现。
+- ac-digest-no-green-wording: digest 全文不出现「整包绿」「整包通过」字样；`grep -n "整包" docs/evidence/ax5-order-independence/digest.md` 的输出含「未跑齐」。
+- ac-digest-summary-consistent: digest 顶部标题/摘要区若出现整包相关描述，口径与第 5 节一致（明确未跑齐、不写绿）；原本无整包描述则保持不新增整包结论。
+- ac-digest-single-file: 本次修订 `git diff --name-only` 仅列出 `docs/evidence/ax5-order-independence/digest.md` 一个文件；不改 Swift 源码、测试源码、脚本、CI 配置、identifier、阈值，不重跑 AX5 整包腿或任何 UI 用例，不产出新 log，不修 digest 已记录的 2 条未修项，不改其他章节既有结论与数据。
 - ac-verification-matrix-row: `docs/verification-matrix.md` 新增一行且六列齐备（接缝 / 现状 / 断言 / 反例 / 证据路径 / 归属项），归属项为本项 workItemId，证据路径指向实际存在的日志；`DocsVerificationMatrixTests` 的接缝计数与归属断言同步（19→20）。
 - ac-ax5-finished-summary-policy: 结束态 AX5 溢出只允许以共享策略修复——`ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift`（AX5：地图 96 / 区块间距 `xxs` / 卡内边距 `xs` / 行距 `xxs`）由 `RunView` 按 `dynamicTypeSize.isAccessibilitySize` 消费；标准字号档取值与改前逐字一致，不新增 `DesignTokens` 取值或字号档，`run.save` 固定底部位置不变。
 - ac-no-other-production-change: 除上述策略与 `RunView` 取值替换外，改动路径 ⊆ {`ios/PurePaceUITests/**`, `ios/PurePaceTests/**`, `ios/RunCore/Tests/**`, `docs/evidence/**`, `docs/verification-matrix.md`}；不改 `RunStorage` / `HistoryViewState` / `HistoryView` / 归档格式，不改 `.munk/code-gates.json` 门列表，不新增 DEBUG 启动参数或测试脚手架。
@@ -63,10 +68,11 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - 字号事实：`DesignTokens.Typography` 全部为固定 `Font.system(size:weight:)`，`sizes = [11, 13, 15, 20, 36, 64]`，不随 Dynamic Type 缩放——digest 必须如实写明，AX5 只证明固定字号布局不截断不重叠。
 - 提交绑定可拆两次提交（先产证据记被测构建 SHA，再回填证据文件最近改动 SHA），但两列都必须实取，不许猜；文件无法内嵌承载自身 commit SHA，digest 自身以其最近改动 commit 单独列出。
 - AX5 取证腿自给自足口径：详情步前只读检测 → 仅空态 seed → `terminate()` → 再 `-screenshotInitialTab history -screenshotOpenRunDetail`；`05-history-detail` 用滚动感知判定（`ios/PurePaceUITests/Ax5ScrollAudit.swift`：交互元素须滚动可达 + frame 完整落在视口内 + 不被另一交互元素覆盖；静态文本只判水平溢出；视口 = window 去掉底部 Tab 栏），不得靠放宽超时或改生产 `List` 转绿。反例与绿日志同 commit 入 `docs/evidence/ax5-order-independence/`，运行时原始日志只落 `.munk/logs/`（gitignore）。
+- 整包腿事实源冻结（2026-11-12 起草更正）：`ax5-pack-standard.log` 共 1708 行、末行 `t = 7.67s Waiting 10.0s for NavigationBar (First Match) to exist`、无整包结论行；`ax5-single-green.log` 对应单用例 exit 0；`ax5-counterexamples.log` 对应两条反例 + 正向对照。digest 一律据此写无条件事实，不补跑、不产出新 log。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_17fe09b83e2a3df0（2026-11-12，pass with open gaps）
-- 交付：AX5 取证腿去掉顺序依赖。seed 链路抽成唯一 `private seedRealArchive(onNotStarted:onRunning:onFinished:)`，`testEvidenceTreesAndRealArchive` 在原取证点以闭包回调组合（六棵 `attachTree` 与 6 条 `evidence-primary` 顺序不变）；`testEvidenceAx5Layout` 详情步前只读检测 `history.row` / `history.empty`（该 launch 不写盘），仅空态 seed 并打印 `AX5-SEED action=seed|skip`，每次换 app 前 `app.terminate()`。结束态 AX5 溢出由新增共享策略 `RunFinishedSummaryLayoutPolicy` 收敛（地图 180→96、区块间距 `sectionGap`→`xxs`、卡内边距 `sm`→`xs`、行距 `metricGroupSpacing`→`xxs`，仅 `isAccessibilitySize` 生效），`run.backgroundDegraded` bottom 858.3→730.3、`run.save` 固定 (16,762,287,44) 不变。`05-history-detail` 判为惰性 `List` 未 realize 而非越窗，改用滚动感知口径 `Ax5ScrollAudit`（实测 `scrollRequiredStatic=4`、`interactiveViolations=0`、四屏 `AX5-FIT` 齐 outOfBounds=0 / overlaps=0）。`docs/verification-matrix.md` 新增「AX5 取证腿顺序无关」行；`DocsVerificationMatrixTests` 接缝计数 19→20 并加本项归属断言。
-- 判定与证据：22 门 attempt 002 全绿；干净容器单跑 `testEvidenceAx5Layout` exit 0（`docs/evidence/ax5-order-independence/ax5-single-green.log`，含 4 条 `AX5-FIT` 与 `AX5-SEED action=seed reason=archive-empty`）；策略 L1 3 条与滚动感知反例 3 条全绿（`ax5-policy-unit.log` / `ax5-counterexamples.log`）。
-- 偏离与未闭合：① 生产侧改动越出原 PRD「不改 `ios/PurePace/**`」红线——AX5 结束态溢出必须先修才能过 fit 断言，落地为共享策略 + `RunView` 取值替换（仅辅助字号档生效，标准档取值不变）；② `ac-pack-leg` 未闭绿：同容器整包在 AX5 档 2 处红（`Application sh.munk.purepace is not running` 抖动、trees 用例 `runDetail.export` 未 realize），标准档 2 处红（标准档 `03-run-finished` 主操作与 `run.backgroundDegraded` 相交、同一惰性 `List`），`ax5-pack-standard.log` 与未修清单已入库；③ 反例采用合成滚动感知反例（水平溢出 / `isHittable=false`），未按 PRD 构造「AX5 不 seed」逆补丁红日志。
+- workItemId: wi_intake_6d427dc1bf5527a4（2026-11-12，pass）
+- 交付：只改 `docs/evidence/ax5-order-independence/digest.md` 文字。第 5 节「腿状态」整包条件句「见 `ax5-pack-standard.log` 与回执（跑不齐则如实记未跑）」改为无条件事实三要素——整包腿未跑齐 / `ax5-pack-standard.log` 被截断、末行停在后续用例 `t = 7.67s`（`Waiting 10.0s for NavigationBar (First Match) to exist`）无整包结论 / 已绿范围只到单用例 `testEvidenceAx5Layout` exit 0 与两条反例+正向对照（`ax5-counterexamples.log`）；全文无「整包绿」「整包通过」；顶部摘要原本无整包描述，按 ac-digest-summary-consistent 不新增结论。
+- 判定与证据：22 门 attempt 001 全绿（含 `check-baseline`）；`git diff --name-only` 仅该 1 个 digest 文件；事实源未改动（`ax5-pack-standard.log` 1708 行，末行同上）；未重跑整包腿或任何 UI 用例、未产出新 log。
+- 偏离与未闭合：无 PRD 偏离；沿用上轮开放缺口——同容器整包仍未跑齐（标准档 `03-run-finished` 主操作与 `run.backgroundDegraded` 相交、`05-history-detail` 惰性 `List` 第二页导出未 realize），digest 未修清单 2 条只记录不动手，本项不补跑。
