@@ -1,6 +1,6 @@
 # Domain: ios-run-interaction
 
-跑步页的「交互接线」子域：把上游已冻结的会话契约（`RunStartCountdown` / `prepareFinish`+`saveFinished`+`discard` / `RunLocationReadiness`）接到视图，并把展示决策收敛为单一纯值真源 `RunInteractionPlan`。视图只按 plan 渲染（不再各自 `switch` controls / 提示 / 恢复动作），因此「每态唯一主操作、无断头路、提示单条、恢复两态、动效取 token」全部能在 L1 断言。状态机、文案键、identifier 集合与门禁脚本一律不改。
+跑步页的「交互接线」子域：把上游已冻结的会话契约（`RunStartCountdown` / `prepareFinish`+`saveFinished`+`discard` / `RunLocationReadiness`）接到视图，并把展示决策收敛为单一纯值真源 `RunInteractionPlan`。视图只按 plan 渲染（不再各自 `switch` controls / 提示 / 恢复动作），因此「每态唯一主操作、无断头路、提示单条、恢复两态、动效取 token」全部能在 L1 断言。状态机、文案键与门禁脚本一律不改；三个主操作的 identifier 按门禁「冻结 33 项只增不改」契约补齐（规则正本见域 `design-token-gates`）。
 
 ## 范围
 
@@ -17,7 +17,7 @@
 - ac-notice-priority: 同屏只出一条提示，优先级固定 记录错误 > 决策失败 > 定位状态（拒绝/不可用/等待授权）> 后台降级；`decisionErrorMessage != nil` 时 `notice == decisionFailed`，且 items 仍为 save+discard、指标文本非空（失败不吞已完成数据）。
 - ac-recovery-two-actions: `denied` → `recovery == openSettings` 且 `notice == locationDenied`；`restricted` → `recovery == retryLocation` 且 `notice == locationUnavailable`；两者互不相等；`authorizedWhenInUse`/`authorizedAlways` → `recovery == nil`；recovery 仅在 `state == ready` 且非倒计时且非已保存时出现，running/paused/finished 恒为 nil。
 - ac-motion-token-reduce-motion: `transitionDuration` 在 reduceMotion == true 时恒为 `DesignTokens.Motion.reducedMotionDuration`（0），false 时等于 `DesignTokens.Motion.durationState`；plan 内无任何时长数字字面量（反例：硬编码 0.32 判红）。
-- ac-identifiers-unchanged: `ios/PurePace` 可及 identifier 集合与门禁冻结的 33 项逐项相等（不增/不改/不删）；倒计时取消、保存、丢弃、去设置、重试只带 `L10n` 可读 label，不新增 identifier。
+- ac-identifiers-append-only: 既有 33 项可及 identifier 逐项不变（不改名 / 不删除）；倒计时取消、结束保存、结束丢弃三个主操作分别带 `run.cancelCountdown` / `run.save` / `run.discard` 且 `accessibilityLabel` 为非空 `L10n` 键，仓库 identifier 总数 36（冻结 33 + 新增 3）；其余控件（去设置 / 重试）只带 `L10n` 可读 label。
 - ac-gates-green: `.munk/code-gates.json` 全部 22 门退 0，`lint-ios-shell`（含 `--self-test` ≥84 项）、`test-ios --unit-only`（≥199 例）、`test-ios-run-core`（≥152 例）无退化；新增用例纯增量，无 sleep / 真实时钟 / 网络 / 模拟器。
 - ac-l10n-and-tokens-only: 受管 UI 面（含新 plan 文件）零字面色值、零散字体修饰符、零动效时长字面量；本项不新增 `Localizable.xcstrings` 键，视图文案全部来自既有 `L10n`。
 
@@ -32,17 +32,17 @@
 
 ## 实现约束
 
-- identifier 冲突裁决：PRD 写「只增不改」，但 `check-ios-shell` 以 33 项固定清单等值比对且 `--self-test` 把「追加一项」判红，本项又禁改门禁脚本 → 裁决为**集合 33 项完全不变**，新控件只给 `L10n` label，行为由 L1 覆盖。
+- identifier 冲突裁决（已解除）：本域落地时 PRD 写「只增不改」而门禁是 33 项等值、且禁改脚本，故当时收窄为**集合 33 项完全不变**；门禁随后改为「冻结 33 项只增不改 + 必需新增 + 计数下限」，本域三主操作 identifier 现由门禁必需清单钉住，旧裁决作废。
 - `RunView` 门禁锚点原文保留：`case .running: return DesignTokens.Colors.accent`、`case .paused: return DesignTokens.Colors.warning`、`if viewModel.didSave { return DesignTokens.Colors.success }`；继续使用 `DesignTokens.minTapTarget` 与底部 `safeAreaInset`；等宽数字处数不少于 3；`run.backgroundDegraded` 标识与 DEBUG `run.telemetry` 覆盖层行为不变。
 - 倒计时仍由视图 `.task(id: viewModel.isCountingDown)` 驱动 `advanceCountdown()`，不引入真实计时器；倒计时态与 start 共用同一锚点与高度，使每态恰一个填充主操作。
 - 动效只允许 `withAnimation` / `.animation(_:value:)` 配 `DesignTokens.Motion.duration(...)`；`reduceMotion` 由 SwiftUI 环境取，不用 `UIAccessibility` 单例；时长归零即无动画，不做额外补偿。
 - `Run/` 目录被门禁按目录纳入受管面：plan 文件内不得出现字面色值 / 字体修饰符 / 时长数字 / 裸英文文案。
 - 测试纪律：XCTest，`@testable import PurePace`；只断言展示决策，不重复 VM 层已有转移断言；反例必须判红。
-- 基线不回退：`test-ios --unit-only` ≥199 例、`test-ios-run-core` ≥152 例、`check-ios-shell --self-test` ≥84 项。
+- 基线不回退：`test-ios --unit-only` ≥199 例、`test-ios-run-core` ≥152 例、`check-ios-shell --self-test` ≥91 项。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_aea7b9b04ac5907f（2026-11-11，pass）
-- 交付：新增 `RunInteractionPlan` 纯值真源（items/countdownText/showsMetrics/notice/recovery/transitionDuration/metrics），把倒计时、暂停继续结束、保存丢弃、权限两态与动效接线收敛到单一决策入口；`RunView` 控制区/提示层/恢复入口改为 plan 驱动，倒计时态补填充主操作「取消」，提示单条化并固定优先级，动效经 `DesignTokens.Motion.duration(_:reduceMotion:)` 接 Reduce Motion。
-- 验证：`code_gates` 22 门全绿（`lint-ios-shell` 含 `--self-test`、`test-ios --unit-only`、`test-ios-run-core` 无退化）；`RunInteractionPlanTests` 覆盖 6 展示状态 × reduceMotion 两值及四类反例；identifier 33 项不变；`scripts/**`、`.munk/code-gates.json`、`ios/project.yml`、`shared/**`、`android/`、`VERSION` 零改动。
-- 偏差/有意未做：按 PRD「实现约束 2」把「identifier 只增不改」收窄为集合完全不变；未新增任何 `Localizable.xcstrings` 键；不做真机/模拟器观感验收（`pending: 待人现场`）。
+- workItemId: wi_ws_42e0654f761029c3（2026-11-11，pass）
+- 交付：`RunView` 三个主操作补齐可及 identifier（`run.cancelCountdown` / `run.save` / `run.discard`，各带非空 `L10n` 可读 label），既有 33 项逐字未变，仓库总数 36；门禁 identifier 契约同步改为「冻结 33 项只增不改 + 必需新增 3 + 计数单调」（规则正本见域 `design-token-gates`）。`RunInteractionPlan` 与文案键零改动。
+- 验证：`bash scripts/check-ios-shell.sh` 30 项 / `--self-test` 91 项断言 0 失败，pass 行打印 `identifier: 36（冻结 33 + 新增 3）；demo/示例入口: 0`；`code_gates` 22 门全绿（attempt 001）。
+- 偏差/有意未做：只加标识、不改既有 identifier 名与视图结构；未新增 `Localizable.xcstrings` 键；真机/模拟器观感仍 `pending: 待人现场`。
