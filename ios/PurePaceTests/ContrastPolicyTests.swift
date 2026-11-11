@@ -12,8 +12,13 @@ final class ContrastPolicyTests: XCTestCase {
 
     func testMatrixIsSingleSourceAndExhaustive() {
         let matrix = ContrastPolicy.pairMatrix
-        XCTAssertGreaterThanOrEqual(matrix.count, 36, "成对矩阵至少 36 对")
+        XCTAssertEqual(matrix.count, 37, "成对矩阵恰为 37 对（既有 36 + 轨迹光晕 1）")
         XCTAssertEqual(matrix.count, Set(matrix.map(\.name)).count, "矩阵条目名必须唯一")
+        XCTAssertEqual(
+            matrix.filter { $0.tier == .decorative }.contains { $0.name == "accentSoft/surface" },
+            true,
+            "新增的第 37 对必须是装饰档 accentSoft/surface 光晕可辨识对"
+        )
 
         for pair in matrix {
             XCTAssertFalse(pair.name.isEmpty, "矩阵条目必须有可读对照名")
@@ -69,27 +74,33 @@ final class ContrastPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightOnAccent, background: lightAccent) ?? 0,
-            6.07,
+            5.71,
             accuracy: 0.01,
-            "light onAccent/accent 实测值应为 6.07"
+            "light onAccent/accent 实测值应为 5.71"
+        )
+        XCTAssertEqual(
+            ContrastPolicy.ratio(foreground: lightAccent, background: DesignTokens.SRGB(hex: 0xFAFAF9)) ?? 0,
+            5.47,
+            accuracy: 0.01,
+            "light accent/background 实测值应为 5.47"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: darkOnAccent, background: darkAccent) ?? 0,
-            9.57,
+            8.44,
             accuracy: 0.01,
-            "dark onAccent/accent 实测值应为 9.57"
+            "dark onAccent/accent 实测值应为 8.44"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightSuccess, background: lightSuccessSoft) ?? 0,
-            4.81,
+            5.64,
             accuracy: 0.01,
-            "light success/successSoft 实测最低值应为 4.81"
+            "light success/successSoft 实测值应为 5.64"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: darkDanger, background: darkDangerSoft) ?? 0,
-            6.86,
+            4.82,
             accuracy: 0.01,
-            "dark danger/dangerSoft 实测最低值应为 6.86"
+            "dark danger/dangerSoft 实测值应为 4.82（最薄 body pair）"
         )
 
         XCTAssertEqual(ContrastPolicy.bodyThreshold, 4.5)

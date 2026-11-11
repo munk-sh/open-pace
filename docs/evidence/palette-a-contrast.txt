@@ -1,0 +1,97 @@
+# PurePace 方向 A 色板对比度实测证据（37 对 × 2 侧 = 74 条）
+# 真源：公司调研 digest trun_cff114e082a2fb0e §3 方向 A；warning/danger 系按裁决 owe_40221a8e983c7516 重取。
+# 口径：WCAG 2.x 相对亮度；比值保留 4 位小数；阈值为该对下限。
+# 复算脚本见 .munk 说明；单测 ContrastPolicyTests.testEveryPairMeetsThresholdInBothAppearances 同源。
+# 格式：scheme pair  foreground  background  ratio  threshold
+light primary/background #17181A #FAFAF9 17.0109 4.50
+light primary/surface #17181A #FFFFFF 17.7665 4.50
+light primary/surfaceMuted #17181A #F2F2F1 15.8599 4.50
+light primary/accentSoft #17181A #FCEFE7 15.7695 4.50
+light primary/warningSoft #17181A #FBF1DC 15.8354 4.50
+light primary/successSoft #17181A #E7F2EB 15.4807 4.50
+light primary/dangerSoft #17181A #FBEAE8 15.2590 4.50
+light secondary/background #5C5F63 #FAFAF9 6.1449 4.50
+light secondary/surface #5C5F63 #FFFFFF 6.4179 4.50
+light secondary/surfaceMuted #5C5F63 #F2F2F1 5.7292 4.50
+light secondary/accentSoft #5C5F63 #FCEFE7 5.6965 4.50
+light secondary/warningSoft #5C5F63 #FBF1DC 5.7203 4.50
+light secondary/successSoft #5C5F63 #E7F2EB 5.5922 4.50
+light secondary/dangerSoft #5C5F63 #FBEAE8 5.5121 4.50
+light accent/background #B4400B #FAFAF9 5.4656 4.50
+light accent/surface #B4400B #FFFFFF 5.7083 4.50
+light accent/accentSoft #B4400B #FCEFE7 5.0667 4.50
+light warning/background #6E5C00 #FAFAF9 6.2955 4.50
+light warning/surface #6E5C00 #FFFFFF 6.5751 4.50
+light warning/warningSoft #6E5C00 #FBF1DC 5.8604 4.50
+light success/background #1F6B45 #FAFAF9 6.1919 4.50
+light success/surface #1F6B45 #FFFFFF 6.4670 4.50
+light success/successSoft #1F6B45 #E7F2EB 5.6350 4.50
+light danger/background #660D09 #FAFAF9 12.3623 4.50
+light danger/surface #660D09 #FFFFFF 12.9114 4.50
+light danger/dangerSoft #660D09 #FBEAE8 11.0892 4.50
+light onAccent/accent #FFFFFF #B4400B 5.7083 4.50
+light onWarning/warning #FFFFFF #6E5C00 6.5751 4.50
+light onSuccess/success #FFFFFF #1F6B45 6.4670 4.50
+light onDanger/danger #FFFFFF #660D09 12.9114 4.50
+light accent/background #B4400B #FAFAF9 5.4656 3.00
+light accent/surface #B4400B #FFFFFF 5.7083 3.00
+light accent/surfaceMuted #B4400B #F2F2F1 5.0957 3.00
+light separator/background #D8D8D3 #FAFAF9 1.3694 1.10
+light separator/surface #D8D8D3 #FFFFFF 1.4302 1.10
+light separator/surfaceMuted #D8D8D3 #F2F2F1 1.2768 1.10
+light accentSoft/surface #FCEFE7 #FFFFFF 1.1266 1.10
+dark primary/background #F2F3F4 #0B0C0D 17.6221 4.50
+dark primary/surface #F2F3F4 #16181A 16.0229 4.50
+dark primary/surfaceMuted #F2F3F4 #1E2124 14.5599 4.50
+dark primary/accentSoft #F2F3F4 #3A1F12 13.6512 4.50
+dark primary/warningSoft #F2F3F4 #3A2A0D 12.4609 4.50
+dark primary/successSoft #F2F3F4 #11311F 12.7463 4.50
+dark primary/dangerSoft #F2F3F4 #2C0A10 16.3231 4.50
+dark secondary/background #A2A7AC #0B0C0D 8.0731 4.50
+dark secondary/surface #A2A7AC #16181A 7.3405 4.50
+dark secondary/surfaceMuted #A2A7AC #1E2124 6.6703 4.50
+dark secondary/accentSoft #A2A7AC #3A1F12 6.2540 4.50
+dark secondary/warningSoft #A2A7AC #3A2A0D 5.7086 4.50
+dark secondary/successSoft #A2A7AC #11311F 5.8394 4.50
+dark secondary/dangerSoft #A2A7AC #2C0A10 7.4780 4.50
+dark accent/background #FF9A5C #0B0C0D 9.3497 4.50
+dark accent/surface #FF9A5C #16181A 8.5012 4.50
+dark accent/accentSoft #FF9A5C #3A1F12 7.2429 4.50
+dark warning/background #EECA2B #0B0C0D 12.2302 4.50
+dark warning/surface #EECA2B #16181A 11.1204 4.50
+dark warning/warningSoft #EECA2B #3A2A0D 8.6482 4.50
+dark success/background #58CF9B #0B0C0D 10.0812 4.50
+dark success/surface #58CF9B #16181A 9.1663 4.50
+dark success/successSoft #58CF9B #11311F 7.2918 4.50
+dark danger/background #F53A48 #0B0C0D 5.2034 4.50
+dark danger/surface #F53A48 #16181A 4.7312 4.50
+dark danger/dangerSoft #F53A48 #2C0A10 4.8198 4.50
+dark onAccent/accent #2A1206 #FF9A5C 8.4446 4.50
+dark onWarning/warning #2B1A00 #EECA2B 10.4908 4.50
+dark onSuccess/success #042416 #58CF9B 8.5205 4.50
+dark onDanger/danger #2A0608 #F53A48 4.9479 4.50
+dark accent/background #FF9A5C #0B0C0D 9.3497 3.00
+dark accent/surface #FF9A5C #16181A 8.5012 3.00
+dark accent/surfaceMuted #FF9A5C #1E2124 7.7250 3.00
+dark separator/background #33383D #0B0C0D 1.6537 1.10
+dark separator/surface #33383D #16181A 1.5036 1.10
+dark separator/surfaceMuted #33383D #1E2124 1.3663 1.10
+dark accentSoft/surface #3A1F12 #16181A 1.1737 1.10
+
+# 最薄 pair：light accentSoft/surface = 1.1266（阈值 1.10，余量 +0.0266）
+# 第二薄：dark accentSoft/surface = 1.1737；dark danger/surface = 4.7312（最薄 body pair）
+# accent/background 实测：light 5.4656 / dark 9.3497
+
+# 深色三中性键双度量（裁决 owe_0b599686 前身口径：HSV S 在 V≈5% 时不作判据）
+# key  hex  HSV_H  HSV_S%  chroma/255%  HSL_H  HSL_S%  HSL_L%
+# background #0B0C0D 210.0 15.38 0.78 210.0 4.71 8.33
+# surface #16181A 210.0 15.38 1.57 210.0 9.41 8.33
+# surfaceMuted #1E2124 210.0 16.67 2.35 210.0 12.94 9.09
+# 判据：深色三键 HSV 色相必须落在 60–200° 之外，且 chroma/255 ≤ 3.0%（旧值 166–172°、3.14/4.31/5.10% 判红）。
+# 旧值对照：#0A1211 172.5°/3.14%；#141F1D 169.1°/4.31%；#1A2724 166.2°/5.10%。
+
+# 分离度（HSL 口径，ΔH/ΔL/ΔS 至少一项达标）：
+# light accent↔warning: dH=31.4 dL=15.9 dS=11.5 命中=dH,dL
+# light accent↔danger: dH=16.2 dL=15.7 dS=4.7 命中=dL
+# dark accent↔warning: dH=26.1 dL=12.9 dS=14.8 命中=dH
+# dark accent↔danger: dH=27.3 dL=8.6 dS=9.7 命中=dH

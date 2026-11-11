@@ -48,7 +48,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - 真实归档优先：History 列表/详情必须由 App 真实「开始记录 → 跑步中 → 结束 → 保存」产生并落盘，再以真实归档渲染；`-screenshotHistoryDemo`（固定 5.12 km / `startedAt = 1_760_000_000`、不落盘）禁用，其固定值组合是「演示注入 vs 真实归档」判据。
 - 可及树来源：复用 `ios/PurePaceUITests/RunFlowUITests.swift` 的 `XCTAttachment(string: app.debugDescription)` + `xcrun xcresulttool export attachments` 范式（`scripts/verify-ios-ui-e2e.sh` 同类），树的归属屏必须与六屏一一对应。
 - 门禁与 UI 腿：`.munk/code-gates.json` 22 门保持不变，iOS 相关 test 门只跑 `test-ios.sh --unit-only`；UI 驱动腿权威在 `.github/workflows/ios.yml`。`RunFlowUITests` 历史 signal-kill 崩溃属环境 flake（stash 回 HEAD 同复现），不得当作回归结论，遇崩溃如实记录实测输出与重试次数。
-- 字号事实：`DesignTokens.Typography` 全部为固定 `Font.system(size:weight:)`，`sizes = [11, 12, 15, 20, 34, 56]`，不随 Dynamic Type 缩放——digest 必须如实写明，AX5 只证明固定字号布局不截断不重叠。
+- 字号事实：`DesignTokens.Typography` 全部为固定 `Font.system(size:weight:)`，`sizes = [11, 13, 15, 20, 36, 64]`，不随 Dynamic Type 缩放——digest 必须如实写明，AX5 只证明固定字号布局不截断不重叠。
 - 提交绑定可拆两次提交（先产证据记被测构建 SHA，再回填证据文件最近改动 SHA），但两列都必须实取，不许猜；文件无法内嵌承载自身 commit SHA，digest 自身以其最近改动 commit 单独列出。
 
 ## 最近交付证明

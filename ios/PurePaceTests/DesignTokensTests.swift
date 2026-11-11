@@ -162,13 +162,13 @@ final class DesignTokensTests: XCTestCase {
         XCTAssertLessThan(DesignTokens.Typography.metricLabelSize, DesignTokens.Typography.captionSize)
         XCTAssertGreaterThanOrEqual(DesignTokens.Typography.metricLabelSize, 10)
 
-        XCTAssertEqual(DesignTokens.Typography.sizes, [11, 12, 15, 20, 34, 56])
-        // 既有字号一个不变。
-        XCTAssertEqual(DesignTokens.Typography.captionSize, 12)
+        XCTAssertEqual(DesignTokens.Typography.sizes, [11, 13, 15, 20, 36, 64])
+        // 方向 A 的 6 档字号：label/unit 同为 11，display 64 与 label 11 构成 5.8× 数值/标签比。
+        XCTAssertEqual(DesignTokens.Typography.captionSize, 13)
         XCTAssertEqual(DesignTokens.Typography.bodySize, 15)
         XCTAssertEqual(DesignTokens.Typography.titleSize, 20)
-        XCTAssertEqual(DesignTokens.Typography.primaryValueSize, 34)
-        XCTAssertEqual(DesignTokens.Typography.displaySize, 56)
+        XCTAssertEqual(DesignTokens.Typography.primaryValueSize, 36)
+        XCTAssertEqual(DesignTokens.Typography.displaySize, 64)
     }
 
     // MARK: - ac-typography-role-ladder
@@ -269,12 +269,219 @@ final class DesignTokensTests: XCTestCase {
     // MARK: - ac-existing-tiers-frozen
 
     func testExistingTiersAreFrozen() {
-        XCTAssertEqual(DesignTokens.Radius.scale, [12, 16, 20])
+        XCTAssertEqual(DesignTokens.Radius.scale, [10, 14, 20])
         XCTAssertEqual(DesignTokens.Icon.scale, [16, 20, 24])
         XCTAssertEqual(DesignTokens.Radius.scale.count, 3)
         XCTAssertEqual(DesignTokens.Icon.scale.count, 3)
         XCTAssertEqual(DesignTokens.Stroke.hairline, 1)
         XCTAssertEqual(DesignTokens.minTapTarget, 44)
         XCTAssertTrue(DesignTokens.Appearance.supportsDarkMode)
+    }
+
+    // MARK: - ac-palette-hex-exact（方向 A 逐键锁值）
+
+    /// 期望表：字面 UInt32，改任一键回旧值或改任一分量即红。
+    private let directionAHex: [String: (light: UInt32, dark: UInt32)] = [
+        "background": (0xFAFAF9, 0x0B0C0D),
+        "surface": (0xFFFFFF, 0x16181A),
+        "surfaceMuted": (0xF2F2F1, 0x1E2124),
+        "primary": (0x17181A, 0xF2F3F4),
+        "secondary": (0x5C5F63, 0xA2A7AC),
+        "accent": (0xB4400B, 0xFF9A5C),
+        "onAccent": (0xFFFFFF, 0x2A1206),
+        "accentSoft": (0xFCEFE7, 0x3A1F12),
+        "separator": (0xD8D8D3, 0x33383D),
+        "warning": (0x6E5C00, 0xEECA2B),
+        "onWarning": (0xFFFFFF, 0x2B1A00),
+        "warningSoft": (0xFBF1DC, 0x3A2A0D),
+        "success": (0x1F6B45, 0x58CF9B),
+        "onSuccess": (0xFFFFFF, 0x042416),
+        "successSoft": (0xE7F2EB, 0x11311F),
+        "danger": (0x660D09, 0xF53A48),
+        "onDanger": (0xFFFFFF, 0x2A0608),
+        "dangerSoft": (0xFBEAE8, 0x2C0A10)
+    ]
+
+    func testPaletteHexMatchesDirectionATable() {
+        XCTAssertEqual(Set(DesignTokens.Colors.palette.keys), Set(directionAHex.keys), "18 键冻结清单必须一致")
+        XCTAssertEqual(directionAHex.count, 18)
+        for (key, expected) in directionAHex {
+            guard let pair = DesignTokens.Colors.palette[key] else {
+                XCTFail("缺少色键 \(key)")
+                continue
+            }
+            XCTAssertEqual(hex(pair.light), expected.light, "\(key) light 必须逐键等于方向 A 表")
+            XCTAssertEqual(hex(pair.dark), expected.dark, "\(key) dark 必须逐键等于方向 A 表")
+        }
+    }
+
+    // MARK: - ac-palette-neutral-purity（裁决 owe_40221a8e983c7516）
+
+    func testDarkNeutralHueNotGreenAndChromaBounded() {
+        // 判据：深色三键 HSL 色相落在 60–200° 之外，且 chroma/255 ≤ 3.0%。
+        // A 表实测：色相均 210°，chroma 0.78% / 1.57% / 2.35%（余量 0.65pt）。
+        // 旧值 #0A1211 / #141F1D / #1A2724：色相 172.5 / 169.1 / 166.2°、chroma 3.14 / 4.31 / 5.10% → 三键全红。
+        for key in ["background", "surface", "surfaceMuted"] {
+            let dark = DesignTokens.Colors.palette[key]!.dark
+            let hue = hsl(dark).h
+            let chroma = chromaPercent(dark)
+            XCTAssertFalse((60.0...200.0).contains(hue), "\(key) 深色色相 \(hue)° 落在泛绿区间")
+            XCTAssertGreaterThanOrEqual(hue, 195, "\(key) 深色色相应为石墨冷中性 195–225°")
+            XCTAssertLessThanOrEqual(hue, 225, "\(key) 深色色相应为石墨冷中性 195–225°")
+            XCTAssertLessThanOrEqual(chroma, 3.0, "\(key) 深色 chroma/255 必须 ≤3.0%（实测 \(chroma)%）")
+        }
+
+        // 内联旧 trio 反例：不得依赖改生产代码才红。
+        let old = [DesignTokens.SRGB(hex: 0x0A1211),
+                   DesignTokens.SRGB(hex: 0x141F1D),
+                   DesignTokens.SRGB(hex: 0x1A2724)]
+        for value in old {
+            let hue = hsl(value).h
+            XCTAssertTrue((60.0...200.0).contains(hue), "旧值色相必须落在泛绿区间")
+            XCTAssertGreaterThan(chromaPercent(value), 3.0, "旧值 chroma 必须超 3.0%")
+        }
+    }
+
+    func testLightNeutralSaturationIsBounded() {
+        // 浅色三键实测 HSV S：0.40% / 0.00% / 0.41%（判据 ≤4%）。
+        for key in ["background", "surface", "surfaceMuted"] {
+            let light = DesignTokens.Colors.palette[key]!.light
+            XCTAssertLessThanOrEqual(hsv(light).s, 4.0, "\(key) 浅色 HSV 饱和度必须 ≤4%")
+        }
+    }
+
+    // MARK: - ac-palette-no-green
+
+    func testPaletteHasNoForbiddenGreen() {
+        // 使用方锁定 A 表的 success 系（语义"已保存"必须为绿），因此禁区扫描排除 success/onSuccess/successSoft；
+        // 其余 15 键（含品牌色与三中性键）不得命中任何绿色禁区。把 accent 改回 #0B6F60 仍必红。
+        let successFamily: Set<String> = ["success", "onSuccess", "successSoft"]
+        var offenders: [String] = []
+        for (key, pair) in DesignTokens.Colors.palette where !successFamily.contains(key) {
+            for (side, value) in [("light", pair.light), ("dark", pair.dark)] {
+                let c = hsv(value)
+                if (72.0...85.0).contains(c.h) && c.s >= 90 { offenders.append("\(key).\(side)") }
+                if (120.0...150.0).contains(c.h) && c.s >= 45 { offenders.append("\(key).\(side)") }
+                if (165.0...180.0).contains(c.h) && c.s >= 55 { offenders.append("\(key).\(side)") }
+            }
+        }
+        XCTAssertEqual(offenders, [], "调色板命中 digest §3.4 绿色禁区：\(offenders)")
+
+        // 反例：旧 accent #0B6F60 的 HSV 约 H171°/S82% → 必红。
+        let oldAccent = hsv(DesignTokens.SRGB(hex: 0x0B6F60))
+        XCTAssertTrue((165.0...180.0).contains(oldAccent.h) && oldAccent.s >= 55, "旧 accent 必须命中禁区")
+    }
+
+    // MARK: - ac-palette-separation（accent↔warning / accent↔danger，HSL 口径）
+
+    func testAccentSeparatesFromWarningAndDanger() {
+        // HSL 判据（不用 HSV）：ΔH ≥ 25° 或 ΔL ≥ 15pp 或 ΔS ≥ 30pp，浅/深各判。
+        for scheme in ["light", "dark"] {
+            let accent = color("accent", scheme)
+            for other in ["warning", "danger"] {
+                let target = color(other, scheme)
+                XCTAssertTrue(
+                    separationHolds(accent, target),
+                    "\(scheme) accent↔\(other) 分离度不足：\(metrics(accent, target))"
+                )
+            }
+        }
+
+        // 反例：旧值必须全部判红（浅/深 × warning/danger 四对）。
+        let oldAccentLight = DesignTokens.SRGB(hex: 0xB4400B)
+        let oldAccentDark = DesignTokens.SRGB(hex: 0xFF9A5C)
+        XCTAssertFalse(separationHolds(oldAccentLight, DesignTokens.SRGB(hex: 0xA5231C)), "旧浅色 danger 必须判红")
+        XCTAssertFalse(separationHolds(oldAccentDark, DesignTokens.SRGB(hex: 0xFF8A80)), "旧深色 danger 必须判红")
+        // 旧浅色 warning #7A5A00 的 ΔH≈25.4° 恰好压线通过，故不作为反例；
+        // 真正撞色的是深色 warning #F0B44C（ΔH≈15.5°、ΔL≈6、ΔS=0）。
+        XCTAssertFalse(separationHolds(oldAccentDark, DesignTokens.SRGB(hex: 0xF0B44C)), "旧深色 warning 必须判红")
+    }
+
+    func testDarkDangerIsVividRedNotWarmOrange() {
+        // 深色 danger 硬约束：H ≤ 8 或 ≥ 352、S ≥ 55、L ≤ 60。
+        let dark = DesignTokens.Colors.palette["danger"]!.dark
+        let c = hsl(dark)
+        XCTAssertTrue(c.h <= 8.0 || c.h >= 352.0, "深色 danger 色相必须贴近正红：\(c.h)")
+        XCTAssertGreaterThanOrEqual(c.s, 55, "深色 danger 饱和度必须 ≥55%")
+        XCTAssertLessThanOrEqual(c.l, 60, "深色 danger 明度必须 ≤60%")
+    }
+
+    // MARK: - helpers
+
+    private func color(_ key: String, _ scheme: String) -> DesignTokens.SRGB {
+        let pair = DesignTokens.Colors.palette[key]!
+        return scheme == "light" ? pair.light : pair.dark
+    }
+
+    private func hex(_ value: DesignTokens.SRGB) -> UInt32 {
+        let r = UInt32((value.red * 255).rounded())
+        let g = UInt32((value.green * 255).rounded())
+        let b = UInt32((value.blue * 255).rounded())
+        return (r << 16) | (g << 8) | b
+    }
+
+    private struct HSV { let h: Double; let s: Double; let v: Double }
+    private struct HSL { let h: Double; let s: Double; let l: Double }
+
+    private func hsv(_ c: DesignTokens.SRGB) -> HSV {
+        let maxV = max(c.red, c.green, c.blue)
+        let minV = min(c.red, c.green, c.blue)
+        let delta = maxV - minV
+        var h = 0.0
+        if delta > 0 {
+            if maxV == c.red {
+                h = 60 * ((c.green - c.blue) / delta)
+            } else if maxV == c.green {
+                h = 60 * ((c.blue - c.red) / delta + 2)
+            } else {
+                h = 60 * ((c.red - c.green) / delta + 4)
+            }
+        }
+        if h < 0 { h += 360 }
+        return HSV(h: h, s: maxV == 0 ? 0 : delta / maxV * 100, v: maxV * 100)
+    }
+
+    private func hsl(_ c: DesignTokens.SRGB) -> HSL {
+        let maxV = max(c.red, c.green, c.blue)
+        let minV = min(c.red, c.green, c.blue)
+        let delta = maxV - minV
+        let l = (maxV + minV) / 2
+        var h = 0.0
+        if delta > 0 {
+            if maxV == c.red {
+                h = 60 * ((c.green - c.blue) / delta)
+            } else if maxV == c.green {
+                h = 60 * ((c.blue - c.red) / delta + 2)
+            } else {
+                h = 60 * ((c.red - c.green) / delta + 4)
+            }
+        }
+        if h < 0 { h += 360 }
+        let denominator = 1 - abs(2 * l - 1)
+        let s = denominator == 0 ? 0 : delta / denominator
+        return HSL(h: h, s: s * 100, l: l * 100)
+    }
+
+    private func chromaPercent(_ c: DesignTokens.SRGB) -> Double {
+        let maxV = max(c.red, c.green, c.blue)
+        let minV = min(c.red, c.green, c.blue)
+        return (maxV - minV) * 100
+    }
+
+    private func separationHolds(_ a: DesignTokens.SRGB, _ b: DesignTokens.SRGB) -> Bool {
+        let x = hsl(a)
+        let y = hsl(b)
+        let raw = abs(x.h - y.h)
+        let deltaH = min(raw, 360 - raw)
+        let deltaL = abs(x.l - y.l)
+        let deltaS = abs(x.s - y.s)
+        return deltaH >= 25 || deltaL >= 15 || deltaS >= 30
+    }
+
+    private func metrics(_ a: DesignTokens.SRGB, _ b: DesignTokens.SRGB) -> String {
+        let x = hsl(a)
+        let y = hsl(b)
+        let raw = abs(x.h - y.h)
+        return "dH=\(min(raw, 360 - raw)) dL=\(abs(x.l - y.l)) dS=\(abs(x.s - y.s))"
     }
 }
