@@ -285,7 +285,26 @@ final class RunSessionViewModel: ObservableObject {
             allows: locationSource.allowsBackgroundLocationUpdates,
             pauses: locationSource.pausesLocationUpdatesAutomatically
         )
+#if DEBUG
+        scheduleScreenshotAutoFinishIfNeeded()
+#endif
     }
+
+#if DEBUG
+    /// 仅截图取证：`-screenshotRunFinished` 时在真实采样若干秒后自动结束到「待保存总结」态。
+    /// 不写归档、不改状态机；Release 构建不编译本方法，故该参数在发布路径不可达。
+    private func scheduleScreenshotAutoFinishIfNeeded() {
+        guard RunLaunchArguments.flagEnabled(
+            RunLaunchArguments.screenshotRunFinishedFlag,
+            arguments: CommandLine.arguments
+        ) else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            guard let self, self.state == .running else { return }
+            self.finish()
+        }
+    }
+#endif
 
     private func refreshCountdown() {
         guard let countdown else {

@@ -9,6 +9,8 @@ enum RunLaunchArguments {
     static let screenshotHistoryDemoFlag = "-screenshotHistoryDemo"
     /// 仅截图取证：历史页加载后直接进入首条记录详情。
     static let screenshotOpenRunDetailFlag = "-screenshotOpenRunDetail"
+    /// 仅截图取证：配合 `-autoStartRecording`，记录若干秒后自动结束到「待保存总结」态（不落盘）。
+    static let screenshotRunFinishedFlag = "-screenshotRunFinished"
 
     /// 紧跟在 flag 之后的取值（小写化）；缺失、后跟其它 flag 或越界时返回 `nil`。
     static func value(after flag: String, arguments: [String]) -> String? {

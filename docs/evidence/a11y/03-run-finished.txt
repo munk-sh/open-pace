@@ -1,0 +1,49 @@
+Attributes: Application, 0x105c1b4b0, pid: 66346, label: 'PurePace'
+Element subtree:
+ →Application, 0x105c1b4b0, pid: 66346, label: 'PurePace'
+    Window (Main), 0x105c16370, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x105c15330, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x105c17040, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x105c1c360, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x105c14ad0, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x105c17160, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x105c17280, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x105c173a0, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x105c174c0, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x105c175e0, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x105c17700, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x105c17900, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.run'
+                            NavigationBar, 0x105c17a20, {{0.0, 53.7}, {393.0, 96.0}}, identifier: '跑步'
+                              StaticText, 0x105c17b40, {{16.0, 101.3}, {64.7, 40.7}}, label: '跑步'
+                            Other, 0x105c17c60, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x105c17d80, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x105c17ea0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x105c17fc0, {{0.0, 0.0}, {393.0, 852.0}}
+                                    StaticText, 0x105c18530, {{185.5, 209.6}, {22.0, 13.3}}, label: '距离'
+                                    StaticText, 0x105c18650, {{133.7, 230.9}, {125.7, 67.0}}, identifier: 'run.distance', label: '0.31 km'
+                                    StaticText, 0x105c18770, {{188.5, 305.9}, {16.0, 13.3}}, label: 'km'
+                                    StaticText, 0x105c18890, {{99.2, 395.2}, {22.0, 13.3}}, label: '用时'
+                                    StaticText, 0x105c189b0, {{61.8, 416.5}, {97.0, 40.7}}, identifier: 'run.elapsed', label: '00:31'
+                                    StaticText, 0x105c18ad0, {{260.8, 395.2}, {44.0, 13.3}}, label: '当前配速'
+                                    StaticText, 0x105c18bf0, {{245.1, 416.5}, {75.3, 40.7}}, identifier: 'run.currentPace', label: '1:40 /km'
+                                    StaticText, 0x105c18d10, {{273.1, 465.2}, {19.3, 13.3}}, label: '/km'
+                                    StaticText, 0x105c18e30, {{88.2, 511.5}, {44.0, 13.3}}, label: '平均配速'
+                                    StaticText, 0x105c191b0, {{97.1, 532.8}, {26.3, 14.3}}, identifier: 'run.averagePace', label: '1:40 /km'
+                                    StaticText, 0x105c192d0, {{100.6, 555.2}, {19.3, 13.3}}, label: '/km'
+                                    StaticText, 0x105c193f0, {{271.8, 511.5}, {22.0, 13.3}}, label: '分段'
+                                    StaticText, 0x105c19510, {{278.9, 532.8}, {7.7, 14.3}}, identifier: 'run.splits', label: '0'
+                                    StaticText, 0x105c19630, {{17.3, 620.3}, {358.3, 36.7}}, identifier: 'run.backgroundDegraded', label: '后台定位未开启，锁屏后可能暂停记录；请在系统设置中将定位权限改为「始终允许」。'
+                                    Button, 0x105c199f0, {{16.0, 713.0}, {287.0, 44.0}}, identifier: 'run.save', label: '保存本次跑步'
+                                    Button, 0x105c19b10, {{314.5, 712.5}, {63.0, 45.0}}, identifier: 'run.discard', label: '丢弃本次跑步'
+                TabBar, 0x105c19c30, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
+                  Button, 0x105c19d50, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步', Selected
+                    Image, 0x105c19e70, {{53.0, 773.0}, {24.7, 29.3}}, identifier: 'figure.run', label: '跑步'
+                  Button, 0x105c1a240, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史'
+                  Button, 0x105c1a360, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
+Path to element:
+ →Application, 0x105c1b4b0, pid: 66346, label: 'PurePace'
+Query chain:
+ →Find: Target Application 'sh.munk.purepace'
+  Output: {
+    Application, 0x105d8b390, pid: 66346, label: 'PurePace'
+  }
