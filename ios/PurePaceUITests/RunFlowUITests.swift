@@ -1,4 +1,5 @@
 import XCTest
+import PurePaceRunCore
 
 /// 真实链路 UI 测试：跑步会话由启动参数 `-uiTestLocation` 注入的确定性测试定位源驱动
 /// （仅 DEBUG 生效），不依赖 simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由
@@ -13,6 +14,9 @@ final class RunFlowUITests: XCTestCase {
     /// 首个真实定位样本的快速探针上限（秒）：注入若未投递样本，≤10s 即失败并落诊断，
     /// 不再用 60s 静默等待掩盖链路问题。真实样本通常在注入后 1-2s 内到达。
     private let firstSampleProbeTimeout: TimeInterval = 10
+    /// iPhone 16 竖屏底部 Home Indicator 安全区：TabBar 自身 83pt = 49pt 栏 + 34pt 安全区，
+    /// 记录态 Tab 栏收起后用它换算「距窗口底边（扣除安全区）」的等价锚点。
+    private static let homeIndicatorInset: CGFloat = 34
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -116,6 +120,7 @@ final class RunFlowUITests: XCTestCase {
             "暂停后未进入可恢复状态"
         )
         XCTAssertEqual(app.staticTexts["run.currentPace"].label, "--", "暂停时当前配速必须为空")
+        assertTabBarVisibility(app, state: .paused, didSave: false, screen: "暂停")
         assertRunMetricsBalanced(app, primaryAction: app.buttons["run.resume"], state: "暂停")
         let pausedDistance = distance.label
         let pausedElapsed = elapsed.label
@@ -130,16 +135,19 @@ final class RunFlowUITests: XCTestCase {
             waitUntil(timeout: 30) { distance.label != pausedDistance },
             "恢复后距离没有继续增长"
         )
+        assertTabBarVisibility(app, state: .running, didSave: false, screen: "恢复运行")
 
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        assertTabBarVisibility(app, state: .finished, didSave: false, screen: "结束待保存")
         saveFinishedRun(app)
 
         XCTAssertTrue(
             app.staticTexts["run.saved"].waitForExistence(timeout: 10),
             "结束后缺少「已保存」反馈"
         )
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
         XCTAssertFalse(app.buttons["run.finish"].exists, "结束后不应再有结束按钮")
         attachScreenshot(app, name: "e2e-finish")
 
@@ -507,6 +515,8 @@ final class RunFlowUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
+        assertTabBarVisibility(app, state: .ready, didSave: false, screen: "未开始")
+        assertBackgroundDegradedDemoted(app)
 
         // 1) 首屏未开始：文案 + 开始按钮底部锚定。
         let start = app.buttons["run.start"]
@@ -530,6 +540,7 @@ final class RunFlowUITests: XCTestCase {
         start.tap()
         let pause = app.buttons["run.pause"]
         XCTAssertTrue(pause.waitForExistence(timeout: 15), "运行时缺少暂停按钮")
+        assertTabBarVisibility(app, state: .running, didSave: false, screen: "运行中")
         assertVisibleCopyZhHans(app, screen: "跑步页（运行中）")
         assertPrimaryActionAnchored(app, button: pause, state: "运行中")
         assertRunMetricsBalanced(app, primaryAction: pause, state: "运行中")
@@ -540,8 +551,12 @@ final class RunFlowUITests: XCTestCase {
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
+        assertTabBarVisibility(app, state: .finished, didSave: false, screen: "结束待保存")
+        XCTAssertTrue(app.buttons["run.save"].exists, "结束待保存态缺少保存主操作")
+        XCTAssertTrue(app.buttons["run.discard"].exists, "结束待保存态缺少丢弃操作")
         saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
         let viewHistory = app.buttons["run.viewHistory"]
         XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
         assertVisibleCopyZhHans(app, screen: "跑步页（保存态）")
@@ -550,6 +565,7 @@ final class RunFlowUITests: XCTestCase {
 
         // 5) 历史列表与详情：日期必须 zh-Hans。
         tabBar.buttons["历史"].tap()
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "历史页")
         let rows = app.descendants(matching: .any).matching(identifier: "history.row")
         XCTAssertTrue(waitUntil(timeout: 15) { rows.count >= 1 }, "历史列表未出现本次记录")
         assertVisibleCopyZhHans(app, screen: "历史列表")
@@ -568,6 +584,7 @@ final class RunFlowUITests: XCTestCase {
 
         // 6) 设置页 + 完整 Tab 树。
         tabBar.buttons["设置"].tap()
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "设置页")
         XCTAssertTrue(
             app.switches["settings.announcementToggle"].waitForExistence(timeout: 10),
             "设置页缺少播报开关"
@@ -578,6 +595,7 @@ final class RunFlowUITests: XCTestCase {
 
         // 7) 回到跑步页取完整 Tab 树（与设置页树区分）。
         tabBar.buttons["跑步"].tap()
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "回到跑步页")
         XCTAssertTrue(tabBar.buttons["设置"].waitForExistence(timeout: 10), "缺少设置 Tab")
         attachAccessibilityTree(app, name: "06-tabs")
     }
@@ -602,16 +620,29 @@ final class RunFlowUITests: XCTestCase {
     }
 
     /// 用真实按钮 frame 与 TabBar frame 喂给与单测相同的主操作底部锚定判定。
+    /// 记录态 Tab 栏已收起时，以「窗口底边扣除 Home Indicator 安全区」作为等价锚点，
+    /// 44pt 高度 / 24pt 底部间距阈值仍由 `PrimaryActionLayoutPolicy` 原样判定。
     private func assertPrimaryActionAnchored(
         _ app: XCUIApplication,
         button: XCUIElement,
         state: String
     ) {
         let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "缺少 Tab 栏")
+        let anchor: CGRect
+        if tabBar.exists {
+            anchor = tabBar.frame
+        } else {
+            let window = app.windows.firstMatch.frame
+            anchor = CGRect(
+                x: window.minX,
+                y: window.minY,
+                width: window.width,
+                height: window.height - Self.homeIndicatorInset
+            )
+        }
         let evaluation = PrimaryActionLayoutPolicy.evaluate(
             actionFrame: button.frame,
-            tabBarFrame: tabBar.frame
+            tabBarFrame: anchor
         )
         print(
             "ac-primary-action-bottom-anchored \(state): height=\(evaluation.height) "
@@ -660,6 +691,52 @@ final class RunFlowUITests: XCTestCase {
             "\(state) 指标区未垂直居中（顶部留白 \(evaluation.topGap)pt，底部留白 \(evaluation.bottomGap)pt，"
                 + "最大空洞 \(evaluation.largestGap)pt）：\(evaluation.problems)"
         )
+    }
+
+    /// Tab 栏可见性：把实测数量喂给与单测相同的纯判定，并打印可复核证据。
+    private func assertTabBarVisibility(
+        _ app: XCUIApplication,
+        state: RunSessionState,
+        didSave: Bool,
+        screen: String
+    ) {
+        let observed = app.tabBars.count
+        let evaluation = TabBarVisibilityPolicy.evaluate(
+            state: state,
+            didSave: didSave,
+            observedTabBarCount: observed
+        )
+        print(
+            "ac-tabbar-hidden \(screen): state=\(state.rawValue) didSave=\(didSave) "
+                + "tabBarCount=\(observed) expected=\(evaluation.expectedCount)"
+        )
+        XCTAssertTrue(evaluation.passes, "\(screen) Tab 栏可见性与状态不一致：\(evaluation.problems)")
+        for title in ["跑步", "历史", "设置"] {
+            let exists = app.tabBars.buttons[title].exists || app.buttons[title].exists
+            XCTAssertEqual(
+                exists,
+                evaluation.expectedCount == 1,
+                "\(screen) Tab「\(title)」存在性与期望不符"
+            )
+        }
+    }
+
+    /// 权限横幅降级：WhenInUse 降级态下提示降到指标卡内/之后的 `caption` 次级行，
+    /// 不得压在距离 hero 之上，也不得插在 hero 与指标卡之间。
+    private func assertBackgroundDegradedDemoted(_ app: XCUIApplication) {
+        let hint = app.staticTexts["run.backgroundDegraded"]
+        guard hint.waitForExistence(timeout: 5) else {
+            print("ac-permission-banner-demoted skipped: 当前授权非 WhenInUse 降级态")
+            return
+        }
+        let distance = app.staticTexts["run.distance"].frame
+        let averagePace = app.staticTexts["run.averagePace"].frame
+        print(
+            "ac-permission-banner-demoted hint=\(hint.frame) distance=\(distance) "
+                + "averagePace=\(averagePace)"
+        )
+        XCTAssertGreaterThan(hint.frame.minY, distance.maxY, "降级提示不得压在距离 hero 之上")
+        XCTAssertGreaterThan(hint.frame.minY, averagePace.maxY, "降级提示必须在指标卡内/之后，不得插在 hero 与指标卡之间")
     }
 
     /// 以固定名称保存可及树文本（lifetime = .keepAlways），供证据导出。

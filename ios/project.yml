@@ -93,6 +93,7 @@ targets:
       - path: PurePace/Design/VisibleDatePolicy.swift
       - path: PurePace/Design/PrimaryActionLayoutPolicy.swift
       - path: PurePace/Design/RunLayoutBalancePolicy.swift
+      - path: PurePace/Design/TabBarVisibilityPolicy.swift
     # 测试侧后台音频声明：真机 audio 阶段的音源由 UITests runner 自播（无人操作），
     # 需要 runner 侧声明 audio 后台模式；产品 App 的 Info.plist 保持零 diff。
     info:
@@ -106,6 +107,9 @@ targets:
         TEST_TARGET_NAME: PurePace
     dependencies:
       - target: PurePace
+      # 与 PurePaceTests 同口径显式声明共享纯判定所需的运行态枚举，避免传递可见性。
+      - package: PurePaceRunCore
+        product: PurePaceRunCore
 
 schemes:
   PurePace:
