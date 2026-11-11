@@ -41,12 +41,42 @@
         }
       }
     },
+    "run.action.cancel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "run.action.discard" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃"
+          }
+        }
+      }
+    },
     "run.action.finish" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "结束"
+          }
+        }
+      }
+    },
+    "run.action.openSettings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去设置"
           }
         }
       }
@@ -71,6 +101,26 @@
         }
       }
     },
+    "run.action.retryLocation" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        }
+      }
+    },
+    "run.action.save" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        }
+      }
+    },
     "run.action.start" : {
       "localizations" : {
         "zh-Hans" : {
@@ -87,6 +137,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看历史"
+          }
+        }
+      }
+    },
+    "run.a11y.cancelCountdown" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消倒计时"
+          }
+        }
+      }
+    },
+    "run.a11y.discardRun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "丢弃本次跑步"
           }
         }
       }
@@ -117,6 +187,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "继续记录跑次"
+          }
+        }
+      }
+    },
+    "run.a11y.saveRun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存本次跑步"
           }
         }
       }
@@ -221,12 +301,32 @@
         }
       }
     },
+    "run.status.locationUnavailable" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位暂不可用，请重试"
+          }
+        }
+      }
+    },
     "run.status.saved" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "已保存"
+          }
+        }
+      }
+    },
+    "run.status.saveFailed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存失败，请重试"
           }
         }
       }

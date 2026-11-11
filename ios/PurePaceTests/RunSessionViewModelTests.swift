@@ -143,6 +143,11 @@ final class RunSessionViewModelTests: XCTestCase {
 
         clock.date = startDate.addingTimeInterval(3)
         viewModel.finish()
+        XCTAssertFalse(viewModel.didSave, "结束先进入待决策，不得直接落盘")
+        XCTAssertEqual(viewModel.state, .finished)
+        XCTAssertEqual(try stores.archive.list().count, 0)
+
+        viewModel.saveFinished()
         XCTAssertTrue(viewModel.didSave)
         XCTAssertEqual(viewModel.state, .finished)
 
@@ -155,7 +160,7 @@ final class RunSessionViewModelTests: XCTestCase {
         XCTAssertEqual(record.activeDuration, viewModel.metrics.elapsed)
 
         viewModel.finish()
-        viewModel.finish()
+        viewModel.saveFinished()
         XCTAssertEqual(try stores.archive.list().count, 1)
         XCTAssertEqual(viewModel.savedCount, 1)
     }
@@ -169,6 +174,7 @@ final class RunSessionViewModelTests: XCTestCase {
             checkpointStore: stores.checkpoint,
             archiveStore: stores.archive,
             locationSource: source,
+            countdownDuration: 0,
             now: { clock.date }
         )
 
@@ -413,6 +419,7 @@ final class RunSessionViewModelTests: XCTestCase {
             announcements: announcements,
             announcementsEnabled: announcementsEnabled,
             autoStartRecording: autoStartRecording,
+            countdownDuration: 0,
             now: { clock.date }
         )
     }

@@ -83,6 +83,7 @@ final class RunSessionLockTests: XCTestCase {
             checkpointStore: stores.checkpoint,
             archiveStore: stores.archive,
             locationSource: source,
+            countdownDuration: 0,
             now: { clock.date },
             notificationCenter: center
         )

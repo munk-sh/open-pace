@@ -23,11 +23,19 @@ enum L10n {
     static var runActionPause: LocalizedStringKey { LocalizedStringKey("run.action.pause") }
     static var runActionResume: LocalizedStringKey { LocalizedStringKey("run.action.resume") }
     static var runActionFinish: LocalizedStringKey { LocalizedStringKey("run.action.finish") }
+    static var runActionCancel: LocalizedStringKey { LocalizedStringKey("run.action.cancel") }
+    static var runActionSave: LocalizedStringKey { LocalizedStringKey("run.action.save") }
+    static var runActionDiscard: LocalizedStringKey { LocalizedStringKey("run.action.discard") }
+    static var runActionOpenSettings: LocalizedStringKey { LocalizedStringKey("run.action.openSettings") }
+    static var runActionRetryLocation: LocalizedStringKey { LocalizedStringKey("run.action.retryLocation") }
     static var runActionViewHistory: LocalizedStringKey { LocalizedStringKey("run.action.viewHistory") }
     static var runStartLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.startRecording") }
     static var runPauseLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.pauseRecording") }
     static var runResumeLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.resumeRecording") }
     static var runFinishLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.finishAndSave") }
+    static var runCancelCountdownLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.cancelCountdown") }
+    static var runSaveLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.saveRun") }
+    static var runDiscardLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.discardRun") }
     static var runViewHistoryLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.viewHistory") }
 
     /// 授权提示是需要拼接进 `String?` 的纯文本。
@@ -37,6 +45,15 @@ enum L10n {
 
     static var waitingAuthorization: String {
         String(localized: "run.status.waitingAuthorization")
+    }
+
+    static var locationUnavailable: String {
+        String(localized: "run.status.locationUnavailable")
+    }
+
+    /// 保存失败提示：zh-Hans 可读文案 + 重试语义，不回显英文错误描述。
+    static var saveFailed: String {
+        String(localized: "run.status.saveFailed")
     }
 
     static var backgroundDegradedHint: String {

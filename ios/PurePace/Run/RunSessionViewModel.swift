@@ -14,6 +14,12 @@ final class RunSessionViewModel: ObservableObject {
     @Published private(set) var didSave = false
     @Published private(set) var savedCount = 0
     @Published private(set) var errorMessage: String?
+    /// 待决策态保存失败的 zh-Hans 可读提示；成功或丢弃后清空。
+    @Published private(set) var decisionErrorMessage: String?
+    /// 是否处于可取消的开始倒计时（`state` 仍为 `ready`）。
+    @Published private(set) var isCountingDown = false
+    /// 倒计时剩余秒数（按注入时钟刷新，恒不为负）。
+    @Published private(set) var countdownRemaining: TimeInterval = 0
     /// DEBUG + `-uiTestLocation` 时暴露的遥测摘要，供 XCUITest 断言；Release 恒为 nil。
     @Published private(set) var telemetrySummary: String?
     /// 运行态下被单调守卫整条丢弃的等时/倒退采样条数（paused 下 drop 不计）。
@@ -36,14 +42,18 @@ final class RunSessionViewModel: ObservableObject {
     private let bundleInfo: BundleInfoProviding
     private let lifecycleSnapshotBox: RunLifecycleSnapshotBox
     private let autoStartRecording: Bool
+    /// 开始前倒计时总时长；测试注入 0 以跳过真实等待（生产恒用 RunCore 常量）。
+    private let countdownDuration: TimeInterval
     private let now: () -> Date
     /// 锁屏区间观察者；非可选 `let`，生命周期跟随 ViewModel。
     private let lockObservation: RunProtectedDataObservation
 
     private var sampleSources: [TimeInterval: RunSampleSource] = [:]
     private var backgroundSnapshot: (allows: Bool, pauses: Bool)?
-    private var runSampleCount = 0
+    /// 本跑次已计数并转发的定位采样条数（倒计时/暂停/已结束期间不增）。
+    private(set) var runSampleCount = 0
     private var didAutoStart = false
+    private var countdown: RunStartCountdown?
 
     init(
         checkpointStore: RunCheckpointStore,
@@ -56,6 +66,7 @@ final class RunSessionViewModel: ObservableObject {
         telemetryWriter: RunTelemetryWriting? = nil,
         telemetryDebugEnabled: Bool = false,
         autoStartRecording: Bool = false,
+        countdownDuration: TimeInterval = RunStartCountdown.defaultDuration,
         lifecycleRecorder: RunLifecycleTelemetryRecording? = nil,
         bundleInfo: BundleInfoProviding? = nil,
         now: @escaping () -> Date = { Date() },
@@ -90,6 +101,7 @@ final class RunSessionViewModel: ObservableObject {
             ?? RunLifecycleTelemetryRecorder(snapshotProvider: { snapshotBox.read() })
         self.bundleInfo = bundleInfo ?? SystemBundleInfoProvider()
         self.autoStartRecording = autoStartRecording
+        self.countdownDuration = countdownDuration
         self.now = now
         self.didRestoreFromCheckpoint = restoringCheckpoint != nil
         self.duplicateSampleCount = orchestrator.duplicateSampleCount
@@ -151,18 +163,53 @@ final class RunSessionViewModel: ObservableObject {
 
     // MARK: - 会话动作
 
+    /// 点击开始：先进入可取消倒计时，到点才真正记录。
+    ///
+    /// `-autoStartRecording` 调试路径一次性把倒计时置为完成（不引入 sleep）；
+    /// 注入零时长倒计时同样立即越过，供确定性单测使用。
     func start() {
-        guard state == .ready else { return }
+        guard state == .ready, countdown == nil else { return }
         runSampleCount = 0
         duplicateSampleCount = 0
-        updateLifecycleSnapshot()
-        perform { try orchestrator.start(at: now()) }
-        locationSource.start()
-        // 抓「跑步进行态」的后台开关快照：真实源反映 manager，测试源如实为 false。
-        backgroundSnapshot = (
-            allows: locationSource.allowsBackgroundLocationUpdates,
-            pauses: locationSource.pausesLocationUpdatesAutomatically
+        didSave = false
+        decisionErrorMessage = nil
+        errorMessage = nil
+        countdown = RunStartCountdown(
+            duration: autoStartRecording ? 0 : countdownDuration,
+            startedAt: now()
         )
+        refreshCountdown()
+        updateLifecycleSnapshot()
+        if countdown?.isComplete(at: now()) == true {
+            beginRecording(at: now())
+        } else {
+            // 倒计时期间即启动定位源：采样由 delegate 门丢弃，不计数、不摄入。
+            locationSource.start()
+        }
+    }
+
+    /// 取消倒计时：回到 `ready`、清空倒计时阶段，零度量零采样，可立即再次开始。
+    func cancelCountdown() {
+        guard countdown != nil else { return }
+        countdown = nil
+        isCountingDown = false
+        countdownRemaining = 0
+        runSampleCount = 0
+        duplicateSampleCount = 0
+        didSave = false
+        decisionErrorMessage = nil
+        apply(state: orchestrator.state, metrics: orchestrator.metrics)
+    }
+
+    /// 推进倒计时：注入时钟未到 deadline 时保持倒计时（零记录），到点才真正开始。
+    func advanceCountdown() {
+        guard let countdown else { return }
+        let date = now()
+        guard countdown.isComplete(at: date) else {
+            countdownRemaining = countdown.remaining(at: date)
+            return
+        }
+        beginRecording(at: date)
     }
 
     func pause() {
@@ -175,22 +222,79 @@ final class RunSessionViewModel: ObservableObject {
         perform { try orchestrator.resume(at: now()) }
     }
 
+    /// 结束：生成结束快照并停止记录，但**不落盘**，等待显式保存或丢弃。
     func finish() {
         guard state.isActive else { return }
         do {
-            let record = try orchestrator.finish(at: now())
-            if record != nil {
-                didSave = true
-                savedCount += 1
-            }
+            _ = try orchestrator.prepareFinish(at: now())
             apply(state: orchestrator.state, metrics: orchestrator.metrics)
             locationSource.stop()
-            if let record {
-                injectTelemetry(for: record)
-            }
+            decisionErrorMessage = nil
+            didSave = false
         } catch {
             errorMessage = Self.describe(error)
         }
+    }
+
+    /// 保存结束快照：归档恰一次；失败提示 zh-Hans 可读文案并可原地重试。
+    func saveFinished() {
+        guard state == .finished else { return }
+        let wasSaved = orchestrator.savedRecord != nil
+        do {
+            let record = try orchestrator.saveFinished()
+            if !wasSaved {
+                didSave = true
+                savedCount += 1
+                decisionErrorMessage = nil
+                injectTelemetry(for: record)
+            }
+            apply(state: orchestrator.state, metrics: orchestrator.metrics)
+        } catch {
+            decisionErrorMessage = L10n.saveFailed
+        }
+    }
+
+    /// 丢弃结束快照：不写归档，重建为可立刻再跑的 `ready`。
+    func discardFinished() {
+        guard state == .finished else { return }
+        do {
+            try orchestrator.discard()
+            didSave = false
+            decisionErrorMessage = nil
+            errorMessage = nil
+            runSampleCount = 0
+            duplicateSampleCount = 0
+            apply(state: orchestrator.state, metrics: orchestrator.metrics)
+        } catch {
+            errorMessage = Self.describe(error)
+        }
+    }
+
+    /// 真正开始记录：清倒计时阶段，度量从 0 起算。
+    private func beginRecording(at date: Date) {
+        guard state == .ready else { return }
+        countdown = nil
+        isCountingDown = false
+        countdownRemaining = 0
+        runSampleCount = 0
+        duplicateSampleCount = 0
+        perform { try orchestrator.start(at: date) }
+        locationSource.start()
+        // 抓「跑步进行态」的后台开关快照：真实源反映 manager，测试源如实为 false。
+        backgroundSnapshot = (
+            allows: locationSource.allowsBackgroundLocationUpdates,
+            pauses: locationSource.pausesLocationUpdatesAutomatically
+        )
+    }
+
+    private func refreshCountdown() {
+        guard let countdown else {
+            isCountingDown = false
+            countdownRemaining = 0
+            return
+        }
+        isCountingDown = true
+        countdownRemaining = countdown.remaining(at: now())
     }
 
     // MARK: - 播报开关
@@ -211,7 +315,35 @@ final class RunSessionViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 定位可用性
+
+    /// 由授权派生的可恢复定位状态（拒绝 → 去设置；不可用 → 重试）。
+    var locationReadiness: RunLocationReadiness {
+        RunLocationReadiness(authorization: authorization)
+    }
+
+    /// 系统设置页深链；「权限被拒」态的唯一恢复出口。
+    var locationSettingsURL: URL? {
+        URL(string: UIApplication.openSettingsURLString)
+    }
+
+    /// 仅「不可用」态可重试：重新拉起定位源，授权转好即恢复就绪。
+    func retryLocation() {
+        guard locationReadiness.nextAction == .retry else { return }
+        locationSource.start()
+    }
+
     // MARK: - 展示
+
+    /// 倒计时剩余整秒（向上取整，读数从总时长单调递减到 0）。
+    var countdownText: String {
+        String(Int(countdownRemaining.rounded(.up)))
+    }
+
+    /// 本跑次已进入归档序列的采样（倒计时/结束后恒为空）。
+    var acceptedSamples: [RunSample] {
+        orchestrator.acceptedSamples
+    }
 
     var distanceText: String {
         RunFormatting.distanceText(metrics.distance)
@@ -334,6 +466,8 @@ final class RunSessionViewModel: ObservableObject {
 
 extension RunSessionViewModel: RunLocationSourceDelegate {
     func locationSource(_ source: RunLocationProviding, didProduce sample: RunSample) {
+        // 采样门：只有记录态才计数与转发；倒计时/ready/paused/finished 一律整条丢弃。
+        guard state == .running else { return }
         sampleSources[sample.timestamp.timeIntervalSince1970] = source.sampleSource
         runSampleCount += 1
         updateLifecycleSnapshot()

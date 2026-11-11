@@ -92,6 +92,7 @@ final class RunSessionRestoreTests: XCTestCase {
             checkpointStore: stores.checkpoint,
             archiveStore: stores.archive,
             locationSource: source,
+            countdownDuration: 0,
             now: { clock.date },
             notificationCenter: NotificationCenter()
         )
@@ -281,6 +282,7 @@ final class RunSessionRestoreTests: XCTestCase {
         feed(makeSample(index: 71), from: restoredProcess.source)
         feed(makeSample(index: 72), from: restoredProcess.source)
         restored.finish()
+        restored.saveFinished()
 
         XCTAssertTrue(restored.didSave, "恢复后结束会话必须落盘归档")
         let records = try stores.archive.list()
