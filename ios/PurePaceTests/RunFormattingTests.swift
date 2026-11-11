@@ -31,6 +31,51 @@ final class RunFormattingTests: XCTestCase {
         XCTAssertEqual(RunFormatting.splitCountText(-1), "0")
     }
 
+    // MARK: - 数值 / 单位拆分（RunView 三行指标块）
+
+    func testDistanceValueAndUnitRecombineToDistanceText() {
+        for meters in [0.0, 1234.0, 999.999] {
+            let distance = RunDistance(meters: meters)!
+            XCTAssertEqual(
+                "\(RunFormatting.distanceValueText(distance)) \(RunFormatting.distanceUnitText)",
+                RunFormatting.distanceText(distance)
+            )
+        }
+        let zero = RunDistance(meters: 0)!
+        XCTAssertEqual(RunFormatting.distanceValueText(zero), "0.00")
+        XCTAssertEqual(RunFormatting.distanceUnitText, "km")
+        XCTAssertEqual(
+            RunFormatting.distanceValueText(RunDistance(meters: 1234)!),
+            "1.23"
+        )
+    }
+
+    func testPaceValueAndUnitRecombineToPaceText() {
+        XCTAssertEqual(RunFormatting.paceValueText(nil), RunFormatting.emptyPace)
+        XCTAssertNil(RunFormatting.paceUnitText(nil), "空配速不得渲染单位行")
+
+        let pace = RunPace(secondsPerKilometer: 333.4)!
+        XCTAssertEqual(RunFormatting.paceValueText(pace), "5:33")
+        XCTAssertEqual(RunFormatting.paceUnitText(pace), "/km")
+        XCTAssertEqual(
+            "\(RunFormatting.paceValueText(pace)) \(RunFormatting.paceUnitText(pace)!)",
+            RunFormatting.paceText(pace)
+        )
+    }
+
+    func testPaceValueTextMarksPlaceholderOnlyWhenEmpty() {
+        XCTAssertEqual(
+            RunFormatting.paceValueText(RunPace(secondsPerKilometer: 300)!),
+            "5:00"
+        )
+        XCTAssertEqual(
+            RunFormatting.paceValueText(RunPace(secondsPerKilometer: 59.6)!),
+            "1:00",
+            "配速数值按秒四舍五入，不残留小数"
+        )
+        XCTAssertFalse(RunFormatting.paceValueText(RunPace(secondsPerKilometer: 300)!).contains("/km"))
+    }
+
     func testDateTimeTextDiffersAcrossStartAndEnd() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let end = Date(timeIntervalSince1970: 1_700_000_301)
