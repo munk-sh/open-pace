@@ -52,25 +52,32 @@ enum DesignTokens {
     enum Colors {
         /// 全部语义色（唯一调色板真源）；键名与下方 `static let` 一一对应。
         static let palette: [String: ColorPair] = [
-            "background": ColorPair(light: SRGB(hex: 0xF7F8F6), dark: SRGB(hex: 0x0A1211)),
-            "surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x141F1D)),
-            "surfaceMuted": ColorPair(light: SRGB(hex: 0xF0F3F1), dark: SRGB(hex: 0x1A2724)),
-            "primary": ColorPair(light: SRGB(hex: 0x12201E), dark: SRGB(hex: 0xECF4F1)),
-            "secondary": ColorPair(light: SRGB(hex: 0x566663), dark: SRGB(hex: 0xA6B8B3)),
-            "accent": ColorPair(light: SRGB(hex: 0x0B6F60), dark: SRGB(hex: 0x5ED6C4)),
-            "onAccent": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x06211C)),
-            "accentSoft": ColorPair(light: SRGB(hex: 0xEDF6F3), dark: SRGB(hex: 0x123B34)),
-            "separator": ColorPair(light: SRGB(hex: 0xDCE5E1), dark: SRGB(hex: 0x25332F)),
-            "warning": ColorPair(light: SRGB(hex: 0x9A5B00), dark: SRGB(hex: 0xF5B84C)),
+            "background": ColorPair(light: SRGB(hex: 0xFAFAF9), dark: SRGB(hex: 0x0B0C0D)),
+            "surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x16181A)),
+            "surfaceMuted": ColorPair(light: SRGB(hex: 0xF2F2F1), dark: SRGB(hex: 0x1E2124)),
+            "primary": ColorPair(light: SRGB(hex: 0x17181A), dark: SRGB(hex: 0xF2F3F4)),
+            "secondary": ColorPair(light: SRGB(hex: 0x5C5F63), dark: SRGB(hex: 0xA2A7AC)),
+            "accent": ColorPair(light: SRGB(hex: 0xB4400B), dark: SRGB(hex: 0xFF9A5C)),
+            "onAccent": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x2A1206)),
+            "accentSoft": ColorPair(light: SRGB(hex: 0xFCEFE7), dark: SRGB(hex: 0x3A1F12)),
+            "separator": ColorPair(light: SRGB(hex: 0xD8D8D3), dark: SRGB(hex: 0x33383D)),
+            "warning": ColorPair(light: SRGB(hex: 0x6E5C00), dark: SRGB(hex: 0xEECA2B)),
             "onWarning": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x2B1A00)),
-            "warningSoft": ColorPair(light: SRGB(hex: 0xFDF3E1), dark: SRGB(hex: 0x3A2A0D)),
-            "success": ColorPair(light: SRGB(hex: 0x147A4E), dark: SRGB(hex: 0x5BD69B)),
+            "warningSoft": ColorPair(light: SRGB(hex: 0xFBF1DC), dark: SRGB(hex: 0x3A2A0D)),
+            "success": ColorPair(light: SRGB(hex: 0x1F6B45), dark: SRGB(hex: 0x58CF9B)),
             "onSuccess": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x042416)),
-            "successSoft": ColorPair(light: SRGB(hex: 0xE8F6EF), dark: SRGB(hex: 0x11311F)),
-            "danger": ColorPair(light: SRGB(hex: 0xB3261E), dark: SRGB(hex: 0xFF8A80)),
-            "onDanger": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x3A0906)),
-            "dangerSoft": ColorPair(light: SRGB(hex: 0xFCEBE9), dark: SRGB(hex: 0x3A1A17))
+            "successSoft": ColorPair(light: SRGB(hex: 0xE7F2EB), dark: SRGB(hex: 0x11311F)),
+            "danger": ColorPair(light: SRGB(hex: 0x660D09), dark: SRGB(hex: 0xF53A48)),
+            "onDanger": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x2A0608)),
+            "dangerSoft": ColorPair(light: SRGB(hex: 0xFBEAE8), dark: SRGB(hex: 0x2C0A10))
         ]
+
+        // 色板唯一真源：公司调研 digest trun_cff114e082a2fb0e §3「方向 A / 石墨+竞速橙」。
+        // 36 hex 逐键照抄，禁止截图取色或自行微调；warning/danger 系按公司裁决 owe_40221a8e983c7516 重取，
+        // 使 accent↔warning、accent↔danger 在 HSL 口径下至少满足 ΔH≥25° / ΔL≥15 / ΔS≥30 其一。
+        // 深色三中性键（#0B0C0D / #16181A / #1E2124）实测 HSL 色相 210°、chroma/255 = 0.78% / 1.57% / 2.35%，
+        // 判据取「色相落在 60–200° 之外」且「chroma/255 ≤ 3.0%」（旧值 166–172°、3.14/4.31/5.10% 必然判红）。
+        // HSV S 在深色 V≈5% 时分母极小（实测 8.3–9.1%），不构成本轮判据。
 
         /// 18 个语义键的机器可读用途；键集必须与 `palette` 完全相等，且用途不得为空或复读键名。
         static let purposes: [String: String] = [
@@ -79,19 +86,19 @@ enum DesignTokens {
             "surfaceMuted": "次级面板与提示弱底",
             "primary": "正文与 hero 数字",
             "secondary": "次文、字段标签与说明",
-            "accent": "唯一品牌主色：记录态、主操作与选中态",
+            "accent": "唯一品牌主色：记录态主操作（开始/暂停/继续/结束/保存）与选中态",
             "onAccent": "主色底上的文字",
             "accentSoft": "记录态弱底",
             "separator": "卡片描边与分隔线，仅装饰，不作为唯一信息载体",
-            "warning": "暂停、结束与降级提示",
+            "warning": "非阻断内联提示（权限缺失 / GPS 弱 / 保存失败横幅），不作填充主按钮",
             "onWarning": "警示底上的文字",
-            "warningSoft": "警示弱底",
+            "warningSoft": "警示弱底（内联提示背景）",
             "success": "已保存成功态",
             "onSuccess": "成功底上的文字",
             "successSoft": "成功弱底",
-            "danger": "失败与危险态",
+            "danger": "丢弃等破坏性操作，仅出现在确认层文本或描边按钮",
             "onDanger": "危险底上的文字",
-            "dangerSoft": "危险弱底"
+            "dangerSoft": "危险弱底（确认层背景）"
         ]
 
         /// 用途注册表的 fail-closed 校验：缺键 / 多键 / 空用途 / 复读键名都产出可读问题。
@@ -176,11 +183,11 @@ enum DesignTokens {
         static let metricLabelSize: CGFloat = 11
         /// 指标三行结构的单位（下置，与标签同档）。
         static let metricUnitSize: CGFloat = 11
-        static let captionSize: CGFloat = 12
+        static let captionSize: CGFloat = 13
         static let bodySize: CGFloat = 15
         static let titleSize: CGFloat = 20
-        static let primaryValueSize: CGFloat = 34
-        static let displaySize: CGFloat = 56
+        static let primaryValueSize: CGFloat = 36
+        static let displaySize: CGFloat = 64
 
         /// 由小到大的字号阶梯，供不变量断言使用；label/unit 共享 11 这一档。
         static let sizes: [CGFloat] = [
@@ -233,13 +240,13 @@ enum DesignTokens {
             return problems
         }
 
-        static let metricLabel = Font.system(size: metricLabelSize, weight: .medium)
+        static let metricLabel = Font.system(size: metricLabelSize, weight: .semibold)
         static let metricUnit = Font.system(size: metricUnitSize, weight: .regular)
         static let caption = Font.system(size: captionSize, weight: .regular)
         static let body = Font.system(size: bodySize, weight: .regular)
         static let title = Font.system(size: titleSize, weight: .semibold)
-        static let primaryValue = Font.system(size: primaryValueSize, weight: .semibold, design: .rounded)
-        static let display = Font.system(size: displaySize, weight: .bold, design: .rounded)
+        static let primaryValue = Font.system(size: primaryValueSize, weight: .semibold, design: .monospaced)
+        static let display = Font.system(size: displaySize, weight: .bold, design: .monospaced)
 
         /// 控件内文字（按钮/开关）。
         static let control = Font.system(size: titleSize, weight: .semibold)
@@ -281,8 +288,8 @@ enum DesignTokens {
     // MARK: - 圆角
 
     enum Radius {
-        static let control: CGFloat = 12
-        static let card: CGFloat = 16
+        static let control: CGFloat = 10
+        static let card: CGFloat = 14
         static let panel: CGFloat = 20
 
         static let scale: [CGFloat] = [control, card, panel]

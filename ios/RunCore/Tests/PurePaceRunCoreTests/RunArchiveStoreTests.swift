@@ -236,6 +236,78 @@ final class RunArchiveStoreTests: XCTestCase {
         XCTAssertEqual(listed, [record])
     }
 
+    // MARK: - 轻量索引（ac-store-index-no-sample-decode）
+
+    func testListSummariesMatchesListOrderingAndFields() throws {
+        let store = RunArchiveStore(directoryURL: directory)
+        let early = makeRecord(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, startedAt: baseTimestamp)
+        let late = makeRecord(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, startedAt: baseTimestamp.addingTimeInterval(60))
+        try store.save(early)
+        try store.save(late)
+
+        let full = try store.list()
+        let summaries = try store.listSummaries()
+        XCTAssertEqual(summaries.map(\.id), full.map(\.id), "索引排序必须与 list() 一致：startedAt 降序 + id 升序")
+        XCTAssertEqual(summaries.map(\.startedAt), full.map(\.startedAt))
+        XCTAssertEqual(summaries.map(\.distance), full.map(\.distance))
+        XCTAssertEqual(summaries.map(\.activeDuration), full.map(\.activeDuration))
+        XCTAssertTrue(summaries.allSatisfy(\.hasTrack))
+    }
+
+    func testListSummariesFormsRowEvenWhenSamplesAreHugeOrMalformed() throws {
+        // 采样数组畸形 + 超大：list() 会跳过，但列表索引必须照常成行（不解码 samples）。
+        let id = UUID()
+        let encoded = try JSONEncoder().encode(makeRecord(id: id, startedAt: baseTimestamp))
+        let json = String(decoding: encoded, as: UTF8.self)
+        guard let marker = json.range(of: "\"samples\":") else {
+            return XCTFail("归档 JSON 必须包含 samples 键")
+        }
+        var valueStart = marker.upperBound
+        while valueStart < json.endIndex, json[valueStart] == " " { valueStart = json.index(after: valueStart) }
+        guard json[valueStart] == "[" else {
+            return XCTFail("samples 必须是数组")
+        }
+        var depth = 0
+        var scan = valueStart
+        repeat {
+            if json[scan] == "[" { depth += 1 }
+            if json[scan] == "]" { depth -= 1 }
+            scan = json.index(after: scan)
+        } while depth > 0 && scan < json.endIndex
+        let garbage = String(repeating: "x", count: 400_000)
+        // 只把 samples 的数组值换成超大畸形字符串，其余键保持原样。
+        let malformed = String(json[..<valueStart]) + "\"" + garbage + "\"" + String(json[scan...])
+        try writeRaw(malformed, named: "huge-\(id.uuidString).json")
+
+        XCTAssertEqual(try RunArchiveStore(directoryURL: directory).list(), [], "list() 仍按旧语义跳过坏文件")
+        let summaries = try RunArchiveStore(directoryURL: directory).listSummaries()
+        XCTAssertEqual(summaries.map(\.id), [id], "samples 畸形/超大时列表仍须成行")
+    }
+
+    func testListSummariesReportsNoTrackForEmptySamples() throws {
+        let record = makeRecord(startedAt: baseTimestamp, samples: [])
+        try RunArchiveStore(directoryURL: directory).save(record)
+        let summaries = try RunArchiveStore(directoryURL: directory).listSummaries()
+        XCTAssertEqual(summaries.count, 1)
+        XCTAssertEqual(summaries.first?.hasTrack, false)
+    }
+
+    func testListSummariesSkipsInvalidMetadata() throws {
+        try writeRaw("{ not json", named: "broken.json")
+        let valid = makeRecord(startedAt: baseTimestamp)
+        try RunArchiveStore(directoryURL: directory).save(valid)
+        let summaries = try RunArchiveStore(directoryURL: directory).listSummaries()
+        XCTAssertEqual(summaries.map(\.id), [valid.id], "元数据坏文件必须跳过")
+    }
+
+    func testRecordWithIDReturnsFullRecordIncludingSamples() throws {
+        let record = makeRecord(startedAt: baseTimestamp)
+        try RunArchiveStore(directoryURL: directory).save(record)
+        let loaded = try XCTUnwrap(RunArchiveStore(directoryURL: directory).record(withID: record.id))
+        XCTAssertEqual(loaded, record)
+        XCTAssertNil(try RunArchiveStore(directoryURL: directory).record(withID: UUID()))
+    }
+
     // MARK: - 错误描述
 
     func testRunArchiveErrorDescriptionsAreNonEmptyAndDistinct() {

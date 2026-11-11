@@ -653,6 +653,9 @@ validate_design_tokens() {
   # 调色板：18 键、键集冻结、无重复；每键恰有一条 light/dark 成对且两侧不相等的 hex 色对。
   local palette_block purposes_block palette_keys palette_key_count
   local expected_palette_keys palette_duplicates palette_line palette_key light_hex dark_hex
+  local expected_palette_hex expected_hex exp_light exp_dark
+  # 方向 A 逐键锁值（light:dark），任一分量被改或回退旧值即判红。
+  expected_palette_hex="background:FAFAF9:0B0C0D surface:FFFFFF:16181A surfaceMuted:F2F2F1:1E2124 primary:17181A:F2F3F4 secondary:5C5F63:A2A7AC accent:B4400B:FF9A5C onAccent:FFFFFF:2A1206 accentSoft:FCEFE7:3A1F12 separator:D8D8D3:33383D warning:6E5C00:EECA2B onWarning:FFFFFF:2B1A00 warningSoft:FBF1DC:3A2A0D success:1F6B45:58CF9B onSuccess:FFFFFF:042416 successSoft:E7F2EB:11311F danger:660D09:F53A48 onDanger:FFFFFF:2A0608 dangerSoft:FBEAE8:2C0A10"
   palette_block="$(token_array_block "$token_file" 'static let palette: [String: ColorPair] = [')"
   purposes_block="$(token_array_block "$token_file" 'static let purposes: [String: String] = [')"
   expected_palette_keys="accent accentSoft background danger dangerSoft onAccent onDanger onSuccess onWarning primary secondary separator success successSoft surface surfaceMuted warning warningSoft"
@@ -696,6 +699,19 @@ validate_design_tokens() {
       problems="$problems 色对缺合法 hex（${palette_key}）;"
     elif [ "$light_hex" = "$dark_hex" ]; then
       problems="$problems 色对 light/dark 相同（${palette_key}）;"
+    else
+      expected_hex="$(printf '%s\n' $expected_palette_hex \
+        | sed -nE "s/^${palette_key}:([0-9A-Fa-f]{6}):([0-9A-Fa-f]{6})$/\1 \2/p")"
+      if [ -z "$expected_hex" ]; then
+        problems="$problems 方向 A 期望表缺键（${palette_key}）;"
+      else
+        exp_light="$(printf '%s' "$expected_hex" | cut -d' ' -f1 | tr 'a-f' 'A-F')"
+        exp_dark="$(printf '%s' "$expected_hex" | cut -d' ' -f2 | tr 'a-f' 'A-F')"
+        [ "$light_hex" = "$exp_light" ] \
+          || problems="$problems light hex 与方向 A 表不一致（${palette_key}=${light_hex} 期望 ${exp_light}）;"
+        [ "$dark_hex" = "$exp_dark" ] \
+          || problems="$problems dark hex 与方向 A 表不一致（${palette_key}=${dark_hex} 期望 ${exp_dark}）;"
+      fi
     fi
   done <<EOF
 $palette_block
@@ -738,8 +754,8 @@ EOF
   radius_values="$(token_resolved_values "$radius_block" scale)"
   icon_values="$(token_resolved_values "$icon_block" scale)"
 
-  [ "$typography_values" = " 11 12 15 20 34 56" ] \
-    || problems="$problems 字号阶梯必须为 [11, 12, 15, 20, 34, 56]（实际:${typography_values}）;"
+  [ "$typography_values" = " 11 13 15 20 36 64" ] \
+    || problems="$problems 字号阶梯必须为 [11, 13, 15, 20, 36, 64]（实际:${typography_values}）;"
   order_problem="$(token_scale_order_problem '字号阶梯' "$typography_values")"
   [ -z "$order_problem" ] || problems="$problems ${order_problem};"
 
@@ -748,8 +764,8 @@ EOF
   order_problem="$(token_scale_order_problem '间距档位' "$spacing_values")"
   [ -z "$order_problem" ] || problems="$problems ${order_problem};"
 
-  [ "$radius_values" = " 12 16 20" ] \
-    || problems="$problems 圆角档位必须为 [12, 16, 20]（实际:${radius_values}）;"
+  [ "$radius_values" = " 10 14 20" ] \
+    || problems="$problems 圆角档位必须为 [10, 14, 20]（实际:${radius_values}）;"
   order_problem="$(token_scale_order_problem '圆角档位' "$radius_values")"
   [ -z "$order_problem" ] || problems="$problems ${order_problem};"
 
@@ -1574,23 +1590,30 @@ run_self_test() {
   check_fail_reason "palette 键重复定义反例" \
     "$(validate_design_tokens "$design_bad")" "重复"
 
+  design_bad="$tmp_dir/design-accent-reverted"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/light: SRGB(hex: 0xB4400B), dark: SRGB(hex: 0xFF9A5C)/light: SRGB(hex: 0x0B6F60), dark: SRGB(hex: 0xFF9A5C)/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "accent 回退青绿反例" \
+    "$(validate_design_tokens "$design_bad")" "方向 A 表不一致"
+
   design_bad="$tmp_dir/design-pair-missing-dark"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x141F1D))/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF))/' \
+  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x16181A))/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF))/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "色对缺 dark 反例" \
     "$(validate_design_tokens "$design_bad")" "色对缺 dark"
 
   design_bad="$tmp_dir/design-pair-equal"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/dark: SRGB(hex: 0x141F1D))/dark: SRGB(hex: 0xFFFFFF))/' \
+  sed -i '' 's/dark: SRGB(hex: 0x16181A))/dark: SRGB(hex: 0xFFFFFF))/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "色对 light/dark 相同反例" \
     "$(validate_design_tokens "$design_bad")" "色对"
 
   design_bad="$tmp_dir/design-pair-spaced-key"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x141F1D))/"surface" : ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0xFFFFFF))/' \
+  sed -i '' 's/"surface": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x16181A))/"surface" : ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0xFFFFFF))/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "色对键名与冒号间有空格的同值反例" \
     "$(validate_design_tokens "$design_bad")" "色对"
@@ -1604,7 +1627,7 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-type-ladder"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/static let captionSize: CGFloat = 12/static let captionSize: CGFloat = 15/' \
+  sed -i '' 's/static let captionSize: CGFloat = 13/static let captionSize: CGFloat = 15/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "字号阶梯未严格递增反例" \
     "$(validate_design_tokens "$design_bad")" "阶梯"
@@ -1625,7 +1648,7 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-radius-ladder"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/static let card: CGFloat = 16/static let card: CGFloat = 18/' \
+  sed -i '' 's/static let card: CGFloat = 14/static let card: CGFloat = 18/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "圆角档位漂移反例" \
     "$(validate_design_tokens "$design_bad")" "档位"

@@ -22,6 +22,8 @@
 - ac-archive-missing-dir-empty: 归档目录不存在时 `list()` 返回空数组且不抛错、不隐式创建目录。
 - ac-archive-atomic-write: 保存成功后归档目录内除最终 `.json` 记录文件外不留任何临时/半成品文件；保存失败（目标归档路径被同名普通文件占用导致无法建目录）时抛错且不留下新文件或残留临时文件。
 - ac-archive-ignore-foreign-entries: 目录内的子目录、`.tmp` 文件与非 `.json` 扩展名文件不参与 `list()` 与计数。
+- ac-archive-summary-index: `listSummaries()` 返回 `RunRecordSummary`（`id` / `startedAt` / `endedAt` / `distance` / `activeDuration` / `hasTrack`），只读文件头部元数据、**绝不解码 `samples`**；`hasTrack` 仅做数组存在性判断（空 `samples` → `false`）。排序与坏文件跳过语义与 `list()` 完全一致（`startedAt` 降序、等值按 `id.uuidString` 升序）；某条记录 `samples` 超大或畸形时仍能成行（反例证明列表耗时不随 samples 线性增长）。`list()` 与 `record(withID:)` 的既有语义（含完整采样解码）保持可用。落点：`RunArchiveStoreTests.testListSummariesMatchesListOrderingAndFields` / `testListSummariesFormsRowEvenWhenSamplesAreHugeOrMalformed` / `testListSummariesReportsNoTrackForEmptySamples` / `testListSummariesSkipsInvalidMetadata`。
+- ac-archive-record-by-id: `record(withID:)` 按文件名 `id.uuidString` 后缀命中单条记录并完整解码，找不到返回 `nil`；详情页/导出不再需要全量 `list()`。
 - ac-record-validation: 构造 `RunRecord` 时，`formatVersion != 1`、`endedAt < startedAt`、`activeDuration` 非有限或为负、距离为负、分段索引不从 1 起连续、采样时间戳递减或坐标越界 → 构造失败返回 `nil`（不产生半合法值）。
 - ac-export-gpx-roundtrip: `RunGPXExporter` 对含 N 个采样的记录导出 → 目录内出现非空 `.gpx` 文件；`GPXCodec.read` 回读得到点数 == N，逐点 `latitude`/`longitude`/`altitude`/`timestamp`/`heartRate`/`cadence` 与记录采样完全相等，track `name` 非空且 `activityType == "running"`，点的先后顺序与记录一致。
 - ac-export-filename-no-overwrite: 导出文件名同时含记录 `startedAt` 的 UTC 时间标识与记录 `id`；对同一记录向同一目录导出两次 → 得到 2 个不同文件且都能回读出相同的采样序列（既有文件不被覆盖）。
@@ -51,6 +53,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_ws_d61334ffe87c8e14（2026-11-08，pass，跑次归档 + GPX 导出原语；只取代码层证据）
-- 交付：新增 `RunRecord`（手写 `Codable`，`init?` 校验版本/时间序/时长/距离/分段索引连续/采样时间非递减）、`RunArchiveStore`（一次跑次一文件、临时文件 + 重命名原子写、命名 `<UTC 紧凑时间>-<uuid>.json`、`list()` 倒序 + 同刻 `uuidString` 升序、损坏条目静默跳过、缺失目录返回空）、`RunGPXExporter`（复用 `GPXTrack`/`GPXCodec.write`，`activityType == "running"`，同名追加 `-2`/`-3` 不覆盖，空采样抛 `RunArchiveError.emptySamples`）；错误新增 `RunArchiveError`，既有 `RunCoreError`/`GPXCodecError` 未动。
-- 验证：`code_gates` 22 门全绿——`lint-ios-run-core` 11 项断言 0 失败、`build-ios-run-core` PASS、`test-ios-run-core` 110 例 0 失败（既有 87 + 新增 23：`RunRecordTests` 10、`RunArchiveStoreTests` 10、`RunGPXExporterTests` 3）；`ios/RunCore` 只出现新增文件，未改 `scripts/**`、`.munk/code-gates.json`、`project.yml`、`shared/`、`android/`、CI、`VERSION`。App 侧「结束只归档一次」编排、历史列表/详情 UI 与系统分享仍 `pending`（归后续 Wave 2 子项）。
+- workItemId: wi_intake_1d3cee7d621efc36（2026-11-11，pass，历史列表轻量索引）
+- 交付：`RunArchiveStore` 增 `RunRecordSummary`（不含 `samples`，含 `hasTrack`）与 `listSummaries()`——按文件头元数据成行、用 `strippingSamples(from:)` 浅层剥离采样数组后再解码，超大/畸形 `samples` 不影响成行；增 `record(withID:)` 与 `archiveFiles()` 复用目录枚举；`list()`、原子写、命名契约与 `RunGPXExporter` 未改。
+- 验证：`test-ios-run-core` 165 例 0 失败（既有 `RunArchiveStoreTests` 10 → 15，新增 5 例覆盖顺序一致 / 超大畸形采样成行 / 空样本 `hasTrack == false` / 坏元数据跳过 / 按 id 取完整记录）；`code_gates` 22 门全绿（attempt 001）。
+- 边界（未闭合）：`HistoryView` 仍走 `RunArchiveStore.list()`（全量解码），列表页尚未切 `listSummaries()`——视图接线与耗时断言待后续子项；`formatVersion`、归档文件命名与 schema 零改动。

@@ -66,7 +66,9 @@ enum ContrastPolicy {
         // 装饰分隔 1.10 档
         Pair(name: "separator/background", foregroundKey: "separator", backgroundKey: "background", minimum: decorativeThreshold, tier: .decorative),
         Pair(name: "separator/surface", foregroundKey: "separator", backgroundKey: "surface", minimum: decorativeThreshold, tier: .decorative),
-        Pair(name: "separator/surfaceMuted", foregroundKey: "separator", backgroundKey: "surfaceMuted", minimum: decorativeThreshold, tier: .decorative)
+        Pair(name: "separator/surfaceMuted", foregroundKey: "separator", backgroundKey: "surfaceMuted", minimum: decorativeThreshold, tier: .decorative),
+        // 轨迹光晕叠在卡片面上的可辨识下限（第 37 对：既有 36 对不删不改）。
+        Pair(name: "accentSoft/surface", foregroundKey: "accentSoft", backgroundKey: "surface", minimum: decorativeThreshold, tier: .decorative)
     ]
 
     /// 判定所用的外观侧。
