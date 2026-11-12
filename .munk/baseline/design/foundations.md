@@ -13,15 +13,15 @@ Token 真源：`ios/PurePace/Design/DesignTokens.swift`（唯一）。视图与�
 | surfaceMuted | `#F2F2F1` | `#1E2124` | 提示弱底 / 次级面板 |
 | primary | `#17181A` | `#F2F3F4` | 正文 / hero 数字 |
 | secondary | `#5C5F63` | `#A2A7AC` | 次文 / 字段标签 |
-| accent | `#B4400B` | `#FF9A5C` | 唯一品牌主色：开始/暂停/继续/结束/保存与选中态 |
-| onAccent | `#FFFFFF` | `#2A1206` | 主色底上的文字 |
-| accentSoft | `#FCEFE7` | `#3A1F12` | 记录态弱底 |
+| accent | `#FF9A5C` | `#FF9A5C` | 唯一品牌橙（V1.2 定稿，浅深同值）：开始/暂停/继续/结束/保存与选中态 |
+| onAccent | `#2A1206` | `#2A1206` | 主色底上的文字（浅深同值，vs accent 8.44） |
+| accentSoft | `#FFECE0` | `#3A1F12` | 记录态弱底（light 按新主色重算） |
 | separator | `#D8D8D3` | `#33383D` | 卡片描边 / 分隔 |
 | warning / onWarning / warningSoft | `#6E5C00` / `#FFFFFF` / `#FBF1DC` | `#EECA2B` / `#2B1A00` / `#3A2A0D` | 非阻断内联提示（权限缺失 / GPS 弱 / 保存失败），不作填充主按钮 |
 | success / onSuccess / successSoft | `#1F6B45` / `#FFFFFF` / `#E7F2EB` | `#58CF9B` / `#042416` / `#11311F` | 已保存 |
-| danger / onDanger / dangerSoft | `#660D09` / `#FFFFFF` / `#FBEAE8` | `#F53A48` / `#2A0608` / `#2C0A10` | 丢弃等破坏性操作（确认层文本/描边） |
+| danger / onDanger / dangerSoft | `#660D09` / `#FFFFFF` / `#FBEAE8` | `#F53A48` / `#2A0608` / `#2C0A10` | 确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版） |
 
-色板为方向 A「赛道石墨 + 竞速橙」：中性骨架（深色三中性键 HSL 色相 210°、chroma/255 ≤ 2.35%）+ 烤橙单点强调，明确避开早期「青绿 brand」与泛绿中性；warning/danger 与 accent 的色相区分靠 ΔH/ΔL/ΔS 判据（见域 `design-palette-a`）。
+色板为方向 A「赛道石墨 + 竞速橙」：中性骨架（深色三中性键 HSL 色相 210°、chroma/255 ≤ 2.35%）+ 唯一品牌橙单点强调，明确避开早期「青绿 brand」与泛绿中性；warning/danger 与 accent 的色相区分靠 ΔH/ΔL/ΔS 判据（见域 `design-palette-a`）。`accent` 与 `onAccent` 是唯一允许 light==dark 的色键；同色相更深一档橙仅作 fallback，须人拍板后才可启用（当前未启用）。
 
 ## 字号 / 间距 / 圆角 / 描边
 
@@ -38,4 +38,6 @@ Token 真源：`ios/PurePace/Design/DesignTokens.swift`（唯一）。视图与�
 
 成对矩阵单点声明在该文件（`pairMatrix`，37 对、18 个语义键全覆盖、只引用 palette 键、零十六进制），按 `Tier` 分三档：正文/小字 4.5、非文本 UI 3.0、装饰分隔 1.10（`separator` 仅装饰，不作为唯一信息载体；`accentSoft/surface` 为轨迹光晕叠卡片面的可辨识下限）；`checks(for:)` 在 light 与 dark 两侧求解整张矩阵。18 个语义键的机器可读用途注册表为 `DesignTokens.Colors.purposes`（键集必须等于 `palette`）。
 
-实测最低值：light 5.0667（accent/accentSoft）、dark 4.7312（danger/surface），装饰档 1.1266 / 1.1737（accentSoft/surface）；accent/background 5.4656（light）/ 9.3497（dark），onAccent/accent 5.7083 / 8.4446。逐对实测落 `docs/evidence/palette-a-contrast.txt`（37 对 × 2 侧 = 74 行），任何 hex 微调必须用同一函数重算并写入证据，不得低于阈值。
+**品牌优先豁免**：唯一豁免登记表 `brandPriorityExemptions` 恰 6 条，只登记 light 侧 `accent` 作前景的 3 个浅色中性底 × body/large 两档（`accent/background` 2.0049、`accent/surface` 2.0940、`accent/accentSoft` 1.8274、`accent/background@large` 2.0049、`accent/surface@large` 2.0940、`accent/surfaceMuted@large` 1.8693），dark 侧零豁免。豁免是登记而非改公式：`problems` 仍逐条真算比值，清空登记表则 6 条全部判红，未登记的低对比对仍 fail-closed；补偿手段只允许描边/字重/尺寸，禁改色相或压暗。
+
+实测最低值：light 5.0667（secondary/dangerSoft）之上的豁免组 1.8274–2.0940，dark 4.7312（danger/surface）；装饰档 1.1266 / 1.1737（accentSoft/surface）；onAccent/accent 8.4446 两侧同值（浅深同色）。逐对实测落 `docs/evidence/palette-a-contrast.txt`（37 对 × 2 侧 = 74 行 + 豁免段 + 口径段，旁挂 `.sha256`），任何 hex 微调必须用同一函数重算并写入证据，不得低于阈值。
