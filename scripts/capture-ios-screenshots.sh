@@ -126,6 +126,10 @@ mkdir -p "$work_dir" "$shots_dir" "$a11y_dir" "$ax5_dir" "$refresh_staging"
 capture_log="$refresh_staging/capture.log"
 : >"$capture_log"
 
+# 构建基线在任何阶段写文件之前取：trees 会重写 docs/evidence/a11y，之后 git status 不再干净。
+capture_head_sha="$(git rev-parse HEAD)"
+capture_worktree_status="$(git status --porcelain)"
+
 say() {
   printf '%s\n' "$*"
   printf '%s\n' "$*" >>"$capture_log"
@@ -416,9 +420,9 @@ assert_screenshot_log() { # <light|dark> <log>
 stage_screenshots() {
   say "== screenshots: 六屏 × 浅/深 + 结束态丢弃确认（14 张，UDID ${udid}）"
   local head_sha status head
-  head_sha="$(git rev-parse HEAD)"
-  head="$(git rev-parse --short HEAD)"
-  status="$(git status --porcelain)"
+  head_sha="$capture_head_sha"
+  head="$(printf '%s' "$head_sha" | cut -c1-7)"
+  status="$capture_worktree_status"
   if [ -n "$status" ]; then
     if [ "${CAPTURE_ALLOW_DIRTY:-0}" = "1" ]; then
       say "warn: 工作树非 clean（CAPTURE_ALLOW_DIRTY=1，仅供调试）：$(printf '%s' "$status" | head -5)"
