@@ -69,7 +69,8 @@ bash scripts/check-baseline.sh
 
 - **禁止墙钟依赖断言**：断言期望不得由「跑了多久」决定（tick 数 / 墙钟累计）。会随运行时长漂移的内容（距离、分段行数、布局平衡）必须用 canonical 启动输入锁定，例如 `-uiTestLocation` / `-uiTestLocationTargetMeters`；同一用例在慢机器上不得改变期望值。
 - **导航/重启后必须状态判据**：`tap` 前先等状态（Tab 栏存在 → 目标按钮 `exists && isHittable`），`tap` 后以目标页根/关键元素出现作为页面就绪判据；禁止固定 `sleep` / `Thread.sleep`。tap 被吞或页面未就绪时允许按状态重试 ≤2 次，单次 timeout 与断言强度不变；失败路径必须把可及树/截图与持久化探针写入 xcresult，用于区分「点击被吞 / 页面未就绪」与「数据未持久化」。
-- **单次 xcodebuild ≤600s 分段约定**：`IOS_XCODEBUILD_TIMEOUT=600` 是单次调用硬上界。`scripts/test-ios.sh` 的 UI 腿按目标拆成两段 `xcodebuild test-without-building`（RunFlow 6 条 / 取证+AX5+音频 7 条），每段仍 ≤600s。**拆分≠放宽**：阈值、用例数、断言强度、重试策略与 `-only-testing` 覆盖范围都不得减少，禁止 `continue-on-error`、禁止删腿、禁止提高 timeout。
+- **UI 套件必须进入 `ui_call` 枚举**：`ios/PurePaceUITests` 下每个建 `XCTestCase` 的套件都必须出现在 `scripts/test-ios.sh` 的 `ui_call` `-only-testing` 目标里；确需只在本机跑的套件必须写入 `scripts/ios-ui-local-only-suites.txt` 且每条带非空理由。`scripts/check-ios-scripts.sh` 的 `ac-ui-suite-coverage-guard` 会在漏枚举时判红（含反例自检），新增套件不得静默掉出权威腿。
+- **单次 xcodebuild ≤600s 分段约定**：`IOS_XCODEBUILD_TIMEOUT=600` 是单次调用硬上界。`scripts/test-ios.sh` 的 UI 腿按目标拆成四段 `xcodebuild test-without-building`（runflow 6 条 / 取证+AX5+音频 7 条 / 截图浅色 1 条 / 截图深色 1 条，深色段前 `simctl appearance dark`、段后恢复 `light`），每段仍 ≤600s。**拆分≠放宽**：阈值、用例数、断言强度、重试策略与 `-only-testing` 覆盖范围都不得减少，禁止 `continue-on-error`、禁止删腿、禁止提高 timeout。
 
 ## Skill 路由（`.agents/skills/<name>`）
 

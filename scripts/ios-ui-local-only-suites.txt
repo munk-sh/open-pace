@@ -1,0 +1,9 @@
+# 本机-only UI 套件 allowlist（scripts/check-ios-scripts.sh 的 ui_call 全覆盖守卫读取）。
+#
+# 约定：ios/PurePaceUITests 下每个 XCTestCase 套件都必须进入 scripts/test-ios.sh 的
+# ui_call `-only-testing` 枚举；确需只在本机运行的套件写在这里，每条必须带非空理由，
+# 格式二选一（理由可同行，也可紧随下一行）：
+#   SuiteName | 理由
+#   SuiteName # 理由
+#
+# 空文件 / 仅注释 / 仅空行都表示空 allowlist（当前 CI 权威腿覆盖全部套件）。

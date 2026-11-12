@@ -10,10 +10,15 @@ usage() {
 测试 iOS 侧产物，按工程可用性自动选择分支：
   - 分支 A（工程可用）：先执行 scripts/sync-ios-version.sh 由根 VERSION 生成
     ios/Config/Version.xcconfig；ios/PurePace.xcodeproj 存在，或 ios/project.yml
-    存在且本机有 xcodegen 可从 spec 生成工程时，在模拟器就绪后拆成两次
+    存在且本机有 xcodegen 可从 spec 生成工程时，在模拟器就绪后拆成五次
     xcodebuild test（共用 .build/ios 派生数据）：
       1) -only-testing:PurePaceTests（日志 .build/logs/xcodebuild-unit.log，Executed 摘要先落盘）
-      2) -only-testing:PurePaceUITests（日志 .build/logs/xcodebuild-ui.log）
+      2) -only-testing:PurePaceUITests/RunFlowUITests（日志 .build/logs/xcodebuild-ui.log）
+      3) PurePaceUITests/EvidenceCaptureUITests + Ax5ScrollAuditCounterexampleTests +
+         MusicSourceSelfCheckUITests（日志 .build/logs/xcodebuild-ui-2.log）
+      4) PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensLight（日志 .build/logs/xcodebuild-ui-3.log）
+      5) PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensDark（日志 .build/logs/xcodebuild-ui-4.log，
+         段前 simctl appearance dark、段后恢复 light）
     UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
     simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
     结束态内容 canonical（本地 / CI 同构，见 docs/verification-matrix.md 保存态行）：
@@ -576,8 +581,8 @@ test_with_xcodebuild() {
   # UI 腿分段执行（拆分≠放宽，见 AGENTS「测试稳定性约定」）：
   # 证据 = CI run 43142574712 attempt1 在 600s 看门狗硬超时时 13 条 UI 用例仍未跑完
   # （逐用例墙钟合计 ≈537s + 13 次 app 冷启/setup 开销已结构性顶到单腿上界）。
-  # 因此把 UI 目标拆成两次 xcodebuild 调用：每次仍 ≤ IOS_XCODEBUILD_TIMEOUT(600)、
-  # 仍带同一组测试执行预算参数、仍由 -uiTestLocation 确定性源驱动；
+  # 因此把 UI 目标拆成四次 xcodebuild 调用（runflow → evidence → screenshot-light → screenshot-dark）：
+  # 每次仍 ≤ IOS_XCODEBUILD_TIMEOUT(600)、仍带同一组测试执行预算参数、仍由 -uiTestLocation 确定性源驱动；
   # 阈值 / 用例数 / 断言强度 / 重试策略全部不变，无 continue-on-error、无腿被删。
   local ui_status=0
   ui_call() {
@@ -653,6 +658,23 @@ test_with_xcodebuild() {
       "PurePaceUITests/EvidenceCaptureUITests" \
       "PurePaceUITests/Ax5ScrollAuditCounterexampleTests" \
       "PurePaceUITests/MusicSourceSelfCheckUITests" || ui_status=$?
+  fi
+  if [ "$ui_status" -eq 0 ]; then
+    # 分段 3：截图取证浅色（ScreenshotEvidenceUITests/testEvidenceScreensLight）。
+    # 外观口径与 scripts/capture-ios-screenshots.sh 的 set_appearance 一致。
+    xcrun simctl ui "$sim_udid" appearance light >/dev/null 2>&1 || true
+    ui_call "screenshot-light" "$log_dir/xcodebuild-ui-3.log" \
+      "PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensLight" || ui_status=$?
+  fi
+  if [ "$ui_status" -eq 0 ]; then
+    # 分段 4：截图取证深色（ScreenshotEvidenceUITests/testEvidenceScreensDark）。
+    # 段前切 dark；段后无条件恢复 light（本段即使失败也不被失败即停短路跳过）。
+    echo "info: 分段 4 外观：dark（前）"
+    xcrun simctl ui "$sim_udid" appearance dark >/dev/null 2>&1 || true
+    ui_call "screenshot-dark" "$log_dir/xcodebuild-ui-4.log" \
+      "PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensDark" || ui_status=$?
+    xcrun simctl ui "$sim_udid" appearance light >/dev/null 2>&1 || true
+    echo "info: 分段 4 外观恢复：$(xcrun simctl ui "$sim_udid" appearance 2>/dev/null || echo unknown)"
   fi
   return "$ui_status"
 }

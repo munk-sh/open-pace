@@ -16,8 +16,10 @@ usage() {
     退出 0 且含「用法」，未知参数退出 2
   - build-ios.sh 含 xcodebuild build、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift build 降级分支
   - test-ios.sh 含 xcodebuild test、-scheme、iPhone 16 destination（可带 OS/UDID）与 swift test 降级分支
-  - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 两次 xcodebuild test，
-    单测/UI 日志分文件、各带测试预算参数，主脚本不含 simctl 定位注入，且带 bash 看门狗硬超时（≤600s）
+  - test-ios.sh 先 bootstatus、再安装 → simctl privacy grant location → 先单测后 UI 四段 xcodebuild test，
+    单测/各 UI 段日志分文件、各带测试预算参数，主脚本不含 simctl 定位注入，且带 bash 看门狗硬超时（≤600s）
+  - ios/PurePaceUITests 下所有 XCTestCase 套件都必须进入 ui_call 的 -only-testing 枚举；
+    本机-only 套件须写入 scripts/ios-ui-local-only-suites.txt 且带非空理由（含正负反例自检）
   - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，脚本契约仍在
   - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
   - .munk/code-gates.json 保持 22 门：本地只留快而确定腿（重 UI 门不作本地阻断），
@@ -234,16 +236,51 @@ test_ios_preparation_problems() {
     [ "$budget_count" -ge 2 ] || out="$out '$needle' 出现 ${budget_count} 次（单测/UI 各需 1 次）;"
   done
   # 单测/UI 调用的日志必须分文件；UI 腿按 ≤600s 分段（见 AGENTS「测试稳定性约定」）。
-  for needle in "xcodebuild-unit.log" "xcodebuild-ui.log" "xcodebuild-ui-2.log"; do
+  for needle in "xcodebuild-unit.log" "xcodebuild-ui.log" "xcodebuild-ui-2.log" \
+    "xcodebuild-ui-3.log" "xcodebuild-ui-4.log"; do
     grep -Fq -- "$needle" "$file" || out="$out 缺少分文件日志 '$needle';"
   done
-  # 分段执行契约（拆分≠放宽）：UI 腿必须由同一组预算参数模板驱动两次调用，
+  # 分段执行契约（拆分≠放宽）：UI 腿必须由同一组预算参数模板驱动四次调用，
   # 且分段依据被显式记录；每次调用仍受 IOS_XCODEBUILD_TIMEOUT(≤600s) 上界。
   local ui_call_count=0
   ui_call_count="$(grep -cE '^[[:space:]]*ui_call "' "$file" 2>/dev/null || true)"
   [ -n "$ui_call_count" ] || ui_call_count=0
-  [ "$ui_call_count" -eq 2 ] || out="$out ui_call 分段调用为 ${ui_call_count} 次（UI 腿需 2 段、每次 ≤600s）;"
+  [ "$ui_call_count" -eq 4 ] || out="$out ui_call 分段调用为 ${ui_call_count} 次（UI 腿需 4 段、每次 ≤600s）;"
   grep -Fq -- "拆分≠放宽" "$file" || out="$out 缺少「拆分≠放宽」分段依据说明;"
+  # 固定顺序 runflow → evidence → screenshot-light → screenshot-dark（出现次序即执行次序）。
+  local runflow_line="" evidence_line="" light_call_line="" dark_call_line="" dark_appearance_line="" restore_light_line=""
+  runflow_line="$(grep -nE '^[[:space:]]*ui_call "runflow"' "$file" | head -n 1 | cut -d: -f1 || true)"
+  evidence_line="$(grep -nE '^[[:space:]]*ui_call "evidence"' "$file" | head -n 1 | cut -d: -f1 || true)"
+  light_call_line="$(grep -nE '^[[:space:]]*ui_call "screenshot-light"' "$file" | head -n 1 | cut -d: -f1 || true)"
+  dark_call_line="$(grep -nE '^[[:space:]]*ui_call "screenshot-dark"' "$file" | head -n 1 | cut -d: -f1 || true)"
+  if [ -z "$runflow_line" ] || [ -z "$evidence_line" ] || [ -z "$light_call_line" ] || [ -z "$dark_call_line" ]; then
+    out="$out ui_call 缺少 runflow/evidence/screenshot-light/screenshot-dark 分段;"
+  elif [ "$runflow_line" -ge "$evidence_line" ] || [ "$evidence_line" -ge "$light_call_line" ] \
+    || [ "$light_call_line" -ge "$dark_call_line" ]; then
+    out="$out ui_call 分段顺序必须为 runflow → evidence → screenshot-light → screenshot-dark;"
+  fi
+  # 深色段：调用前 appearance dark，调用后（成功或失败）appearance light。
+  dark_appearance_line="$(grep -nF -- 'appearance dark' "$file" | head -n 1 | cut -d: -f1 || true)"
+  restore_light_line="$(grep -nF -- 'appearance light' "$file" | tail -n 1 | cut -d: -f1 || true)"
+  if [ -z "$dark_appearance_line" ] || [ -z "$dark_call_line" ] || [ "$dark_appearance_line" -ge "$dark_call_line" ]; then
+    out="$out 深色段前缺少 simctl appearance dark;"
+  fi
+  if [ -z "$restore_light_line" ] || [ -z "$dark_call_line" ] || [ "$restore_light_line" -le "$dark_call_line" ]; then
+    out="$out 深色段结束后缺少 simctl appearance light 恢复;"
+  fi
+  # 失败即停：非首段（evidence / screenshot-light / screenshot-dark）均须由 ui_status==0 门控。
+  local guard_count=0 call_line="" guard_window="" window_start=""
+  guard_count="$(grep -cE '^[[:space:]]*if \[ "\$ui_status" -eq 0 \]' "$file" 2>/dev/null || true)"
+  [ -n "$guard_count" ] || guard_count=0
+  [ "$guard_count" -ge 3 ] || out="$out ui_status==0 失败即停门控仅 ${guard_count} 处（非首段各需 1 处）;"
+  for call_line in "$evidence_line" "$light_call_line" "$dark_call_line"; do
+    [ -n "$call_line" ] || continue
+    window_start=$((call_line - 6))
+    [ "$window_start" -ge 1 ] || window_start=1
+    guard_window="$(sed -n "${window_start},$((call_line - 1))p" "$file")"
+    grep -Fq -- 'if [ "$ui_status" -eq 0 ]' <<< "$guard_window" \
+      || out="$out ui_call 第 ${call_line} 行前缺少 ui_status==0 失败即停门控;"
+  done
   # macOS runner 没有 GNU timeout：硬超时必须是 bash 看门狗（kill），不能用 timeout 命令。
   if grep -Eq '(^|[^[:alnum:]_])timeout[[:space:]]+[0-9]' "$file"; then
     out="$out test-ios.sh 依赖 GNU timeout（macOS runner 无该命令），应使用 bash 看门狗 + kill;"
@@ -356,6 +393,173 @@ else
   pass "ac-ios-budget-unit-tests (self-test)"
 fi
 rm -rf "$budget_selftest_dir"
+
+# ------------- UI 套件全覆盖守卫：ios/PurePaceUITests 下所有 XCTestCase 套件必须进入 ui_call 枚举，
+# 本机-only 套件只能显式进 scripts/ios-ui-local-only-suites.txt 且每条带非空理由。
+ui_allowlist_entry_problems() {
+  local file="$1" out="" line="" trimmed="" suite="" reason="" next_line="" lineno=0
+  [ -f "$file" ] || { printf '%s' "$out"; return 0; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    lineno=$((lineno + 1))
+    trimmed="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    case "$trimmed" in
+      ""|"#"*) continue ;;
+    esac
+    if [[ "$trimmed" == *"|"* ]]; then
+      suite="${trimmed%%|*}"
+      reason="${trimmed#*|}"
+    elif [[ "$trimmed" == *"#"* ]]; then
+      suite="${trimmed%%#*}"
+      reason="${trimmed#*#}"
+    else
+      suite="$trimmed"
+      reason=""
+    fi
+    suite="$(printf '%s' "$suite" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    reason="$(printf '%s' "$reason" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    if ! printf '%s' "$suite" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+      out="$out allowlist 第 ${lineno} 行缺少有效套件名;"
+      continue
+    fi
+    if [ -z "$reason" ]; then
+      # 理由也可紧随写在同一套件名的下一行（非空、非注释）。
+      next_line="$(sed -n "$((lineno + 1))p" "$file" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+      case "$next_line" in
+        ""|"#"*) : ;;
+        *) reason="$next_line" ;;
+      esac
+    fi
+    [ -n "$reason" ] || out="$out allowlist 第 ${lineno} 行套件 ${suite} 缺少非空理由;"
+  done < "$file"
+  printf '%s' "$out"
+}
+
+ui_allowlisted_suite() {
+  local file="$1" wanted="$2" line="" trimmed="" suite=""
+  [ -f "$file" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    trimmed="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    case "$trimmed" in
+      ""|"#"*) continue ;;
+    esac
+    suite="${trimmed%%|*}"
+    suite="${suite%%#*}"
+    suite="$(printf '%s' "$suite" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    [ "$suite" = "$wanted" ] && return 0
+  done < "$file"
+  return 1
+}
+
+ui_suite_coverage_problems() {
+  local root="$1" out="" ui_file="$1/scripts/test-ios.sh" allowlist="$1/scripts/ios-ui-local-only-suites.txt"
+  local suites="" suite="" targets=""
+  if [ ! -f "$ui_file" ]; then
+    printf '缺少 %s;' "$ui_file"
+    return 0
+  fi
+  out="$(ui_allowlist_entry_problems "$allowlist")"
+  # 只认 ui_call 的引号目标参数，避免用法说明里的同名字样掩盖真实漏枚举。
+  targets="$(grep -hE '"PurePaceUITests/[A-Za-z_][A-Za-z0-9_]*' "$ui_file" || true)"
+  suites="$(grep -hoE 'class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*:[[:space:]]*XCTestCase' \
+    "$root"/ios/PurePaceUITests/*.swift 2>/dev/null \
+    | sed -E 's/class[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\1/' | sort -u || true)"
+  if [ -z "$suites" ]; then
+    printf '%s未枚举到 ios/PurePaceUITests 下的 XCTestCase 套件;' "$out"
+    return 0
+  fi
+  for suite in $suites; do
+    if printf '%s\n' "$targets" | grep -Fq -- "PurePaceUITests/${suite}"; then
+      continue
+    fi
+    if ui_allowlisted_suite "$allowlist" "$suite"; then
+      continue
+    fi
+    out="$out 套件 ${suite} 未进入 ui_call 的 -only-testing 目标（本机-only 需写入 scripts/ios-ui-local-only-suites.txt 并带非空理由）;"
+  done
+  printf '%s' "$out"
+}
+
+problems="$(ui_suite_coverage_problems .)"
+if [ -z "$problems" ]; then
+  pass "ac-ui-suite-coverage-guard"
+else
+  fail "ac-ui-suite-coverage-guard" "$problems"
+fi
+
+ui_coverage_sandbox() {
+  local sandbox=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-uicov.XXXXXX")"
+  mkdir -p "$sandbox/scripts" "$sandbox/ios/PurePaceUITests"
+  cp scripts/test-ios.sh "$sandbox/scripts/"
+  if [ -f scripts/ios-ui-local-only-suites.txt ]; then
+    cp scripts/ios-ui-local-only-suites.txt "$sandbox/scripts/"
+  fi
+  cp ios/PurePaceUITests/*.swift "$sandbox/ios/PurePaceUITests/"
+  printf '%s' "$sandbox"
+}
+
+# 正向对照：未改动沙箱必须判绿（否则守卫是恒真/恒假断言）。
+coverage_sandbox="$(ui_coverage_sandbox)"
+if [ -z "$(ui_suite_coverage_problems "$coverage_sandbox")" ]; then
+  pass "ac-ui-suite-coverage-guard (untouched sandbox green)"
+else
+  fail "ac-ui-suite-coverage-guard" "未改动沙箱被误判红"
+fi
+# 反例：删掉一个已入枚举套件的 ui_call 目标，守卫必须判红并点名该套件。
+sed -i '' 's#"PurePaceUITests/RunFlowUITests"##' "$coverage_sandbox/scripts/test-ios.sh"
+coverage_out="$(ui_suite_coverage_problems "$coverage_sandbox")"
+if [ -n "$coverage_out" ] && printf '%s' "$coverage_out" | grep -Fq 'RunFlowUITests'; then
+  pass "ac-ui-suite-coverage-guard (self-test)"
+else
+  fail "ac-ui-suite-coverage-guard" "删掉 RunFlowUITests 目标后未被识别"
+fi
+rm -rf "$coverage_sandbox"
+
+# allowlist 缺失/仅注释合法；无理由条目必须判红。
+allowlist_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-uiallow.XXXXXX")"
+mkdir -p "$allowlist_sandbox/scripts" "$allowlist_sandbox/ios/PurePaceUITests"
+cp scripts/test-ios.sh "$allowlist_sandbox/scripts/"
+cp ios/PurePaceUITests/*.swift "$allowlist_sandbox/ios/PurePaceUITests/"
+if [ -z "$(ui_allowlist_entry_problems "$allowlist_sandbox/scripts/ios-ui-local-only-suites.txt")" ]; then
+  pass "ac-ui-allowlist-requires-reason (missing allowlist is empty)"
+else
+  fail "ac-ui-allowlist-requires-reason" "allowlist 缺失被误判红"
+fi
+printf '%s\n' 'NotReasonSuite' > "$allowlist_sandbox/scripts/ios-ui-local-only-suites.txt"
+allowlist_out="$(ui_suite_coverage_problems "$allowlist_sandbox")"
+if [ -n "$allowlist_out" ] && printf '%s' "$allowlist_out" | grep -Fq '缺少非空理由'; then
+  pass "ac-ui-allowlist-requires-reason (self-test)"
+else
+  fail "ac-ui-allowlist-requires-reason" "无理由 allowlist 条目未被识别"
+fi
+rm -rf "$allowlist_sandbox"
+
+# 深色段外观 / 失败即停反例：删恢复 light 行、删分段门控都必须判红。
+appearance_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-uiappr.XXXXXX")"
+cp scripts/test-ios.sh "$appearance_sandbox/test-ios.sh"
+sed -i '' '/appearance light/d' "$appearance_sandbox/test-ios.sh"
+if [ -n "$(test_ios_preparation_problems "$appearance_sandbox/test-ios.sh")" ]; then
+  pass "ac-dark-appearance-gated (self-test)"
+else
+  fail "ac-dark-appearance-gated" "删掉 appearance light 恢复行的违规样本未被识别"
+fi
+rm -rf "$appearance_sandbox"
+
+failfast_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-uifast.XXXXXX")"
+python3 - "$failfast_sandbox/test-ios.sh" <<'PY'
+import sys
+
+src = open("scripts/test-ios.sh", encoding="utf-8").read()
+guard = '  if [ "$ui_status" -eq 0 ]; then\n'
+idx = src.rindex(guard)
+open(sys.argv[1], "w", encoding="utf-8").write(src[:idx] + src[idx + len(guard):])
+PY
+if [ -n "$(test_ios_preparation_problems "$failfast_sandbox/test-ios.sh")" ]; then
+  pass "ac-ui-legs-fail-fast-order (self-test)"
+else
+  fail "ac-ui-legs-fail-fast-order" "删掉分段 ui_status==0 门控的违规样本未被识别"
+fi
+rm -rf "$failfast_sandbox"
 
 # ---------------- verify-ios-sim-runtime.sh 真实 CoreLocation 注入不得被误删
 sim_runtime_problems() {
