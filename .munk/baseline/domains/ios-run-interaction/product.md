@@ -37,6 +37,11 @@
 - ac-permission-banner-demoted: `WhenInUse` 降级态下后台定位提示不再是指标列上的整行 warning 胶囊，而以 `caption` 字号渲染为指标卡内的紧凑次级行（无 `Capsule` 底、无整宽弱底）；`run.backgroundDegraded` identifier 与文案不变，其 frame `minY` 大于 `run.distance` frame `maxY`（机器证明不压在距离 hero 上，也不插在 hero 与指标卡之间）。
 - ac-primary-action-anchor-equivalent: TabBar 收起后主操作锚定断言改为「距窗口底边（扣除 Home Indicator 安全区）」，`PrimaryActionLayoutPolicy` 的 44 / 24 阈值与单测零改动，断言不得删除；idle / 已保存仍用 TabBar frame 原锚点。`RunLayoutBalancePolicy` 四阈值（`maximumTopGap/maximumBottomGap/maximumGap = 80`、`maximumImbalance = 16`）源码零改动。
 - ac-uitest-target-wiring: 新纯判定被 UITests 复用时显式列入 `PurePaceUITests` sources 并在该 target 声明 `PurePaceRunCore` 依赖，`xcodegen generate --spec project.yml` 可重复生成；`.xcodeproj` 已 gitignore，diff 不含工程文件。
+- ac-metrics-centered-without-infinite-frame: `RunView.balancedMetrics` 与结束总结不得用 `.frame(maxHeight: .infinity)` 吞掉垂直余量；居中由语义间距、等权 `Spacer(minLength:)` 与 `GeometryReader` + `ScrollView(minHeight:)` 分布承担，视图层不新增裸 magic number（样式字面量静态门仍为 0）。
+- ac-metrics-centered-thresholds-green: 未开始 / 运行中 / 暂停三态 `largest ≤ 80`（实测 72.58 / 79.5 / 79.5），保存态三判据全过——底部留白 ≤ 80、最大单一垂直空洞 ≤ 80、|顶部−底部| ≤ 16（实测 largest=64.0、imbalance=3.3）；`RunLayoutBalancePolicy` 的 80 / 80 / 16 阈值与四条反例源码零改动。
+- ac-metric-unit-line-reachable: `metricBlock` 的单位行保留在可及树（不得 `accessibilityHidden(true)`）：单位行占真实垂直空间，隐藏会把「数值 → 下一块」的间距虚增一整行（曾实测 89.9pt 误报），使首屏居中判据失真。
+- ac-finished-budget-compressed-standard: 标准字号档可用内容区 < `RunFinishedSummaryLayoutPolicy.uncompressedFinishedContentHeight`（688pt；实测未压缩溢出 75.3pt）时结束总结走压缩档——地图 32pt（`Spacing.xl`）、区块间距 `xxs`、卡内边距 `xs`、行距 `xxs`；预算充足保 180pt，辅助字号档恒 96pt。三件套（实测溢出值 → 命名参数 → 复用点）只写在策略内，视图只读策略属性。
+- ac-paused-tabbar-count-expected: 暂停态 `tabBars.count == 0`（曾实测 1 ≠ 0，修后 0），与 `TabBarVisibilityPolicy.expectedTabBarCount` 逐态一致（记录 / 暂停 / 待保存 0；`ready` / 已保存 1）；断言不放宽为 `>= 0`、不跳过，反例只喂不同输入。
 
 ## 非目标
 
@@ -68,7 +73,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_7b9d19bc1e3be0ee（2026-11-12，pass）
-- 交付：结束态（`state == .finished`）新增 `finishedTrackSummary` 块——`TrackMapView(samples: viewModel.acceptedSamples, emptyIdentifier: "run.mapEmpty", singlePointIdentifier: "run.mapEmpty.single")` 轨迹预览（高 180pt）+ `splitsDetail` 分段明细（逐段序号 + `RunFormatting.paceText`，无分段给 `L10n.runFinishedSplitsEmpty`，标识 `run.finished.splits` / `run.finished.splitRow` / `run.finished.splitsEmpty`）；标准与小屏 `ScrollView` 两条布局路径都只在 finished 分支插入。保存 / 丢弃语义、`RunInteractionPlan` 的 emphasis/style/tint 映射与既有单测零改动。
-- 判定与断言：`check-ios-shell.sh` 29 项断言 0 失败（`viewModel.state == .finished` 门控 + `TrackMapView(` 接线双向断言）；identifier 总数 42（冻结 33 + 新增 9），门禁下限 36 仍满足；`code_gates` 22 门全绿（attempt 001）。
-- 边界：结束态三块的可视化截图未重出（`pending: 待人现场`）；分段数据源沿用 `viewModel.metrics.splits`，未改 VM 计算。
+- workItemId: wi_intake_1127fd3553df6ea7（2026-11-12，pass）
+- 交付：`RunView.balancedMetrics` 删除 `maxHeight: .infinity`，改 `GeometryReader` + `ScrollView(minHeight:)`，未开始 / 运行中 / 暂停 / 保存四态居中判据回绿；单位行回归可及树（不再 `accessibilityHidden`）；结束态压缩判定与地图预算参数收口到 `RunFinishedSummaryLayoutPolicy`（标准档预算不足 32pt、辅助档 96pt、预算充足 180pt），视图只读策略属性。暂停态 `tabBars.count == 0` 与 `TabBarVisibilityPolicy` 一致。
+- 判定与证据：本地 UI 腿实测 largest=72.58 / 79.5 / 79.5、保存态 largest=64.0、imbalance=3.3（阈值 80 / 16 未改）；策略 L1（`testStandardBudgetCompressedMapUsesTokenDerivedHeight` / `testMapHeightKeepsAccessibilityAndUncompressedBranches` / `testStandardSizeCompressesWhenContentBudgetIsShort`）与预算两向反例全绿；`code_gates` 22 门 attempt 001 全绿；日志 `.munk/logs/d-defect-zhhans.log` / `.munk/logs/c-defect-zhhans-pause.log`。
+- 偏离与边界：不加字号档 / 色键、不改 `RunLayoutBalancePolicy` 阈值；真机观感 `pending: 待人现场`。

@@ -35,7 +35,7 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - ac-tap-target-44: 三屏可点击控件（主按钮、空态 CTA、导出按钮、列表行）最小触控高度 ≥ 44pt 且引用 `DesignTokens.minTapTarget`，不写 44 字面量。
 - ac-history-row-hierarchy: 列表项第一行日期（title 级 token）、第二行距离 / 时长 / 配速（caption + 次要色）；无记录时不渲染任何示例跑次（演示态仅 DEBUG 启动参数注入）。
 - ac-history-empty-state: 空态同时含非空标题、非空一句说明与 CTA「去跑一次」；空态不含样例/夹具数据。
-- ac-history-export-discoverable: 跑次详情存在可点击「导出 GPX」入口（`runDetail.export`），位于导航可达位置，导出流程与既有断言标识不变。
+- ac-history-export-discoverable: 跑次详情存在可点击「导出 GPX」入口（`runDetail.export`），作为本页唯一主操作固定底部安全区上方（`.safeAreaInset(edge: .bottom)`，不进滚动 `List`），首次进入零滚动可达；导出流程与既有断言标识不变。
 - ac-settings-grouped: 设置页使用带分组标题的 Section（至少「播报」组），每项一句说明；`settings.announcementToggle` 与 `Toggle` 保留；不出现 `Stepper` / `Slider` / 示例数值 / 「暂无可配置项」。
 - ac-visible-copy-zh-hans: 三屏可及树全部可见 label/text 逐条匹配 zh-Hans 白名单（仅允 `km`、`/km`、`GPX`、`PurePace` 等专有名词/单位与数字），零裸英文；判定抽成 `VisibleTextPolicy.isAllowed/violations`，单测用固定中文列表通过 + 英文反例证明能红；UI 用例把真实可及树喂给同一判定，静态腿断言 `sourceLanguage == zh-Hans` 且三屏视图无裸英文字面量。
 - ac-run-detail-date-zh-hans: 单测以固定 `Date`（`1760000000`）+ 固定 `TimeZone`（`Asia/Shanghai`）断言详情时间形如「2025年10月9日 16:53」/带秒同形，不含英文月份集合与 `at`；历史行日期同走 `RunFormatting.zhHansDateTimeText`；`VisibleDatePolicy.isZhHansDateTime` 对 `Oct 9, 2025 at 16:53`、`10/9/25, 4:53 PM`、`2025/10/09 16:53` 等反例样本必须返回拒绝。

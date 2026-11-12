@@ -14,11 +14,12 @@ History 屏（列表 / 详情 / 空态）的视觉层级重建子域：只改 `i
 - ac-history-row-three-tier: 有记录时每行自上而下恰为三层——日期（`title`+`primary`）、距离/用时/平均配速三数值（同一行、等宽、`primary`）、三个标签（`metricLabel`+`secondary`，顺序与数值一一对应）；数值不换到两行，标签不复用数值字重。
 - ac-history-row-a11y-contract: `history.row` 仍是单一合并可及元素（`accessibilityElement(children: .combine)`，label 由日期与三数值拼接），label 同时含 ` km`、`:`、`/km`；数据源仍是 `archiveStore.list()`，`injectedRecords` 仅 DEBUG 启动参数注入，Release 默认路径不渲染任何示例跑次。
 - ac-history-empty-single-action: 空态恰为「标题 `history.empty` + 一句说明 + 一个 CTA `history.runAgain`」；可点击元素恰 1 个，CTA 保留 `accessibilityLabel(Text(L10n.historyRunAgain))` 与 ≥`minTapTarget` 高度；不出现示例跑次、第二入口或二级导航。
-- ac-detail-vertical-order: 详情纵向顺序固定 元信息 → hero 距离 → 指标网格 → 分段 → 导出，不反序、不把 hero 夹在网格之后；块间垂直间距只取 `metricGroupGap` / `sectionGap`，分隔只用 `Stroke.hairline` + `Colors.separator`。
+- ac-detail-vertical-order: 详情内容区纵向顺序固定 元信息 → hero 距离 → 指标网格 → 地图 → 分段，不反序、不把 hero 夹在网格之后；导出不参与滚动序（固定底部主操作区，见 `ac-detail-export-reachable`）；块间垂直间距只取 `metricGroupGap` / `sectionGap`，分隔只用 `Stroke.hairline` + `Colors.separator`。
 - ac-detail-hero-distance: hero 距离是详情屏最大文字（`display`），其可及元素 label 逐字符等于 `RunDetailContent.distanceText`（与列表行同一子串），不拆成「数值 + 单位」两个元素；`runDetail.distance` 仍可按 identifier 定位。
 - ac-detail-metric-grammar-parity: 网格每格值（`primaryValue`，等宽）在上、标签（`metricLabel`+`secondary`）在下，与列表行同一角色映射；`runDetail.activeDuration` / `runDetail.averagePace` / `runDetail.startedAt` / `runDetail.endedAt` 各自仍是独立 staticText（不套合并容器），label 与列表行对应子串逐字一致。
 - ac-drilldown-continuity: 行日期文本是详情开始时间（秒精度）的前缀，行内三数值与详情 `distanceText` / `activeDurationText` / `averagePaceText` 逐字符相等；下钻 / 返回同一指标只放大字号、不改变字样（L1 断言）。
-- ac-detail-export-reachable: 进入详情无需滚动即可点 `runDetail.export`，点击后 `runDetail.exported` / `runDetail.share` / `runDetail.exportFailed` 仍在首屏可及范围；导出流程、`RunExportState`、`RunGPXExporter` 调用与状态标识零改动，既有 `RunFlowUITests` 详情步骤与断言一行未改即可通过。
+- ac-detail-export-reachable: `runDetail.export` 是详情页唯一主操作，渲染在 `List` 之外、底部安全区上方的固定主操作区（`.safeAreaInset(edge: .bottom)`，与 `RunView` 同一锚点写法）；详情首次进入无需滚动即可命中，`List` 内容仍可滚动且导出按钮不在任何 section 内。`RunFlowUITests/testStartFinishExportGPXArtifact` / `testRunPauseResumeFinishAndHistory` 与 `EvidenceCaptureUITests/testEvidenceTreesAndRealArchive`（30s 内取到元素）在「未执行任何滚动」前提下找到并点击 `runDetail.export`；惰性 `List` realize 不再影响导出可见性。点击后 `runDetail.exported` / `runDetail.share` / `runDetail.exportFailed` 仍在首屏可及范围；导出流程、`RunExportState`、`RunGPXExporter` 调用与状态标识零改动，既有断言零删除、超时零放宽。
+- ac-detail-export-single-copy: 详情页恰一份导出按钮且只挂在固定主操作区，`List` 内不保留第二份；把导出移回滚动区、或改成「先滚动再找导出」的绕行方案必须判红（首屏不可见即红），不得为转绿放宽用例语义。
 - ac-splits-contract: `runDetail.splits` 仍是带条数摘要的 header staticText（`splitSummaryText(count:)`），`runDetail.splitRow` 数量与摘要条数相等，无分段时显示 `runDetail.splitsEmpty`；分段行字号角色可升为 body，数值仍等宽。
 - ac-token-only-visuals: 两视图（及 `History/` 内共享视图）零字面色值、零 `.font(.` / 裸 `Font.system(`、零动效时长字面量、零 `.shadow(`、零系统语义色（`.primary` / `.secondary` / `.white` / `.black` / `Color(`）；颜色/字号/间距/圆角/描边全部引用 `DesignTokens.Colors.*` / `Typography.*` / `Spacing.*` / `Radius.card|control` / `Stroke.hairline` / `minTapTarget`。
 - ac-single-accent: `Colors.accent` 只出现在可点击控件（`history.runAgain`、`runDetail.export`、`runDetail.share`）与 `.tint`；列表行、hero、指标网格、空态卡面无 accent / accentSoft 装饰性填充；状态色只保留既有 `danger` 失败态，不新增用途。
@@ -43,14 +44,14 @@ History 屏（列表 / 详情 / 空态）的视觉层级重建子域：只改 `i
 - 可消费的既有 token（不新增）：`Typography.metricLabel/metricUnit 11`、`body 15`、`title 20`、`primaryValue 34`、`display 56`、`sectionHeader`、`control`、`caption`；`Spacing.metricGroupSpacing 8` / `metricGroupGap 16` / `cardPadding 16` / `screenTop 24` / `sectionGap 12`；`Radius.card 16` / `control 12`；`Stroke.hairline 1`；`Colors.surface/background/primary/secondary/separator/accent/onAccent/danger`；`minTapTarget 44`。
 - 门禁派生扫描：`History/**` 已在 `validate_design_tokens` 受管面内，新增视图文件自动进扫描，因此新文件同样必须零字面量；该函数还要求 History 视图引用 `Colors.secondary` / `minTapTarget` / `monospacedDigit()`，并有 `surface` + `Radius.card` + `separator` 齐备、禁 `.listStyle(.grouped|.insetGrouped)`、禁 `.system(size: N)` / `spacing: N` / `.padding(N)` / `minHeight: N` 字面量；既有断言不得删改。
 - identifier 承载元素不可变：`runDetail.startedAt/endedAt/distance/activeDuration/averagePace` 必须继续挂在单个 `Text` 上；`runDetail.root` 在详情根容器、`runDetail.splits` 在分段 header Text、`runDetail.splitRow` 在合并后的分段行、`history.row` 在合并后的行；`history.empty` 在空态标题、`history.runAgain` 在 CTA 按钮。
-- 导出首屏可及：既有 `RunFlowUITests` 进详情后直接 `exportButton.tap()` 并立刻断言 `runDetail.exported` / `runDetail.share`，全程无滚动；重排后仍须满足，否则压缩上方块垂直间距与分段区默认高度，不得改测试或降级导出交互。
+- 导出固定底部：导出是详情页唯一主操作，按 AGENTS「主操作固定底部安全区上方、一屏一个主操作」走后 `.safeAreaInset(edge: .bottom)`（复用 `RunView` 同一锚点与 `surface` + `separator` 视觉），`List` 只留内容块；既有 `RunFlowUITests` 进详情后直接 `exportButton.tap()` 的语义不变，**禁止**把测试改成「先滚再找导出」或把导出留在 `List` 内靠实现顺序侥幸可见。
 - 纯函数接缝：可选的 `HistoryRowContent` 一类纯值类型只依赖 `PurePaceRunCore` 的 `RunRecord` 与 `RunFormatting`，与 `RunDetailContent` 共用同一格式函数；单测断言逐字符相等与前缀关系，不改动既有 `RunDetailContentTests` 成功断言；不得为凑断言引入无消费者的抽象。
 - 列表形态：保留 `List` + `.plain` + `scrollContentBackground(.hidden)` + `.listRowSeparator(.hidden)` 与 token 化行背景，不改成 `ScrollView` 自绘列表。
 - XcodeGen：新增源文件必须 `xcodegen generate --spec ios/project.yml --project ios` 重生成工程一并提交，禁止手改 `project.pbxproj`。
 
 ## 最近交付证明
 
-- workItemId: wi_ws_360a37a4991f861c（2026-11-11，pass）
-- 交付：History 列表 / 详情 / 空态视觉层级重建。列表行改三层（`HistoryRowContent` 纯值类型 28 行，复用 `RunFormatting`，含合并 a11y label）；详情改五段纵向序，hero 距离 `display`、网格值 `primaryValue` 在上标签 `metricLabel` 在下、分段行字号升 body 且数值等宽；空态收紧层距并保留唯一 CTA。
-- 判定与断言：22 门全绿（`lint-ios-shell` / `test-ios` / `build-ios` / `test-ios-core` / `test-ios-run-core` / `test` 均 0）；`RunDetailContentTests` 新增 `testHistoryRowSharesDetailTextsAndDatePrefix` / `testHistoryRowLabelCarriesDateAndThreeMetrics`；纯 Pace 单测腿 181 例 0 失败。
-- 证据与边界：`git diff --name-only` 仅 `History/HistoryView.swift` / `History/RunDetailView.swift` / `RunDetailContentTests.swift`；未新增文件故未重生成 `.xcodeproj`；`Resources/` / `L10n.swift` / `DesignTokens.swift` / `docs/screenshots/` 零 diff，identifier 33 项不变；导出流程与 `RunExportState` 未改。UI 腿（`RunFlowUITests` 首屏导出可点）由 Host 门禁的 `test-ios` 覆盖，本项未单独新增 UI 用例。回执与截图见 `.munk/changes/wi_ws_360a37a4991f861c/`。
+- workItemId: wi_intake_1127fd3553df6ea7（2026-11-12，pass）
+- 交付：`RunDetailView` 把 `runDetail.export` 从 `List` 内 `exportSection` 移到根容器的 `.safeAreaInset(edge: .bottom)` 固定主操作区（复用 `RunView` 锚点与 `surface` + `separator` 视觉），`List` 只剩元信息 / hero / 指标网格 / 地图 / 分段五块；导出仍是唯一主操作且只有一份，惰性 `List` realize 与滚动位置不再影响可见性。
+- 判定与证据：`testStartFinishExportGPXArtifact` / `testRunPauseResumeFinishAndHistory` / `testEvidenceTreesAndRealArchive` 在零滚动前提下命中导出；`code_gates` 22 门 attempt 001 全绿（`build-ios` / `test-ios` / `lint-ios-shell` 均 0）；日志 `.munk/logs/d-defect-zhhans.log`、`.munk/logs/b-defect-ui-subset.log`。
+- 偏离与边界：导出流程 / `RunExportState` / `RunGPXExporter` 与 identifier 零改动；详情视觉截图未重出（`pending: 待人现场`）。
