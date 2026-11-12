@@ -119,24 +119,32 @@ struct TrackMapView: View {
     }
 
     /// 地图本体：光晕在下、accent 主轨迹在上；相机由 `cameraPosition` 一次定位后不再回写。
+    /// 轨迹预览是装饰性缩略：MapKit 内部注释 / 瓦片会自带可及元素（如 "Section N" 等系统文案），
+    /// 一律从可及树隐藏，只由外层容器暴露一个 zh-Hans label 的整体元素。
     private var map: some View {
-        Map(position: $cameraPosition) {
-            ForEach(haloSegments.indices, id: \.self) { index in
-                haloSegments[index]
-                    .stroke(DesignTokens.Colors.accentSoft, lineWidth: DesignTokens.Stroke.trackHalo)
+        ZStack {
+            Map(position: $cameraPosition) {
+                ForEach(haloSegments.indices, id: \.self) { index in
+                    haloSegments[index]
+                        .stroke(DesignTokens.Colors.accentSoft, lineWidth: DesignTokens.Stroke.trackHalo)
+                }
+                ForEach(trackSegments.indices, id: \.self) { index in
+                    trackSegments[index]
+                        .stroke(DesignTokens.Colors.accent, lineWidth: DesignTokens.Stroke.track)
+                }
             }
-            ForEach(trackSegments.indices, id: \.self) { index in
-                trackSegments[index]
-                    .stroke(DesignTokens.Colors.accent, lineWidth: DesignTokens.Stroke.track)
-            }
+            .onMapCameraChange { _ in logCameraChange() }
+            // 轨迹缩略不承载周边 POI：关掉注记点，既减少视觉噪声，也避免 MapKit
+            // 把系统注记（VKPointFeature / "Section N"）注入可及树污染 zh-Hans 文案门禁。
+            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .accessibilityHidden(true)
         }
-        .onMapCameraChange { _ in logCameraChange() }
-        .mapStyle(.standard)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card))
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
                 .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("run.mapPreview")
         .accessibilityLabel(Text(L10n.runMapPreviewLabel))
     }

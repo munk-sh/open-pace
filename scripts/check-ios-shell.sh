@@ -2090,7 +2090,9 @@ PY
       || out="$out RunFlowUITests 缺少全链路导出用例 testStartFinishExportGPXArtifact;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    [ "$test_count" -eq 5 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 5）;"
+    # 5 条既有用例 + 1 条 canonical 内容（0 分段 / 400m）保存态用例 = 6；
+    # 新增用例属于本项范围（结束态内容确定性），计数同步后 drop_ui_case 自检仍判红。
+    [ "$test_count" -eq 6 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 6）;"
     [ "$assert_count" -ge 112 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥112）;"
   fi
   if [ ! -f "$run_source" ]; then
