@@ -55,9 +55,13 @@ enum ContrastPolicy {
         Pair(name: "danger/background", foregroundKey: "danger", backgroundKey: "background", minimum: bodyThreshold, tier: .body),
         Pair(name: "danger/surface", foregroundKey: "danger", backgroundKey: "surface", minimum: bodyThreshold, tier: .body),
         Pair(name: "danger/dangerSoft", foregroundKey: "danger", backgroundKey: "dangerSoft", minimum: bodyThreshold, tier: .body),
+        // 唯一品牌橙：accent 浅/深同值 #FF9A5C，onAccent 浅/深同值 #2A1206，两模式实测均 8.44。
         Pair(name: "onAccent/accent", foregroundKey: "onAccent", backgroundKey: "accent", minimum: bodyThreshold, tier: .body),
         Pair(name: "onWarning/warning", foregroundKey: "onWarning", backgroundKey: "warning", minimum: bodyThreshold, tier: .body),
         Pair(name: "onSuccess/success", foregroundKey: "onSuccess", backgroundKey: "success", minimum: bodyThreshold, tier: .body),
+        // 实心按钮文字按正文/小字 4.5 判定（与 body 档同源，不另设按钮阈值）：
+        // light 白字 vs #660D09 = 12.91；dark 深字 #2A0608 vs #F53A48 = 4.95。
+        // dark 侧保留深字 onDanger：白字 vs dark danger 仅 3.76，不达标，不能反向放宽。
         Pair(name: "onDanger/danger", foregroundKey: "onDanger", backgroundKey: "danger", minimum: bodyThreshold, tier: .body),
         // 非文本 UI 边界 3.0 档
         Pair(name: "accent/background@large", foregroundKey: "accent", backgroundKey: "background", minimum: largeThreshold, tier: .large),
@@ -69,6 +73,30 @@ enum ContrastPolicy {
         Pair(name: "separator/surfaceMuted", foregroundKey: "separator", backgroundKey: "surfaceMuted", minimum: decorativeThreshold, tier: .decorative),
         // 轨迹光晕叠在卡片面上的可辨识下限（第 37 对：既有 36 对不删不改）。
         Pair(name: "accentSoft/surface", foregroundKey: "accentSoft", backgroundKey: "surface", minimum: decorativeThreshold, tier: .decorative)
+    ]
+
+    /// 品牌优先豁免的登记条目；`name` 与 `checks` 产出的对照名（`"<scheme> <pair>"`）逐字一致。
+    struct Exemption: Equatable, Sendable {
+        let name: String
+        let measured: Double
+        let source: String
+    }
+
+    /// 人的拍板来源：V1.2 定稿「品牌优先」——唯一品牌橙 #FF9A5C 作前景压不住浅色中性底。
+    static let brandPrioritySource =
+        "V1.2 定稿人拍板：唯一品牌橙作为前景 vs 浅色中性底，品牌优先；补偿仅限描边/字重/尺寸，禁改色相或压暗"
+
+    /// 品牌优先豁免族（唯一豁免登记，恰 6 条）：
+    /// 只登记 light 侧 `accent` 作前景的 3 个浅色中性底 × body/large 两档；dark 侧零豁免。
+    /// 登记 ≠ 改公式：`problems` 仍对每条真算比值，只对登记名放行；清空本表后 6 条全部判红，
+    /// 未登记的低对比对仍 fail-closed，`bodyThreshold` / `largeThreshold` / `decorativeThreshold` 与 37 对数量零改动。
+    static let brandPriorityExemptions: [Exemption] = [
+        Exemption(name: "light accent/background", measured: 2.0049, source: brandPrioritySource),
+        Exemption(name: "light accent/surface", measured: 2.0940, source: brandPrioritySource),
+        Exemption(name: "light accent/accentSoft", measured: 1.8274, source: brandPrioritySource),
+        Exemption(name: "light accent/background@large", measured: 2.0049, source: brandPrioritySource),
+        Exemption(name: "light accent/surface@large", measured: 2.0940, source: brandPrioritySource),
+        Exemption(name: "light accent/surfaceMuted@large", measured: 1.8693, source: brandPrioritySource)
     ]
 
     /// 判定所用的外观侧。
@@ -126,8 +154,13 @@ enum ContrastPolicy {
     }
 
     /// 返回空数组表示全部达标；每一条问题都写明是缺对、越界还是低于阈值。
-    static func problems(for checks: [Check]) -> [String] {
-        checks.compactMap { check in
+    /// 低于阈值但命中 `brandPriorityExemptions` 登记名的条目单独放行（登记 ≠ 改公式，比值仍真算）。
+    static func problems(
+        for checks: [Check],
+        exemptions: [Exemption] = brandPriorityExemptions
+    ) -> [String] {
+        let exempted = Set(exemptions.map(\.name))
+        return checks.compactMap { check in
             let name = check.name.isEmpty ? "<unnamed>" : check.name
             guard !check.name.isEmpty else {
                 return "缺对照名: \(name)"
@@ -142,6 +175,7 @@ enum ContrastPolicy {
                 return "无法计算对比度 \(name)"
             }
             guard value >= check.minimum else {
+                guard !exempted.contains(check.name) else { return nil }
                 return "对比度不足 \(name): \(formatted(value)) < \(formatted(check.minimum))"
             }
             return nil
