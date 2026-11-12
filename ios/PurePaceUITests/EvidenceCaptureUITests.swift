@@ -269,9 +269,10 @@ final class EvidenceCaptureUITests: XCTestCase {
         let contentTypes: Set<XCUIElement.ElementType> = [
             .button, .staticText, .switch, .image, .link, .cell, .textField
         ]
-        let elements = app.descendants(matching: .any).allElementsBoundByIndex.filter { element in
-            contentTypes.contains(element.elementType) && !element.frame.isEmpty && element.frame.width > 0
-        }
+        let elements = axSnapshots(app, target: "内容元素（button/staticText/switch/image/link/cell/textField）")
+            .filter { element in
+                contentTypes.contains(element.elementType) && !element.frame.isEmpty && element.frame.width > 0
+            }
 
         var outOfBounds: [String] = []
         for element in elements {
@@ -344,7 +345,7 @@ final class EvidenceCaptureUITests: XCTestCase {
             for element in contentElements(app, excluding: tabBarFrame) where isAppInteractive(element) {
                 let key = elementKey(element)
                 realizedInteractives.insert(key)
-                if element.isHittable {
+                if isHittable(app, element) {
                     reachableInteractives.insert(key)
                 }
             }
@@ -360,11 +361,12 @@ final class EvidenceCaptureUITests: XCTestCase {
 
         var seen: Set<String> = []
         let snapshots = contentElements(app, excluding: tabBarFrame).compactMap { element -> Ax5ScrollAudit.Snapshot? in
+            let interactive = isAppInteractive(element)
             let snapshot = Ax5ScrollAudit.Snapshot(
                 key: elementKey(element),
-                isInteractive: isAppInteractive(element),
+                isInteractive: interactive,
                 frame: element.frame,
-                isHittable: element.isHittable
+                isHittable: interactive && isHittable(app, element)
             )
             let signature = "\(snapshot.key)|\(snapshot.frame)"
             return seen.insert(signature).inserted ? snapshot : nil
@@ -406,22 +408,23 @@ final class EvidenceCaptureUITests: XCTestCase {
         )
     }
 
-    private func contentElements(_ app: XCUIApplication, excluding tabBarFrame: CGRect?) -> [XCUIElement] {
+    private func contentElements(_ app: XCUIApplication, excluding tabBarFrame: CGRect?) -> [AXElementSnapshot] {
         let contentTypes: Set<XCUIElement.ElementType> = [
             .button, .staticText, .switch, .image, .link, .cell, .textField
         ]
-        return app.descendants(matching: .any).allElementsBoundByIndex.filter { element in
-            guard contentTypes.contains(element.elementType),
-                  !element.frame.isEmpty,
-                  element.frame.width > 0 else { return false }
-            if let tabBarFrame, element.frame.minY >= tabBarFrame.minY - 1 { return false }
-            return true
-        }
+        return axSnapshots(app, target: "可滚动屏内容元素（button/staticText/switch/image/link/cell/textField）")
+            .filter { element in
+                guard contentTypes.contains(element.elementType),
+                      !element.frame.isEmpty,
+                      element.frame.width > 0 else { return false }
+                if let tabBarFrame, element.frame.minY >= tabBarFrame.minY - 1 { return false }
+                return true
+            }
     }
 
     /// 只审计 App 自己声明的可交互元素（有 accessibility identifier）：
     /// Apple 地图内部的「法律信息」等系统附属链接不属于 App 可及契约，不参与可达性判定。
-    private func isAppInteractive(_ element: XCUIElement) -> Bool {
+    private func isAppInteractive(_ element: AXElementSnapshot) -> Bool {
         switch element.elementType {
         case .button, .link, .switch, .textField:
             return !element.identifier.isEmpty
@@ -430,9 +433,25 @@ final class EvidenceCaptureUITests: XCTestCase {
         }
     }
 
-    private func elementKey(_ element: XCUIElement) -> String {
+    private func elementKey(_ element: AXElementSnapshot) -> String {
         let identifier = element.identifier.isEmpty ? element.label : element.identifier
         return "\(element.elementType.rawValue):\(identifier)"
+    }
+
+    /// 批采后只对目标 identifier 做定向 `firstMatch` 查询，不回读批采下标上的惰性元素。
+    private func isHittable(_ app: XCUIApplication, _ element: AXElementSnapshot) -> Bool {
+        guard !element.identifier.isEmpty else { return false }
+        return app.descendants(matching: .any)
+            .matching(identifier: element.identifier)
+            .firstMatch
+            .isHittable
+    }
+
+    /// 一次整批采集当前可及树；保留既有 `waitUntil` 轮询语义（快照失配时整批重采）。
+    private func axSnapshots(_ app: XCUIApplication, target: String) -> [AXElementSnapshot] {
+        AXSnapshotBatch.collect(from: app, target: target) { timeout, condition in
+            waitUntil(timeout: timeout, condition)
+        }
     }
 
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
