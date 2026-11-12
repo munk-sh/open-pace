@@ -2158,6 +2158,58 @@ ui_source_selftest "ac-ui-assertions-intact" drop_assertions
 ui_source_selftest "ac-ui-test-count-intact" drop_ui_case
 ui_source_selftest "ac-ui-export-case-intact" drop_export_ui_case
 
+# ------------------------------------------------ 截图取证用例计数（浅/深各 1 条、断言 ≥24）
+screenshot_evidence_problems() {
+  local root="$1" out="" test_count="" assert_count=""
+  local ui="$root/ios/PurePaceUITests/ScreenshotEvidenceUITests.swift"
+  if [ ! -f "$ui" ]; then
+    printf '缺少 %s;' "$ui"
+    return 0
+  fi
+  grep -Fq 'func testEvidenceScreensLight' "$ui" \
+    || out="$out ScreenshotEvidenceUITests 缺少浅色用例 testEvidenceScreensLight;"
+  grep -Fq 'func testEvidenceScreensDark' "$ui" \
+    || out="$out ScreenshotEvidenceUITests 缺少深色用例 testEvidenceScreensDark;"
+  test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
+  assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
+  [ "$test_count" -eq 2 ] || out="$out ScreenshotEvidenceUITests 用例数 ${test_count}（期望恰 2）;"
+  [ "$assert_count" -ge 24 ] || out="$out ScreenshotEvidenceUITests XCTAssert ${assert_count} 次（期望 ≥24）;"
+  printf '%s' "$out"
+}
+
+problems="$(screenshot_evidence_problems .)"
+if [ -z "$problems" ]; then
+  pass "ac-screenshot-evidence-counters"
+else
+  fail "ac-screenshot-evidence-counters" "$problems"
+fi
+
+screenshot_evidence_selftest() {
+  local label="$1" mutate="$2" sandbox="" out=""
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-screens.XXXXXX")"
+  mkdir -p "$sandbox/ios/PurePaceUITests"
+  cp ios/PurePaceUITests/ScreenshotEvidenceUITests.swift "$sandbox/ios/PurePaceUITests/"
+  "$mutate" "$sandbox"
+  out="$(screenshot_evidence_problems "$sandbox")"
+  if [ -n "$out" ]; then
+    pass "$label (self-test)"
+  else
+    fail "$label" "违规样本未被识别"
+  fi
+  rm -rf "$sandbox"
+}
+
+drop_screenshot_dark_case() {
+  sed -i '' '/func testEvidenceScreensDark/d' "$1/ios/PurePaceUITests/ScreenshotEvidenceUITests.swift"
+}
+drop_screenshot_assertions() {
+  sed -i '' '/XCTAssert/d' "$1/ios/PurePaceUITests/ScreenshotEvidenceUITests.swift"
+}
+
+screenshot_evidence_selftest "ac-screenshot-evidence-case-count-intact" drop_screenshot_dark_case
+screenshot_evidence_selftest "ac-screenshot-evidence-assertions-intact" drop_screenshot_assertions
+
+
 # ------------------------------------------------ 测试侧音源（runner 自播合成音 + 参数化策略）
 # 构建产物读回：模拟器构建存在时才读（lint 门先于 build 门运行，缺失不是失败，但也不冒充通过）。
 built_plist_modes() {

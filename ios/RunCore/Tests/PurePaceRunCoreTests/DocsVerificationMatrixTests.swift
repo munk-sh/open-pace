@@ -2,13 +2,13 @@ import XCTest
 
 /// `docs/verification-matrix.md` 的结构守护（L1，无 UI）。
 ///
-/// 约束：纯表格、表头逐字一致、恰 22 条接缝、6 列；全部行回填后为
-/// 22 行实测 + 0 行显式缺口，不再保留 `pending: 待对应 item 回填`。
+/// 约束：纯表格、表头逐字一致、恰 23 条接缝、6 列；全部行回填后为
+/// 23 行实测 + 0 行显式缺口，不再保留 `pending: 待对应 item 回填`。
 final class DocsVerificationMatrixTests: XCTestCase {
     private static let expectedHeader = "| 接缝 | 现状 | 断言名 | 反例 | 证据路径 | 归属项 |"
     private static let pendingMarker = "pending: 待对应 item 回填"
     private static let gapMarker = "缺口"
-    private static let expectedSeamCount = 22
+    private static let expectedSeamCount = 23
     private static let baseSeams = ["后台定位", "锁屏", "重启", "Info.plist", "TTS", "duck", "GPX", "竖屏", "Dynamic Type", "设计 token"]
     /// 本项（wi_intake_e7e73d829e61fa7a）新增的 5 条接缝：每行必须带本项标识归属。
     private static let workItemSeams = ["palette", "accent↔warning", "深色中性 chroma", "finish=accent", "discard 仅在确认层"]
@@ -20,12 +20,15 @@ final class DocsVerificationMatrixTests: XCTestCase {
     private static let uiLegSeams = ["详情导出固定底部"]
     /// 本项（wi_intake_0a4f30b4782ffdd1）新增的 1 条接缝：iOS UI 腿确定性（状态判据 + 600s 分段）。
     private static let stabilitySeams = ["iOS UI 腿确定性"]
-    private static let seams = baseSeams + workItemSeams + trackSeams + ax5Seams + uiLegSeams + stabilitySeams
+    /// 本项（wi_intake_6bb510b0c105d362）新增的 1 条接缝：UI 权威腿覆盖率守卫。
+    private static let coverageSeams = ["UI 权威腿覆盖率守卫"]
+    private static let seams = baseSeams + workItemSeams + trackSeams + ax5Seams + uiLegSeams + stabilitySeams + coverageSeams
     private static let workItemId = "wi_intake_e7e73d829e61fa7a"
     private static let trackWorkItemId = "wi_intake_7b9d19bc1e3be0ee"
     private static let ax5WorkItemId = "wi_intake_17fe09b83e2a3df0"
     private static let uiLegWorkItemId = "wi_intake_1127fd3553df6ea7"
     private static let stabilityWorkItemId = "wi_intake_0a4f30b4782ffdd1"
+    private static let coverageWorkItemId = "wi_intake_6bb510b0c105d362"
 
     private enum MatrixError: Error, CustomStringConvertible {
         case repoRootNotFound(start: String)
@@ -133,6 +136,13 @@ final class DocsVerificationMatrixTests: XCTestCase {
             XCTAssertNotNil(row, "缺少接缝：\(seam)")
             XCTAssertTrue(row?.contains("本项实测") ?? false, "\(seam) 现状必须写明本项实测口径")
             XCTAssertTrue(row?.contains(Self.stabilityWorkItemId) ?? false, "\(seam) 必须归属 \(Self.stabilityWorkItemId)")
+        }
+
+        for seam in Self.coverageSeams {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertNotNil(row, "缺少接缝：\(seam)")
+            XCTAssertTrue(row?.contains("本项实测") ?? false, "\(seam) 现状必须写明本项实测口径")
+            XCTAssertTrue(row?.contains(Self.coverageWorkItemId) ?? false, "\(seam) 必须归属 \(Self.coverageWorkItemId)")
         }
     }
 

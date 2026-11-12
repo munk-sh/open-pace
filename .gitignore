@@ -16,3 +16,4 @@ android/app/build/
 android/local.properties
 .kotlin/
 artifacts/device-run/
+.DS_Store
