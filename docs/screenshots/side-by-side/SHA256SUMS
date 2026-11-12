@@ -3,14 +3,14 @@
 # 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/side-by-side/SHA256SUMS
 # 合成（在仓库根执行）：bash scripts/compose-ios-screenshots-side-by-side.sh
 #
-# 构建 head sha（原图产出所在 commit，实取 git rev-parse HEAD）：18049604470a611d8b13e12a9212c61e3af73b4c
-# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：5b902cb447996458a3967dab9b5ceeb855229cda
+# 构建 head sha（原图产出所在 commit，实取 git rev-parse HEAD）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e
+# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：6871aadd37e6af71b18fbb7b76d7d7995a81796f
 # 左半 = 浅色原图、右半 = 深色原图；1:1 像素、无缩放、无分隔线。
 #
-13c466bfdba01ff30609cc83102ac4b34b0b3212842eba7fd05a356a98cbc27b  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
-41e197718b3ab43105d45bdc53920554fc7e3ebc8318a9067d1fc47eb53bfb93  docs/screenshots/side-by-side/history-detail-side-by-side.png
-5bd1d7590cf9e6fb3b0d6260f13eaddccc8c4e493cefe3c9cac71e80b2a616a2  docs/screenshots/side-by-side/history-list-side-by-side.png
-e42a0b6993a5e2895c1d897a7aa686eaacaf536112b72a49062160631ad3a8c7  docs/screenshots/side-by-side/run-finished-side-by-side.png
-4f63da6236102c4e2c8c6fb98c18323472117988b29958ad1dfb8f25b8bb8801  docs/screenshots/side-by-side/run-not-started-side-by-side.png
-9df9cee5dac81b77c945d016292ab8beb22210c97c540fd61f4b6fcf36b0ad42  docs/screenshots/side-by-side/run-running-side-by-side.png
-7236acc50c461ca8cb725e14d8dfa6e6d3274da015ea767a79ed2da4539ed7e4  docs/screenshots/side-by-side/settings-side-by-side.png
+2ca972aa2bfc4cc7debd6435afa3d6bd0935cd15b01aea89ccba137187b2cd7a  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
+5ac6b067665a4ca2611f0515e484cdea41660a774328a845662b804896d24165  docs/screenshots/side-by-side/history-detail-side-by-side.png
+740c40d8177527fb0bdbcad96f4d4cd43e163f863c6dc69665fe656c285301a6  docs/screenshots/side-by-side/history-list-side-by-side.png
+fa311c38535f02efe540e48532ae06b69d2b4f9d0c5afd732760f965ad3d48ae  docs/screenshots/side-by-side/run-finished-side-by-side.png
+680008f0dbf6d7d08cb50a6ba78962fc21c6e300a63ef0ccb0ee4c529b6d99b9  docs/screenshots/side-by-side/run-not-started-side-by-side.png
+bf49dd27afe0fc15c4854fde6d4323b9722447d113d4fdbb66bfe71c9cbc79f3  docs/screenshots/side-by-side/run-running-side-by-side.png
+3b00c26f75edf8f40cece9f35e4fc7b5f59a8a2bd2aa8cfd7a448773de78ead5  docs/screenshots/side-by-side/settings-side-by-side.png

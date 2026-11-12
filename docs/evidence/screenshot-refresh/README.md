@@ -11,13 +11,13 @@
 
 | 项 | 实取值 |
 |---|---|
-| 构建 head sha（14 张 + 7 张并排均绑定此 commit） | `18049604470a611d8b13e12a9212c61e3af73b4c` |
-| 构建 tree sha（`git rev-parse HEAD^{tree}`） | `5b902cb447996458a3967dab9b5ceeb855229cda` |
+| 构建 head sha（14 张 + 7 张并排均绑定此 commit） | `2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e` |
+| 构建 tree sha（`git rev-parse HEAD^{tree}`） | `6871aadd37e6af71b18fbb7b76d7d7995a81796f` |
 | 采集时工作树 | `git status --porcelain` 空输出（clean，采集开始时脚本内实取） |
 | 设备 | iPhone 16，UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD` |
 | 系统 runtime | iOS 18.6 |
 | 工具链 | Xcode 26.3（Build 17C529），`xcodegen 2.46.0` |
-| 生成时间 | 2026-11-12 22:29–22:31（CST，`--stage screenshots` 单次跑完浅/深） |
+| 生成时间 | 2026-11-12 22:52–23:00（CST，单次 `--stage all`） |
 
 head/tree sha 由采集脚本 `git rev-parse` 实取并同时写进
 `docs/screenshots/SHA256SUMS`、`docs/screenshots/side-by-side/SHA256SUMS` 与本 README，
@@ -46,25 +46,28 @@ bash scripts/capture-ios-screenshots.sh --stage verify
   （系统 Swift + CoreGraphics/ImageIO，零第三方依赖；同一输入两次运行字节相同）
 - 断言源：`ios/PurePaceUITests/ScreenshotEvidenceUITests.swift`（浅/深各一条用例）
 - 运行原始结果包（不入库）：`.build/evidence/screenshots-light.xcresult`、`.build/evidence/screenshots-dark.xcresult`
+- 本轮实际执行的是 `--stage all`（trees → screenshots → ax5）：`docs/evidence/a11y/` 6 棵可及树与
+  `docs/evidence/evidence-freeze/ax5/` 4 张实拍 + 4 棵实测树同为该构建重出，`capture.log`
+  记录 `content_size: before=large after=accessibility-extra-extra-extra-large` 与还原 `large`。
 
 ## 3. 14 张截图（逐图 sha256）
 
 | # | 文件（`docs/screenshots/`） | 屏幕 | sha256 |
 |---|---|---|---|
-| 1 | `run-not-started.png` | Run 未开始（浅） | `4f2bff0156afb299b4c26fc11e7330e661cc5c70041670772661df9951009d8c` |
-| 2 | `run-not-started-dark.png` | Run 未开始（深） | `61453190f6548448710f5ed2e36cb15d9efa7d3680c98a034e3c67703a8bde35` |
-| 3 | `run-running.png` | 跑步中（浅） | `2bd39f1ad9ae3751b0f6f7208b25cf53b57e96726d6117905d52001ba291fa2e` |
-| 4 | `run-running-dark.png` | 跑步中（深） | `f4809c41beef2cf1a5fcde18a2a3cbd5a343be6da96c10be71534b0f5d57eb16` |
-| 5 | `run-finished.png` | 结束态总结（浅，B1 地图 hero 360 + 单行 inline 胶囊） | `c7c285a2f1d694a7b92465d959d3fb1f287a8bdac7bc43cf01edc3a81eb7b936` |
-| 6 | `run-finished-dark.png` | 结束态总结（深，同上） | `079ebd6334b155c2cde2819cefce73fc0722e952a99d038155307b29abacd8e5` |
-| 7 | `discard-confirmation.png` | 结束态丢弃确认层（浅，C2 紧凑确认层） | `7108b3ca07f0f6e18cb390e651ecfed4fe45a978a91dfd0b5f4d78e5abfbdde0` |
-| 8 | `discard-confirmation-dark.png` | 结束态丢弃确认层（深） | `c2c7431d0f4dd0b6345c9c6660472b03dd5386940218b6c371ecc0f0cafb9395` |
-| 9 | `history-list.png` | History 列表（浅） | `de5bbc8f85985262986af7675bf9b08d4c171a7f29101699d5b38267a607c539` |
-| 10 | `history-list-dark.png` | History 列表（深） | `a697916c719c60e3d4fd4a040c9245ca5dd34de914afd32598895e7cdc7630c3` |
-| 11 | `history-detail.png` | History 详情（浅，地图卡完整可见后取图） | `daa9ce76daf2d29276fffeb24c441b636d3939c6cc571b8b1da1059417c7769d` |
-| 12 | `history-detail-dark.png` | History 详情（深，同上） | `2e025eea94aba819add719f9deac4f6315ac2bb4c72ef5daec7934e47dc732ce` |
-| 13 | `settings.png` | Settings（浅） | `f8102080ae7ab51befabd7c07701a3997e75810d85a5a4af7d31624d98e93314` |
-| 14 | `settings-dark.png` | Settings（深） | `dc992befb8482b401c2efd99907a1db8ca0c00b3a2a0071b046f926b074ba434` |
+| 1 | `run-not-started.png` | Run 未开始（浅） | `e31727e12da292c531487dccc10474deb07bda54618da550135fba5c8f966785` |
+| 2 | `run-not-started-dark.png` | Run 未开始（深） | `46c00383776e2e793fd66009b515b895fd33efa2fd7b153016acc153b587e505` |
+| 3 | `run-running.png` | 跑步中（浅） | `9a9ba019e1b3e964d648475c34b96390a6db03652c23cabcbbbe1bd3c72d3699` |
+| 4 | `run-running-dark.png` | 跑步中（深） | `b42fb536cbab1972640a2d6b822af69c66a03a3ee3e58e896a3e0a499b8da996` |
+| 5 | `run-finished.png` | 结束态总结（浅，B1 地图 hero 360 + 单行 inline 胶囊） | `6eef6ec004045eda379a0480e52b74bb0d95dce67f42e061bcc6ee3fcbffd67c` |
+| 6 | `run-finished-dark.png` | 结束态总结（深，同上） | `9e2351b3803d9cf49e82ef04794e7e85d1bd359172bd7601b15948fde1f5b087` |
+| 7 | `discard-confirmation.png` | 结束态丢弃确认层（浅，C2 紧凑确认层） | `e293771006e763e2cfdfae7d1ad759796a93cefe1dc1f2b64b54a82716c9706e` |
+| 8 | `discard-confirmation-dark.png` | 结束态丢弃确认层（深） | `c608cb497fe642b0dc0f2359b79026c6457b7fd301f794bbb41e77ea8ec69c5b` |
+| 9 | `history-list.png` | History 列表（浅） | `78bccb09e6eff1bf5c8a0f766a37c4d0db4efeeba5efbdbeae168b7b015acdee` |
+| 10 | `history-list-dark.png` | History 列表（深） | `123097ddad46322e4635da45821676b0d3080f52146880d418ec180bcc536104` |
+| 11 | `history-detail.png` | History 详情（浅，地图卡完整可见后取图） | `198ca8ca44dfb4eed7da9a01c5e2ad3996f62d270d567c2b1d1a5d0fd1485bb9` |
+| 12 | `history-detail-dark.png` | History 详情（深，同上） | `1d89caa1cfb687befe71b9f5d473af1001d1534f369ba7751876df105e017e02` |
+| 13 | `settings.png` | Settings（浅） | `0e5058badf7dbdb10f10fef5b841b8c0212cff610beee8f5a30bfcc35cf8e583` |
+| 14 | `settings-dark.png` | Settings（深） | `e9df4e5e91ff58614a9055183f07c70240bff2a924ee11b2861b1557d4009cac` |
 
 - 目录顶层恰 14 张 PNG，文件名集合 = `{run-not-started, run-running, run-finished,
   discard-confirmation, history-list, history-detail, settings} × {<base>.png, <base>-dark.png}`。
@@ -79,13 +82,13 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 
 | 文件 | sha256 |
 |---|---|
-| `run-not-started-side-by-side.png` | `4f63da6236102c4e2c8c6fb98c18323472117988b29958ad1dfb8f25b8bb8801` |
-| `run-running-side-by-side.png` | `9df9cee5dac81b77c945d016292ab8beb22210c97c540fd61f4b6fcf36b0ad42` |
-| `run-finished-side-by-side.png` | `e42a0b6993a5e2895c1d897a7aa686eaacaf536112b72a49062160631ad3a8c7` |
-| `discard-confirmation-side-by-side.png` | `13c466bfdba01ff30609cc83102ac4b34b0b3212842eba7fd05a356a98cbc27b` |
-| `history-list-side-by-side.png` | `5bd1d7590cf9e6fb3b0d6260f13eaddccc8c4e493cefe3c9cac71e80b2a616a2` |
-| `history-detail-side-by-side.png` | `41e197718b3ab43105d45bdc53920554fc7e3ebc8318a9067d1fc47eb53bfb93` |
-| `settings-side-by-side.png` | `7236acc50c461ca8cb725e14d8dfa6e6d3274da015ea767a79ed2da4539ed7e4` |
+| `run-not-started-side-by-side.png` | `680008f0dbf6d7d08cb50a6ba78962fc21c6e300a63ef0ccb0ee4c529b6d99b9` |
+| `run-running-side-by-side.png` | `bf49dd27afe0fc15c4854fde6d4323b9722447d113d4fdbb66bfe71c9cbc79f3` |
+| `run-finished-side-by-side.png` | `fa311c38535f02efe540e48532ae06b69d2b4f9d0c5afd732760f965ad3d48ae` |
+| `discard-confirmation-side-by-side.png` | `2ca972aa2bfc4cc7debd6435afa3d6bd0935cd15b01aea89ccba137187b2cd7a` |
+| `history-list-side-by-side.png` | `740c40d8177527fb0bdbcad96f4d4cd43e163f863c6dc69665fe656c285301a6` |
+| `history-detail-side-by-side.png` | `5ac6b067665a4ca2611f0515e484cdea41660a774328a845662b804896d24165` |
+| `settings-side-by-side.png` | `3b00c26f75edf8f40cece9f35e4fc7b5f59a8a2bd2aa8cfd7a448773de78ead5` |
 
 - 尺寸：每张 `2356×2556` = 2 × 1178（浅/深原图宽）× 2556（原图高），**等高、1:1 像素、无缩放**。
 - 构图：左半 = 浅色原图、右半 = 深色原图、不插分隔线；合成脚本在写盘前逐像素比对
@@ -160,7 +163,7 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 
 | 回执字段 | 取值 |
 |---|---|
-| head sha | 待推送后实取（构建 head sha 为 `18049604470a611d8b13e12a9212c61e3af73b4c`） |
+| head sha | 待推送后实取（构建 head sha 为 `2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e`） |
 | run id | 待 `gh run list --workflow=ios.yml --commit <sha>` 实取 |
 | status / conclusion | 待回填（要求 `completed` / `success`） |
 | 4 段 UI 腿覆盖 | 待回填（要求覆盖 `RunFlowUITests`、`EvidenceCaptureUITests`、`Ax5ScrollAuditCounterexampleTests`、`MusicSourceSelfCheckUITests`、`ScreenshotEvidenceUITests` 浅/深） |

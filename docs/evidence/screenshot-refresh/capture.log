@@ -1,5 +1,8 @@
+== trees: EvidenceCaptureUITests/testEvidenceTreesAndRealArchive（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
+archive: /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/EAC1FEF3-556F-4C08-8BD1-8FE4E9CEBB42/Documents/Runs
+snapshot: .build/evidence/archive-snapshot（1 个文件）
 == screenshots: 六屏 × 浅/深 + 结束态丢弃确认（14 张，UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
-build head sha: 18049604470a611d8b13e12a9212c61e3af73b4c (1804960)
+build head sha: 2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e (2200ed7)
 appearance: before=light（采集结束后还原）
 == screenshots[light]: ScreenshotEvidenceUITests/testEvidenceScreensLight（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
 shot: docs/screenshots/run-not-started.png（1178 2556 px）
@@ -42,5 +45,12 @@ assert: evidence-map screen=history-detail ✓（dark）
 assert: evidence-inline-hint ✓（dark）
 assert: evidence-c2-discard ✓（dark，地图断言 2 条）
 appearance: after=light
-info: 已重写 docs/screenshots/SHA256SUMS（14 张 PNG + 构建 head sha 18049604470a611d8b13e12a9212c61e3af73b4c / tree sha 5b902cb447996458a3967dab9b5ceeb855229cda）
+info: 已重写 docs/screenshots/SHA256SUMS（14 张 PNG + 构建 head sha 2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e / tree sha 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
 info: 已重出 7 张浅/深并排对照（docs/screenshots/side-by-side/）
+info: 证据日志已发布到 docs/evidence/screenshot-refresh/（capture.log + xcodebuild-light.log + xcodebuild-dark.log）
+== ax5: content_size accessibility-extra-extra-extra-large（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
+restore: 已还原真实归档到 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/46EFD0EC-479B-455F-8882-5FD9D85BA291/Documents/Runs（1 个文件）
+info: 复用真实归档 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/46EFD0EC-479B-455F-8882-5FD9D85BA291/Documents/Runs（2 个文件）
+content_size: before=large after=accessibility-extra-extra-extra-large
+restore: 已还原真实归档到 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/6F4DC880-09F0-4D17-8EBF-A0A07670B80E/Documents/Runs（1 个文件）
+content_size 还原: large
