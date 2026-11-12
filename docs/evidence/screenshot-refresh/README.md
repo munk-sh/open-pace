@@ -139,8 +139,9 @@ bash scripts/capture-ios-screenshots.sh --stage verify
   「窗口扣除底部固定主操作区」的可见区内。
 - **zh-Hans**：六屏 × 浅/深各一条 `ac-visible-copy-zh-hans screen=<screen> labels=… violations=0`
   （共 12 条），白名单口径不变（仅放行 `/km`、`km`、`GPX`、`PurePace`）。
-- `xcodebuild-light.log` / `xcodebuild-dark.log` 各含 14 个 `evidence-shot screen=` 行
-  （本轮共 18 条含 `b1-finished` / `c2-discard` 附加证据附件；导出到 `docs/screenshots/` 的仍是 14 张）。
+- `xcodebuild-light.log` / `xcodebuild-dark.log` 各含 7 条 `evidence-shot screen=` 行（浅色 7 屏 /
+  深色 7 屏带 `-dark` 后缀），两份合计覆盖导出到 `docs/screenshots/` 的 14 张；每份日志另有
+  `b1-finished` / `c2-discard` 两条附加证据附件行（单份共 9 条 `evidence-shot screen=`，本轮两份共 18 条）。
 
 ## 7. 本地门（2026-11-12 实跑）
 
