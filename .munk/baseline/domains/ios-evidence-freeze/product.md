@@ -68,6 +68,15 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - ac-digest-summary-consistent: digest 顶部标题/摘要区若出现整包相关描述，口径与第 5 节一致（明确未跑齐、不写绿）；原本无整包描述则保持不新增整包结论。
 - ac-no-other-production-change: 除上述策略与 `RunView` 取值替换外，改动路径 ⊆ {`ios/PurePaceUITests/**`, `ios/PurePaceTests/**`, `ios/RunCore/Tests/**`, `docs/evidence/**`, `docs/verification-matrix.md`}；不改 `RunStorage` / `HistoryViewState` / `HistoryView` / 归档格式，不改 `.munk/code-gates.json` 门列表，不新增 DEBUG 启动参数或测试脚手架。
 
+- ac-evidence-rebind-c122dbb: 14 张截图与 7 张并排图的绑定四要素（构建 head `c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089` 完整 40 位、tree `bf32815bc8a5dd788f0735d975ae530cc1fa1588`、采集时 HEAD、归属项）逐项实取写入两份 `SHA256SUMS` 头部，并含「采集时 `ios/PurePace/**`、`ios/RunCore/**` 相对 c122dbb 零 diff」声明；工作树非 clean 或 ios 非零 diff 时不得写绑定字段。
+- ac-run-running-nonself: `run-running.png` / `run-running-dark.png` 由该产品树实取，sha 均不等于采集前旧值（`9a9ba019…` / `b42fb536…`）且互不相同。
+- ac-sums-pass: `docs/screenshots/SHA256SUMS` 恰 14 行 PNG 且 `shasum -a 256 -c` exit 0；`side-by-side/SHA256SUMS` 7 行同款校验 exit 0；证据目录清单同款 exit 0。
+- ac-side-by-side-2x: 7 张并排图齐备、每张 2356×2556（宽 = 2×1178、高 = 2556），左浅右深 1:1 无缩放，由 `scripts/compose-ios-screenshots-side-by-side.sh` 实跑合成。
+- ac-twelve-diff-verified: 其余 12 张逐张给出「已入库 sha ⟷ 本次实取 sha ⟷ 判定（一致/替换）」三列对照；一致者字节零改动，替换者写明旧/新 sha 与像素差原因（布局重排 / 采样读数 / 状态栏时钟），不得借替换改判据、阈值或断言口径。
+- ac-evidence-dir: `docs/evidence/wi_intake_3232a7d1a00f89ec/` 含 `README.md`、`SHA256SUMS`、`xcodebuild-light.log`、`xcodebuild-dark.log`；两份日志为完整输出、各含 7 条 `evidence-shot screen=` 行与 `** TEST SUCCEEDED **`，并含 `ac-run-metrics-balanced` 未开始/暂停/保存态实测行（top/bottom/largest 均 ≤80）。
+- ac-assert-sources-listed: 证据 README 逐图列出断言来源（`ScreenshotEvidenceUITests.swift`、`AXSnapshotBatch.swift`、`RunFlowUITests.swift` 的 `ac-run-metrics-balanced` 打印处）。
+- ac-scope-purity-rebind: `git diff --stat c122dbb… -- ios scripts .github android shared .munk/code-gates.json` 为空；改动只落 `docs/screenshots/**`、`docs/evidence/**`；不改 UI / token / 阈值 / identifier / CI 门禁；回执不写「UI 达标」「可发布」「已验证真机」类结论。
+
 ## 非目标
 
 - 不改业务逻辑、状态机、归档格式、GPX 导出、History / Settings / Run 的交互行为；不改门禁规则与 `.munk/code-gates.json` 门列表/命令，不新增 gate id。
@@ -94,7 +103,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 
 ## 最近交付证明
 
-- workItemId: wi_intake_85d08fa7106efc3f（2026-11-12，pass）
-- 交付：在产品面基线 `a677e17`（tree `400c010`）上整批重出 14 张浅/深截图并新增 7 张浅/深并排对照（`docs/screenshots/side-by-side/`，左浅右深、1:1 不缩放、零第三方依赖合成）。`ScreenshotEvidenceUITests.swift` 补强截前断言：B1 inline 权限胶囊（`meetsInlineHint` + 打印 `evidence-inline-hint`）与 C2 丢弃确认层（`run.discard`/`run.discardCancel` 同行、44pt、顶边 ≥70% 屏高、高 ≤200pt，禁用 `app.sheets`），并修正「不进 CI 腿」注释。`capture-ios-screenshots.sh` 换成本批前 14 个旧 sha、写入 tree sha、新增两类实测行校验与 7 张并排 verify；新增 `scripts/compose-ios-screenshots-side-by-side.sh`。
-- 判定与证据：`code_gates` 22 门 attempt 001 全绿；`shasum -a 256 -c` 三份清单（14 张 / 并排 7 张 / 证据目录）全 OK；旧 14 sha 逐张重合数 0；`check-ios-shell.sh --self-test` 100/0、`check-ios-shell.sh` 33/0、`check-ios-scripts.sh` 34/0、`--stage verify` OK。
-- 偏离与边界：**ac-ci-authoritative-green 未达成**——基线 `a677e17` 的 `ios.yml` run `43234566773` 为 `completed`/`failure`，红因是产品层「运行中/暂停指标区未垂直居中」（`RunFlowUITests.swift:890`），已另立 `wi_intake_caf0abdb2486d501` 修红；本项按原样记录失败腿原文，不伪造绿。证据 commit 已推送（合并提交 `8a6c2af`），其 `ios.yml` run `43242965553` 查询时 `in_progress`、结论待跑完，不轮询预写绿。产品面零改动（`ios/PurePace/**` 零 diff、22 门与 `ios.yml` 不变、identifier 42/33 冻结计数不变）；排版/配色观感与真机表现 `pending: 待人现场`。
+- workItemId: wi_intake_3232a7d1a00f89ec（2026-11-13，pass）
+- 交付：在产品树 `c122dbb`（tree `bf32815`）上整批重出 14 张浅/深截图、重建 7 张并排图，并把绑定四要素与零 diff 声明写入 `docs/screenshots/SHA256SUMS` 与 `side-by-side/SHA256SUMS`；新建 `docs/evidence/wi_intake_3232a7d1a00f89ec/`（README 含逐图旧/新 sha 三列对照与断言来源、`SHA256SUMS`、浅/深完整 `xcodebuild` 日志、采集前清单、逐像素差分析、零 diff 空输出）。产品面、`scripts/`、`.github/`、`.munk/code-gates.json` 零改动。
+- 判定与证据：三份 `SHA256SUMS` 的 `shasum -a 256 -c` 均 exit 0（14 / 7 / 证据目录）；`run-running` 与 `-dark` 新 sha 均 ≠ 旧值且互不相同；`code_gates` 22 门 attempt 001 全绿。
+- 偏离与边界：12 张「不主动重出」的图逐张比对后**全部判为替换（0 张一致）**，原因写在 README 与 `pixel-diff-analysis.txt`（指标区居中修复导致的布局重排、运行采样读数、状态栏时钟），未借替换改任何判据。深色 section 3 的 `testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 因断言取浅色 `danger` token 判红（`RunFlowUITests.swift:1129-1146`），本项 `ios/` 零 diff 不修，深色保存态实测行改由 `testSavedStateWithoutSplitsKeepsMapFloorAndBalance` 提供。未跑真机、未重跑 CI，观感与真机表现 `pending: 待人现场`。

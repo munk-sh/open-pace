@@ -1,0 +1,24 @@
+c608cb497fe642b0dc0f2359b79026c6457b7fd301f794bbb41e77ea8ec69c5b  docs/screenshots/discard-confirmation-dark.png
+e293771006e763e2cfdfae7d1ad759796a93cefe1dc1f2b64b54a82716c9706e  docs/screenshots/discard-confirmation.png
+1d89caa1cfb687befe71b9f5d473af1001d1534f369ba7751876df105e017e02  docs/screenshots/history-detail-dark.png
+198ca8ca44dfb4eed7da9a01c5e2ad3996f62d270d567c2b1d1a5d0fd1485bb9  docs/screenshots/history-detail.png
+123097ddad46322e4635da45821676b0d3080f52146880d418ec180bcc536104  docs/screenshots/history-list-dark.png
+78bccb09e6eff1bf5c8a0f766a37c4d0db4efeeba5efbdbeae168b7b015acdee  docs/screenshots/history-list.png
+9e2351b3803d9cf49e82ef04794e7e85d1bd359172bd7601b15948fde1f5b087  docs/screenshots/run-finished-dark.png
+6eef6ec004045eda379a0480e52b74bb0d95dce67f42e061bcc6ee3fcbffd67c  docs/screenshots/run-finished.png
+46c00383776e2e793fd66009b515b895fd33efa2fd7b153016acc153b587e505  docs/screenshots/run-not-started-dark.png
+e31727e12da292c531487dccc10474deb07bda54618da550135fba5c8f966785  docs/screenshots/run-not-started.png
+b42fb536cbab1972640a2d6b822af69c66a03a3ee3e58e896a3e0a499b8da996  docs/screenshots/run-running-dark.png
+9a9ba019e1b3e964d648475c34b96390a6db03652c23cabcbbbe1bd3c72d3699  docs/screenshots/run-running.png
+e9df4e5e91ff58614a9055183f07c70240bff2a924ee11b2861b1557d4009cac  docs/screenshots/settings-dark.png
+0e5058badf7dbdb10f10fef5b841b8c0212cff610beee8f5a30bfcc35cf8e583  docs/screenshots/settings.png
+# 采集前（2026-11-13 02:22 CST，HEAD=c122dbb）并排图入库 sha，仅作对照
+2ca972aa2bfc4cc7debd6435afa3d6bd0935cd15b01aea89ccba137187b2cd7a  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
+5ac6b067665a4ca2611f0515e484cdea41660a774328a845662b804896d24165  docs/screenshots/side-by-side/history-detail-side-by-side.png
+740c40d8177527fb0bdbcad96f4d4cd43e163f863c6dc69665fe656c285301a6  docs/screenshots/side-by-side/history-list-side-by-side.png
+fa311c38535f02efe540e48532ae06b69d2b4f9d0c5afd732760f965ad3d48ae  docs/screenshots/side-by-side/run-finished-side-by-side.png
+680008f0dbf6d7d08cb50a6ba78962fc21c6e300a63ef0ccb0ee4c529b6d99b9  docs/screenshots/side-by-side/run-not-started-side-by-side.png
+bf49dd27afe0fc15c4854fde6d4323b9722447d113d4fdbb66bfe71c9cbc79f3  docs/screenshots/side-by-side/run-running-side-by-side.png
+3b00c26f75edf8f40cece9f35e4fc7b5f59a8a2bd2aa8cfd7a448773de78ead5  docs/screenshots/side-by-side/settings-side-by-side.png
+# 采集前工作树状态（git status --porcelain；只有本项未跟踪的 change pack）
+?? .munk/changes/wi_intake_3232a7d1a00f89ec/

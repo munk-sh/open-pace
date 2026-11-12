@@ -3,15 +3,20 @@
 # 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/side-by-side/SHA256SUMS
 # 合成（在仓库根执行）：bash scripts/compose-ios-screenshots-side-by-side.sh
 #
-# 构建 head sha（证据绑定：产品面基线 main；并排原图取自其产品树）：a677e175ca56c113e13cf5d2f652781febeb1223
-# 构建 tree sha（同上，产品面 tree）：400c010454c56683ee53ec72f78f815e387cc1e3
-# 采集时 HEAD（与该基线差异仅 scripts/ 、UITests、docs/）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e（tree 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
-# 左半 = 浅色原图、右半 = 深色原图；1:1 像素、无缩放、无分隔线。
+# 构建 head sha（证据绑定；并排原图由该产品树实取）：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089
+# 构建 tree sha（实取 git rev-parse c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089^{tree}）：bf32815bc8a5dd788f0735d975ae530cc1fa1588
+# 采集时 HEAD（实取 git rev-parse HEAD；合成运行于 2026-11-13 02:52 CST）：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089（tree bf32815bc8a5dd788f0735d975ae530cc1fa1588）
+# 归属项：wi_intake_3232a7d1a00f89ec
+# 零 diff 声明：采集时 ios/PurePace/**、ios/RunCore/** 相对 c122dbb 零 diff
+# 左半 = 浅色原图、右半 = 深色原图；1:1 像素、无缩放、无分隔线；2356×2556（= 2 × 1178 × 2556）。
 #
-2ca972aa2bfc4cc7debd6435afa3d6bd0935cd15b01aea89ccba137187b2cd7a  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
-5ac6b067665a4ca2611f0515e484cdea41660a774328a845662b804896d24165  docs/screenshots/side-by-side/history-detail-side-by-side.png
-740c40d8177527fb0bdbcad96f4d4cd43e163f863c6dc69665fe656c285301a6  docs/screenshots/side-by-side/history-list-side-by-side.png
-fa311c38535f02efe540e48532ae06b69d2b4f9d0c5afd732760f965ad3d48ae  docs/screenshots/side-by-side/run-finished-side-by-side.png
-680008f0dbf6d7d08cb50a6ba78962fc21c6e300a63ef0ccb0ee4c529b6d99b9  docs/screenshots/side-by-side/run-not-started-side-by-side.png
-bf49dd27afe0fc15c4854fde6d4323b9722447d113d4fdbb66bfe71c9cbc79f3  docs/screenshots/side-by-side/run-running-side-by-side.png
-3b00c26f75edf8f40cece9f35e4fc7b5f59a8a2bd2aa8cfd7a448773de78ead5  docs/screenshots/side-by-side/settings-side-by-side.png
+# 本文件由 scripts/compose-ios-screenshots-side-by-side.sh 实取写入 7 行 SHA256；
+# 头部绑定四要素与零 diff 声明按 docs 口径人工补齐（未改脚本）。
+#
+decb2b928b7ebc821c7d69f1abdb9e2022b227050df48cd86d5811202dafa183  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
+8a7aecbe624a1a8717abfd3c782b3f4df3c9ccb43f650e49afd64511b6dda990  docs/screenshots/side-by-side/history-detail-side-by-side.png
+3dca83156a3e6f7e865376fae66553761c53b0f74fc0b39f28e947dc7624f12a  docs/screenshots/side-by-side/history-list-side-by-side.png
+c5bdccea93143fb32b540dc89cede2236bdd80a98ea7334ebc8883c0cdacc7fd  docs/screenshots/side-by-side/run-finished-side-by-side.png
+9de1ec5642bd79a50c3d1294994c310530d5f08f43d61888782d839fce546429  docs/screenshots/side-by-side/run-not-started-side-by-side.png
+e55b2c5dd86d651ffea4b0c513663b7aa41e89ddae57931f6838cd34872cc532  docs/screenshots/side-by-side/run-running-side-by-side.png
+c0c4f9058756d1133ccad741c6bd772d427438b9c0fa60d66c88a013aff2aed8  docs/screenshots/side-by-side/settings-side-by-side.png

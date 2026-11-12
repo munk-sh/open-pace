@@ -1,0 +1,211 @@
+=== run-not-started
+totalDiffPixels=172227 xRange=46..1132 size=1178x2556
+band y=69..106 rows=38 pixels=2388
+band y=611..720 rows=110 pixels=26311
+band y=757..1026 rows=270 pixels=49323
+band y=1168..1264 rows=97 pixels=22230
+band y=1307..1398 rows=92 pixels=15684
+band y=1459..1461 rows=3 pixels=2961
+band y=1471..1473 rows=3 pixels=2961
+band y=1514..1556 rows=43 pixels=4406
+band y=1582..1694 rows=113 pixels=18381
+band y=1845..1921 rows=77 pixels=21310
+band y=2517..2531 rows=15 pixels=6272
+=== run-not-started-dark
+totalDiffPixels=165278 xRange=46..1132 size=1178x2556
+band y=69..106 rows=38 pixels=1718
+band y=611..721 rows=111 pixels=26305
+band y=757..1026 rows=270 pixels=49317
+band y=1168..1264 rows=97 pixels=22228
+band y=1307..1398 rows=92 pixels=15684
+band y=1459..1461 rows=3 pixels=2961
+band y=1471..1473 rows=3 pixels=2961
+band y=1514..1556 rows=43 pixels=4406
+band y=1582..1694 rows=113 pixels=18383
+band y=1845..1921 rows=77 pixels=21315
+=== run-running
+totalDiffPixels=164700 xRange=46..1132 size=1178x2556
+band y=69..106 rows=38 pixels=1344
+band y=631..740 rows=110 pixels=26311
+band y=777..1046 rows=270 pixels=47493
+band y=1210..1306 rows=97 pixels=22230
+band y=1349..1440 rows=92 pixels=15750
+band y=1501..1503 rows=3 pixels=2961
+band y=1513..1515 rows=3 pixels=2961
+band y=1556..1598 rows=43 pixels=4406
+band y=1624..1665 rows=42 pixels=1378
+band y=1693..1800 rows=108 pixels=18556
+band y=1971..2047 rows=77 pixels=21310
+=== run-running-dark
+totalDiffPixels=166612 xRange=46..1132 size=1178x2556
+band y=69..106 rows=38 pixels=2996
+band y=631..741 rows=111 pixels=26305
+band y=777..1046 rows=270 pixels=47487
+band y=1210..1306 rows=97 pixels=22228
+band y=1349..1440 rows=92 pixels=16011
+band y=1501..1503 rows=3 pixels=2961
+band y=1513..1515 rows=3 pixels=2961
+band y=1556..1598 rows=43 pixels=4406
+band y=1624..1665 rows=42 pixels=1384
+band y=1693..1800 rows=108 pixels=18558
+band y=1971..2047 rows=77 pixels=21315
+=== run-finished
+totalDiffPixels=15847 xRange=49..1129 size=1178x2556
+band y=69..106 rows=38 pixels=1907
+band y=330..339 rows=10 pixels=29
+band y=346..368 rows=23 pixels=61
+band y=374..388 rows=15 pixels=64
+band y=398..406 rows=9 pixels=29
+band y=411..456 rows=46 pixels=1239
+band y=478..540 rows=63 pixels=749
+band y=547..549 rows=3 pixels=21
+band y=555..557 rows=3 pixels=4
+band y=561..592 rows=32 pixels=182
+band y=598..612 rows=15 pixels=44
+band y=623..645 rows=23 pixels=59
+band y=647..671 rows=25 pixels=162
+band y=673..676 rows=4 pixels=10
+band y=769..792 rows=24 pixels=398
+band y=815..920 rows=106 pixels=2044
+band y=930..993 rows=64 pixels=1012
+band y=996..1031 rows=36 pixels=572
+band y=1068..1096 rows=29 pixels=969
+band y=1225..1248 rows=24 pixels=306
+band y=1307..1358 rows=52 pixels=276
+band y=1372..1387 rows=16 pixels=60
+band y=1391..1407 rows=17 pixels=150
+band y=1570..1649 rows=80 pixels=5444
+=== run-finished-dark
+totalDiffPixels=16284 xRange=49..1127 size=1178x2556
+band y=69..106 rows=38 pixels=2996
+band y=330..343 rows=14 pixels=64
+band y=345..368 rows=24 pixels=127
+band y=370..388 rows=19 pixels=100
+band y=393..403 rows=11 pixels=31
+band y=410..461 rows=52 pixels=1032
+band y=477..542 rows=66 pixels=685
+band y=547..558 rows=12 pixels=26
+band y=560..595 rows=36 pixels=213
+band y=597..613 rows=17 pixels=68
+band y=626..634 rows=9 pixels=26
+band y=636..646 rows=11 pixels=25
+band y=648..673 rows=26 pixels=180
+band y=675..677 rows=3 pixels=5
+band y=766..794 rows=29 pixels=361
+band y=814..927 rows=114 pixels=2055
+band y=929..991 rows=63 pixels=948
+band y=995..1033 rows=39 pixels=508
+band y=1067..1097 rows=31 pixels=675
+band y=1223..1248 rows=26 pixels=305
+band y=1303..1306 rows=4 pixels=12
+band y=1308..1319 rows=12 pixels=45
+band y=1324..1358 rows=35 pixels=153
+band y=1376..1384 rows=9 pixels=19
+band y=1391..1407 rows=17 pixels=161
+band y=1570..1649 rows=80 pixels=5444
+=== discard-confirmation
+totalDiffPixels=15184 xRange=49..1129 size=1178x2556
+band y=69..106 rows=38 pixels=1907
+band y=330..339 rows=10 pixels=27
+band y=346..368 rows=23 pixels=57
+band y=374..379 rows=6 pixels=26
+band y=381..388 rows=8 pixels=32
+band y=398..406 rows=9 pixels=28
+band y=411..456 rows=46 pixels=1150
+band y=478..540 rows=63 pixels=702
+band y=547..549 rows=3 pixels=18
+band y=555..557 rows=3 pixels=3
+band y=561..592 rows=32 pixels=170
+band y=598..612 rows=15 pixels=40
+band y=623..645 rows=23 pixels=55
+band y=648..671 rows=24 pixels=149
+band y=769..792 rows=24 pixels=371
+band y=815..920 rows=106 pixels=1885
+band y=930..993 rows=64 pixels=923
+band y=996..1031 rows=36 pixels=524
+band y=1068..1096 rows=29 pixels=884
+band y=1225..1248 rows=24 pixels=285
+band y=1307..1358 rows=52 pixels=265
+band y=1372..1387 rows=16 pixels=54
+band y=1391..1407 rows=17 pixels=143
+band y=1570..1649 rows=80 pixels=5427
+=== discard-confirmation-dark
+totalDiffPixels=14716 xRange=49..1127 size=1178x2556
+band y=69..106 rows=38 pixels=2996
+band y=330..343 rows=14 pixels=47
+band y=345..368 rows=24 pixels=99
+band y=372..388 rows=17 pixels=86
+band y=393..403 rows=11 pixels=24
+band y=410..461 rows=52 pixels=828
+band y=477..534 rows=58 pixels=535
+band y=536..542 rows=7 pixels=13
+band y=547..550 rows=4 pixels=7
+band y=552..558 rows=7 pixels=12
+band y=560..586 rows=27 pixels=149
+band y=588..595 rows=8 pixels=22
+band y=597..613 rows=17 pixels=58
+band y=627..634 rows=8 pixels=22
+band y=636..646 rows=11 pixels=20
+band y=648..673 rows=26 pixels=140
+band y=675..677 rows=3 pixels=5
+band y=766..794 rows=29 pixels=290
+band y=814..927 rows=114 pixels=1658
+band y=929..991 rows=63 pixels=768
+band y=995..1033 rows=39 pixels=403
+band y=1067..1097 rows=31 pixels=524
+band y=1223..1244 rows=22 pixels=236
+band y=1246..1248 rows=3 pixels=4
+band y=1303..1305 rows=3 pixels=11
+band y=1308..1319 rows=12 pixels=42
+band y=1325..1340 rows=16 pixels=55
+band y=1342..1358 rows=17 pixels=53
+band y=1376..1384 rows=9 pixels=18
+band y=1391..1407 rows=17 pixels=131
+band y=1570..1649 rows=80 pixels=5444
+=== history-list
+totalDiffPixels=7400 xRange=146..845 size=1178x2556
+band y=69..106 rows=38 pixels=1907
+band y=521..571 rows=51 pixels=4299
+band y=615..648 rows=34 pixels=1194
+=== history-list-dark
+totalDiffPixels=15170 xRange=147..845 size=1178x2556
+band y=69..106 rows=38 pixels=2996
+band y=521..571 rows=51 pixels=4710
+band y=615..648 rows=34 pixels=1194
+band y=2517..2531 rows=15 pixels=6270
+=== history-detail
+totalDiffPixels=59707 xRange=85..1177 size=1178x2556
+band y=9..292 rows=284 pixels=31495
+band y=442..2069 rows=1628 pixels=28212
+=== history-detail-dark
+totalDiffPixels=68436 xRange=85..1177 size=1178x2556
+band y=0..292 rows=293 pixels=40579
+band y=442..2069 rows=1628 pixels=27857
+=== settings
+totalDiffPixels=8179 xRange=146..799 size=1178x2556
+band y=69..106 rows=38 pixels=1907
+band y=2517..2531 rows=15 pixels=6272
+=== settings-dark
+totalDiffPixels=9262 xRange=147..799 size=1178x2556
+band y=69..106 rows=38 pixels=2992
+band y=2517..2531 rows=15 pixels=6270
+
+# 垂直位移相关性检验（新图 y 行 vs 旧图 y-shift 行，采样 x40..1140 / y200..2400；ratio 越小越接近该平移）
+=== run-not-started light
+shift=-80 diff=875225 ratio=0.36166322314049587
+shift=-40 diff=565649 ratio=0.2337392561983471
+shift=-20 diff=388985 ratio=0.16073760330578513
+shift=0 diff=163513 ratio=0.06756735537190083
+shift=20 diff=197425 ratio=0.0815805785123967
+shift=40 diff=407934 ratio=0.16856776859504133
+shift=80 diff=722673 ratio=0.29862520661157027
+=== run-running light
+shift=-80 diff=817307 ratio=0.3377301652892562
+shift=-40 diff=528694 ratio=0.21846859504132232
+shift=-20 diff=363326 ratio=0.15013471074380166
+shift=0 diff=163302 ratio=0.0674801652892562
+shift=20 diff=171492 ratio=0.07086446280991736
+shift=40 diff=354924 ratio=0.14666280991735536
+shift=80 diff=624002 ratio=0.2578520661157025
+# 结论：两者最小 ratio 均出现在 shift=0（0.0676 / 0.0675），说明差异不是整体平移，
+# 而是运行页指标区局部元素重排：差异集中在若干高度≈40px（20pt）的行带（见上表 band）。

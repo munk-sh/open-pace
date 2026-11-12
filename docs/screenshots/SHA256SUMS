@@ -3,26 +3,29 @@
 # 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/SHA256SUMS
 # 生成（在仓库根执行）：shasum -a 256 docs/screenshots/*.png
 #
-# 构建 head sha（证据绑定：产品面基线 main；14 张均取自其产品树，采集时 ios/PurePace/** 与 ios/RunCore/** 相对该 head 零 diff）：a677e175ca56c113e13cf5d2f652781febeb1223
-# 构建 tree sha（同上，产品面 tree）：400c010454c56683ee53ec72f78f815e387cc1e3
-# 采集时 HEAD（实取 git rev-parse HEAD；与该基线差异仅 scripts/ 、UITests、docs/）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e（tree 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
-# 归属项：wi_intake_85d08fa7106efc3f（V1.2 复评证据重出：14 张 + 7 张浅/深并排）
-# 逐图断言 / 旧新 sha 对照 / 并排对照 / 日志：docs/evidence/screenshot-refresh/README.md
+# 构建 head sha（证据绑定；14 张均由该产品树构建的 ScreenshotEvidenceUITests 实取）：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089
+# 构建 tree sha（实取 git rev-parse c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089^{tree}）：bf32815bc8a5dd788f0735d975ae530cc1fa1588
+# 采集时 HEAD（实取 git rev-parse HEAD；2026-11-13 02:24–02:45 CST）：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089（tree bf32815bc8a5dd788f0735d975ae530cc1fa1588）
+# 归属项：wi_intake_3232a7d1a00f89ec（V1.2 复评运行态截图重出 + 证据 sha256 重绑定 c122dbb）
+# 零 diff 声明：采集时 ios/PurePace/**、ios/RunCore/** 相对 c122dbb 零 diff
+#   （git diff --stat c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089 -- ios/PurePace ios/RunCore 空输出，
+#     同命令含 ios/PurePaceUITests 亦空输出；命令与输出见 docs/evidence/wi_intake_3232a7d1a00f89ec/README.md）
+# 逐图断言 / 旧新 sha 对照 / 实取日志 / 并排对照：docs/evidence/wi_intake_3232a7d1a00f89ec/README.md
 # 浅/深并排对照（7 张）：docs/screenshots/side-by-side/ 及其 SHA256SUMS
 #
 # 新增或替换截图后必须同步更新本文件：sha256 与最近改动 commit 全 sha 一律实取，不许猜。
 #
-c608cb497fe642b0dc0f2359b79026c6457b7fd301f794bbb41e77ea8ec69c5b  docs/screenshots/discard-confirmation-dark.png
-e293771006e763e2cfdfae7d1ad759796a93cefe1dc1f2b64b54a82716c9706e  docs/screenshots/discard-confirmation.png
-1d89caa1cfb687befe71b9f5d473af1001d1534f369ba7751876df105e017e02  docs/screenshots/history-detail-dark.png
-198ca8ca44dfb4eed7da9a01c5e2ad3996f62d270d567c2b1d1a5d0fd1485bb9  docs/screenshots/history-detail.png
-123097ddad46322e4635da45821676b0d3080f52146880d418ec180bcc536104  docs/screenshots/history-list-dark.png
-78bccb09e6eff1bf5c8a0f766a37c4d0db4efeeba5efbdbeae168b7b015acdee  docs/screenshots/history-list.png
-9e2351b3803d9cf49e82ef04794e7e85d1bd359172bd7601b15948fde1f5b087  docs/screenshots/run-finished-dark.png
-6eef6ec004045eda379a0480e52b74bb0d95dce67f42e061bcc6ee3fcbffd67c  docs/screenshots/run-finished.png
-46c00383776e2e793fd66009b515b895fd33efa2fd7b153016acc153b587e505  docs/screenshots/run-not-started-dark.png
-e31727e12da292c531487dccc10474deb07bda54618da550135fba5c8f966785  docs/screenshots/run-not-started.png
-b42fb536cbab1972640a2d6b822af69c66a03a3ee3e58e896a3e0a499b8da996  docs/screenshots/run-running-dark.png
-9a9ba019e1b3e964d648475c34b96390a6db03652c23cabcbbbe1bd3c72d3699  docs/screenshots/run-running.png
-e9df4e5e91ff58614a9055183f07c70240bff2a924ee11b2861b1557d4009cac  docs/screenshots/settings-dark.png
-0e5058badf7dbdb10f10fef5b841b8c0212cff610beee8f5a30bfcc35cf8e583  docs/screenshots/settings.png
+042abee854ab60d854a775d97024b0e8b0bb2d6ef7f1c7d1cb7c787c2d6c9e05  docs/screenshots/discard-confirmation-dark.png
+87c80b21b326064af84b58ef48eb3912c117c9ba9c9e3b766747b7bc935117fb  docs/screenshots/discard-confirmation.png
+539efe460b68194aa578c99e3ca3c93f3a1db9b652653bccee87ba4c7ca672fd  docs/screenshots/history-detail-dark.png
+116119fc3ae574bf0efeea8c5b814dda0312dc5bd41c9e35747ace6d1392007c  docs/screenshots/history-detail.png
+a2c3e164f1c49bc13e97e06a5120ec19c6767b34969db37ee462207d9321a193  docs/screenshots/history-list-dark.png
+db21ed92eb2c1e5d50eaf628ac5bfeb42284758dfb0cc70eb667e9a7bd5f948e  docs/screenshots/history-list.png
+4ee5b6e596a5c0b617e3fb210a5a6ed8cf817548480d775c5cfd91f6303a5d0d  docs/screenshots/run-finished-dark.png
+13e838ec2eb620f9a33250fbe4bb038a60646ca675d179675db5309a05a5e0c2  docs/screenshots/run-finished.png
+17127569ca4f36a47c2a1d294547fd5e66f7d6f2f732e3c2a1237beaa4047dda  docs/screenshots/run-not-started-dark.png
+5c94295c72f6d008bcbc67f8ea7e3e70813d22313b2936e56be608c6491a4f7d  docs/screenshots/run-not-started.png
+0699f8b31ba7f644c7022f357a4f312242e85588b2121f26e394d6cde0f9f5bf  docs/screenshots/run-running-dark.png
+803e1ac2ba8b08080abbb8c1c2f642b9399380d33ae3b41141a243eece6ba835  docs/screenshots/run-running.png
+d185b2bac9a2b45d9c2ec3b1f50b1de868839f4aef4f72ff4787251dc85349bc  docs/screenshots/settings-dark.png
+32cb467583052e97b52a51268fa32b50a4b56c96d6bd2ffabf396fe082cf296d  docs/screenshots/settings.png

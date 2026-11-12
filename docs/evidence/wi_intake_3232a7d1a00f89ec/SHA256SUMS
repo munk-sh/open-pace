@@ -1,0 +1,15 @@
+# PurePace 证据目录校验清单（docs/evidence/wi_intake_3232a7d1a00f89ec/，归属项 wi_intake_3232a7d1a00f89ec）
+#
+# 校验（在本目录执行）：shasum -a 256 -c SHA256SUMS
+# 生成（在本目录执行）：shasum -a 256 README.md xcodebuild-light.log xcodebuild-dark.log ios-zero-diff.txt pre-collection-sha256.txt pixel-diff-analysis.txt
+#
+# 构建 head sha：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089
+# 构建 tree sha：bf32815bc8a5dd788f0735d975ae530cc1fa1588
+# 采集时 HEAD：c122dbb1f38b3fd2bde9b23a93bfb67f7b8b3089（ios/PurePace/**、ios/RunCore/** 相对其上零 diff）
+#
+0abadd437e9e3503089df6ff504849794cacc71d38e60cbf4fe39f669a2e657a  README.md
+e17e362b5183c19855b5801506fd6ec6294547e8775333709b790f0ac7683024  xcodebuild-light.log
+7c3a37669fdd91a5c87dbff2d482984b85b7716fa5f43f61adc6cd637c2973c7  xcodebuild-dark.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ios-zero-diff.txt
+6f67d60e971f4260647b96f8345958d39d5fbda4a8f92d96a1b8401f45d2c63f  pre-collection-sha256.txt
+a4ec60d16b548de1aecbf5324566dbe9b96ce3b90fde98bf97695f534127553f  pixel-diff-analysis.txt
