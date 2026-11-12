@@ -1,58 +1,54 @@
-Attributes: Application, 0x10775f240, pid: 78345, label: 'PurePace'
+Attributes: Application, 0x10174df80, pid: 6788, label: 'PurePace'
 Element subtree:
- →Application, 0x10775f240, pid: 78345, label: 'PurePace'
-    Window (Main), 0x10775f630, {{0.0, 0.0}, {393.0, 852.0}}
-      Other, 0x107760130, {{0.0, 0.0}, {393.0, 852.0}}
-        Other, 0x107760250, {{0.0, 0.0}, {393.0, 852.0}}
-          Other, 0x107760370, {{0.0, 0.0}, {393.0, 852.0}}
-            Other, 0x10775fe90, {{0.0, 0.0}, {393.0, 852.0}}
-              Other, 0x10775ffb0, {{0.0, 0.0}, {393.0, 852.0}}
-                Other, 0x107760490, {{0.0, 0.0}, {393.0, 852.0}}
-                  Other, 0x1077605b0, {{0.0, 0.0}, {393.0, 852.0}}
-                    Other, 0x1077606d0, {{0.0, 0.0}, {393.0, 852.0}}
-                      Other, 0x1077607f0, {{0.0, 0.0}, {393.0, 852.0}}
-                        Other, 0x1077609d0, {{0.0, 0.0}, {393.0, 852.0}}
-                          Other, 0x107760af0, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.run'
-                            NavigationBar, 0x107760c10, {{0.0, 53.7}, {393.0, 117.0}}, identifier: '跑步'
-                              StaticText, 0x107760d30, {{16.0, 97.7}, {113.3, 71.7}}, label: '跑步'
-                            Other, 0x107760e50, {{0.0, 0.0}, {393.0, 852.0}}
-                              Other, 0x107760f70, {{0.0, 0.0}, {393.0, 852.0}}
-                                Other, 0x107761090, {{0.0, 0.0}, {393.0, 852.0}}
-                                  Other, 0x1077611b0, {{0.0, 0.0}, {393.0, 852.0}}
-                                    ScrollView, 0x1077612d0, {{0.0, 0.0}, {393.0, 852.0}}
-                                      Other, 0x1077613f0, {{0.0, 170.7}, {393.0, 571.3}}
-                                        StaticText, 0x107761510, {{185.5, 192.6}, {22.0, 13.3}}, label: '距离'
-                                        StaticText, 0x107761630, {{117.3, 213.9}, {158.3, 76.7}}, identifier: 'run.distance', label: '0.31 km'
-                                        StaticText, 0x107761750, {{188.5, 298.6}, {16.0, 13.3}}, label: 'km'
-                                        StaticText, 0x107761870, {{97.2, 345.8}, {22.0, 13.3}}, label: '用时'
-                                        StaticText, 0x107761990, {{262.8, 345.8}, {44.0, 13.3}}, label: '当前配速'
-                                        StaticText, 0x107761ab0, {{52.6, 367.2}, {111.3, 43.0}}, identifier: 'run.elapsed', label: '00:31'
-                                        StaticText, 0x107761bd0, {{240.1, 367.2}, {89.3, 43.0}}, identifier: 'run.currentPace', label: '1:40 /km'
-                                        StaticText, 0x107761cf0, {{275.1, 418.2}, {19.3, 13.3}}, label: '/km'
-                                        StaticText, 0x107761e10, {{86.2, 440.5}, {44.0, 13.3}}, label: '平均配速'
-                                        StaticText, 0x107761f30, {{273.8, 440.5}, {22.0, 13.3}}, label: '分段'
-                                        StaticText, 0x107762050, {{94.1, 461.8}, {28.3, 15.7}}, identifier: 'run.averagePace', label: '1:40 /km'
-                                        StaticText, 0x107762170, {{280.6, 461.8}, {8.3, 15.7}}, identifier: 'run.splits', label: '0'
-                                        StaticText, 0x107762290, {{98.6, 485.5}, {19.3, 13.3}}, label: '/km'
-                                        Other, 0x1077623b0, {{15.5, 510.5}, {362.0, 97.0}}, identifier: 'run.mapPreview', label: '本轮轨迹预览'
-                                          Other, 0x1077624d0, {{16.0, 511.0}, {361.0, 96.0}}
-                                            Other, 0x1077625f0, {{16.0, 511.0}, {361.0, 96.0}}
-                                              Map, 0x107762710, {{16.0, 511.0}, {361.0, 96.0}}
-                                              Other, 0x107762830, {{16.0, 511.0}, {361.0, 96.0}}, identifier: 'AnnotationContainer'
-                                            Link, 0x107762950, {{26.0, 586.3}, {39.8, 10.7}}, label: '法律信息'
-                                        StaticText, 0x107762a70, {{24.0, 618.8}, {59.7, 18.0}}, identifier: 'run.finished.splits', label: '分段明细'
-                                        StaticText, 0x107762b90, {{24.0, 640.8}, {104.3, 18.0}}, identifier: 'run.finished.splitsEmpty', label: '本轮无分段数据'
-                                        StaticText, 0x107762cb0, {{22.2, 688.7}, {348.7, 31.3}}, identifier: 'run.backgroundDegraded', label: '后台定位未开启，锁屏后可能暂停记录；请在系统设置中将定位权限改为「始终允许」。'
-                                      Other, 0x107762dd0, {{360.0, 103.0}, {30.0, 639.0}}, label: '垂直滚动条, 1页', value: 0%
-                                        Other, 0x107762ef0, {{387.0, 206.7}, {3.0, 532.3}}
-                                      Other, 0x107763010, {{360.0, 103.0}, {30.0, 639.0}}, label: '垂直滚动条, 1页', value: 0%
-                                        Other, 0x107763130, {{387.0, 206.7}, {3.0, 532.3}}
-                                    Button, 0x107763250, {{16.0, 762.0}, {287.0, 44.0}}, identifier: 'run.save', label: '保存本次跑步'
-                                    Button, 0x107763370, {{315.0, 762.0}, {62.0, 44.0}}, identifier: 'run.discardRequest', label: '丢弃本次跑步'
+ →Application, 0x10174df80, pid: 6788, label: 'PurePace'
+    Window (Main), 0x101762430, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x101769200, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x101769320, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x1017690b0, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x101724d30, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x101769440, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x101769560, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x101769680, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x1017697a0, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x1017698c0, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x1017699e0, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x101769b00, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.run'
+                            NavigationBar, 0x101769c20, {{0.0, 53.7}, {393.0, 44.0}}, identifier: '跑步'
+                              StaticText, 0x101769d40, {{176.3, 61.7}, {40.3, 25.3}}, label: '跑步'
+                            Other, 0x101769e60, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x101769f80, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x10176a0a0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x10176a1c0, {{0.0, 0.0}, {393.0, 852.0}}
+                                    ScrollView, 0x10176a2e0, {{0.0, 0.0}, {393.0, 852.0}}
+                                      Other, 0x10176a410, {{0.0, 97.7}, {393.0, 644.3}}
+                                        StaticText, 0x10176a530, {{36.0, 165.7}, {43.7, 24.0}}, identifier: 'run.distance', label: '0.30 km'
+                                        StaticText, 0x10176a650, {{83.7, 169.8}, {18.3, 15.7}}, label: 'km'
+                                        Other, 0x10176a770, {{15.5, 109.2}, {362.0, 97.0}}, identifier: 'run.mapPreview', label: '本轮轨迹预览'
+                                          Other, 0x10176a890, {{16.0, 109.7}, {361.0, 96.0}}
+                                            Other, 0x10176a9b0, {{16.0, 109.7}, {361.0, 96.0}}
+                                              Map, 0x10176aad0, {{16.0, 109.7}, {361.0, 96.0}}
+                                              Other, 0x10176abf0, {{16.0, 109.7}, {361.0, 96.0}}, identifier: 'AnnotationContainer'
+                                            Link, 0x10176ad10, {{26.0, 184.9}, {39.8, 10.7}}, label: '法律信息'
+                                        StaticText, 0x10176ae30, {{97.2, 221.7}, {22.0, 13.3}}, label: '用时'
+                                        StaticText, 0x10176af50, {{262.8, 221.7}, {44.0, 13.3}}, label: '平均配速'
+                                        StaticText, 0x10176b070, {{52.6, 243.0}, {111.3, 43.0}}, identifier: 'run.elapsed', label: '00:30'
+                                        StaticText, 0x10176b190, {{240.1, 243.0}, {89.3, 43.0}}, identifier: 'run.averagePace', label: '1:40 /km'
+                                        StaticText, 0x10176b2b0, {{275.1, 294.0}, {19.3, 13.3}}, label: '/km'
+                                        StaticText, 0x10176b3d0, {{24.0, 331.3}, {59.7, 18.0}}, identifier: 'run.finished.splits', label: '分段明细'
+                                        StaticText, 0x10176b4f0, {{24.0, 353.3}, {104.3, 18.0}}, identifier: 'run.finished.splitsEmpty', label: '本轮无分段数据'
+                                        Other, 0x10176b610, {{72.7, 383.3}, {248.0, 23.7}}, identifier: 'run.backgroundDegraded', label: '后台定位未开启，锁屏后可能暂停记录；请在系统设置中将定位权限改为「始终允许」。'
+                                          Image, 0x10176b730, {{85.3, 388.7}, {13.7, 13.3}}, identifier: 'location.slash', label: '定位服务已关闭'
+                                          StaticText, 0x10176b850, {{103.8, 387.3}, {204.7, 15.7}}, label: '后台定位未开启 · 锁屏记录可能中断'
+                                      Other, 0x10176b970, {{360.0, 97.7}, {30.0, 644.3}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x10176ba90, {{387.0, 100.7}, {3.0, 638.3}}
+                                      Other, 0x10176bbb0, {{360.0, 97.7}, {30.0, 644.3}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x10176bcd0, {{387.0, 100.7}, {3.0, 638.3}}
+                                    Button, 0x10176bdf0, {{16.0, 762.0}, {295.0, 44.0}}, identifier: 'run.save', label: '保存本次跑步'
+                                    Button, 0x10176bf10, {{323.0, 762.0}, {54.0, 44.0}}, identifier: 'run.discardRequest', label: '丢弃本次跑步'
 Path to element:
- →Application, 0x10775f240, pid: 78345, label: 'PurePace'
+ →Application, 0x10174df80, pid: 6788, label: 'PurePace'
 Query chain:
  →Find: Target Application 'sh.munk.purepace'
   Output: {
-    Application, 0x107763490, pid: 78345, label: 'PurePace'
+    Application, 0x1016a3cc0, pid: 6788, label: 'PurePace'
   }

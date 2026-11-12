@@ -1,112 +1,112 @@
-Attributes: Application, 0x11ccfa010, pid: 79312, label: 'PurePace'
+Attributes: Application, 0x106879280, pid: 7866, label: 'PurePace'
 Element subtree:
- →Application, 0x11ccfa010, pid: 79312, label: 'PurePace'
-    Window (Main), 0x11ccfa130, {{0.0, 0.0}, {393.0, 852.0}}
-      Other, 0x11ccfa4f0, {{0.0, 0.0}, {393.0, 852.0}}
-        Other, 0x11ccfa610, {{0.0, 0.0}, {393.0, 852.0}}
-          Other, 0x11ccfa250, {{0.0, 0.0}, {393.0, 852.0}}
-            Other, 0x11ccfa370, {{0.0, 0.0}, {393.0, 852.0}}
-              Other, 0x11ccfa730, {{0.0, 0.0}, {393.0, 852.0}}
-                Other, 0x11ccfa850, {{0.0, 0.0}, {393.0, 852.0}}
-                  Other, 0x11ccfa970, {{0.0, 0.0}, {393.0, 852.0}}
-                    Other, 0x11ccfaa90, {{0.0, 0.0}, {393.0, 852.0}}
-                      Other, 0x11ccfabb0, {{0.0, 0.0}, {393.0, 852.0}}
-                        Other, 0x11ccfacd0, {{0.0, 0.0}, {393.0, 852.0}}
-                          Other, 0x11ccfadf0, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
-                            NavigationBar, 0x11ccfaf10, {{0.0, 53.7}, {393.0, 117.0}}, identifier: '跑次详情'
-                              Button, 0x11ccfb030, {{0.0, 53.7}, {74.7, 44.0}}, label: '历史'
-                              StaticText, 0x11ccfb150, {{16.0, 97.7}, {226.7, 71.7}}, label: '跑次详情'
-                            Other, 0x11ccfb270, {{0.0, 0.0}, {393.0, 852.0}}
-                              Other, 0x11ccfb390, {{0.0, 0.0}, {393.0, 852.0}}
-                                Other, 0x11ccfb4b0, {{0.0, 0.0}, {393.0, 852.0}}
-                                  Other, 0x11ccfb5d0, {{0.0, 0.0}, {393.0, 852.0}}
-                                    CollectionView, 0x11ccfb6f0, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'runDetail.root'
-                                      Other, 0x11ccfb810, {{0.0, -1533.3}, {393.0, 1781.0}}
-                                      Cell, 0x11ccfb930, {{0.0, 170.7}, {393.0, 77.0}}
-                                        Other, 0x11ccfba50, {{0.0, 170.7}, {393.0, 77.0}}
-                                          Other, 0x11ccfbb70, {{0.0, 170.7}, {393.0, 77.0}}
-                                            Other, 0x11ccfbc90, {{0.0, 170.7}, {393.0, 77.0}}
-                                        Other, 0x11ccfbdb0, {{0.0, 170.7}, {393.0, 77.0}}
-                                          Other, 0x11ccfbf40, {{0.0, 170.7}, {393.0, 77.0}}
-                                            Other, 0x11ccfc060, {{0.0, 170.7}, {393.0, 77.0}}
-                                              StaticText, 0x11ccfc180, {{28.0, 185.0}, {22.0, 13.3}}, label: '开始'
-                                              StaticText, 0x11ccfc2a0, {{173.3, 182.7}, {191.7, 18.0}}, identifier: 'runDetail.startedAt', label: '2026年11月12日 13:00:18'
-                                              StaticText, 0x11ccfc3c0, {{28.0, 220.0}, {22.0, 13.3}}, label: '结束'
-                                              StaticText, 0x11ccfc4e0, {{173.3, 217.7}, {191.7, 18.0}}, identifier: 'runDetail.endedAt', label: '2026年11月12日 13:00:41'
-                                      Other, 0x11ccfc600, {{0.0, 247.7}, {393.0, 122.0}}
-                                      Cell, 0x11ccfc720, {{0.0, 247.7}, {393.0, 122.0}}
-                                        Other, 0x11ccfc840, {{0.0, 247.7}, {393.0, 122.0}}
-                                          Other, 0x11ccfc960, {{0.0, 247.7}, {393.0, 122.0}}
-                                            Other, 0x11ccfca80, {{0.0, 247.7}, {393.0, 122.0}}
-                                        Other, 0x11ccfcba0, {{0.0, 247.7}, {393.0, 122.0}}
-                                          Other, 0x11ccfccc0, {{0.0, 247.7}, {393.0, 122.0}}
-                                            Other, 0x11ccfcde0, {{0.0, 247.7}, {393.0, 122.0}}
-                                              StaticText, 0x11ccfcf00, {{28.0, 259.7}, {277.0, 76.7}}, identifier: 'runDetail.distance', label: '1.20 km'
-                                              StaticText, 0x11ccfd020, {{28.0, 344.3}, {33.0, 13.3}}, label: '总距离'
-                                      Other, 0x11ccfd140, {{0.0, 369.7}, {393.0, 131.3}}
-                                      Cell, 0x11ccfd260, {{0.0, 369.7}, {393.0, 131.3}}
-                                        Other, 0x11ccfd380, {{0.0, 369.7}, {393.0, 131.3}}
-                                          Other, 0x11ccfd4a0, {{0.0, 369.7}, {393.0, 131.3}}
-                                            Other, 0x11ccfd5c0, {{0.0, 369.7}, {393.0, 131.3}}
-                                        Other, 0x11ccfd6e0, {{0.0, 369.7}, {393.0, 131.3}}
-                                          Other, 0x11ccfd800, {{0.0, 369.7}, {393.0, 131.3}}
-                                            Other, 0x11ccfd920, {{0.0, 369.7}, {393.0, 131.3}}
-                                              StaticText, 0x11ccfda40, {{28.0, 381.7}, {111.3, 43.0}}, identifier: 'runDetail.activeDuration', label: '00:22'
-                                              StaticText, 0x11ccfdb60, {{28.0, 432.7}, {22.0, 13.3}}, label: '用时'
-                                              StaticText, 0x11ccfdc80, {{204.5, 381.7}, {133.7, 86.0}}, identifier: 'runDetail.averagePace', label: '0:18 /km'
-                                              StaticText, 0x11ccfdda0, {{204.5, 475.7}, {44.0, 13.3}}, label: '平均配速'
-                                      Other, 0x11ccfdec0, {{0.0, 501.0}, {393.0, 262.0}}
-                                      Cell, 0x11ccfdfe0, {{0.0, 507.0}, {393.0, 26.0}}
-                                        Other, 0x11ccfe100, {{0.0, 507.0}, {393.0, 26.0}}
-                                        Other, 0x11ccfe220, {{0.0, 507.0}, {393.0, 26.0}}
-                                          Other, 0x11ccfe340, {{0.0, 507.0}, {393.0, 26.0}}
-                                            Other, 0x11ccfe460, {{0.0, 507.0}, {393.0, 26.0}}
-                                              StaticText, 0x11ccfe580, {{0.0, 507.0}, {393.0, 26.0}}, label: '本轮轨迹预览'
-                                      Cell, 0x11ccfe6a0, {{0.0, 533.0}, {393.0, 224.0}}
-                                        Other, 0x11ccfe7c0, {{0.0, 533.0}, {393.0, 224.0}}
-                                          Other, 0x11ccfe8e0, {{0.0, 533.0}, {393.0, 224.0}}
-                                            Other, 0x11ccfea00, {{0.0, 533.0}, {393.0, 224.0}}
-                                        Other, 0x11ccfeb20, {{0.0, 533.0}, {393.0, 224.0}}
-                                          Other, 0x11ccfec40, {{0.0, 533.0}, {393.0, 224.0}}
-                                            Other, 0x11ccfed60, {{0.0, 533.0}, {393.0, 224.0}}
-                                              Other, 0x11ccfee80, {{0.0, 533.0}, {393.0, 224.0}}, identifier: 'run.mapPreview', label: '本轮轨迹预览'
-                                                Other, 0x11ccfefa0, {{28.0, 545.0}, {337.0, 200.0}}
-                                                  Other, 0x11ccff0c0, {{28.0, 545.0}, {337.0, 200.0}}
-                                                    Map, 0x11ccff1e0, {{28.0, 545.0}, {337.0, 200.0}}
-                                                      Other, 0x11ccff300, {{140.2, 635.3}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Birdland'
-                                                    Other, 0x11ccff420, {{28.0, 545.0}, {337.0, 200.0}}, identifier: 'AnnotationContainer'
-                                                  Link, 0x11ccff540, {{91.1, 724.3}, {39.8, 10.7}}, label: '法律信息'
-                                      Other, 0x11ccff660, {{0.0, 763.0}, {393.0, 1780.0}}
-                                      Cell, 0x11ccff780, {{0.0, 769.0}, {393.0, 26.0}}
-                                        Other, 0x11ccff8a0, {{0.0, 769.0}, {393.0, 26.0}}
-                                        Other, 0x11ccff9c0, {{0.0, 769.0}, {393.0, 26.0}}
-                                          Other, 0x11ccffae0, {{0.0, 769.0}, {393.0, 26.0}}
-                                            Other, 0x11ccffc00, {{0.0, 769.0}, {393.0, 26.0}}
-                                              StaticText, 0x11ccffd20, {{0.0, 769.0}, {393.0, 26.0}}, identifier: 'runDetail.splits', label: '分段 · 1'
-                                      Cell, 0x11ccffe40, {{0.0, 795.0}, {393.0, 44.0}}
-                                        Other, 0x11f604080, {{0.0, 795.0}, {393.0, 44.0}}
-                                          Other, 0x11f6041a0, {{0.0, 795.0}, {393.0, 44.0}}
-                                            Other, 0x11f6042c0, {{0.0, 795.0}, {393.0, 44.0}}
-                                        Other, 0x11f6043e0, {{0.0, 795.0}, {393.0, 44.0}}
-                                          Other, 0x11f604500, {{0.0, 795.0}, {393.0, 44.0}}
-                                            Other, 0x11f604620, {{0.0, 795.0}, {393.0, 44.0}}
-                                              StaticText, 0x11f604740, {{0.0, 795.0}, {393.0, 44.0}}, identifier: 'runDetail.splitRow', label: '1、0:00 /km'
-                                                StaticText, 0x11f604860, {{28.0, 808.0}, {9.3, 18.0}}, label: '1'
-                                                StaticText, 0x11f604980, {{304.0, 808.0}, {61.0, 18.0}}, label: '0:00 /km'
-                                      Other, 0x11f604aa0, {{360.0, 103.0}, {30.0, 590.0}}, label: '垂直滚动条, 2页', value: 0%
-                                        Other, 0x11f604bc0, {{387.0, 106.0}, {3.0, 498.7}}
-                                      Other, 0x11f604ce0, {{360.0, 103.0}, {30.0, 590.0}}, label: '垂直滚动条, 2页', value: 0%
-                                        Other, 0x11f604e00, {{387.0, 106.0}, {3.0, 498.7}}
-                                    Button, 0x11f604f20, {{16.0, 713.0}, {361.0, 44.0}}, identifier: 'runDetail.export', label: '导出 GPX'
-                TabBar, 0x11f605040, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
-                  Button, 0x11f605160, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
-                  Button, 0x11f605280, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史', Selected
-                    Image, 0x11f6053a0, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
-                  Button, 0x11f6054c0, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
+ →Application, 0x106879280, pid: 7866, label: 'PurePace'
+    Window (Main), 0x106876420, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x10687a9b0, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x10687aad0, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x10687a860, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x106876b70, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x10687abf0, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x10687ad10, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x10687ae30, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x10687af50, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x10687b070, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x10687b190, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x10687b2b0, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
+                            NavigationBar, 0x10687b3d0, {{0.0, 53.7}, {393.0, 117.0}}, identifier: '跑次详情'
+                              Button, 0x10687b4f0, {{0.0, 53.7}, {74.7, 44.0}}, label: '历史'
+                              StaticText, 0x10687b610, {{16.0, 97.7}, {226.7, 71.7}}, label: '跑次详情'
+                            Other, 0x10687b730, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x10687b850, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x10687b970, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x10687ba90, {{0.0, 0.0}, {393.0, 852.0}}
+                                    CollectionView, 0x10687bbb0, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'runDetail.root'
+                                      Other, 0x10687bcd0, {{0.0, -1533.3}, {393.0, 1781.0}}
+                                      Cell, 0x10687bdf0, {{0.0, 170.7}, {393.0, 77.0}}
+                                        Other, 0x10687bf10, {{0.0, 170.7}, {393.0, 77.0}}
+                                          Other, 0x10687c030, {{0.0, 170.7}, {393.0, 77.0}}
+                                            Other, 0x10687c150, {{0.0, 170.7}, {393.0, 77.0}}
+                                        Other, 0x10687c270, {{0.0, 170.7}, {393.0, 77.0}}
+                                          Other, 0x10687c390, {{0.0, 170.7}, {393.0, 77.0}}
+                                            Other, 0x10687c4b0, {{0.0, 170.7}, {393.0, 77.0}}
+                                              StaticText, 0x10687c5d0, {{28.0, 185.0}, {22.0, 13.3}}, label: '开始'
+                                              StaticText, 0x10687c6f0, {{173.3, 182.7}, {191.7, 18.0}}, identifier: 'runDetail.startedAt', label: '2026年11月12日 22:38:15'
+                                              StaticText, 0x10687c810, {{28.0, 220.0}, {22.0, 13.3}}, label: '结束'
+                                              StaticText, 0x10687c930, {{173.3, 217.7}, {191.7, 18.0}}, identifier: 'runDetail.endedAt', label: '2026年11月12日 22:38:39'
+                                      Other, 0x10687ca50, {{0.0, 247.7}, {393.0, 122.0}}
+                                      Cell, 0x10687cb70, {{0.0, 247.7}, {393.0, 122.0}}
+                                        Other, 0x10687cc90, {{0.0, 247.7}, {393.0, 122.0}}
+                                          Other, 0x10687cdb0, {{0.0, 247.7}, {393.0, 122.0}}
+                                            Other, 0x10687ced0, {{0.0, 247.7}, {393.0, 122.0}}
+                                        Other, 0x10687cff0, {{0.0, 247.7}, {393.0, 122.0}}
+                                          Other, 0x10687d110, {{0.0, 247.7}, {393.0, 122.0}}
+                                            Other, 0x10687d230, {{0.0, 247.7}, {393.0, 122.0}}
+                                              StaticText, 0x10687d350, {{28.0, 259.7}, {277.0, 76.7}}, identifier: 'runDetail.distance', label: '1.20 km'
+                                              StaticText, 0x10687d470, {{28.0, 344.3}, {33.0, 13.3}}, label: '总距离'
+                                      Other, 0x10687d590, {{0.0, 369.7}, {393.0, 131.3}}
+                                      Cell, 0x10687d6b0, {{0.0, 369.7}, {393.0, 131.3}}
+                                        Other, 0x10687d7d0, {{0.0, 369.7}, {393.0, 131.3}}
+                                          Other, 0x10687d8f0, {{0.0, 369.7}, {393.0, 131.3}}
+                                            Other, 0x10687da10, {{0.0, 369.7}, {393.0, 131.3}}
+                                        Other, 0x10687db30, {{0.0, 369.7}, {393.0, 131.3}}
+                                          Other, 0x10687dc50, {{0.0, 369.7}, {393.0, 131.3}}
+                                            Other, 0x10687dd70, {{0.0, 369.7}, {393.0, 131.3}}
+                                              StaticText, 0x10687de90, {{28.0, 381.7}, {111.3, 43.0}}, identifier: 'runDetail.activeDuration', label: '00:23'
+                                              StaticText, 0x10687dfb0, {{28.0, 432.7}, {22.0, 13.3}}, label: '用时'
+                                              StaticText, 0x10687e0d0, {{204.5, 381.7}, {133.7, 86.0}}, identifier: 'runDetail.averagePace', label: '0:20 /km'
+                                              StaticText, 0x10687e1f0, {{204.5, 475.7}, {44.0, 13.3}}, label: '平均配速'
+                                      Other, 0x10687e310, {{0.0, 501.0}, {393.0, 262.0}}
+                                      Cell, 0x10687e4f0, {{0.0, 507.0}, {393.0, 26.0}}
+                                        Other, 0x10687e610, {{0.0, 507.0}, {393.0, 26.0}}
+                                        Other, 0x10687e730, {{0.0, 507.0}, {393.0, 26.0}}
+                                          Other, 0x10687e850, {{0.0, 507.0}, {393.0, 26.0}}
+                                            Other, 0x10687e970, {{0.0, 507.0}, {393.0, 26.0}}
+                                              StaticText, 0x10687ea90, {{0.0, 507.0}, {393.0, 26.0}}, label: '本轮轨迹预览'
+                                      Cell, 0x10687ebb0, {{0.0, 533.0}, {393.0, 224.0}}
+                                        Other, 0x10687ecd0, {{0.0, 533.0}, {393.0, 224.0}}
+                                          Other, 0x10687edf0, {{0.0, 533.0}, {393.0, 224.0}}
+                                            Other, 0x10687ef10, {{0.0, 533.0}, {393.0, 224.0}}
+                                        Other, 0x10687f030, {{0.0, 533.0}, {393.0, 224.0}}
+                                          Other, 0x10687f150, {{0.0, 533.0}, {393.0, 224.0}}
+                                            Other, 0x10687f270, {{0.0, 533.0}, {393.0, 224.0}}
+                                              Other, 0x10687f390, {{0.0, 533.0}, {393.0, 224.0}}, identifier: 'run.mapPreview', label: '本轮轨迹预览'
+                                                Other, 0x10687f4b0, {{28.0, 545.0}, {337.0, 200.0}}
+                                                  Other, 0x10687f5d0, {{28.0, 545.0}, {337.0, 200.0}}
+                                                    Map, 0x10687f6f0, {{28.0, 545.0}, {337.0, 200.0}}
+                                                      Other, 0x10687f810, {{140.2, 635.3}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Birdland'
+                                                    Other, 0x10687f930, {{28.0, 545.0}, {337.0, 200.0}}, identifier: 'AnnotationContainer'
+                                                  Link, 0x10687fa50, {{91.1, 724.3}, {39.8, 10.7}}, label: '法律信息'
+                                      Other, 0x10687fb70, {{0.0, 763.0}, {393.0, 1780.0}}
+                                      Cell, 0x10687fc90, {{0.0, 769.0}, {393.0, 26.0}}
+                                        Other, 0x10687fdb0, {{0.0, 769.0}, {393.0, 26.0}}
+                                        Other, 0x10687fed0, {{0.0, 769.0}, {393.0, 26.0}}
+                                          Other, 0x10687fff0, {{0.0, 769.0}, {393.0, 26.0}}
+                                            Other, 0x106880110, {{0.0, 769.0}, {393.0, 26.0}}
+                                              StaticText, 0x106880230, {{0.0, 769.0}, {393.0, 26.0}}, identifier: 'runDetail.splits', label: '分段 · 1'
+                                      Cell, 0x106880350, {{0.0, 795.0}, {393.0, 44.0}}
+                                        Other, 0x106880470, {{0.0, 795.0}, {393.0, 44.0}}
+                                          Other, 0x106880590, {{0.0, 795.0}, {393.0, 44.0}}
+                                            Other, 0x1068806b0, {{0.0, 795.0}, {393.0, 44.0}}
+                                        Other, 0x1068807d0, {{0.0, 795.0}, {393.0, 44.0}}
+                                          Other, 0x1068808f0, {{0.0, 795.0}, {393.0, 44.0}}
+                                            Other, 0x106880a10, {{0.0, 795.0}, {393.0, 44.0}}
+                                              StaticText, 0x106880b30, {{0.0, 795.0}, {393.0, 44.0}}, identifier: 'runDetail.splitRow', label: '1、0:00 /km'
+                                                StaticText, 0x106880c50, {{28.0, 808.0}, {9.3, 18.0}}, label: '1'
+                                                StaticText, 0x106880d70, {{304.0, 808.0}, {61.0, 18.0}}, label: '0:00 /km'
+                                      Other, 0x106880e90, {{360.0, 103.0}, {30.0, 590.0}}, label: '垂直滚动条, 2页', value: 0%
+                                        Other, 0x106880fb0, {{387.0, 106.0}, {3.0, 498.7}}
+                                      Other, 0x1068810d0, {{360.0, 103.0}, {30.0, 590.0}}, label: '垂直滚动条, 2页', value: 0%
+                                        Other, 0x1068811f0, {{387.0, 106.0}, {3.0, 498.7}}
+                                    Button, 0x106881310, {{16.0, 713.0}, {361.0, 44.0}}, identifier: 'runDetail.export', label: '导出 GPX'
+                TabBar, 0x106881430, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
+                  Button, 0x106881550, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
+                  Button, 0x106881670, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史', Selected
+                    Image, 0x106881790, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
+                  Button, 0x1068818b0, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
 Path to element:
- →Application, 0x11ccfa010, pid: 79312, label: 'PurePace'
+ →Application, 0x106879280, pid: 7866, label: 'PurePace'
 Query chain:
  →Find: Target Application 'sh.munk.purepace'
   Output: {
-    Application, 0x11f3244e0, pid: 79312, label: 'PurePace'
+    Application, 0x1068819d0, pid: 7866, label: 'PurePace'
   }

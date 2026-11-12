@@ -9,7 +9,8 @@ import XCTest
 /// - 截前先断言：`run.mapPreview` 存在、frame 非空且完整落在窗口内（详情不够时先滚动再判），
 ///   再跑 `VisibleTextPolicy` 的 zh-Hans 判定，全部通过后才调 `XCUIScreen.main.screenshot()`。
 /// - 等待全部用状态判据（元素出现 / 时长推进），不用固定 `sleep` 决定断言期望。
-/// - 本用例不进 CI 腿，只由 `scripts/capture-ios-screenshots.sh --stage screenshots` 显式调起。
+/// - 本用例由 `scripts/test-ios.sh` 分段 3/4（`screenshot-light` / `screenshot-dark`）调起，
+///   同一用例也是 `scripts/capture-ios-screenshots.sh --stage screenshots` 的截图来源。
 final class ScreenshotEvidenceUITests: XCTestCase {
     private static let locationAllowLabels = [
         "Allow While Using App", "Allow Once", "Allow", "Always Allow",
@@ -75,8 +76,7 @@ final class ScreenshotEvidenceUITests: XCTestCase {
         assertMapPreviewInWindow(app, screen: "run-finished")
         assertVisibleCopyZhHans(app, screen: "run-finished")
         recordPrimaryAction(save, screen: "run-finished")
-        capture(base: "run-finished")
-        // 本项证据：B1 地图 hero 360 结束待保存态（浅/深各一张，取自本项构建）。
+        // 本项证据：B1 地图 hero 360 结束待保存态（浅/深各一张，取自本项构建），取图前判绿。
         let mapFrame = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch.frame
         let screenHeight = app.windows.firstMatch.frame.height
         print("evidence-b1-finished mapHeight=\(mapFrame.height) screenHeight=\(screenHeight)")
@@ -85,13 +85,25 @@ final class ScreenshotEvidenceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["run.distance"].exists, "B1 地图 hero 缺少常显距离")
         XCTAssertTrue(app.staticTexts["run.elapsed"].exists, "B1 缺少常显时长")
         XCTAssertTrue(app.staticTexts["run.averagePace"].exists, "B1 缺少常显平均配速")
-        // 待核②：`-uiTestLocation` 固定 authorizedWhenInUse，降级胶囊确定性出现在结束态。
+        // 待核②：`-uiTestLocation` 固定 authorizedWhenInUse，降级胶囊确定性出现在结束态；
+        // 单行胶囊判据（高 ≤ 32、宽 < 实测内容宽）与产品侧策略共用同一实现。
         let inlineHint = app.descendants(matching: .any).matching(identifier: "run.backgroundDegraded").firstMatch
         XCTAssertTrue(inlineHint.waitForExistence(timeout: 10), "B1 结束态缺少 inline 权限胶囊")
+        let contentWidth = app.windows.firstMatch.frame.width - 2 * DesignTokens.Spacing.cardGap
         print(
             "evidence-inline-hint hint=\(inlineHint.frame) "
-                + "maxHeight=\(RunFinishedSummaryLayoutPolicy.inlineHintMaxHeight)"
+                + "maxHeight=\(RunFinishedSummaryLayoutPolicy.inlineHintMaxHeight) contentWidth=\(contentWidth)"
         )
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(
+                height: inlineHint.frame.height,
+                width: inlineHint.frame.width,
+                contentWidth: contentWidth
+            ),
+            "B1 inline 胶囊必须单行且不占满整行：hint=\(inlineHint.frame) "
+                + "maxHeight=\(RunFinishedSummaryLayoutPolicy.inlineHintMaxHeight) contentWidth=\(contentWidth)"
+        )
+        capture(base: "run-finished")
         capture(base: "b1-finished")
 
         // 4) 结束态丢弃确认层：仓内唯一的 `.sheet(...)` 确认层
@@ -109,8 +121,8 @@ final class ScreenshotEvidenceUITests: XCTestCase {
                 + "discard=\(discard.label) cancel=\(discardCancel.label)"
         )
         // 本项证据：C2 图标式丢弃确认弹窗（浅/深各一张）。
-        // 取数闭环：顶边由确认层标题静态文本 frame − 内容顶内边距推导，不再用 `app.sheets` /
-        // 固定偏移（iOS 18.6 的 SwiftUI `.presentationDetents` sheet 不被 `app.sheets` 匹配）。
+        // 取数闭环：顶边由确认层标题静态文本 frame − 内容顶内边距推导，不用固定偏移
+        //（iOS 18.6 的 SwiftUI `.presentationDetents` sheet 不被 XCUI 的 sheet 查询匹配）。
         let sheetTitle = app.staticTexts["丢弃这次跑步？"]
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 10), "确认层缺少标题静态文本")
         let sheetTop = sheetTitle.frame.minY - DesignTokens.Spacing.xs
@@ -121,9 +133,10 @@ final class ScreenshotEvidenceUITests: XCTestCase {
         )
         XCTAssertEqual(discard.frame.height, 44, accuracy: 1, "C2 确认丢弃必须 44pt 高")
         XCTAssertEqual(discard.frame.midY, discardCancel.frame.midY, accuracy: 2, "C2 确认与取消必须同一行")
+        XCTAssertGreaterThanOrEqual(sheetTop, screenHeight * 0.70, "C2 确认层顶边未达屏高 70%")
         XCTAssertLessThanOrEqual(screenHeight - sheetTop, 200, "C2 sheet 必须紧凑（≤200pt）")
-        capture(base: "c2-discard")
         capture(base: "discard-confirmation")
+        capture(base: "c2-discard")
         discardCancel.tap()
         XCTAssertTrue(waitUntil(timeout: 10) { !discard.exists }, "取消后确认层未收起")
 
