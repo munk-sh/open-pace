@@ -573,53 +573,86 @@ test_with_xcodebuild() {
   if ui_budget_insufficient "$ui_available"; then
     return 124
   fi
-  # test-without-building 仍可能重装宿主 App，从而清掉 TCC 授权；UI 前重装 Runner 并
-  # 重申「始终允许」，保证 ac-tel-always 的 authorizedAlways（rawValue 3）可机器成立。
-  if [ -d "$ui_runner_path" ]; then
-    xcrun simctl install "$sim_udid" "$ui_runner_path" >/dev/null 2>&1 || true
-  fi
-  echo "info: 阶段 simulator-privacy：UI 前重申定位授权（location + location-always ${bundle_id}）"
-  if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）" >&2
-    return 1
-  fi
-  if ! xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1; then
-    echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）" >&2
-    return 1
-  fi
-  # 第二次调用：UI 测试（-only-testing:PurePaceUITests），由 -uiTestLocation 确定性测试源驱动。
-  local tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
-  rm -f "$tcc_stop_file"
-  refresh_location_always_until_stopped "$tcc_stop_file" &
-  local tcc_refresher_pid=$!
+  # UI 腿分段执行（拆分≠放宽，见 AGENTS「测试稳定性约定」）：
+  # 证据 = CI run 43142574712 attempt1 在 600s 看门狗硬超时时 13 条 UI 用例仍未跑完
+  # （逐用例墙钟合计 ≈537s + 13 次 app 冷启/setup 开销已结构性顶到单腿上界）。
+  # 因此把 UI 目标拆成两次 xcodebuild 调用：每次仍 ≤ IOS_XCODEBUILD_TIMEOUT(600)、
+  # 仍带同一组测试执行预算参数、仍由 -uiTestLocation 确定性源驱动；
+  # 阈值 / 用例数 / 断言强度 / 重试策略全部不变，无 continue-on-error、无腿被删。
   local ui_status=0
-  local ui_started
-  ui_started="$(date +%s)"
-  echo "info: xcodebuild test-without-building -only-testing:PurePaceUITests -scheme ${scheme} -destination '${destination}'（预算 ${ui_available}s，日志 ${ui_log}）"
-  run_with_watchdog "$ui_available" "$ui_log" \
-    xcodebuild test-without-building \
-    -project "$project_path" \
-    -scheme "$scheme" \
-    -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
-    -derivedDataPath "$derived_data" \
-    -only-testing:PurePaceUITests \
-    -test-timeouts-enabled YES \
-    -default-test-execution-time-allowance 300 \
-    -maximum-test-execution-time-allowance 540 \
-    CODE_SIGNING_ALLOWED=NO || ui_status=$?
-  phase_ui_seconds=$(( $(date +%s) - ui_started ))
-  touch "$tcc_stop_file"
-  wait "$tcc_refresher_pid" 2>/dev/null || true
-  rm -f "$tcc_stop_file"
-  cat "$ui_log" 2>/dev/null || true
-  echo "info: PurePaceUITests 摘要（日志 ${ui_log}）："
-  grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$ui_log" 2>/dev/null | tail -n 10 || true
-  if [ "$ui_status" -eq 124 ]; then
-    # 与看门狗同一分类：UI 日志里有 failed 用例 → 产品用例失败；没有才归口承载层预算。
-    ios_timeout_classification_message "UI 腿" "$ui_log" "${phase_ui_seconds}" "$ui_available" \
-      "attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s"
-  elif [ "$ui_status" -ne 0 ]; then
-    echo "test-ios: 阶段 xcodebuild-ui 失败：xcodebuild test 退出 ${ui_status}（模拟器 ${sim_udid}）" >&2
+  ui_call() {
+    local group="$1"
+    local group_log="$2"
+    shift 2
+    local group_budget=""
+    group_budget="$(ios_leg_budget "${ui_budget_cap}" "$(attempt_budget_remaining)")"
+    if ui_budget_insufficient "${group_budget}"; then
+      return 124
+    fi
+    # test-without-building 仍可能重装宿主 App，从而清掉 TCC 授权；每次调用前重装 Runner 并
+    # 重申「始终允许」，保证 ac-tel-always 的 authorizedAlways（rawValue 3）可机器成立。
+    if [ -d "$ui_runner_path" ]; then
+      xcrun simctl install "$sim_udid" "$ui_runner_path" >/dev/null 2>&1 || true
+    fi
+    echo "info: 阶段 simulator-privacy：UI（${group}）前重申定位授权（location + location-always ${bundle_id}）"
+    if ! xcrun simctl privacy "$sim_udid" grant location "$bundle_id" >/dev/null 2>&1; then
+      echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location ${bundle_id}（模拟器 ${sim_udid}）" >&2
+      return 1
+    fi
+    if ! xcrun simctl privacy "$sim_udid" grant location-always "$bundle_id" >/dev/null 2>&1; then
+      echo "test-ios: 阶段 simulator-privacy 失败：simctl privacy grant location-always ${bundle_id}（模拟器 ${sim_udid}）" >&2
+      return 1
+    fi
+    local tcc_stop_file="${TMPDIR:-/tmp}/purepace-tcc-refresh.$$"
+    rm -f "$tcc_stop_file"
+    refresh_location_always_until_stopped "$tcc_stop_file" &
+    local tcc_refresher_pid=$!
+    local only_args=()
+    local target=""
+    for target in "$@"; do
+      only_args+=("-only-testing:${target}")
+    done
+    local group_started=0
+    local group_status=0
+    local group_elapsed=0
+    group_started="$(date +%s)"
+    echo "info: xcodebuild test-without-building ${only_args[*]} -scheme ${scheme} -destination '${destination}'（预算 ${group_budget}s，日志 ${group_log}）"
+    run_with_watchdog "${group_budget}" "${group_log}" \
+      xcodebuild test-without-building \
+      -project "$project_path" \
+      -scheme "$scheme" \
+      -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
+      -derivedDataPath "$derived_data" \
+      ${only_args[@]+"${only_args[@]}"} \
+      -test-timeouts-enabled YES \
+      -default-test-execution-time-allowance 300 \
+      -maximum-test-execution-time-allowance 540 \
+      CODE_SIGNING_ALLOWED=NO || group_status=$?
+    group_elapsed=$(( $(date +%s) - group_started ))
+    phase_ui_seconds=$(( phase_ui_seconds + group_elapsed ))
+    touch "$tcc_stop_file"
+    wait "$tcc_refresher_pid" 2>/dev/null || true
+    rm -f "$tcc_stop_file"
+    cat "$group_log" 2>/dev/null || true
+    echo "info: UI 腿（${group}）摘要（日志 ${group_log}）："
+    grep -E "Executed [0-9]+ tests|Test Case .*(started|passed|failed)" "$group_log" 2>/dev/null | tail -n 10 || true
+    if [ "$group_status" -eq 124 ]; then
+      # 与看门狗同一分类：UI 日志里有 failed 用例 → 产品用例失败；没有才归口承载层预算。
+      ios_timeout_classification_message "UI 腿（${group}）" "$group_log" "${group_elapsed}" "${group_budget}" \
+        "attempt 预算 ${attempt_budget}s = step 预算 ${step_budget_seconds}s − 重试余量 ${retry_reserve_seconds}s"
+    elif [ "$group_status" -ne 0 ]; then
+      echo "test-ios: 阶段 xcodebuild-ui（${group}）失败：xcodebuild test 退出 ${group_status}（模拟器 ${sim_udid}）" >&2
+    fi
+    return "$group_status"
+  }
+  # 分段 1：跑步主流程（6 条）。任一分段失败即停，保留原始退出码，不掩盖为成功。
+  ui_call "runflow" "$ui_log" "PurePaceUITests/RunFlowUITests" || ui_status=$?
+  if [ "$ui_status" -eq 0 ]; then
+    # 分段 2：取证 / AX5 / 音频自检（7 条）。独立调用，自带容器与授权前置。
+    ui_call "evidence" "$log_dir/xcodebuild-ui-2.log" \
+      "PurePaceUITests/EvidenceCaptureUITests" \
+      "PurePaceUITests/Ax5ScrollAuditCounterexampleTests" \
+      "PurePaceUITests/MusicSourceSelfCheckUITests" || ui_status=$?
   fi
   return "$ui_status"
 }

@@ -65,6 +65,12 @@ bash scripts/check-baseline.sh
 
 **CI 定位约定**：CI 的 UI 测试禁止依赖隐藏式 simulator 定位投递；UI 测试用 launch-arg 门控（`-uiTestLocation`，仅 DEBUG）的确定性测试源，真实 CoreLocation 覆盖放 `scripts/verify-ios-sim-runtime.sh`（模拟器）。
 
+## 测试稳定性约定（iOS UI 腿）
+
+- **禁止墙钟依赖断言**：断言期望不得由「跑了多久」决定（tick 数 / 墙钟累计）。会随运行时长漂移的内容（距离、分段行数、布局平衡）必须用 canonical 启动输入锁定，例如 `-uiTestLocation` / `-uiTestLocationTargetMeters`；同一用例在慢机器上不得改变期望值。
+- **导航/重启后必须状态判据**：`tap` 前先等状态（Tab 栏存在 → 目标按钮 `exists && isHittable`），`tap` 后以目标页根/关键元素出现作为页面就绪判据；禁止固定 `sleep` / `Thread.sleep`。tap 被吞或页面未就绪时允许按状态重试 ≤2 次，单次 timeout 与断言强度不变；失败路径必须把可及树/截图与持久化探针写入 xcresult，用于区分「点击被吞 / 页面未就绪」与「数据未持久化」。
+- **单次 xcodebuild ≤600s 分段约定**：`IOS_XCODEBUILD_TIMEOUT=600` 是单次调用硬上界。`scripts/test-ios.sh` 的 UI 腿按目标拆成两段 `xcodebuild test-without-building`（RunFlow 6 条 / 取证+AX5+音频 7 条），每段仍 ≤600s。**拆分≠放宽**：阈值、用例数、断言强度、重试策略与 `-only-testing` 覆盖范围都不得减少，禁止 `continue-on-error`、禁止删腿、禁止提高 timeout。
+
 ## Skill 路由（`.agents/skills/<name>`）
 
 官方 skill 以 `npx skills add <owner/repo@skill>` 安装到仓库内 `.agents/skills/`（禁止 `-g` / `--global`）。路由表与磁盘内容必须双向一致；新增或删除 skill 时同步更新本表。

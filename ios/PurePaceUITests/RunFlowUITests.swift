@@ -556,10 +556,12 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
         let settingsTab = tabBar.buttons["设置"]
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 10), "缺少 Settings Tab")
-        settingsTab.tap()
+        XCTAssertTrue(
+            tapSettingsUntilReady(app, screen: "settings-normalize"),
+            "Settings 缺少每公里播报开关"
+        )
 
         let toggle = app.switches["settings.announcementToggle"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings 缺少每公里播报开关")
 
         // 先把开关归一为开启，避免上一次运行留下的状态影响断言。
         if (toggle.value as? String) == "0" {
@@ -584,10 +586,16 @@ final class RunFlowUITests: XCTestCase {
 
         let relaunchedTabBar = app.tabBars.firstMatch
         XCTAssertTrue(relaunchedTabBar.waitForExistence(timeout: 30), "重启后缺少 Tab 栏")
-        relaunchedTabBar.buttons["设置"].tap()
+        // 重启后走状态判据：Tab 栏存在 → `设置` 按钮 exists && isHittable → tap →
+        // 设置页根（`settings.announcementToggle`）出现。单次等待仍为 10s，未就绪允许再 tap ≤2 次；
+        // 不用固定 sleep、不提高 timeout、不降低断言强度。
+        let relaunchSettingsReady = tapSettingsUntilReady(app, screen: "relaunch-settings")
+        if !relaunchSettingsReady {
+            attachPersistedAnnouncementProbe(app, name: "relaunch-settings")
+        }
+        XCTAssertTrue(relaunchSettingsReady, "重启后缺少每公里播报开关")
 
         let relaunchedToggle = app.switches["settings.announcementToggle"]
-        XCTAssertTrue(relaunchedToggle.waitForExistence(timeout: 10), "重启后缺少每公里播报开关")
         XCTAssertEqual(relaunchedToggle.value as? String, "0", "重启后应保持关闭状态")
     }
 
@@ -1045,13 +1053,77 @@ final class RunFlowUITests: XCTestCase {
     }
 
 
+    /// 导航状态判据（AGENTS「测试稳定性约定」）：tap 前等 Tab 栏存在、`设置` 按钮 exists && isHittable，
+    /// tap 后以设置页根 `settings.announcementToggle` 出现作为页面就绪判据。单次等待沿用既有 10s；
+    /// 判据未满足时按状态重试 tap（首次 + 至多 2 次 = ≤2 次重试），不提高 timeout、不降低断言强度。
+    /// 返回页面是否就绪；失败路径把当次可及树/截图写入 xcresult，供"点击被吞 vs 页面未就绪 vs 未持久化"归因。
+    @discardableResult
+    private func tapSettingsUntilReady(
+        _ app: XCUIApplication,
+        screen: String,
+        waitAfterTap: TimeInterval = 10
+    ) -> Bool {
+        let tabBar = app.tabBars.firstMatch
+        guard tabBar.waitForExistence(timeout: 30) else {
+            print("NAV-GATE screen=\(screen) stage=tabbar exists=false")
+            attachAccessibilityTree(app, name: "\(screen)-tabbar-missing")
+            attachScreenshot(app, name: "\(screen)-tabbar-missing")
+            return false
+        }
+        let settingsTab = tabBar.buttons["设置"]
+        guard waitUntil(timeout: 10, { settingsTab.exists && settingsTab.isHittable }) else {
+            print(
+                "NAV-GATE screen=\(screen) stage=settingsTab exists=\(settingsTab.exists) "
+                    + "hittable=\(settingsTab.isHittable)"
+            )
+            attachAccessibilityTree(app, name: "\(screen)-settings-not-hittable")
+            attachScreenshot(app, name: "\(screen)-settings-not-hittable")
+            return false
+        }
+        let toggle = app.switches["settings.announcementToggle"]
+        for attempt in 0...2 {
+            if toggle.exists {
+                return true
+            }
+            settingsTab.tap()
+            if waitUntil(timeout: waitAfterTap, { toggle.exists }) {
+                return true
+            }
+            print(
+                "NAV-GATE screen=\(screen) stage=pageReady attempt=\(attempt) "
+                    + "toggle=missing settingsSelected=\(settingsTab.isSelected) "
+                    + "tabBar=\(tabBar.exists)"
+            )
+            attachAccessibilityTree(app, name: "\(screen)-attempt\(attempt)")
+            attachScreenshot(app, name: "\(screen)-attempt\(attempt)")
+        }
+        return false
+    }
+
+    /// 判别探针：断言路径未就绪时，用既有 DEBUG 门控 `-screenshotInitialTab settings` 直接落到设置页，
+    /// 绕过 tab tap 直读持久化值 —— `0` 说明等待/点击时序，`1` 说明偏好未跨重启持久化。
+    /// 只读、只在失败路径调用，不参与断言判据。
+    private func attachPersistedAnnouncementProbe(_ app: XCUIApplication, name: String) {
+        app.terminate()
+        app.launchArguments += ["-screenshotInitialTab", "settings"]
+        app.launch()
+        let toggle = app.switches["settings.announcementToggle"]
+        let ready = toggle.waitForExistence(timeout: 30)
+        let value = ready ? (toggle.value as? String ?? "nil") : "missing"
+        print("RELAUNCH-PROBE name=\(name) probeToggleReady=\(ready) persisted=\(value)")
+        attachAccessibilityTree(app, name: "\(name)-probe-tree")
+        attachScreenshot(app, name: "\(name)-probe")
+    }
+
     /// 通过真实 Settings UI 把每公里播报开关归一为开启（前序用例可能已关闭）。
     private func enableAnnouncements(_ app: XCUIApplication) {
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 30), "缺少 Tab 栏")
-        tabBar.buttons["设置"].tap()
+        XCTAssertTrue(
+            tapSettingsUntilReady(app, screen: "enable-announcements"),
+            "Settings 缺少每公里播报开关"
+        )
         let toggle = app.switches["settings.announcementToggle"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings 缺少每公里播报开关")
         if (toggle.value as? String) == "0" {
             toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
             XCTAssertTrue(
