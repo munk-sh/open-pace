@@ -295,7 +295,8 @@ struct RunView: View {
                 Text(unit)
                     .font(DesignTokens.Typography.metricUnit)
                     .foregroundStyle(DesignTokens.Colors.secondary)
-                    .accessibilityHidden(true)
+                    // 单位行是用户可见内容且占据垂直空间：保留在可及树里，
+                    // 否则首屏居中判据会把「数值→下一块」的真实间距虚增一整个单位行。
             }
         }
         .frame(maxWidth: .infinity)
