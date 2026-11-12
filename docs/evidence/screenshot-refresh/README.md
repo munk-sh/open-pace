@@ -180,9 +180,12 @@ tree 绑定 `a677e17`（tree `400c010`，采集时 `ios/PurePace/**` 与 `ios/Ru
 该失败发生在产品视图 / `RunFlowUITests` 的版式判据，本项改动面（`ScreenshotEvidenceUITests.swift`、
 `scripts/**`、`docs/**`）不含该文件；按 ac-ci-no-weakening 原样记录失败腿原文，不伪造绿。
 
-**证据 commit 回执**：本 coding 会话无 `git push` / `gh auth` 权限，证据 commit 尚未推送，其
-`ios.yml` run 不存在；推送后由 Delivery 实取 run id / conclusion / 4 段 UI 腿覆盖与耗时回填。
-即使推送后 run 绿，也只是「证据 commit 的 CI 结论」；基线 `a677e17` 的红仍在（见上表）。
+**证据 commit 回执（Delivery 实查，2026-11-12 14:59Z 首次查询）**：证据 commit 已随本项交付推送至 `main`，
+合并提交 `8a6c2afe537cab0896804439e2b70e69e97ff1e0` 触发的 `ios.yml` run 为 `43242965553`，
+查询时 `status=in_progress`、`conclusion` 为空（CI 未完成）；按 ac-ci-authoritative-green 口径
+本会话不 watch / sleep 轮询，故**结论待 CI 跑完**，回执按实际查询结果记录，不预写绿。
+即使该 run 跑完后为绿，也只是「证据 commit 的 CI 结论」；基线 `a677e17` 的红仍在（见上表）。
+`a677e17` 的产品层版式修红在另立项 `wi_intake_caf0abdb2486d501`，本项不承担该修复。
 
 **修红后需 rebind 的最小集合**（其余证据不受影响，按现脚本重出即可）：
 
