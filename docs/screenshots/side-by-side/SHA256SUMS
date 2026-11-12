@@ -1,0 +1,16 @@
+# PurePace 浅/深并排对照校验清单（docs/screenshots/side-by-side/）
+#
+# 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/side-by-side/SHA256SUMS
+# 合成（在仓库根执行）：bash scripts/compose-ios-screenshots-side-by-side.sh
+#
+# 构建 head sha（原图产出所在 commit，实取 git rev-parse HEAD）：18049604470a611d8b13e12a9212c61e3af73b4c
+# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：5b902cb447996458a3967dab9b5ceeb855229cda
+# 左半 = 浅色原图、右半 = 深色原图；1:1 像素、无缩放、无分隔线。
+#
+13c466bfdba01ff30609cc83102ac4b34b0b3212842eba7fd05a356a98cbc27b  docs/screenshots/side-by-side/discard-confirmation-side-by-side.png
+41e197718b3ab43105d45bdc53920554fc7e3ebc8318a9067d1fc47eb53bfb93  docs/screenshots/side-by-side/history-detail-side-by-side.png
+5bd1d7590cf9e6fb3b0d6260f13eaddccc8c4e493cefe3c9cac71e80b2a616a2  docs/screenshots/side-by-side/history-list-side-by-side.png
+e42a0b6993a5e2895c1d897a7aa686eaacaf536112b72a49062160631ad3a8c7  docs/screenshots/side-by-side/run-finished-side-by-side.png
+4f63da6236102c4e2c8c6fb98c18323472117988b29958ad1dfb8f25b8bb8801  docs/screenshots/side-by-side/run-not-started-side-by-side.png
+9df9cee5dac81b77c945d016292ab8beb22210c97c540fd61f4b6fcf36b0ad42  docs/screenshots/side-by-side/run-running-side-by-side.png
+7236acc50c461ca8cb725e14d8dfa6e6d3274da015ea767a79ed2da4539ed7e4  docs/screenshots/side-by-side/settings-side-by-side.png

@@ -1,11 +1,16 @@
-== trees: EvidenceCaptureUITests/testEvidenceTreesAndRealArchive（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
-archive: /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/FA17987A-ED35-4580-B638-BC58C014FB02/Documents/Runs
-snapshot: .build/evidence/archive-snapshot（1 个文件）
 == screenshots: 六屏 × 浅/深 + 结束态丢弃确认（14 张，UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
-build head sha: cbebc194872226951d0bd99f6450637e87b4811c (cbebc19)
+build head sha: 18049604470a611d8b13e12a9212c61e3af73b4c (1804960)
 appearance: before=light（采集结束后还原）
 == screenshots[light]: ScreenshotEvidenceUITests/testEvidenceScreensLight（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
+shot: docs/screenshots/run-not-started.png（1178 2556 px）
+shot: docs/screenshots/run-running.png（1178 2556 px）
+shot: docs/screenshots/run-finished.png（1178 2556 px）
+shot: docs/screenshots/discard-confirmation.png（1178 2556 px）
+shot: docs/screenshots/history-list.png（1178 2556 px）
+shot: docs/screenshots/history-detail.png（1178 2556 px）
+shot: docs/screenshots/settings.png（1178 2556 px）
 info: light 外部 xcresult .build/evidence/screenshots-light.xcresult，日志 .build/evidence/screenshot-refresh/xcodebuild-light.log
+assert: evidence-shot 7/14 ✓（light）
 assert: ac-visible-copy-zh-hans screen=run-not-started violations=0 ✓（light）
 assert: ac-visible-copy-zh-hans screen=run-running violations=0 ✓（light）
 assert: ac-visible-copy-zh-hans screen=run-finished violations=0 ✓（light）
@@ -14,9 +19,18 @@ assert: ac-visible-copy-zh-hans screen=history-detail violations=0 ✓（light�
 assert: ac-visible-copy-zh-hans screen=settings violations=0 ✓（light）
 assert: evidence-map screen=run-finished ✓（light）
 assert: evidence-map screen=history-detail ✓（light）
-assert: evidence-discard ✓（light，地图断言 2 条）
+assert: evidence-inline-hint ✓（light）
+assert: evidence-c2-discard ✓（light，地图断言 2 条）
 == screenshots[dark]: ScreenshotEvidenceUITests/testEvidenceScreensDark（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
+shot: docs/screenshots/run-not-started-dark.png（1178 2556 px）
+shot: docs/screenshots/run-running-dark.png（1178 2556 px）
+shot: docs/screenshots/run-finished-dark.png（1178 2556 px）
+shot: docs/screenshots/discard-confirmation-dark.png（1178 2556 px）
+shot: docs/screenshots/history-list-dark.png（1178 2556 px）
+shot: docs/screenshots/history-detail-dark.png（1178 2556 px）
+shot: docs/screenshots/settings-dark.png（1178 2556 px）
 info: dark 外部 xcresult .build/evidence/screenshots-dark.xcresult，日志 .build/evidence/screenshot-refresh/xcodebuild-dark.log
+assert: evidence-shot 7/14 ✓（dark）
 assert: ac-visible-copy-zh-hans screen=run-not-started violations=0 ✓（dark）
 assert: ac-visible-copy-zh-hans screen=run-running violations=0 ✓（dark）
 assert: ac-visible-copy-zh-hans screen=run-finished violations=0 ✓（dark）
@@ -25,13 +39,8 @@ assert: ac-visible-copy-zh-hans screen=history-detail violations=0 ✓（dark）
 assert: ac-visible-copy-zh-hans screen=settings violations=0 ✓（dark）
 assert: evidence-map screen=run-finished ✓（dark）
 assert: evidence-map screen=history-detail ✓（dark）
-assert: evidence-discard ✓（dark，地图断言 2 条）
+assert: evidence-inline-hint ✓（dark）
+assert: evidence-c2-discard ✓（dark，地图断言 2 条）
 appearance: after=light
-info: 已重写 docs/screenshots/SHA256SUMS（14 张 PNG + 构建 head sha cbebc194872226951d0bd99f6450637e87b4811c）
-info: 证据日志已发布到 docs/evidence/screenshot-refresh/（capture.log + xcodebuild-light.log + xcodebuild-dark.log）
-== ax5: content_size accessibility-extra-extra-extra-large（UDID B3F00298-E08A-41E0-876E-6E8A75C730FD）
-restore: 已还原真实归档到 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/1D03593A-D00F-48E8-ACFB-BFEC432DDE15/Documents/Runs（1 个文件）
-info: 复用真实归档 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/1D03593A-D00F-48E8-ACFB-BFEC432DDE15/Documents/Runs（2 个文件）
-content_size: before=large after=accessibility-extra-extra-extra-large
-restore: 已还原真实归档到 /Users/zhutao/Library/Developer/CoreSimulator/Devices/B3F00298-E08A-41E0-876E-6E8A75C730FD/data/Containers/Data/Application/16728EB6-1F4B-4329-91F9-E40EC0983CD2/Documents/Runs（1 个文件）
-content_size 还原: large
+info: 已重写 docs/screenshots/SHA256SUMS（14 张 PNG + 构建 head sha 18049604470a611d8b13e12a9212c61e3af73b4c / tree sha 5b902cb447996458a3967dab9b5ceeb855229cda）
+info: 已重出 7 张浅/深并排对照（docs/screenshots/side-by-side/）
