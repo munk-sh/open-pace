@@ -10,3 +10,9 @@ generated_at_utc: 2026-11-12T08:05Z
 #
 # 本文件自身在紧随其后的「证据提交」里追加（git 提交无法记录自身 sha），
 # 该提交只新增 changed-files.txt 与本文件，不改动任何交付渲染物。
+evidence_commit: bbcd8e4b2fbec264e3fee213a0a935ce15af02c2
+#
+# 之后的 docs follow-up 提交只修正 README 内 C1 次操作文案（「保留本次跑步」，
+# 与 run.discardConfirm.cancel 一致），不改动任何 PNG / SHA256SUMS / 渲染物；
+# 20 张图与全部交付内容的绑定仍以 deliverables_commit 为准。
+
