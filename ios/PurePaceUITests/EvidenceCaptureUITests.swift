@@ -148,14 +148,17 @@ final class EvidenceCaptureUITests: XCTestCase {
             waitUntil(timeout: 30) { archiveRows.count >= 1 || archiveEmpty.exists },
             "AX5 历史页既无归档行也无空态"
         )
-        let needsSeed = archiveRows.count == 0
+        // 计数必须在 terminate 前取一次：终止后再查 `archiveRows.count` 会命中
+        // 「Application ... is not running」，使本腿在非空归档（跳过 seed 分支）时假红。
+        let observedRowCount = archiveRows.count
+        let needsSeed = observedRowCount == 0
         app.terminate()
         if needsSeed {
             print("AX5-SEED action=seed reason=archive-empty")
             let seedApp = seedRealArchive()
             seedApp.terminate()
         } else {
-            print("AX5-SEED action=skip reason=archive-present rows=\(archiveRows.count)")
+            print("AX5-SEED action=skip reason=archive-present rows=\(observedRowCount)")
         }
 
         // 3.1) History 详情：打开真实归档首条

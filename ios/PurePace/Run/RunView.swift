@@ -22,10 +22,20 @@ struct RunView: View {
             // 四层（hero → 次级指标 → 提示 → 主操作）在「导航栏下沿 → 主操作顶边」之间等量分布：
             // 固定间距只取语义 token，剩余空间由四个等权 Spacer(minLength:) 吸收，
             // 不出现顶对齐后把余量堆成单块死白的旧布局；
-            // 小屏/大字号溢出时退回滚动，不截断内容。
-            ViewThatFits(in: .vertical) {
-                balancedMetrics
-                ScrollView { metricsContent }
+            // 小屏/大字号溢出时由滚动容器自然承载，不截断、不压到底部主操作上。
+            // 滚动体用 `minHeight` 撑满视口（不是 `maxHeight: .infinity`）：内容不溢出时余量
+            // 仍由 Spacer 等权吸收，溢出时以内容本身高度滚动，`ViewThatFits` 不再有「永远选中
+            // 第一分支、退不回滚动」的入口。
+            GeometryReader { proxy in
+                ScrollView {
+                    balancedMetrics(
+                        compressesFinishedSummary: RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+                            availableContentHeight: proxy.size.height
+                        )
+                    )
+                    .frame(minHeight: proxy.size.height)
+                }
             }
             // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
             .overlay(alignment: .bottom) { telemetryOverlay }
@@ -78,40 +88,31 @@ struct RunView: View {
     // MARK: - 指标内容块
 
     /// 首屏等量分布：四个 Spacer 夹出四层，等权吸收余量（最小间距取语义 token）。
-    private var balancedMetrics: some View {
+    /// 只声明宽度弹性：若这里再给 `maxHeight: .infinity`，`ViewThatFits` 量到的理想高度
+    /// 被撑成整个可用高度而永远选中本分支，内容溢出时退不回下面的滚动分支
+    /// （结束态 `run.backgroundDegraded` 压到 `run.save` 上即由此产生）。
+    private func balancedMetrics(compressesFinishedSummary: Bool) -> some View {
         VStack(spacing: .zero) {
             Spacer(minLength: DesignTokens.Spacing.screenTop)
             distanceHero
             Spacer(minLength: DesignTokens.Spacing.cardGap)
             metricsPanel
             if viewModel.state == .finished {
-                finishedTrackSummary
+                finishedTrackSummary(compresses: compressesFinishedSummary)
             }
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
             hintLayer
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
         }
         .padding(.horizontal, DesignTokens.Spacing.cardGap)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// 三态共用的四层内容块：hero 距离 → 次级指标 → 提示 → （底部）主操作。
-    /// 仅作为 ViewThatFits 的滚动退路，垂直余量不是本分支的职责。
-    private var metricsContent: some View {
-        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
-            distanceHero
-            metricsPanel
-            if viewModel.state == .finished {
-                finishedTrackSummary
-            }
-            hintLayer
-        }
-        .padding(DesignTokens.Spacing.cardGap)
         .frame(maxWidth: .infinity)
     }
 
     /// 第一层：hero 距离。全屏唯一 `display` 主值，面板底只用中性 surface，
     /// 三态区分只落在数值色上，不铺满整块状态弱底。
+    /// 单位单独一行（`metricBlock` 既有三行口径）：若把 display 与单位并入同一 `Text`，
+    /// hero 末行变成 64pt 行盒，行盒下沿与静态文本 frame 相差约 21pt，
+    /// 会被首屏居中判据计成 hero→指标卡空洞（实测 89.9pt > 80pt）。
     private var distanceHero: some View {
         metricBlock(
             label: L10n.runMetricDistance,
@@ -208,26 +209,28 @@ struct RunView: View {
 
     /// 结束态专属：轨迹预览卡（与详情页同一 `TrackMapView`）+ 分段明细。
     /// 记录态 / 暂停 / 未开始一律不出现这些块。
-    private var finishedTrackSummary: some View {
-        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
+    /// `compresses` 由 `RunFinishedSummaryLayoutPolicy.compressesFinishedSummary` 按可用内容区判定：
+    /// 辅助字号档恒压缩，标准字号档在内容区预算不足时同样压缩（本机实测溢出 75.3pt）。
+    private func finishedTrackSummary(compresses: Bool) -> some View {
+        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: compresses)) {
             TrackMapView(
                 samples: viewModel.acceptedSamples,
                 emptyIdentifier: "run.mapEmpty",
                 singlePointIdentifier: "run.mapEmpty.single"
             )
-            .frame(height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: usesCompactFinishedSummary))
-            splitsDetail
+            .frame(
+                height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(
+                    compresses: compresses,
+                    isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                )
+            )
+            splitsDetail(compresses: compresses)
         }
     }
 
-    /// 辅助字号档下结束态总结使用压缩口径（地图更矮、间距更小），标准字号档逐字沿用既有视觉。
-    private var usesCompactFinishedSummary: Bool {
-        dynamicTypeSize.isAccessibilitySize
-    }
-
     /// 分段明细：有分段逐段渲染「序号 + 配速」，无分段给明确中文替代文案。
-    private var splitsDetail: some View {
-        VStack(alignment: .leading, spacing: RunFinishedSummaryLayoutPolicy.rowSpacing(isAccessibilitySize: usesCompactFinishedSummary)) {
+    private func splitsDetail(compresses: Bool) -> some View {
+        VStack(alignment: .leading, spacing: RunFinishedSummaryLayoutPolicy.rowSpacing(isAccessibilitySize: compresses)) {
             Text(L10n.runSplitsDetailTitle)
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Colors.secondary)
@@ -258,7 +261,7 @@ struct RunView: View {
                 }
             }
         }
-        .padding(RunFinishedSummaryLayoutPolicy.cardPadding(isAccessibilitySize: usesCompactFinishedSummary))
+        .padding(RunFinishedSummaryLayoutPolicy.cardPadding(isAccessibilitySize: compresses))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             DesignTokens.Colors.surface,
@@ -297,7 +300,8 @@ struct RunView: View {
                 Text(unit)
                     .font(DesignTokens.Typography.metricUnit)
                     .foregroundStyle(DesignTokens.Colors.secondary)
-                    .accessibilityHidden(true)
+                    // 单位行是用户可见内容且占据垂直空间：保留在可及树里，
+                    // 否则首屏居中判据会把「数值→下一块」的真实间距虚增一整个单位行。
             }
         }
         .frame(maxWidth: .infinity)

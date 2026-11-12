@@ -63,7 +63,7 @@
   （`Waiting 10.0s for NavigationBar (First Match) to exist`），无整包结论。已绿范围只到单用例
   `testEvidenceAx5Layout` exit 0 与两条反例/正向对照（`ax5-counterexamples.log`）。
 - 反例/口径证据：`ax5-counterexamples.log`（两条合成反例 + 正向对照）。
-- 未修清单（第三处及以上，只记录不动手）：
+- 未修清单（第三处及以上，只记录不动手；其中 1) / 2) 已由 `wi_intake_1127fd3553df6ea7` 收口——标准字号档结束态压缩与详情导出固定底部，证据见 `docs/verification-matrix.md` 对应行与 `.munk/logs/g-final-ax5.log`）：
   1) 标准字号档 `03-run-finished`：`run.backgroundDegraded` (22.2, 806.0, 348.7, 31.3) 与 `run.save`
      (16, 762, 287, 44) 相交。根因是 `balancedMetrics` 的 `.frame(maxHeight: .infinity)`（RunView.swift:93）
      让 `ViewThatFits` 永远选第一分支、回退不到 `ScrollView`；建议参数：该 frame 改 `maxWidth` only，

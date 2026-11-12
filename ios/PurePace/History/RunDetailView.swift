@@ -3,7 +3,9 @@ import SwiftUI
 
 /// 跑次详情页：字段全部来自被点击的 `RunRecord` 与 `RunDetailContent` 纯映射，
 /// 视图只做绑定与排版，不重算距离、不聚合分段、不读样例。
-/// 纵向序固定为 元信息 → hero 距离 → 指标网格 → 分段 → 导出。
+/// 内容区纵向序固定为 元信息 → hero 距离 → 指标网格 → 分段；导出是本页唯一主操作，
+/// 固定底部安全区上方（与 `RunView` 同一 `.safeAreaInset(edge: .bottom)` 锚点写法），
+/// 不进可滚动 `List`，首次进入无需滚动即可命中。
 struct RunDetailView: View {
     let record: RunRecord
     let exporter: RunGPXExporter
@@ -21,7 +23,6 @@ struct RunDetailView: View {
             metricGridSection
             mapSection
             splitsSection
-            exportSection
         }
         .listStyle(.plain)
         .listSectionSpacing(DesignTokens.Spacing.sectionGap)
@@ -29,6 +30,11 @@ struct RunDetailView: View {
         .background(DesignTokens.Colors.background)
         .navigationTitle(L10n.runDetailNavigationTitle)
         .accessibilityIdentifier("runDetail.root")
+        // 主操作固定底部控制区：安全区上方、TabBar 之上，与跑步页同一锚点与视觉口径。
+        // 导出不在 `List` 内，惰性列表 realize 与滚动位置都不再影响其可见性。
+        .safeAreaInset(edge: .bottom) {
+            exportAction
+        }
     }
 
     /// 第一块：顶部元信息（开始 / 结束，带秒），最低层级。
@@ -132,53 +138,60 @@ struct RunDetailView: View {
         }
     }
 
-    /// 第五块：导出区，流程与状态标识保持不变。
-    @ViewBuilder
-    private var exportSection: some View {
-        Section {
-            cardRow {
-                Button(L10n.runDetailExportButton) {
-                    exportState.export(record, using: exporter)
-                }
-                .font(DesignTokens.Typography.control)
-                .foregroundStyle(DesignTokens.Colors.accent)
-                .frame(minHeight: DesignTokens.minTapTarget)
-                .accessibilityIdentifier("runDetail.export")
-                .accessibilityLabel(Text(L10n.runDetailExportLabel))
-
-                switch exportState.phase {
-                case .idle:
-                    EmptyView()
-                case .exported(let url):
-                    (Text(L10n.runDetailExported) + Text(verbatim: " \(url.lastPathComponent)"))
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.secondary)
-                        .accessibilityIdentifier("runDetail.exported")
-                    ShareLink(item: url) {
-                        Text(L10n.runDetailShare)
-                    }
-                    .font(DesignTokens.Typography.body)
-                    .foregroundStyle(DesignTokens.Colors.accent)
+    /// 主操作区：唯一导出主操作（填充 accent、`minTapTarget` 高）+ 导出结果 / 分享入口。
+    /// 区块视觉与跑步页底部主操作同一口径：`surface` 底 + 顶部 hairline 分隔，
+    /// 内边距取语义 token；导出结果只在真实落盘后出现，失败态复用既有 `danger` 文案。
+    private var exportAction: some View {
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            Button {
+                exportState.export(record, using: exporter)
+            } label: {
+                Text(L10n.runDetailExportButton)
+                    .font(DesignTokens.Typography.control)
+                    .foregroundStyle(DesignTokens.Colors.onAccent)
+                    .frame(maxWidth: .infinity)
                     .frame(minHeight: DesignTokens.minTapTarget)
-                    .accessibilityIdentifier("runDetail.share")
-                    .accessibilityLabel(Text(L10n.runDetailShareLabel))
-                case .failed:
-                    Text(L10n.runDetailExportFailed)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.danger)
-                        .accessibilityIdentifier("runDetail.exportFailed")
-                }
             }
-        } header: {
-            Text(L10n.runDetailExportSection)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-                .textCase(nil)
-        } footer: {
-            Text(L10n.runDetailExportFooter)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-                .listRowBackground(DesignTokens.Colors.background)
+            .background(
+                DesignTokens.Colors.accent,
+                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+            )
+            .accessibilityIdentifier("runDetail.export")
+            .accessibilityLabel(Text(L10n.runDetailExportLabel))
+
+            switch exportState.phase {
+            case .idle:
+                EmptyView()
+            case .exported(let url):
+                (Text(L10n.runDetailExported) + Text(verbatim: " \(url.lastPathComponent)"))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("runDetail.exported")
+                ShareLink(item: url) {
+                    Text(L10n.runDetailShare)
+                        .font(DesignTokens.Typography.body)
+                        .foregroundStyle(DesignTokens.Colors.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: DesignTokens.minTapTarget)
+                }
+                .accessibilityIdentifier("runDetail.share")
+                .accessibilityLabel(Text(L10n.runDetailShareLabel))
+            case .failed:
+                Text(L10n.runDetailExportFailed)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.danger)
+                    .accessibilityIdentifier("runDetail.exportFailed")
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity)
+        .background(DesignTokens.Colors.surface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(DesignTokens.Colors.separator)
+                .frame(height: DesignTokens.Stroke.hairline)
         }
     }
 
