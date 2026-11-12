@@ -208,7 +208,8 @@ test_ios_preparation_problems() {
   install_line="$(grep -nF -- 'xcrun simctl install' "$file" | head -n 1 | cut -d: -f1 || true)"
   privacy_line="$(grep -nF -- 'xcrun simctl privacy' "$file" | head -n 1 | cut -d: -f1 || true)"
   unit_line="$(grep -nE -- '^[[:space:]]*-only-testing:PurePaceTests[[:space:]]*\\?[[:space:]]*$' "$file" | head -n 1 | cut -d: -f1 || true)"
-  ui_line="$(grep -nE -- '^[[:space:]]*-only-testing:PurePaceUITests[[:space:]]*\\?[[:space:]]*$' "$file" | head -n 1 | cut -d: -f1 || true)"
+  # UI 腿由 ui_call 分段驱动（每段一次 xcodebuild，每次 ≤600s），顺序锚点取首个分段调用。
+  ui_line="$(grep -nE -- '^[[:space:]]*ui_call "' "$file" | head -n 1 | cut -d: -f1 || true)"
   if [ -z "$install_line" ] || [ -z "$privacy_line" ] || [ -z "$unit_line" ] || [ -z "$ui_line" ]; then
     out="$out 缺少 install/privacy/-only-testing:PurePaceTests/-only-testing:PurePaceUITests 顺序锚点;"
   elif [ "$install_line" -ge "$privacy_line" ]; then
@@ -232,10 +233,17 @@ test_ios_preparation_problems() {
     [ -n "$budget_count" ] || budget_count=0
     [ "$budget_count" -ge 2 ] || out="$out '$needle' 出现 ${budget_count} 次（单测/UI 各需 1 次）;"
   done
-  # 单测/UI 两次调用的日志必须分文件。
-  for needle in "xcodebuild-unit.log" "xcodebuild-ui.log"; do
+  # 单测/UI 调用的日志必须分文件；UI 腿按 ≤600s 分段（见 AGENTS「测试稳定性约定」）。
+  for needle in "xcodebuild-unit.log" "xcodebuild-ui.log" "xcodebuild-ui-2.log"; do
     grep -Fq -- "$needle" "$file" || out="$out 缺少分文件日志 '$needle';"
   done
+  # 分段执行契约（拆分≠放宽）：UI 腿必须由同一组预算参数模板驱动两次调用，
+  # 且分段依据被显式记录；每次调用仍受 IOS_XCODEBUILD_TIMEOUT(≤600s) 上界。
+  local ui_call_count=0
+  ui_call_count="$(grep -cE '^[[:space:]]*ui_call "' "$file" 2>/dev/null || true)"
+  [ -n "$ui_call_count" ] || ui_call_count=0
+  [ "$ui_call_count" -eq 2 ] || out="$out ui_call 分段调用为 ${ui_call_count} 次（UI 腿需 2 段、每次 ≤600s）;"
+  grep -Fq -- "拆分≠放宽" "$file" || out="$out 缺少「拆分≠放宽」分段依据说明;"
   # macOS runner 没有 GNU timeout：硬超时必须是 bash 看门狗（kill），不能用 timeout 命令。
   if grep -Eq '(^|[^[:alnum:]_])timeout[[:space:]]+[0-9]' "$file"; then
     out="$out test-ios.sh 依赖 GNU timeout（macOS runner 无该命令），应使用 bash 看门狗 + kill;"
@@ -288,8 +296,10 @@ python3 - "$order_sandbox/test-ios.sh" <<'PY'
 import sys
 src = open("scripts/test-ios.sh", encoding="utf-8").read()
 unit = "    -only-testing:PurePaceTests \\\n"
-ui = "    -only-testing:PurePaceUITests \\\n"
-swapped = src.replace(unit, "@@UNIT@@").replace(ui, unit).replace("@@UNIT@@", ui)
+ui = '  ui_call "runflow" "$ui_log" "PurePaceUITests/RunFlowUITests"'
+swapped = src.replace(unit, "@@UNIT@@")
+swapped = swapped.replace(ui, unit.replace("    ", "  "))
+swapped = swapped.replace("@@UNIT@@", ui)
 open(sys.argv[1], "w", encoding="utf-8").write(swapped)
 PY
 if [ -n "$(test_ios_preparation_problems "$order_sandbox/test-ios.sh")" ]; then

@@ -210,6 +210,28 @@ else
   fi
 fi
 
+# ----------------------------- 测试稳定性约定（iOS UI 腿）文本存在性防回归
+if [ ! -f AGENTS.md ]; then
+  fail "ac-agents-test-stability" "仓库根缺少 AGENTS.md"
+else
+  problems=""
+  stability="$(printf '%s' "$(section_body AGENTS.md '测试稳定性约定')")"
+  if [ -z "$stability" ]; then
+    problems="$problems 测试稳定性约定节为空;"
+  else
+    for needle in "禁止墙钟依赖断言" "状态判据" "isHittable" "sleep" "≤600" "拆分≠放宽" "continue-on-error"; do
+      if ! grep -Fq -- "$needle" <<< "$stability"; then
+        problems="$problems 缺少 '$needle';"
+      fi
+    done
+  fi
+  if [ -z "$problems" ]; then
+    pass "ac-agents-test-stability"
+  else
+    fail "ac-agents-test-stability" "$problems"
+  fi
+fi
+
 # -------------------------------------- skill 路由表 ⇔ 磁盘双向一致
 if [ ! -f AGENTS.md ]; then
   fail "ac-skill-routing-matches-disk" "仓库根缺少 AGENTS.md"
