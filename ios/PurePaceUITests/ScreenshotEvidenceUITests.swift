@@ -251,8 +251,7 @@ final class ScreenshotEvidenceUITests: XCTestCase {
     private func assertVisibleCopyZhHans(_ app: XCUIApplication, screen: String) {
         let mapCard = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
         let mapFrame = mapCard.exists ? mapCard.frame : .zero
-        let elements = app.descendants(matching: .any)
-            .allElementsBoundByIndex
+        let elements = axSnapshots(app, target: "run.mapPreview 区域外文案（排除 run.telemetry）")
             .filter { element in
                 guard element.identifier != "run.telemetry" else { return false }
                 guard element.identifier != "run.mapPreview", !mapFrame.isEmpty else { return true }
@@ -260,7 +259,7 @@ final class ScreenshotEvidenceUITests: XCTestCase {
                 return !mapFrame.insetBy(dx: -1, dy: -1).contains(center)
             }
         let texts = elements
-            .map { $0.label }
+            .map(\.label)
             .filter { !$0.isEmpty && !isSystemSymbolLabel($0) }
         let violations = VisibleTextPolicy.violations(in: texts)
         let offenders = elements
@@ -334,6 +333,13 @@ final class ScreenshotEvidenceUITests: XCTestCase {
             }
         }
         return false
+    }
+
+    /// 一次整批采集当前可及树；保留既有 `waitUntil` 轮询语义（快照失配时整批重采）。
+    private func axSnapshots(_ app: XCUIApplication, target: String) -> [AXElementSnapshot] {
+        AXSnapshotBatch.collect(from: app, target: target) { timeout, condition in
+            waitUntil(timeout: timeout, condition)
+        }
     }
 
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {

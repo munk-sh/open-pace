@@ -771,8 +771,7 @@ final class RunFlowUITests: XCTestCase {
     private func assertVisibleCopyZhHans(_ app: XCUIApplication, screen: String) {
         let mapCard = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
         let mapFrame = mapCard.exists ? mapCard.frame : .zero
-        let elements = app.descendants(matching: .any)
-            .allElementsBoundByIndex
+        let elements = axSnapshots(app, target: "run.mapPreview 区域外文案（排除 run.telemetry）")
             .filter { element in
                 guard element.identifier != "run.telemetry" else { return false }
                 guard element.identifier != "run.mapPreview", !mapFrame.isEmpty else { return true }
@@ -780,7 +779,7 @@ final class RunFlowUITests: XCTestCase {
                 return !mapFrame.insetBy(dx: -1, dy: -1).contains(center)
             }
         let texts = elements
-            .map { $0.label }
+            .map(\.label)
             .filter { !$0.isEmpty && !isSystemSymbolLabel($0) }
         let violations = VisibleTextPolicy.violations(in: texts)
         let offenders = elements
@@ -852,9 +851,9 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
         let navigationBarBottom = navigationBar.frame.maxY
         let primaryActionTop = primaryAction.frame.minY
-        var frames = app.staticTexts.allElementsBoundByIndex
-            .filter { $0.identifier != "run.telemetry" }
-            .map { $0.frame }
+        var frames = axSnapshots(app, target: "staticTexts（排除 run.telemetry）")
+            .filter { $0.elementType == .staticText && $0.identifier != "run.telemetry" }
+            .map(\.frame)
         if let mapFrame = mapPreviewFrame(
             app,
             navigationBarBottom: navigationBarBottom,
@@ -972,9 +971,9 @@ final class RunFlowUITests: XCTestCase {
         let navigationBar = app.navigationBars.firstMatch
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
         let map = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
-        var frames = app.staticTexts.allElementsBoundByIndex
-            .filter { $0.identifier != "run.telemetry" }
-            .map { $0.frame }
+        var frames = axSnapshots(app, target: "staticTexts（排除 run.telemetry）+ run.mapPreview")
+            .filter { $0.elementType == .staticText && $0.identifier != "run.telemetry" }
+            .map(\.frame)
         if map.exists, !map.frame.isEmpty {
             frames.append(map.frame)
         }
@@ -1524,6 +1523,13 @@ final class RunFlowUITests: XCTestCase {
         let save = app.buttons["保存本次跑步"]
         XCTAssertTrue(save.waitForExistence(timeout: 10), "结束待决策态缺少保存主操作")
         save.tap()
+    }
+
+    /// 一次整批采集当前可及树；保留各用例既有 `waitUntil` 轮询语义（快照失配时整批重采）。
+    private func axSnapshots(_ app: XCUIApplication, target: String) -> [AXElementSnapshot] {
+        AXSnapshotBatch.collect(from: app, target: target) { timeout, condition in
+            waitUntil(timeout: timeout, condition)
+        }
     }
 
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
