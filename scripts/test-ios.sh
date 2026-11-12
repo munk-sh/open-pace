@@ -16,6 +16,11 @@ usage() {
       2) -only-testing:PurePaceUITests（日志 .build/logs/xcodebuild-ui.log）
     UI 测试由启动参数 -uiTestLocation 门控的 DEBUG 确定性定位源驱动，不再依赖
     simulator 的隐藏式定位投递；真实 CoreLocation 覆盖由 scripts/verify-ios-sim-runtime.sh 承担。
+    结束态内容 canonical（本地 / CI 同构，见 docs/verification-matrix.md 保存态行）：
+    UI 用例用 -uiTestLocationTargetMeters 把距离锁死在 0 行 = 400m、1 行 = 1200m，
+    分段行数 = floor(m/1000) 只由参数决定，不再随 runner 墙钟（1 Hz tick 数）漂移；
+    因此 `bash scripts/test-ios.sh`（不带 --unit-only）就是保存态三判据与地图 ≥96pt 的本地复现入口，
+    不会出现「本地绿 / CI 红」的内容差。
     模拟器准备：目标设备已 Booted 且持锁后无并发时直接复用（不 shutdown）；
     否则清场 → 显式 simctl boot（与 build-for-testing 并行）→ 有界 bootstatus 轮询至就绪。
     之后按固定顺序准备模拟器状态：simctl uninstall 清容器 →

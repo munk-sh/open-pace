@@ -594,9 +594,20 @@ final class RunFlowUITests: XCTestCase {
     /// ac-visible-copy-zh-hans / ac-run-detail-date-zh-hans / ac-primary-action-bottom-anchored：
     /// 三屏可及树逐条过 zh-Hans 白名单，详情/历史日期过 zh-Hans 判定，三态主操作过底部锚定判定；
     /// 同一判定同时产出 5 图 + 6 棵可及树证据（附件由 xcresulttool 导出）。
+    ///
+    /// 结束态内容 canonical（2026-11-12 归因）：`-uiTestLocationTargetMeters 1200` 把距离锁死在
+    /// 1.2km（= 1 条分段），分段行数不再随 runner 墙钟漂移——CI 慢机器曾多跑 ≥100s 多出一行，
+    /// 结束态实测 `top=36 bottom=12 imbalance=24` 判红，而本地 0 行时判绿。两种 canonical 内容
+    /// （0 行 = 400m、1 行 = 1200m）分别由本用例与 `testSavedStateWithoutSplitsKeepsMapFloorAndBalance`
+    /// 覆盖，两条都必须满足地图 ≥96 与保存态三判据（阈值 80/80/16 未改）。
     func testZhHansCopyDatesAndBottomAnchoredPrimaryAction() {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
+        app.launchArguments += [
+            "-uiTestLocation",
+            "-uiTestResetArchive",
+            "-uiTestLocationTargetMeters",
+            "1200"
+        ]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
@@ -645,6 +656,8 @@ final class RunFlowUITests: XCTestCase {
         attachAccessibilityTree(app, name: "02-run-running")
 
         // 4) 保存态：主操作仍在底部锚定。
+        // 距离已由 `-uiTestLocationTargetMeters` 在起跑帧锁到 1.2km（= 1 条分段），
+        // 这里不再等「跑够时间」，分段行数对本地 / CI 同构。
         let finish = app.buttons["run.finish"]
         XCTAssertTrue(finish.waitForExistence(timeout: 10), "缺少结束按钮")
         finish.tap()
@@ -659,6 +672,8 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
         assertVisibleCopyZhHans(app, screen: "跑步页（保存态）")
         assertPrimaryActionAnchored(app, button: viewHistory, state: "保存态")
+        assertFinishedSplitRows(app, expected: 1, state: "保存态")
+        assertFinishedMapFloor(app, state: "保存态")
         assertRunMetricsBalanced(app, primaryAction: viewHistory, state: "保存态")
 
         // 5) 历史列表与详情：日期必须 zh-Hans。
@@ -698,19 +713,74 @@ final class RunFlowUITests: XCTestCase {
         attachAccessibilityTree(app, name: "06-tabs")
     }
 
+    /// ac-saved-balance-green（canonical 内容 B：0 条分段）：
+    /// `-uiTestLocationTargetMeters 400` 把距离锁在 0.4km（= 0 行分段），保存态同样要满足
+    /// 地图 ≥96pt 与 bottom ≤80 / largest ≤80 / imbalance ≤16。与 1 行内容（主用例 1200m）
+    /// 成对固定，避免再用「墙钟跑多久」决定被断言的尺寸。
+    func testSavedStateWithoutSplitsKeepsMapFloorAndBalance() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestLocation",
+            "-uiTestResetArchive",
+            "-uiTestLocationTargetMeters",
+            "400"
+        ]
+        app.launch()
+        allowLocationIfNeeded()
+
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 30), "缺少开始按钮")
+        start.tap()
+        let finish = app.buttons["run.finish"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 15), "缺少结束按钮")
+
+        finish.tap()
+        assertTabBarVisibility(app, state: .finished, didSave: false, screen: "结束待保存（无分段）")
+        XCTAssertTrue(app.buttons["run.save"].exists, "结束待保存态缺少保存主操作")
+        saveFinishedRun(app)
+        XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
+        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态（无分段）")
+        let viewHistory = app.buttons["run.viewHistory"]
+        XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
+        assertFinishedSplitRows(app, expected: 0, state: "保存态（无分段）")
+        assertFinishedMapFloor(app, state: "保存态（无分段）")
+        assertRunMetricsBalanced(app, primaryAction: viewHistory, state: "保存态（无分段）")
+    }
+
     // MARK: - 授权与等待
 
     /// 把当前可及树中的全部非空 label 喂给与单测相同的 zh-Hans 白名单判定。
     /// SF Symbol 名称（系统图标标识）与 DEBUG 门控的 `run.telemetry` 诊断摘要不是用户可见文案，先滤除。
+    /// MapKit 自己的注记（`VKPointFeature` / "Section N" 等系统地名、分区名）也不是 App 文案：
+    /// 生产层已用 `children: .ignore` 把地图卡收敛成唯一 `run.mapPreview` 元素，但 MapKit 的
+    /// 远端注记层会随相机缩放/地名密度抖动性地漏进可及树（实测 1.2km 轨迹缩放下出现
+    /// "Ortega Park"），故按「地图卡区域内且非地图卡本身」过滤，保持门禁只判 App 文案。
     private func assertVisibleCopyZhHans(_ app: XCUIApplication, screen: String) {
-        let texts = app.descendants(matching: .any)
+        let mapCard = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
+        let mapFrame = mapCard.exists ? mapCard.frame : .zero
+        let elements = app.descendants(matching: .any)
             .allElementsBoundByIndex
-            .filter { $0.identifier != "run.telemetry" }
+            .filter { element in
+                guard element.identifier != "run.telemetry" else { return false }
+                guard element.identifier != "run.mapPreview", !mapFrame.isEmpty else { return true }
+                let center = CGPoint(x: element.frame.midX, y: element.frame.midY)
+                return !mapFrame.insetBy(dx: -1, dy: -1).contains(center)
+            }
+        let texts = elements
             .map { $0.label }
             .filter { !$0.isEmpty && !isSystemSymbolLabel($0) }
         let violations = VisibleTextPolicy.violations(in: texts)
-        print("ac-visible-copy-zh-hans \(screen): labels=\(texts.count) violations=\(violations.count)")
-        XCTAssertTrue(violations.isEmpty, "\(screen) 存在裸英文文案：\(violations)")
+        let offenders = elements
+            .filter { violations.contains($0.label) }
+            .map { "\($0.elementType.rawValue)|\($0.identifier)|\($0.frame)|\($0.label)" }
+        print(
+            "ac-visible-copy-zh-hans \(screen): labels=\(texts.count) violations=\(violations.count) "
+                + "offenders=\(offenders)"
+        )
+        XCTAssertTrue(
+            violations.isEmpty,
+            "\(screen) 存在裸英文文案：\(violations) offenders=\(offenders)"
+        )
     }
 
     private func isSystemSymbolLabel(_ text: String) -> Bool {
@@ -756,9 +826,10 @@ final class RunFlowUITests: XCTestCase {
     }
 
     /// 采集四态可见内容块与主操作的真实 frame，喂给与单测相同的首屏四层分布判定。
-    /// 采集口径不变：静态文本 frame + 导航栏下沿 + 主操作顶边；
+    /// 采集口径：静态文本 frame + 结束态 `run.mapPreview` 地图卡 + 导航栏下沿 + 主操作顶边；
     /// 这里收全部 staticTexts（而非 identifier 白名单），把面板内 caption 也算作可见内容，
-    /// 避免把「块内说明文案」误算成块间空洞。
+    /// 避免把「块内说明文案」误算成块间空洞。地图卡是可见内容块而非空白：96pt 地图
+    /// 若不采样，会被误计成「最大单一垂直空洞」（保存态实测 112pt → 必红）。
     private func assertRunMetricsBalanced(
         _ app: XCUIApplication,
         primaryAction: XCUIElement,
@@ -768,14 +839,21 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
         let navigationBarBottom = navigationBar.frame.maxY
         let primaryActionTop = primaryAction.frame.minY
-        let frames = app.staticTexts.allElementsBoundByIndex
+        var frames = app.staticTexts.allElementsBoundByIndex
             .filter { $0.identifier != "run.telemetry" }
             .map { $0.frame }
-            .filter { frame in
-                !frame.isEmpty
-                    && frame.minY >= navigationBarBottom
-                    && frame.maxY <= primaryActionTop
-            }
+        if let mapFrame = mapPreviewFrame(
+            app,
+            navigationBarBottom: navigationBarBottom,
+            primaryActionTop: primaryActionTop
+        ) {
+            frames.append(mapFrame)
+        }
+        frames = frames.filter { frame in
+            !frame.isEmpty
+                && frame.minY >= navigationBarBottom
+                && frame.maxY <= primaryActionTop
+        }
         let evaluation = RunLayoutBalancePolicy.evaluate(
             contentFrames: frames,
             navigationBarBottom: navigationBarBottom,
@@ -791,6 +869,48 @@ final class RunFlowUITests: XCTestCase {
             "\(state) 指标区未垂直居中（顶部留白 \(evaluation.topGap)pt，底部留白 \(evaluation.bottomGap)pt，"
                 + "最大空洞 \(evaluation.largestGap)pt）：\(evaluation.problems)"
         )
+    }
+
+    /// `run.mapPreview` 的真实 frame（仅结束态存在）；越界帧返回 nil，不塞脏样本。
+    private func mapPreviewFrame(
+        _ app: XCUIApplication,
+        navigationBarBottom: CGFloat,
+        primaryActionTop: CGFloat
+    ) -> CGRect? {
+        let map = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
+        guard map.exists, !map.frame.isEmpty else { return nil }
+        let frame = map.frame
+        guard frame.minY >= navigationBarBottom, frame.maxY <= primaryActionTop else { return nil }
+        return frame
+    }
+
+    /// ac-finished-content-canonical：结束态分段行数必须等于启动参数固定的 canonical 值
+    /// （`-uiTestLocationTargetMeters m` → `floor(m / 1000)` 行），不允许随 runner 墙钟漂移。
+    /// 行数漂移会把结束态内容顶出可用区，是「本地绿 / CI 红」的直接成因。
+    private func assertFinishedSplitRows(_ app: XCUIApplication, expected: Int, state: String) {
+        let rows = app.descendants(matching: .any).matching(identifier: "run.finished.splitRow")
+        if expected == 0 {
+            XCTAssertTrue(
+                app.staticTexts["run.finished.splitsEmpty"].waitForExistence(timeout: 10),
+                "\(state) 期望 0 条分段（splitsEmpty），实际行数 \(rows.count)"
+            )
+        } else {
+            XCTAssertTrue(
+                waitUntil(timeout: 10) { rows.count == expected },
+                "\(state) 分段行数应为 canonical \(expected) 行，实际 \(rows.count) 行"
+            )
+        }
+        print("ac-finished-content-canonical \(state): splitRows=\(rows.count) expected=\(expected)")
+    }
+
+    /// ac-finished-map-floor-96：结束态轨迹预览地图实测高度 ≥ 96pt（打印实测值）。
+    /// 断言只用数值下限，不复述生产常量；历史 32pt 细条实测必红。
+    private func assertFinishedMapFloor(_ app: XCUIApplication, state: String) {
+        let map = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
+        XCTAssertTrue(map.waitForExistence(timeout: 10), "\(state) 缺少轨迹预览地图 run.mapPreview")
+        let height = map.frame.height
+        print("ac-finished-map-floor-96 \(state): mapHeight=\(height)")
+        XCTAssertGreaterThanOrEqual(height, 96, "\(state) 轨迹预览地图被压缩成细条：\(height)pt < 96pt")
     }
 
     /// Tab 栏可见性：把实测数量喂给与单测相同的纯判定，并打印可复核证据。

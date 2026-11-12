@@ -92,13 +92,23 @@ struct RunView: View {
     /// 被撑成整个可用高度而永远选中本分支，内容溢出时退不回下面的滚动分支
     /// （结束态 `run.backgroundDegraded` 压到 `run.save` 上即由此产生）。
     private func balancedMetrics(compressesFinishedSummary: Bool) -> some View {
-        VStack(spacing: .zero) {
-            Spacer(minLength: DesignTokens.Spacing.screenTop)
-            distanceHero
-            Spacer(minLength: DesignTokens.Spacing.cardGap)
-            metricsPanel
+        // 压缩槽位只作用于结束态：未开始 / 运行中 / 暂停仍用既有语义 token，实测留白不回归。
+        let compresses = compressesFinishedSummary && viewModel.state == .finished
+        return VStack(spacing: .zero) {
+            if compresses {
+                Spacer(minLength: RunFinishedSummaryLayoutPolicy.topBreathing(compresses: true))
+            } else {
+                Spacer(minLength: DesignTokens.Spacing.screenTop)
+            }
+            distanceHero(compresses: compresses)
+            if compresses {
+                Spacer(minLength: RunFinishedSummaryLayoutPolicy.heroMetricsGap(compresses: true))
+            } else {
+                Spacer(minLength: DesignTokens.Spacing.cardGap)
+            }
+            metricsPanel(compresses: compresses)
             if viewModel.state == .finished {
-                finishedTrackSummary(compresses: compressesFinishedSummary)
+                finishedTrackSummary(compresses: compresses)
             }
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
             hintLayer
@@ -113,7 +123,7 @@ struct RunView: View {
     /// 单位单独一行（`metricBlock` 既有三行口径）：若把 display 与单位并入同一 `Text`，
     /// hero 末行变成 64pt 行盒，行盒下沿与静态文本 frame 相差约 21pt，
     /// 会被首屏居中判据计成 hero→指标卡空洞（实测 89.9pt > 80pt）。
-    private var distanceHero: some View {
+    private func distanceHero(compresses: Bool) -> some View {
         metricBlock(
             label: L10n.runMetricDistance,
             value: RunFormatting.distanceValueText(viewModel.metrics.distance),
@@ -126,7 +136,7 @@ struct RunView: View {
         .monospacedDigit()
         // hero 卡只留上呼吸位：把既有底部空白让给层间 Spacer，
         // 使 hero→指标卡的空洞落在 80pt 上界内（无新增占位、无阈值改动）。
-        .padding(.top, DesignTokens.Spacing.sm)
+        .padding(.top, RunFinishedSummaryLayoutPolicy.heroTopPadding(compresses: compresses))
         .padding(.horizontal, DesignTokens.Spacing.md)
         .background(
             DesignTokens.Colors.surfaceMuted,
@@ -140,8 +150,8 @@ struct RunView: View {
 
     /// 第二层：surface 卡片。用时 / 当前配速 `primaryValue`，平均配速 / 分段 `caption`；
     /// 两组之间只用 hairline 分层，不叠双描边卡片。
-    private var metricsPanel: some View {
-        VStack(spacing: DesignTokens.Spacing.metricGroupGap) {
+    private func metricsPanel(compresses: Bool) -> some View {
+        VStack(spacing: RunFinishedSummaryLayoutPolicy.metricGroupGap(compresses: compresses)) {
             HStack(alignment: .top, spacing: DesignTokens.Spacing.metricGroupGap) {
                 metricBlock(
                     label: L10n.runMetricTime,
@@ -192,9 +202,9 @@ struct RunView: View {
                 .monospacedDigit()
             }
         }
-        .padding(DesignTokens.Spacing.cardPadding)
-        // 指标卡底部补 4pt 既有空白，把等权 Spacer 的余量从底部分走一档。
-        .padding(.bottom, DesignTokens.Spacing.xxs)
+        .padding(RunFinishedSummaryLayoutPolicy.metricCardPadding(compresses: compresses))
+        // 指标卡底部补 4pt 既有空白，把等权 Spacer 的余量从底部分走一档（压缩档归零回收余量）。
+        .padding(.bottom, RunFinishedSummaryLayoutPolicy.metricCardBottomPadding(compresses: compresses))
         .background(
             DesignTokens.Colors.surface,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
@@ -212,7 +222,7 @@ struct RunView: View {
     /// `compresses` 由 `RunFinishedSummaryLayoutPolicy.compressesFinishedSummary` 按可用内容区判定：
     /// 辅助字号档恒压缩，标准字号档在内容区预算不足时同样压缩（本机实测溢出 75.3pt）。
     private func finishedTrackSummary(compresses: Bool) -> some View {
-        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(isAccessibilitySize: compresses)) {
+        VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(compresses: compresses)) {
             TrackMapView(
                 samples: viewModel.acceptedSamples,
                 emptyIdentifier: "run.mapEmpty",
@@ -230,7 +240,7 @@ struct RunView: View {
 
     /// 分段明细：有分段逐段渲染「序号 + 配速」，无分段给明确中文替代文案。
     private func splitsDetail(compresses: Bool) -> some View {
-        VStack(alignment: .leading, spacing: RunFinishedSummaryLayoutPolicy.rowSpacing(isAccessibilitySize: compresses)) {
+        VStack(alignment: .leading, spacing: RunFinishedSummaryLayoutPolicy.rowSpacing(compresses: compresses)) {
             Text(L10n.runSplitsDetailTitle)
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Colors.secondary)
@@ -261,7 +271,7 @@ struct RunView: View {
                 }
             }
         }
-        .padding(RunFinishedSummaryLayoutPolicy.cardPadding(isAccessibilitySize: compresses))
+        .padding(RunFinishedSummaryLayoutPolicy.cardPadding(compresses: compresses))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             DesignTokens.Colors.surface,

@@ -39,7 +39,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - ac-assertions-only-added: 断言只增不减——AX5 的 4 处 `assertFitsAndNoOverlap` 与超时值（30 / 60 / 30 / 30）及「缺少…」失败文案逐字保留，trees 的 6 处 `XCTAssertTrue` 保留；不靠放宽超时或用例重排转绿。
 - ac-counterexample-red-proof: 反例必须真跑并留同 commit 日志 `docs/evidence/ax5-order-independence/ax5-counterexamples.log`：滚动感知口径的两条合成反例（静态文本宽 420 > 窗宽 393、交互元素 `isHittable=false`）各红在不同判据，另有正向对照（仅静态文本垂直滚出视口）不误判；红/绿日志同 commit 入库，不得只口述。
 - ac-verification-matrix-row: `docs/verification-matrix.md` 对应接缝行六列齐备（接缝 / 现状 / 断言名 / 反例 / 证据路径 / 归属项），归属项写明本项 workItemId，证据路径指向实际存在的日志；`DocsVerificationMatrixTests` 的接缝计数与归属断言同步（20→21，新增接缝「详情导出固定底部」）。
-- ac-ax5-finished-summary-policy: 结束态溢出只允许以共享策略修复——`ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift` 唯一承载取值：辅助字号档地图 96 / 区块间距 `xxs` / 卡内边距 `xs` / 行距 `xxs`；标准字号档在可用内容区 < 688pt（实测溢出 75.3pt）时同样压缩且地图收到 32pt，预算充足仍 180pt。由 `RunView` 按 `dynamicTypeSize.isAccessibilitySize` + 可用内容区消费，不新增 `DesignTokens` 取值或字号档，`run.save` 固定底部位置不变；三件套（实测溢出值 → 命名参数 → 复用点）写在策略内。
+- ac-ax5-finished-summary-policy: 结束态溢出只允许以共享策略修复——`ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift` 唯一承载取值：辅助字号档地图 96 / 区块间距 `xxs` / 卡内边距 `xs` / 行距 `xxs`；标准字号档在可用内容区 < 688pt（实测溢出 75.3pt）时同样压缩，地图取 `finishedMapFloor` = 96pt（与 AX5 同值；2026-11-12 的 32pt 细条已回退），预算充足仍 180pt。由 `RunView` 按 `dynamicTypeSize.isAccessibilitySize` + 可用内容区消费，不新增 `DesignTokens` 取值或字号档，`run.save` 固定底部位置不变；三件套（实测溢出值 → 命名参数 → 复用点）写在策略内。
 - ac-ax5-no-overlap-standard-and-ax5: `testEvidenceAx5Layout` 的 03-run-finished 屏 `run.backgroundDegraded` 与主操作 `run.save` 互不相交，标准字号档与 AX5 档同时成立（AX5 实测 bottom 858.3→730.3），四屏 `AX5-FIT`（outOfBounds=0 / overlaps=0）保持；判据不放宽 `assertFitsAndNoOverlap`。
 - ac-trees-export-realized: `testEvidenceTreesAndRealArchive` 的 `recordPrimaryAction(app.buttons["runDetail.export"], screen: "05-history-detail")` 在 30s 内取到元素并点击成功——导出已移出惰性 `List` 到固定底部主操作区，realize 不再影响可见性；`AX5-SEED` 归档行计数在 `terminate()` 前只读一次，避免非空归档分支假红。
 - ac-pack-leg: 同容器紧接整包（`-only-testing:PurePaceUITests`，或至少 `EvidenceCaptureUITests` 两用例按默认字母序）退出码 0 且两用例全过；未跑齐时按 `ac-pack-leg-explicit` 的无条件事实口径记录并列出未闭合点，不得静默缺失或用条件句省略事实。
@@ -73,7 +73,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 
 ## 最近交付证明
 
-- workItemId: wi_intake_1127fd3553df6ea7（2026-11-12，pass）
-- 交付：AX5 取证腿两处历史未闭合收口。① 结束态溢出扩到标准字号档：`RunFinishedSummaryLayoutPolicy` 增加预算判定（可用内容区 < 688pt 时地图 32pt、区块间距 / 卡内边距 / 行距同 AX5 压缩档），`run.backgroundDegraded` 与 `run.save` 在标准档与 AX5 档均不相交；② `runDetail.export` 移出惰性 `List` 到固定底部主操作区，`testEvidenceTreesAndRealArchive` 的 `recordPrimaryAction` 在 30s 内取到；`AX5-SEED` 归档行计数改在 `terminate()` 前只读一次，非空归档不再假红。
-- 判定与证据：`code_gates` 22 门 attempt 001 全绿；干净容器单跑 `testEvidenceAx5Layout` exit 0（`docs/evidence/ax5-order-independence/ax5-single-green.log`）、trees 用例 0 失败；四屏 `AX5-FIT`（outOfBounds=0 / overlaps=0）；`docs/verification-matrix.md` 新增「详情导出固定底部」行（20→21）并加本项归属断言；日志 `.munk/logs/g-final-ax5.log` / `.munk/logs/g-final-ui-leg.log`（gitignore）。
-- 偏离与边界：标准档压缩是本轮新增口径（原「标准档取值不变」作废）；`ax5-pack-standard.log` 的整包历史结论不重跑、不改写，仅以本轮矩阵行与实跑日志为准。
+- workItemId: wi_intake_10a242e64803035b（2026-11-12，pass）
+- 交付：`RunFinishedSummaryLayoutPolicy` 标准字号压缩档地图从 32pt 回 `finishedMapFloor`(96pt，与 AX5 同值)，新增 `meetsMapFloor` 判据与 6 个非地图槽位命名参数（回收 60pt）；`RunView` 只读策略属性。AX5 四屏 `outOfBounds=0 / overlaps=0`、AX5 结束态地图仍 96pt、主操作不重叠保持绿；`runDetail.export` 固定底部位置未变。
+- 判定与证据：`code_gates` 22 门 attempt 001 全绿（`test-ios` / `test-ios-core` 均 0）；本地 UI 全包 `bash scripts/test-ios.sh` 含 `testEvidenceAx5Layout` 全绿；矩阵行「详情导出固定底部 / 指标区居中 / 暂停态 Tab 栏 / 结束态地图下限」已更新为 96pt 口径（断言名 / 反例 / 证据路径 / 归属项齐备）；日志 `.munk/logs/ui-0split-green.log` / `.munk/logs/ui-1split-green.log` / `.munk/logs/check-ios-shell-self-test.log`。
+- 偏离与边界：本项不改 `DesignTokens` 取值与 80 / 16 阈值；不重做 12 张复评截图；真机观感 `pending: 待人现场`。

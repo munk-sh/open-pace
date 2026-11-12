@@ -145,6 +145,44 @@ final class LocalizationPolicyTests: XCTestCase {
         return frames
     }
 
+    /// 保存态同构帧（2026-11-12 本地 UI 腿实测，iPhone 16 / iOS 18.6 / 标准字号档，
+    /// canonical 1 条分段 = `-uiTestLocationTargetMeters 1200`）：
+    /// 与 `.munk/logs/ui-1split-green.log` 的 `ac-run-metrics-balanced 保存态` contentFrames 同构，
+    /// 含 `run.mapPreview` 实测帧 (15.5, 473.5, 362, 97) —— 地图卡是可见内容块，不是空白。
+    /// 实测 top=20.0 / bottom=8.0 / largest=20.0 / imbalance=12.0（阈值 80/16 未改）。
+    private var savedStateFramesWithMapCard: [CGRect] {
+        [
+            Self.mapCardFrame,
+            CGRect(x: 185.5, y: 169.66666666666666, width: 22, height: 13.333333333333343),
+            CGRect(x: 117.33333333333333, y: 191.0, width: 158.33333333333331, height: 76.66666666666663),
+            CGRect(x: 188.5, y: 275.66666666666663, width: 16, height: 13.333333333333371),
+            CGRect(x: 97.25, y: 309.0, width: 22, height: 13.333333333333314),
+            CGRect(x: 262.75, y: 309.0, width: 44, height: 13.333333333333314),
+            CGRect(x: 52.583333333333336, y: 330.3333333333333, width: 111.33333333333331, height: 43.0),
+            CGRect(x: 240.08333333333334, y: 330.3333333333333, width: 89.33333333333334, height: 43.0),
+            CGRect(x: 275.08333333333337, y: 381.3333333333333, width: 19.333333333333314, height: 13.333333333333371),
+            CGRect(x: 86.25, y: 403.6666666666667, width: 44, height: 13.333333333333314),
+            CGRect(x: 273.75, y: 403.6666666666667, width: 22, height: 13.333333333333314),
+            CGRect(x: 94.08333333333333, y: 425.0, width: 28.333333333333343, height: 15.666666666666686),
+            CGRect(x: 280.5833333333333, y: 425.0, width: 8.333333333333314, height: 15.666666666666686),
+            CGRect(x: 98.58333333333333, y: 448.6666666666667, width: 19.333333333333343, height: 13.333333333333314),
+            CGRect(x: 24.0, y: 582.0, width: 59.66666666666666, height: 18.0),
+            CGRect(x: 24.0, y: 604.0, width: 345.0, height: 18.0),
+            CGRect(x: 22.166666666666686, y: 642.0, width: 348.66666666666663, height: 31.333333333333258),
+            CGRect(x: 165.0, y: 681.3333333333333, width: 63.0, height: 23.66666666666663),
+            CGRect(x: 24.0, y: 604.0, width: 9.333333333333329, height: 18.0),
+            CGRect(x: 308.0, y: 604.0, width: 61.0, height: 18.0)
+        ]
+    }
+
+    /// `run.mapPreview` 实测帧（96pt 地图 + 1pt 描边 = 97pt）。
+    private static let mapCardFrame = CGRect(x: 15.5, y: 473.5, width: 362, height: 97)
+
+    /// 反例输入：只删掉地图卡帧（旧 staticTexts 口径），其余帧原样不动。
+    private var savedStateFramesWithoutMapCard: [CGRect] {
+        savedStateFramesWithMapCard.filter { $0 != Self.mapCardFrame }
+    }
+
     func testPolicyThresholds() {
         XCTAssertEqual(RunLayoutBalancePolicy.maximumTopGap, 80)
         XCTAssertEqual(RunLayoutBalancePolicy.maximumBottomGap, 80)
@@ -188,17 +226,17 @@ final class LocalizationPolicyTests: XCTestCase {
 
     /// 四态（未开始 / 运行中 / 暂停 / 已保存）代表帧全部判绿。
     func testFourStatesBalancedLayoutPasses() {
-        let states: [(String, [CGRect])] = [
-            ("未开始", balancedFrames(hintTop: 601.03)),
-            ("运行中", balancedFrames(hintTop: 599.03)),
-            ("暂停", balancedFrames(hintTop: 603.03)),
-            ("已保存", balancedFrames(hintTop: 570.8, savedTop: 615.5))
+        let states: [(String, [CGRect], CGFloat, CGFloat)] = [
+            ("未开始", balancedFrames(hintTop: 601.03), 137.3, 701.0),
+            ("运行中", balancedFrames(hintTop: 599.03), 137.3, 701.0),
+            ("暂停", balancedFrames(hintTop: 603.03), 137.3, 701.0),
+            ("已保存", savedStateFramesWithMapCard, 149.67, 713.0)
         ]
-        for (state, frames) in states {
+        for (state, frames, navigationBarBottom, primaryActionTop) in states {
             let evaluation = RunLayoutBalancePolicy.evaluate(
                 contentFrames: frames,
-                navigationBarBottom: 137.3,
-                primaryActionTop: 701.0
+                navigationBarBottom: navigationBarBottom,
+                primaryActionTop: primaryActionTop
             )
             XCTAssertTrue(evaluation.passes, "\(state): \(evaluation.problems)")
             XCTAssertLessThanOrEqual(evaluation.topGap, RunLayoutBalancePolicy.maximumTopGap)
@@ -206,6 +244,39 @@ final class LocalizationPolicyTests: XCTestCase {
             XCTAssertLessThanOrEqual(evaluation.largestGap, RunLayoutBalancePolicy.maximumGap)
             XCTAssertLessThanOrEqual(evaluation.imbalance, RunLayoutBalancePolicy.maximumImbalance)
         }
+    }
+
+    /// ac-balance-audit-counts-map-card：96pt 地图卡（实测帧 97pt 含描边）作为可见内容块纳入采样后
+    /// 保存态判绿，地图不再被计成「最大单一垂直空洞」；三判据与 UI 腿实测同值。
+    func testSavedStateWithMapCardPasses() {
+        let frames = savedStateFramesWithMapCard
+        XCTAssertTrue(frames.contains(Self.mapCardFrame), "保存态帧必须含实测地图卡")
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: frames,
+            navigationBarBottom: 149.67,
+            primaryActionTop: 713.0
+        )
+        XCTAssertTrue(evaluation.passes, "\(evaluation.problems)")
+        XCTAssertEqual(evaluation.topGap, 20.0, accuracy: 0.01)
+        XCTAssertEqual(evaluation.bottomGap, 8.0, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(evaluation.largestGap, RunLayoutBalancePolicy.maximumGap)
+        XCTAssertEqual(evaluation.largestGap, 20.0, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(evaluation.imbalance, RunLayoutBalancePolicy.maximumImbalance)
+        XCTAssertEqual(evaluation.imbalance, 12.0, accuracy: 0.01)
+    }
+
+    /// 反例（地图卡不计入采样 = 旧 staticTexts 口径）：同一组帧最大空洞 120pt
+    /// （指标末行底 462.0 → 分段标题顶 582.0），仅「最大单一垂直空洞」一条判红，阈值 80 未改。
+    func testSavedStateWithoutMapCardFailsLargestGap() {
+        let evaluation = RunLayoutBalancePolicy.evaluate(
+            contentFrames: savedStateFramesWithoutMapCard,
+            navigationBarBottom: 149.67,
+            primaryActionTop: 713.0
+        )
+        XCTAssertFalse(evaluation.passes)
+        XCTAssertEqual(evaluation.largestGap, 120.0, accuracy: 0.01)
+        XCTAssertEqual(evaluation.problems.count, 1)
+        XCTAssertTrue(evaluation.problems[0].contains("最大单一垂直空洞"))
     }
 
     /// 顶/底都合规但块间仍有一大块死白时必须判红（防止只判上下两条漏掉块间空洞）。

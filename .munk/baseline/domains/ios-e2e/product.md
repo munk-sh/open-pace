@@ -27,7 +27,7 @@ PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 →
 - ac-docs-manual-checklist: README 明确「人手清单只剩两件：改系统定位授权、按电源键锁屏」，并说明开始/结束/选记录/滚动/导出/分享由用例覆盖。
 - ac-no-product-change: `ios/PurePace/**` 产品源码、`ios/RunCore/**`、`ios/Core/**`、`ios/project.yml`、`VERSION`、导出/持久化/CoreLocation/AudioSession 契约零改动；不加种子数据；不新增第三方运行时或脚本依赖（仅 bash / xcrun / xcodebuild / xmllint / python3 标准库）。
 - ac-gates-green: 本地 `.munk/code-gates.json` 全量绿（含 `lint-ios-shell`、`lint-ios-scripts`），回执给出新用例名、断言落点、证据文件路径与实跑输出摘要。
-- ac-ui-authority-leg-green: main 的权威 UI 腿 5 条用例全绿——`RunFlowUITests/testZhHansCopyDatesAndBottomAnchoredPrimaryAction`、`testRunPauseResumeFinishAndHistory`、`testStartFinishExportGPXArtifact` 与 `EvidenceCaptureUITests/testEvidenceAx5Layout`、`testEvidenceTreesAndRealArchive`；本地 UI 全包（`xcodebuild test` 或 `scripts/test-ios.sh` 等价腿）exit 0、失败数 0，日志落 `.munk/logs/` 且回执给路径。
+- ac-ui-authority-leg-green: main 的权威 UI 腿全绿——`RunFlowUITests` 6 条（`testZhHansCopyDatesAndBottomAnchoredPrimaryAction`、`testRunPauseResumeFinishAndHistory`、`testStartFinishExportGPXArtifact`、canonical 保存态 `testSavedStateWithoutSplitsKeepsMapFloorAndBalance` 等）与 `EvidenceCaptureUITests/testEvidenceAx5Layout`、`testEvidenceTreesAndRealArchive`；本地 UI 全包（`xcodebuild test` 或 `scripts/test-ios.sh` 等价腿）exit 0、失败数 0，日志落 `.munk/logs/` 且回执给路径。
 - ac-assertions-not-weakened: 上述 5 条用例的既有断言数量不减少、超时不放大、无 `continue-on-error`、无条件跳过或用例重排绕行；`accessibilityIdentifier` 只增不改、不改名。
 - ac-counterexamples-red: 每条新增/修改断言同 commit 附「构造错误输入 → 必须红」反例并本地实跑红——居中三判据错位（largest > 80 或 imbalance > 16）、导出移回滚动区（首屏不可见必红）、暂停态 tab 数错配（`TabBarVisibilityPolicy.evaluate` 必红）；红/绿日志同 commit，反例只喂不同输入，不改生产代码造红。
 - ac-shell-self-test-green: 交付前显式跑 `scripts/check-ios-shell.sh --self-test` 全绿（该自检不在 `code_gates` 腿列表内，必须单独跑），输出落 `.munk/logs/` 并在回执给路径。
@@ -53,7 +53,7 @@ PurePace iOS 端到端取证域：在真实链路（Run 页 → 结束归档 →
 
 ## 最近交付证明
 
-- workItemId: wi_intake_1127fd3553df6ea7（2026-11-12，pass）
-- 交付：main 权威 UI 腿清红，5 条 UI 用例全绿（详情导出固定底部 / 指标区居中 / 暂停态 Tab 栏 / AX5 结束态压缩 / trees 导出 realize），断言只增不减、超时零放宽、identifier 零改名；`docs/verification-matrix.md` 新增「详情导出固定底部」接缝行（20→21），`DocsVerificationMatrixTests` 同步接缝计数与归属断言。
-- 判定与证据：`code_gates` 22 门 attempt 001 全绿（`build-ios` / `test-ios` / `test-ios-core` / `test-ios-run-core` / `lint-ios-shell` 均 0）；本地 UI 全包失败数 0（`.munk/logs/g-final-ui-leg.log`）；`check-ios-shell.sh --self-test` 单独实跑全绿（`.munk/logs/e-self-test.log`）；反例日志 `.munk/logs/d-defect-zhhans.log` / `.munk/logs/c-defect-zhhans-pause.log` / `.munk/logs/b-defect-ui-subset.log`。
-- 偏离与边界：整包 `ax5-pack-standard.log` 历史结论不重跑（沿用旧证据，仅本次矩阵行与本地腿日志为准）；真机观感 `pending: 待人现场`。
+- workItemId: wi_intake_10a242e64803035b（2026-11-12，pass）
+- 交付：权威 UI 腿从 5 条扩到 6 条（新增 canonical 保存态 `testSavedStateWithoutSplitsKeepsMapFloorAndBalance`，分段行数由 `-uiTestLocationTargetMeters` 冻结，0 行 = 400m），消除「本地绿 / CI 红」的内容漂移；`scripts/check-ios-shell.sh` 的 `RunFlowUITests` 用例计数同步 5 → 6（drop_ui_case 自检仍判红），`scripts/test-ios.sh` usage 补 canonical 口径说明；`docs/verification-matrix.md` 保存态行更新为 96pt 口径。
+- 判定与证据：`code_gates` 22 门 attempt 001 全绿（`lint-ios-shell` / `test-ios` / `test-ios-core` / `test-ios-run-core` 均 0）；本地 UI 全包 `bash scripts/test-ios.sh` exit 0、失败数 0（`.munk/logs/ui-0split-green.log` / `.munk/logs/ui-1split-green.log`）；`check-ios-shell.sh --self-test` 单独实跑全绿（`.munk/logs/check-ios-shell-self-test.log`）。
+- 偏离与边界：本项不改 CI 工作流与门列表；矩阵行沿用既有接缝行（不新增接缝，计数不变）；真机观感 `pending: 待人现场`。
