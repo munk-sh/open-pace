@@ -3,32 +3,39 @@
 # 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/SHA256SUMS
 # 生成（在仓库根执行）：shasum -a 256 docs/screenshots/*.png
 #
-# 逐文件「最近改动 commit」全 sha（git log --format=%H -1 -- <file> 实取）：
-# 以下 12 张由第 5 波证据收口在同一台 iPhone 16（iOS 18.6）实取并入库：
-# history-detail-dark.png  067b4ff1bb93318af277da721cd0e08efb89e651
-# history-detail.png       067b4ff1bb93318af277da721cd0e08efb89e651
-# history-list-dark.png    067b4ff1bb93318af277da721cd0e08efb89e651
-# history-list.png         067b4ff1bb93318af277da721cd0e08efb89e651
-# run-finished-dark.png    067b4ff1bb93318af277da721cd0e08efb89e651
-# run-finished.png         067b4ff1bb93318af277da721cd0e08efb89e651
-# run-not-started-dark.png 067b4ff1bb93318af277da721cd0e08efb89e651
-# run-not-started.png      067b4ff1bb93318af277da721cd0e08efb89e651
-# run-running-dark.png     067b4ff1bb93318af277da721cd0e08efb89e651
-# run-running.png          067b4ff1bb93318af277da721cd0e08efb89e651
-# settings-dark.png        067b4ff1bb93318af277da721cd0e08efb89e651
-# settings.png             067b4ff1bb93318af277da721cd0e08efb89e651
+# 构建 head sha（本批 14 张均由该 commit 的构建产出，实取 git rev-parse HEAD）：cbebc194872226951d0bd99f6450637e87b4811c
+# 归属项：wi_intake_ef7a16bf35f35fb3（截图证据刷新：A 色板 + 轨迹地图）
+# 逐图断言 / 旧新 sha 对照 / 日志：docs/evidence/screenshot-refresh/README.md
 #
-# 新增或替换截图后必须同步更新本文件：重算该文件 sha256，并重新取该文件
-# 最近改动 commit 全 sha 追加到上面的登记区，不许猜、不许沿用旧值。
-889aac39997dc423188e8ab130b6bd8c2a0a1b4ed70df91fc1ae3568a6378c53  docs/screenshots/history-detail-dark.png
-1f808ce83b01b1492693177b2cd1bb8f0e94d5f2b44653a327a9579ae32bb48e  docs/screenshots/history-detail.png
-0e309280efbc0e44df27430827b6748aceb2eff79d4bab2708c5c73dab3a47e4  docs/screenshots/history-list-dark.png
-c1d7ff17266a9c89f9b186e9096222aa08b336b88ead42f136f568d28ec82c02  docs/screenshots/history-list.png
-53d3c2a05fecf8d3bc35418ecdf8e4b8d11d28eb46b13b643c1dfc4136cb8283  docs/screenshots/run-finished-dark.png
-ec9aed68eaba8ee7278f9b94a5ee3e7f0b4077bb6f9ee4680e094d4764507790  docs/screenshots/run-finished.png
-fa589aaac4d0304a87afa164c4bb98da0befc8311d4ac029d71e23c6b6cd5663  docs/screenshots/run-not-started-dark.png
-9f52fafdea201558e5793d85258108172cc4cef10901f93575783ac93486a124  docs/screenshots/run-not-started.png
-f44171a6121b06b287689907397cac99628ce814ac0c34fd747a4f91d75e5158  docs/screenshots/run-running-dark.png
-3b3c34925faee3bcee46dac5aab63ce1ca8950f9d15a0c76d7409368090d8a70  docs/screenshots/run-running.png
-7166ae7db7f1d5846c8509cf49233e7deecacd7db02e66aa52b7dc7b1067aba9  docs/screenshots/settings-dark.png
-250cd35bed77b2483be0b8702102a749a919f48154bc59a6196a4a95f41be880  docs/screenshots/settings.png
+# 逐文件「最近改动 commit」全 sha（git log --format=%H -1 -- <file> 实取）：
+# discard-confirmation-dark.png  2e150463c801df12277f7972b00aaa07f5028224
+# discard-confirmation.png       2e150463c801df12277f7972b00aaa07f5028224
+# history-detail-dark.png        2e150463c801df12277f7972b00aaa07f5028224
+# history-detail.png             2e150463c801df12277f7972b00aaa07f5028224
+# history-list-dark.png         2e150463c801df12277f7972b00aaa07f5028224
+# history-list.png              2e150463c801df12277f7972b00aaa07f5028224
+# run-finished-dark.png         2e150463c801df12277f7972b00aaa07f5028224
+# run-finished.png              2e150463c801df12277f7972b00aaa07f5028224
+# run-not-started-dark.png      2e150463c801df12277f7972b00aaa07f5028224
+# run-not-started.png           2e150463c801df12277f7972b00aaa07f5028224
+# run-running-dark.png          2e150463c801df12277f7972b00aaa07f5028224
+# run-running.png               2e150463c801df12277f7972b00aaa07f5028224
+# settings-dark.png             2e150463c801df12277f7972b00aaa07f5028224
+# settings.png                  2e150463c801df12277f7972b00aaa07f5028224
+#
+# 新增或替换截图后必须同步更新本文件：sha256 与最近改动 commit 全 sha 一律实取，不许猜。
+#
+1b62989ebe29f070a873e4c67815acaeaf9a5ba38b7594aab884ec8285621aae  docs/screenshots/discard-confirmation-dark.png
+448eb7c933ed820daa0b415a55bd2cff5586ba4a8fc3be0b01a172906845b67d  docs/screenshots/discard-confirmation.png
+261a9c594245b1534dfcc634bc22fe0146823554528f6f6cc89a5ed310a67c17  docs/screenshots/history-detail-dark.png
+65dca19d8b8e503f83f0f8b40a10ad22b5d03ab7410eb58f5b74fe8134502a9a  docs/screenshots/history-detail.png
+adf7fee347e72a9205ebfb653886dae1c02dcc5b20ff92557a3f14228702085b  docs/screenshots/history-list-dark.png
+80028ad0e7d6e99005943d2e77906def51568b165fff8447aaa06f4a338d83b9  docs/screenshots/history-list.png
+c5f31dad9f5f37bd96143ca1239a8fc8c330ebdbc614a41a9d42101436a681e9  docs/screenshots/run-finished-dark.png
+c10554ea187349b2c48c49d0081d5a2120ec2bf5f9bf63d37338c408e4652677  docs/screenshots/run-finished.png
+07b5b175c8b5c760515218bd0b7b99611a40886123b7281537801233cbd3f803  docs/screenshots/run-not-started-dark.png
+af06a2bc504b70b0396921c6c3b7cf682b51f93632cf8296e39601de5f205fd0  docs/screenshots/run-not-started.png
+143896f88c14477d259d0c0412fa59624cfe7274a264f43cc7411a62abb69074  docs/screenshots/run-running-dark.png
+f9f38251c7bb3b2aa3648d07caf56754a73882242dcd841e73a472c7e97d3b66  docs/screenshots/run-running.png
+3be45b5ba7446c14e950ec6e2df37c041d6d36f7b8d6b90c19b5b2d09b1d8910  docs/screenshots/settings-dark.png
+bb604f077c0631b460c0355fa726933a15e4121d2c03562be0c44eb1063692ae  docs/screenshots/settings.png
