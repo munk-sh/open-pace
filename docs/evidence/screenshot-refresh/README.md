@@ -11,8 +11,10 @@
 
 | 项 | 实取值 |
 |---|---|
-| 构建 head sha（14 张 + 7 张并排均绑定此 commit） | `2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e` |
-| 构建 tree sha（`git rev-parse HEAD^{tree}`） | `6871aadd37e6af71b18fbb7b76d7d7995a81796f` |
+| 构建 head sha（证据绑定；产品面基线 main，14 张 + 7 张并排均绑定此 head/tree） | `a677e175ca56c113e13cf5d2f652781febeb1223` |
+| 证据绑定 tree sha（产品面 tree） | `400c010454c56683ee53ec72f78f815e387cc1e3` |
+| 采集时 HEAD（实取；与上述基线的差异仅 `scripts/`、`UITests`、`docs/`） | `2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e`（tree `6871aadd37e6af71b18fbb7b76d7d7995a81796f`） |
+| 产品面零 diff 依据 | `git diff --stat a677e17 -- ios/PurePace ios/RunCore` 空输出（截图与并排图所用的 App / RunCore 代码树未变，故绑定 a677e17 有效） |
 | 采集时工作树 | `git status --porcelain` 空输出（clean，采集开始时脚本内实取） |
 | 设备 | iPhone 16，UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD` |
 | 系统 runtime | iOS 18.6 |
@@ -155,9 +157,15 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 `VERSION` 与 `0.1.0(1)` 均不变），`.munk/code-gates.json` 仍 22 门，
 `scripts/test-ios.sh` 的 `ui_call` 仍 4 段且预算/阈值不变，`.github/workflows/ios.yml` 零 diff。
 
-## 8. CI 权威腿回执（阻塞：基线 run 判红 + 证据 commit 未推送）
+## 8. 证据批 1 收口回执：权威腿红在 main，非本项证据问题
 
-**基线 `a677e17` 的 `ios.yml` run 判红（2026-11-12 实查）**：
+**结论（原样口径）**：`ios.yml` 权威腿在基线 `main = a677e17` 上判红，红因是产品层「运行中 / 暂停
+指标区未垂直居中」的真实布局问题，**不是本项证据问题**；本项 14 张截图 + 7 张并排仍按产品面
+tree 绑定 `a677e17`（tree `400c010`，采集时 `ios/PurePace/**` 与 `ios/RunCore/**` 相对该 head 零 diff）。
+本项不宣称「ios.yml 全绿」「可分发」「UI 达标」，也不改 80pt 阈值 / 采样口径 / allowlist / 断言换绿。
+修红已另立 `wi_intake_caf0abdb2486d501`（只修居中，不动阈值与采样口径）。
+
+**基线 `a677e17` 的 `ios.yml` run（2026-11-12 实查）**：
 
 | 字段 | 实取值 |
 |---|---|
@@ -169,22 +177,21 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 | 断言行 2 | `ios/PurePaceUITests/RunFlowUITests.swift:890: error: -[PurePaceUITests.RunFlowUITests testZhHansCopyDatesAndBottomAnchoredPrimaryAction] : XCTAssertTrue failed - 运行中 指标区未垂直居中（顶部留白 73.41666666666669pt，底部留白 81.33333333333337pt，最大空洞 81.5pt）：["底部留白 81.33333333333337pt > 80.0pt", "最大单一垂直空洞 81.5pt > 80.0pt"]` |
 
 该失败发生在产品视图 / `RunFlowUITests` 的版式判据，本项改动面（`ScreenshotEvidenceUITests.swift`、
-`scripts/**`、`docs/**`）不含该文件；按 ac-ci-no-weakening「基线 run 判红按失败腿原文作为阻塞上报，
-不得伪造绿」处理，已上报阻塞，不在此宣称权威绿。
+`scripts/**`、`docs/**`）不含该文件；按 ac-ci-no-weakening 原样记录失败腿原文，不伪造绿。
 
-**证据 commit（本 README / 14 张 PNG / 7 张并排 / 三份日志所在 commit）**：本 coding 会话无
-`git push` / `gh auth` 权限，尚未推送，因此其 `ios.yml` run 不存在；推送后须由 Delivery 实取并回填：
+**证据 commit 回执**：本 coding 会话无 `git push` / `gh auth` 权限，证据 commit 尚未推送，其
+`ios.yml` run 不存在；推送后由 Delivery 实取 run id / conclusion / 4 段 UI 腿覆盖与耗时回填。
+即使推送后 run 绿，也只是「证据 commit 的 CI 结论」；基线 `a677e17` 的红仍在（见上表）。
 
-| 回执字段 | 取值 |
+**修红后需 rebind 的最小集合**（其余证据不受影响，按现脚本重出即可）：
+
+| 类别 | 文件 |
 |---|---|
-| head sha | 待推送后实取（构建 head sha 为 `2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e`） |
-| run id | 待 `gh run list --workflow=ios.yml --commit <sha>` 实取 |
-| status / conclusion | 待回填（要求 `completed` / `success`） |
-| 4 段 UI 腿覆盖 | 待回填（要求覆盖 `RunFlowUITests`、`EvidenceCaptureUITests`、`Ax5ScrollAuditCounterexampleTests`、`MusicSourceSelfCheckUITests`、`ScreenshotEvidenceUITests` 浅/深） |
-| 各腿耗时 | 待回填 |
-
-红线：为换绿不得提高 timeout、删腿、加 `continue-on-error` 或放宽断言；若 `ios.yml` 判红，
-按失败腿原文（run id + 断言行 + 日志片段）作为阻塞上报，不得伪造绿。
+| 重出截图 | `docs/screenshots/run-running.png`、`docs/screenshots/run-running-dark.png`（本轮 7 屏里无 `run-paused` 屏；暂停态只在该 UI 用例的断言里，不产独立截图） |
+| 重出并排 | `docs/screenshots/side-by-side/run-running-side-by-side.png` |
+| 重写清单 | `docs/screenshots/SHA256SUMS`、`docs/screenshots/side-by-side/SHA256SUMS`、`docs/evidence/screenshot-refresh/SHA256SUMS` |
+| 重写回执 | `docs/evidence/screenshot-refresh/README.md`（head/tree 重绑修红合入后的 main）、`capture.log`、`xcodebuild-light.log`、`xcodebuild-dark.log` |
+| 复核 | 新 2 张与上一轮同屏 sha 重合数，以及 14 张 / 7 张的集合完整性 |
 
 ## 9. 边界与人肉眼复评待办
 
@@ -192,5 +199,8 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 - 不碰 `docs/evidence/wi_intake_93f2857d51330b9d`、`shared/`、`android/`、`ios/Core`、`ios/RunCore`。
 - 不新增门禁机制与阈值（`.munk/code-gates.json` 保持 22 门），不改 `.github/workflows/ios.yml`。
 - 不做真机验收、不做分发（ipa / TestFlight / tag / Release / ASC）。
+- 本项不承担 ac-ci-authoritative-green：基线 `a677e17` 的 `ios.yml` 红是产品层版式问题，
+  已另立修红项 `wi_intake_caf0abdb2486d501`；本项不写「ios.yml 全绿 / 可分发 / UI 达标」，
+  修红合入 main 后的 rebind 最小集合见 §8。
 - **人肉眼复评待办**：本目录只证明素材可复跑与断言绿；B1/C2 的排版观感、浅/深配色观感、
   7 张并排对照的视觉一致性，均需人肉眼复评。产品不得自判 UI 达标。

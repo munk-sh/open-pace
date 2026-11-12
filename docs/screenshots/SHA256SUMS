@@ -3,8 +3,9 @@
 # 校验（在仓库根执行）：shasum -a 256 -c docs/screenshots/SHA256SUMS
 # 生成（在仓库根执行）：shasum -a 256 docs/screenshots/*.png
 #
-# 构建 head sha（本批 14 张均由该 commit 的构建产出，实取 git rev-parse HEAD）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e
-# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：6871aadd37e6af71b18fbb7b76d7d7995a81796f
+# 构建 head sha（证据绑定：产品面基线 main；14 张均取自其产品树，采集时 ios/PurePace/** 与 ios/RunCore/** 相对该 head 零 diff）：a677e175ca56c113e13cf5d2f652781febeb1223
+# 构建 tree sha（同上，产品面 tree）：400c010454c56683ee53ec72f78f815e387cc1e3
+# 采集时 HEAD（实取 git rev-parse HEAD；与该基线差异仅 scripts/ 、UITests、docs/）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e（tree 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
 # 归属项：wi_intake_85d08fa7106efc3f（V1.2 复评证据重出：14 张 + 7 张浅/深并排）
 # 逐图断言 / 旧新 sha 对照 / 并排对照 / 日志：docs/evidence/screenshot-refresh/README.md
 # 浅/深并排对照（7 张）：docs/screenshots/side-by-side/ 及其 SHA256SUMS

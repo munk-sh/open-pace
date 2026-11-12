@@ -1,8 +1,9 @@
 # 截图证据刷新校验清单（docs/evidence/screenshot-refresh/SHA256SUMS）
 #
 # 校验（在仓库根执行）：shasum -a 256 -c docs/evidence/screenshot-refresh/SHA256SUMS
-# 构建 head sha：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e
-# 构建 tree sha：6871aadd37e6af71b18fbb7b76d7d7995a81796f
+# 构建 head sha（证据绑定：产品面基线 main）：a677e175ca56c113e13cf5d2f652781febeb1223
+# 构建 tree sha（同上，产品面 tree）：400c010454c56683ee53ec72f78f815e387cc1e3
+# 采集时 HEAD（与该基线差异仅 scripts/ 、UITests、docs/）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e（tree 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
 # 覆盖：docs/screenshots/ 14 张 PNG + 本目录 3 份入库日志（capture.log / xcodebuild-light.log / xcodebuild-dark.log）
 c608cb497fe642b0dc0f2359b79026c6457b7fd301f794bbb41e77ea8ec69c5b  docs/screenshots/discard-confirmation-dark.png
 e293771006e763e2cfdfae7d1ad759796a93cefe1dc1f2b64b54a82716c9706e  docs/screenshots/discard-confirmation.png
