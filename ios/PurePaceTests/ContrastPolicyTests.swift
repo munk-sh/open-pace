@@ -66,6 +66,11 @@ final class ContrastPolicyTests: XCTestCase {
             let darkOnAccent = ContrastPolicy.component("onAccent", scheme: .dark),
             let lightSuccess = ContrastPolicy.component("success", scheme: .light),
             let lightSuccessSoft = ContrastPolicy.component("successSoft", scheme: .light),
+            let lightAccentSoft = ContrastPolicy.component("accentSoft", scheme: .light),
+            let lightPrimary = ContrastPolicy.component("primary", scheme: .light),
+            let lightSecondary = ContrastPolicy.component("secondary", scheme: .light),
+            let lightBackground = ContrastPolicy.component("background", scheme: .light),
+            let lightSurface = ContrastPolicy.component("surface", scheme: .light),
             let darkDanger = ContrastPolicy.component("danger", scheme: .dark),
             let darkDangerSoft = ContrastPolicy.component("dangerSoft", scheme: .dark)
         else {
@@ -74,15 +79,15 @@ final class ContrastPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightOnAccent, background: lightAccent) ?? 0,
-            5.71,
+            8.44,
             accuracy: 0.01,
-            "light onAccent/accent 实测值应为 5.71"
+            "light onAccent/accent 与 dark 同值口径，实测 8.44"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightAccent, background: DesignTokens.SRGB(hex: 0xFAFAF9)) ?? 0,
-            5.47,
-            accuracy: 0.01,
-            "light accent/background 实测值应为 5.47"
+            2.0049,
+            accuracy: 0.0001,
+            "light accent/background 实测 2.0049（品牌优先豁免，见登记表）"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: darkOnAccent, background: darkAccent) ?? 0,
@@ -103,8 +108,142 @@ final class ContrastPolicyTests: XCTestCase {
             "dark danger/dangerSoft 实测值应为 4.82（最薄 body pair）"
         )
 
+        XCTAssertEqual(
+            ContrastPolicy.ratio(foreground: lightAccentSoft, background: lightBackground) ?? 0,
+            1.0971,
+            accuracy: 0.0001,
+            "light accentSoft/background 必须 ≥1.05"
+        )
+        XCTAssertEqual(
+            ContrastPolicy.ratio(foreground: lightAccentSoft, background: lightSurface) ?? 0,
+            1.1459,
+            accuracy: 0.0001,
+            "light accentSoft/surface 必须 ≥1.10"
+        )
+        XCTAssertEqual(
+            ContrastPolicy.ratio(foreground: lightPrimary, background: lightAccentSoft) ?? 0,
+            15.5047,
+            accuracy: 0.0001,
+            "primary/accentSoft 实测 15.5047"
+        )
+        XCTAssertEqual(
+            ContrastPolicy.ratio(foreground: lightSecondary, background: lightAccentSoft) ?? 0,
+            5.6008,
+            accuracy: 0.0001,
+            "secondary/accentSoft 实测 5.6008"
+        )
+
         XCTAssertEqual(ContrastPolicy.bodyThreshold, 4.5)
         XCTAssertEqual(ContrastPolicy.largeThreshold, 3)
+    }
+
+    // MARK: - ac-ondanger-matrix-pair
+
+    func testOnDangerPairIsSingleBodyTierAndMeasured() {
+        let pairs = ContrastPolicy.pairMatrix.filter { $0.name == "onDanger/danger" }
+        XCTAssertEqual(pairs.count, 1, "onDanger/danger 恰 1 条")
+        XCTAssertEqual(pairs.first?.tier, .body)
+        XCTAssertEqual(pairs.first?.minimum, ContrastPolicy.bodyThreshold)
+
+        guard
+            let lightOnDanger = ContrastPolicy.component("onDanger", scheme: .light),
+            let lightDanger = ContrastPolicy.component("danger", scheme: .light),
+            let darkOnDanger = ContrastPolicy.component("onDanger", scheme: .dark),
+            let darkDanger = ContrastPolicy.component("danger", scheme: .dark)
+        else {
+            return XCTFail("调色板缺少 onDanger/danger 实测所需颜色")
+        }
+        let light = ContrastPolicy.ratio(foreground: lightOnDanger, background: lightDanger) ?? 0
+        let dark = ContrastPolicy.ratio(foreground: darkOnDanger, background: darkDanger) ?? 0
+        XCTAssertEqual(light, 12.91, accuracy: 0.01)
+        XCTAssertEqual(dark, 4.95, accuracy: 0.01)
+        XCTAssertGreaterThanOrEqual(dark, ContrastPolicy.bodyThreshold)
+
+        // 反例：dark 改用白字只有 3.76，不达标，不能靠反向放宽阈值补绿。
+        let whiteOnDarkDanger = ContrastPolicy.ratio(
+            foreground: DesignTokens.SRGB(hex: 0xFFFFFF),
+            background: darkDanger
+        ) ?? 0
+        XCTAssertEqual(whiteOnDarkDanger, 3.76, accuracy: 0.01)
+        XCTAssertLessThan(whiteOnDarkDanger, ContrastPolicy.bodyThreshold)
+    }
+
+    // MARK: - ac-brand-exemption-scoped / ac-exemption-not-formula
+
+    private let expectedExemptions: [(name: String, measured: Double)] = [
+        ("light accent/background", 2.0049),
+        ("light accent/surface", 2.0940),
+        ("light accent/accentSoft", 1.8274),
+        ("light accent/background@large", 2.0049),
+        ("light accent/surface@large", 2.0940),
+        ("light accent/surfaceMuted@large", 1.8693)
+    ]
+
+    func testBrandExemptionRegistryIsExactlySixLightAccentPairs() {
+        let registry = ContrastPolicy.brandPriorityExemptions
+        XCTAssertEqual(registry.count, 6)
+        XCTAssertEqual(registry.map(\.name), expectedExemptions.map(\.name))
+        XCTAssertTrue(registry.allSatisfy { $0.name.hasPrefix("light accent/") })
+        XCTAssertFalse(registry.contains { $0.name.hasPrefix("dark ") })
+        XCTAssertTrue(registry.allSatisfy { !$0.source.isEmpty && $0.source.contains("V1.2") })
+
+        let lightRatios = Dictionary(
+            uniqueKeysWithValues: ContrastPolicy.ratios(for: ContrastPolicy.checks(for: .light))
+                .map { ($0.name, $0.ratio) }
+        )
+        let matrixNames = Set(ContrastPolicy.checks(for: .light).map(\.name))
+        for (entry, expected) in zip(registry, expectedExemptions) {
+            XCTAssertEqual(entry.measured, expected.measured, accuracy: 0.0001)
+            XCTAssertTrue(matrixNames.contains(entry.name), "登记项必须命中真实矩阵：\(entry.name)")
+            guard let value = lightRatios[entry.name] ?? nil else {
+                XCTFail("登记项无法现场重算：\(entry.name)")
+                continue
+            }
+            XCTAssertEqual(value, expected.measured, accuracy: 0.0001)
+            XCTAssertLessThan(value, ContrastPolicy.bodyThreshold, "登记项必须是低对比豁免，不掩盖达标对")
+        }
+        let darkExemptions = ContrastPolicy.brandPriorityExemptions.filter { $0.name.hasPrefix("dark ") }
+        XCTAssertEqual(darkExemptions, [], "dark 侧零豁免")
+    }
+
+    func testClearingExemptionsTurnsAllSixPairsRed() {
+        let lightChecks = ContrastPolicy.checks(for: .light)
+        let problems = ContrastPolicy.problems(for: lightChecks, exemptions: [])
+        XCTAssertEqual(problems.count, 6, "清空登记表后应恰有 6 条品牌橙对判红")
+        let exemptNames = Set(ContrastPolicy.brandPriorityExemptions.map(\.name))
+        let redNames = Set(problems.compactMap { message -> String? in
+            guard message.hasPrefix("对比度不足 ") else { return nil }
+            return message.dropFirst("对比度不足 ".count).split(separator: ":").first.map(String.init)
+        })
+        XCTAssertEqual(redNames, exemptNames)
+    }
+
+    func testRemovingOneExemptionTurnsThatPairRed() {
+        let lightChecks = ContrastPolicy.checks(for: .light)
+        var trimmed = ContrastPolicy.brandPriorityExemptions
+        trimmed.removeAll { $0.name == "light accent/accentSoft" }
+        let problems = ContrastPolicy.problems(for: lightChecks, exemptions: trimmed)
+        XCTAssertEqual(problems.count, 1)
+        XCTAssertTrue(problems.first?.contains("light accent/accentSoft") == true)
+    }
+
+    func testUnregisteredLowContrastSyntheticPairStaysRed() {
+        let synthetic = ContrastPolicy.Check(
+            name: "light synthetic/accentOnWhite",
+            foreground: DesignTokens.SRGB(hex: 0xFF9A5C),
+            background: DesignTokens.SRGB(hex: 0xFFFFFF),
+            minimum: ContrastPolicy.bodyThreshold
+        )
+        let problems = ContrastPolicy.problems(for: [synthetic])
+        XCTAssertFalse(problems.isEmpty, "未登记的低对比 synthetic pair 必须判红")
+        XCTAssertTrue(problems.first?.contains("对比度不足") == true)
+    }
+
+    func testThresholdsAndMatrixSizeUnchanged() {
+        XCTAssertEqual(ContrastPolicy.bodyThreshold, 4.5)
+        XCTAssertEqual(ContrastPolicy.largeThreshold, 3.0)
+        XCTAssertEqual(ContrastPolicy.decorativeThreshold, 1.10)
+        XCTAssertEqual(ContrastPolicy.pairMatrix.count, 37)
     }
 
     // MARK: - ac-contrast-fail-closed-red

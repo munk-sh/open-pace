@@ -57,9 +57,9 @@ enum DesignTokens {
             "surfaceMuted": ColorPair(light: SRGB(hex: 0xF2F2F1), dark: SRGB(hex: 0x1E2124)),
             "primary": ColorPair(light: SRGB(hex: 0x17181A), dark: SRGB(hex: 0xF2F3F4)),
             "secondary": ColorPair(light: SRGB(hex: 0x5C5F63), dark: SRGB(hex: 0xA2A7AC)),
-            "accent": ColorPair(light: SRGB(hex: 0xB4400B), dark: SRGB(hex: 0xFF9A5C)),
-            "onAccent": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x2A1206)),
-            "accentSoft": ColorPair(light: SRGB(hex: 0xFCEFE7), dark: SRGB(hex: 0x3A1F12)),
+            "accent": ColorPair(light: SRGB(hex: 0xFF9A5C), dark: SRGB(hex: 0xFF9A5C)),
+            "onAccent": ColorPair(light: SRGB(hex: 0x2A1206), dark: SRGB(hex: 0x2A1206)),
+            "accentSoft": ColorPair(light: SRGB(hex: 0xFFECE0), dark: SRGB(hex: 0x3A1F12)),
             "separator": ColorPair(light: SRGB(hex: 0xD8D8D3), dark: SRGB(hex: 0x33383D)),
             "warning": ColorPair(light: SRGB(hex: 0x6E5C00), dark: SRGB(hex: 0xEECA2B)),
             "onWarning": ColorPair(light: SRGB(hex: 0xFFFFFF), dark: SRGB(hex: 0x2B1A00)),
@@ -73,8 +73,13 @@ enum DesignTokens {
         ]
 
         // 色板唯一真源：公司调研 digest trun_cff114e082a2fb0e §3「方向 A / 石墨+竞速橙」。
-        // 36 hex 逐键照抄，禁止截图取色或自行微调；warning/danger 系按公司裁决 owe_40221a8e983c7516 重取，
-        // 使 accent↔warning、accent↔danger 在 HSL 口径下至少满足 ΔH≥25° / ΔL≥15 / ΔS≥30 其一。
+        // V1.2 定稿（人逐像素取样拍板）：accent 浅/深同为 #FF9A5C（唯一品牌橙），onAccent 浅/深同为
+        // #2A1206（vs accent 8.44:1），accentSoft 浅色按新主色重算为 #FFECE0（dark #3A1F12 不变）。
+        // 旧砖红 #B4400B、设计稿候选 #E85D04 及一切压暗候选作废，palette 不得出现第二套橙。
+        // 同色相更深一档（H 22–26）仅作 fallback，必须人看过拍板后才可启用，本轮未启用。
+        // warning/danger/success 系维持浅/深双值：danger 本次只做一次明度分离校验、实测维持 #660D09；
+        // 非品牌色按公司裁决 owe_40221a8e983c7516 重取，使 accent↔warning、accent↔danger 在 HSL 口径下
+        // 至少满足 ΔH≥25° / ΔL≥15 / ΔS≥30 其一。
         // 深色三中性键（#0B0C0D / #16181A / #1E2124）实测 HSL 色相 210°、chroma/255 = 0.78% / 1.57% / 2.35%，
         // 判据取「色相落在 60–200° 之外」且「chroma/255 ≤ 3.0%」（旧值 166–172°、3.14/4.31/5.10% 必然判红）。
         // HSV S 在深色 V≈5% 时分母极小（实测 8.3–9.1%），不构成本轮判据。
@@ -96,7 +101,7 @@ enum DesignTokens {
             "success": "已保存成功态",
             "onSuccess": "成功底上的文字",
             "successSoft": "成功弱底",
-            "danger": "丢弃等破坏性操作，仅出现在确认层文本或描边按钮",
+            "danger": "确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版）",
             "onDanger": "危险底上的文字",
             "dangerSoft": "危险弱底（确认层背景）"
         ]
@@ -157,7 +162,7 @@ enum DesignTokens {
         static let onSuccess = color("onSuccess")
         /// 成功弱底。
         static let successSoft = color("successSoft")
-        /// 丢弃等破坏性操作：仅出现在确认层文本或描边按钮，不作主操作填充。
+        /// 确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版）。
         static let danger = color("danger")
         /// 危险底上的文字。
         static let onDanger = color("onDanger")
