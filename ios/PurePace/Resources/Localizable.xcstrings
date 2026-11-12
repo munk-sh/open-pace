@@ -341,6 +341,16 @@
         }
       }
     },
+    "run.location.backgroundDegradedHintShort" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "后台定位未开启 · 锁屏记录可能中断"
+          }
+        }
+      }
+    },
     "run.metric.average" : {
       "localizations" : {
         "zh-Hans" : {

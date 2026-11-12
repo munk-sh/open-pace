@@ -25,7 +25,7 @@ struct SettingsView: View {
             .background(DesignTokens.Colors.background)
             .navigationTitle(L10n.settingsNavigationTitle)
         }
-        .tint(DesignTokens.Colors.accent)
+        .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.settings")
     }
 

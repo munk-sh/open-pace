@@ -93,6 +93,7 @@ targets:
       - path: PurePace/Design/VisibleDatePolicy.swift
       - path: PurePace/Design/PrimaryActionLayoutPolicy.swift
       - path: PurePace/Design/RunLayoutBalancePolicy.swift
+      - path: PurePace/Design/RunFinishedSummaryLayoutPolicy.swift
       - path: PurePace/Design/TabBarVisibilityPolicy.swift
       # UI 像素样式断言从 token 派生期望值，避免测试里另写颜色字面量。
       - path: PurePace/Design/DesignTokens.swift

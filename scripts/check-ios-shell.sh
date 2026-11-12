@@ -862,10 +862,13 @@ EOF
     || problems="$problems 跑步页主操作未底部锚定（safeAreaInset）;"
   grep -Fq 'DesignTokens.Colors.accent' "$run_view" || problems="$problems 跑步页未引用品牌主色 accent;"
 
-  # 三态视觉：hero 主值色的单一真源在 `RunInteractionPlan.heroTint`（记录中 / 暂停 accent，
-  # warning 只作非阻断内联提示；保存 success），RunView 只消费 `plan.heroTint`，不再各自 switch 颜色。
-  grep -Fq 'case .running, .paused: return .accent' "$run_plan" \
-    || problems="$problems 记录态/暂停态 hero 未用 accent;"
+  # 三态视觉：hero 主值色的单一真源在 `RunInteractionPlan.heroTint`（记录中 / 暂停 / 未开始均为
+  # primary 文字层，浅色 accent 只作填充；warning 只作非阻断内联提示；保存 success），
+  # RunView 只消费 `plan.heroTint`，不再各自 switch 颜色。
+  grep -Fq 'case .running, .paused: return .primary' "$run_plan" \
+    || problems="$problems 记录态/暂停态 hero 未用 primary（浅色 accent 只作填充）;"
+  grep -Fq 'case .ready, .finished: return .primary' "$run_plan" \
+    || problems="$problems 未开始/结束态 hero 未用 primary;"
   grep -Fq 'if didSave { return .success }' "$run_plan" \
     || problems="$problems 保存态 hero 未用 success;"
   grep -Fq 'valueTint: color(for: plan.heroTint)' "$run_view" \
@@ -882,6 +885,64 @@ EOF
       problems="$problems ${file#"$root"/} 仍使用系统 grouped 列表观感;"
     fi
   done
+
+  # B1/C2 定稿版式：地图 hero 360 / 内容预算 691 / 操作条 68 / sheet 内容自适应。
+  local finished_policy="$root/ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift"
+  if [ ! -f "$finished_policy" ]; then
+    problems="$problems 缺少结束态版式策略 RunFinishedSummaryLayoutPolicy.swift;"
+  else
+    local finished_token
+    for finished_token in \
+      'standardMapHeroHeight: CGFloat = 360' \
+      'finishedContentHeightBudget: CGFloat = 691' \
+      'mapHeroMinimumRatio: CGFloat = 0.40' \
+      'inlineHintMaxHeight: CGFloat = 32' \
+      'func meetsMapHero' \
+      'func meetsContentBudget' \
+      'func meetsInlineHint' \
+      'var actionBarHeight'; do
+      grep -Fq "$finished_token" "$finished_policy" \
+        || problems="$problems 结束态版式策略缺少 '$finished_token';"
+    done
+  fi
+  grep -Fq 'RunFinishedSummaryLayoutPolicy.actionBarHeight' "$run_view" \
+    || problems="$problems 跑步页主操作条未引用 actionBarHeight（68pt）;"
+  grep -Fq '.presentationDetents([.height(discardSheetContentHeight)])' "$run_view" \
+    || problems="$problems 丢弃确认 sheet 未用内容实测高度 detent;"
+  grep -Fq '.onGeometryChange(for: CGFloat.self)' "$run_view" \
+    || problems="$problems 丢弃确认 sheet 未实测内容高度;"
+  if grep -Fq '.presentationDetents([.medium])' "$run_view"; then
+    problems="$problems 丢弃确认 sheet 退回 .medium 固定档;"
+  fi
+  grep -Fq 'accessibilityIdentifier("run.finished.splitsEmpty")' "$run_view" \
+    || problems="$problems 分段空态缺少 run.finished.splitsEmpty 替代文案;"
+  grep -Fq 'emptyIdentifier: "run.mapEmpty"' "$run_view" \
+    || problems="$problems 结束态地图缺少 run.mapEmpty 空态;"
+
+  # 浅色下 accent 只作填充（按钮底 / 选中块 / 描边）：正文、链接、图标前景一律
+  # primary / secondary，避免 2.00:1 的低对比橙字；保存态 Toggle 轨迹仍属填充面。
+  local accent_view
+  for accent_view in \
+    "$root/ios/PurePace/Run/RunView.swift" \
+    "$root/ios/PurePace/History/HistoryView.swift" \
+    "$root/ios/PurePace/History/RunDetailView.swift" \
+    "$root/ios/PurePace/ContentView.swift"; do
+    if [ -f "$accent_view" ] && grep -Fq 'foregroundStyle(DesignTokens.Colors.accent)' "$accent_view"; then
+      problems="$problems ${accent_view#"$root"/} 仍以 accent 作文字/图标前景;"
+    fi
+  done
+  for accent_view in \
+    "$root/ios/PurePace/Run/RunView.swift" \
+    "$root/ios/PurePace/History/HistoryView.swift" \
+    "$root/ios/PurePace/ContentView.swift"; do
+    if [ -f "$accent_view" ] && grep -Fq '.tint(DesignTokens.Colors.accent)' "$accent_view"; then
+      problems="$problems ${accent_view#"$root"/} 仍以 accent 作导航/Tab 前景 tint;"
+    fi
+  done
+  if grep -Fq 'case .running, .paused: return .accent' \
+    "$root/ios/PurePace/Run/RunInteractionPlan.swift"; then
+    problems="$problems hero 主值仍以 accent 作前景（浅色只许填充）;"
+  fi
 
   # 等宽数字：跑步页 ≥3（距离 / 主值 / 次值），历史行与详情各 ≥1。
   local mono_count
@@ -1336,6 +1397,7 @@ run_self_test() {
     "$design_root/ios/PurePace/Track"
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
+  cp ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Run/RunView.swift "$design_root/ios/PurePace/Run/"
   cp ios/PurePace/Run/RunInteractionPlan.swift "$design_root/ios/PurePace/Run/"
   cp ios/PurePace/History/HistoryView.swift "$design_root/ios/PurePace/History/"
@@ -1347,6 +1409,24 @@ run_self_test() {
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
   check_count "冻结基线 identifier 计数" 42 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
+
+  local design_b1_bad="$tmp_dir/design-b1-regression"
+  cp -R "$design_root" "$design_b1_bad"
+  sed -i '' 's/standardMapHeroHeight: CGFloat = 360/standardMapHeroHeight: CGFloat = 180/' \
+    "$design_b1_bad/ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift"
+  check_fail "B1 地图 hero 回退 180 反例" "$(validate_design_tokens "$design_b1_bad")"
+
+  design_b1_bad="$tmp_dir/design-c2-medium"
+  cp -R "$design_root" "$design_b1_bad"
+  sed -i '' 's/\.presentationDetents(\[\.height(discardSheetContentHeight)\])/.presentationDetents([.medium])/' \
+    "$design_b1_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "C2 sheet 回退 medium 固定档反例" "$(validate_design_tokens "$design_b1_bad")"
+
+  design_b1_bad="$tmp_dir/design-accent-foreground"
+  cp -R "$design_root" "$design_b1_bad"
+  printf '\nprivate struct AccentForegroundRegression: View { var body: some View { Text("x").foregroundStyle(DesignTokens.Colors.accent) } }\n' \
+    >> "$design_b1_bad/ios/PurePace/Run/RunView.swift"
+  check_fail "accent 作前景反例" "$(validate_design_tokens "$design_b1_bad")"
 
   local design_bad="$tmp_dir/design-no-token"
   cp -R "$design_root" "$design_bad"
@@ -1416,9 +1496,23 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-wrong-running-tint"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/case \.running, \.paused: return \.accent/case .running, .paused: return .warning/' \
+  sed -i '' 's/case \.running, \.paused: return \.primary/case .running, .paused: return .warning/' \
     "$design_bad/ios/PurePace/Run/RunInteractionPlan.swift"
   check_fail "记录态改错为 warning 反例" "$(validate_design_tokens "$design_bad")"
+
+  # 反向夹具：hero tint 回退 accent 作前景（浅色只许填充）必须判红。
+  design_bad="$tmp_dir/design-hero-accent-regression"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/case \.running, \.paused: return \.primary/case .running, .paused: return .accent/' \
+    "$design_bad/ios/PurePace/Run/RunInteractionPlan.swift"
+  check_fail "hero 回退 accent 前景反例" "$(validate_design_tokens "$design_bad")"
+
+  # 双侧夹具：accent 仅作填充面（背景）必须放行，作正文/链接/图标前景必须判红。
+  design_bad="$tmp_dir/design-accent-fill-only"
+  cp -R "$design_root" "$design_bad"
+  printf '\nprivate let accentFill = EmptyView().background(DesignTokens.Colors.accent)\n' \
+    >> "$design_bad/ios/PurePace/Run/RunView.swift"
+  check_ok "accent 仅作填充正例" "$(validate_design_tokens "$design_bad")"
 
   design_bad="$tmp_dir/design-renamed-id"
   cp -R "$design_root" "$design_bad"

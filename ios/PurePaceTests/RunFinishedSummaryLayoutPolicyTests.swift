@@ -1,23 +1,28 @@
 import XCTest
 @testable import PurePace
 
-/// 结束态总结（地图预览 + 分段明细）垂直预算（L1 纯逻辑）。
+/// 结束态 B1（地图 hero 360 / 内容 ≤ 691 / 操作条 68）与 C2 版式预算（L1 纯逻辑）。
 ///
-/// 只断言口径与取值来源：地图高度只有 180（未压缩标准档）/ 96（压缩档）两个值，
-/// 压缩档多占的 64pt 由命名参数从非地图槽位回收；全部由既有 `DesignTokens.Spacing` 派生。
+/// 口径先定后测：标准字号档地图恒 360（≥ 852×40% = 340.8），历史 96 / 180 只作反例输入；
+/// 辅助字号档仍压缩到 96（3 × `Spacing.xl`），不得把 AX5 压缩当标准档兜底。
 final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
     func testStandardSizesKeepExistingTrackPreviewHeight() {
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: false),
-            180
+            360
         )
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: false, isAccessibilitySize: false),
-            180
+            360
+        )
+        XCTAssertEqual(
+            RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: false),
+            360,
+            "标准字号档地图恒 360，不因预算档位压图"
         )
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.blockSpacing(compresses: false),
-            DesignTokens.Spacing.sectionGap
+            DesignTokens.Spacing.xs
         )
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.cardPadding(compresses: false),
@@ -48,8 +53,7 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
         )
     }
 
-    /// 压缩必须严格单调（大字号档逐项小于等于标准档，且地图至少省 80pt），
-    /// 否则 AX5 实测 108pt 溢出无法靠压缩收回。
+    /// 压缩必须严格单调（辅助字号档逐项小于等于标准档，且地图至少省 80pt）。
     func testAccessibilitySlotsAreStrictlyNotLarger() {
         XCTAssertLessThan(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: true),
@@ -74,30 +78,40 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
         )
     }
 
-    /// 标准字号档也受内容区预算约束：iPhone 16 竖屏实测可用内容区 612.3pt
-    /// （导航栏下沿 149.7 → 主操作顶边 762.0）< 未压缩所需 688pt → 必须压缩。
-    /// 反例（「永不压缩」实现）：本条与下一条同时存在，任一方向的错判都会判红。
-    func testStandardSizeCompressesWhenContentBudgetIsShort() {
-        XCTAssertTrue(
+    /// B1 重基：标准字号档不再按可用内容区压图（旧口径 688 预算压缩废）。
+    /// 反例（旧实现）：内容区 612.3pt 判压缩即红——标准档地图恒 360 是无条件值。
+    func testStandardSizeDoesNotCompressForShortContentBudget() {
+        XCTAssertEqual(
+            RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: false),
+            360,
+            "标准档即使传入压缩档也必须保持 360"
+        )
+        XCTAssertFalse(
             RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
                 isAccessibilitySize: false,
                 availableContentHeight: 762.0 - 149.7
             )
         )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: false,
+                availableContentHeight: 0
+            )
+        )
     }
 
-    /// 反例（「一律压缩」实现）：内容区给足 688pt 及以上时标准字号档保既有的 180pt 视觉。
+    /// 标准字号档在预算充足时同样不压缩（保持 B1 的 360 地图）。
     func testStandardSizeKeepsUncompressedSummaryWhenBudgetIsEnough() {
         XCTAssertFalse(
             RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
                 isAccessibilitySize: false,
-                availableContentHeight: RunFinishedSummaryLayoutPolicy.uncompressedFinishedContentHeight
+                availableContentHeight: RunFinishedSummaryLayoutPolicy.finishedContentHeightBudget
             )
         )
         XCTAssertFalse(
             RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
                 isAccessibilitySize: false,
-                availableContentHeight: RunFinishedSummaryLayoutPolicy.uncompressedFinishedContentHeight + 120
+                availableContentHeight: RunFinishedSummaryLayoutPolicy.finishedContentHeightBudget + 120
             )
         )
     }
@@ -110,41 +124,52 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
                 availableContentHeight: 4000
             )
         )
-    }
-
-    /// ac-finished-map-floor-96：标准档压缩分支的地图下限回到 96pt（3 × `Spacing.xl`）。
-    /// 改前红：`2d40bc0`（经 `4d522e6` 合入 main）该分支返回 `Spacing.xl`(32)，本断言实测判红
-    /// （日志 .munk/logs/map-floor-red-before-unit.log / map-floor-red-before-ui.log）。
-    /// 断言用数值下限 96，不复述生产常量取别名。
-    func testStandardBudgetCompressedMapMeetsFloor96() {
-        let height = RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: false)
-        XCTAssertGreaterThanOrEqual(height, 96, "标准档压缩分支地图高度 \(height)pt < 96pt 下限")
-        XCTAssertEqual(height, 96)
-        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapFloor(height))
-    }
-
-    /// ac-finished-map-not-strip：把历史值 32 作为输入喂给同一高度判据必须判红（反例）。
-    /// 输入写死字面量 32（不取生产常量别名），判据若回落到 32 则 `meetsMapFloor(32)` 返回 true 必红。
-    func testHistoricStripHeightIsRejectedByMapFloor() {
-        XCTAssertFalse(
-            RunFinishedSummaryLayoutPolicy.meetsMapFloor(32),
-            "32pt 是回归前的细条高度，必须被判红"
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: true,
+                availableContentHeight: 0
+            )
         )
-        XCTAssertFalse(RunFinishedSummaryLayoutPolicy.meetsMapFloor(0))
-        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapFloor(96))
-        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapFloor(180))
     }
 
-    /// ac-map-height-three-branches：地图高度只出现 180 / 96 两个值，三组合逐一断言；
-    /// AX5 无论是否传预算都是 96，未压缩标准档 180。
+    /// ac-b1-map-hero-360：标准字号档地图恒 360pt 且 ≥ 屏高 40%（852 × 0.40 = 340.8）。
+    func testStandardMapHeroMeets360And40Percent() {
+        let height = RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: false)
+        XCTAssertEqual(height, 360)
+        XCTAssertGreaterThanOrEqual(
+            height,
+            RunFinishedSummaryLayoutPolicy.referenceScreenHeight
+                * RunFinishedSummaryLayoutPolicy.mapHeroMinimumRatio
+        )
+        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapHero(height))
+    }
+
+    /// ac-b1-map-hero-360 反例：把历史 96 / 180 喂给 B1 地图高度判据必须判红；
+    /// 340.7（差 0.1pt）也判红，340.8 与 360 通过。
+    func testHistoricMapHeightsAreRejectedByMapHero() {
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsMapHero(96),
+            "96pt 是 AX5 压缩档，不是标准档 B1 地图"
+        )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsMapHero(180),
+            "180pt 是改前未压缩档，必须被判红"
+        )
+        XCTAssertFalse(RunFinishedSummaryLayoutPolicy.meetsMapHero(340.7))
+        XCTAssertFalse(RunFinishedSummaryLayoutPolicy.meetsMapHero(0))
+        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapHero(340.8))
+        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsMapHero(360))
+    }
+
+    /// ac-map-height-two-branches：地图高度只出现 360 / 96 两个值，`compresses` 不改变标准档。
     func testMapHeightOnlyHasUncompressedAndCompressedBranches() {
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: false, isAccessibilitySize: false),
-            180
+            360
         )
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: false),
-            96
+            360
         )
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: true),
@@ -157,30 +182,28 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
         )
     }
 
-    /// ac-nonmap-slack-parameterized：地图 +64pt（32 → 96）由非地图槽位回收 60pt，
-    /// 每个槽位都是命名参数。余下 4pt 有意留在 `topBreathing`（`md`+`xxs`=20 而非 `md`=16）：
-    /// 顶部是唯一钉住上沿的弹性位，取 20 才能让 0 行 / 1 行两种 canonical 内容同时满足
-    /// 「上下留白差 ≤16」（UI 腿实测 9.33 / 12），否则 0 行恰好 16.0000000000001pt 超限。
-    /// 反例：任一槽位回到未压缩值，回收合计 < 60 必红。
+    /// 辅助字号压缩档仍逐项回收：地图 360 → 96 单独就回收 264pt（≥ 80），
+    /// 其余槽位压缩严格单调（反例：任一槽位回到未压缩值即判红）。
     func testCompressedNonMapSlotsRelieveTheMapDelta() {
-        let relief =
-            (RunFinishedSummaryLayoutPolicy.topBreathing(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.topBreathing(compresses: true))
-            + (RunFinishedSummaryLayoutPolicy.heroTopPadding(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.heroTopPadding(compresses: true))
-            + (RunFinishedSummaryLayoutPolicy.heroMetricsGap(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.heroMetricsGap(compresses: true))
-            + 2 * (RunFinishedSummaryLayoutPolicy.metricCardPadding(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.metricCardPadding(compresses: true))
-            + (RunFinishedSummaryLayoutPolicy.metricCardBottomPadding(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.metricCardBottomPadding(compresses: true))
-            + 2 * (RunFinishedSummaryLayoutPolicy.metricGroupGap(compresses: false)
-                - RunFinishedSummaryLayoutPolicy.metricGroupGap(compresses: true))
-        XCTAssertEqual(relief, 60, "压缩档非地图回收总量 = 地图增量 64 − 顶部有意保留的 4pt")
-        XCTAssertGreaterThanOrEqual(relief, 40, "至少回收 40pt 才够抵消实测溢出")
+        let mapRelief =
+            RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: false)
+            - RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: true)
+        XCTAssertGreaterThanOrEqual(mapRelief, 80)
+        XCTAssertLessThan(
+            RunFinishedSummaryLayoutPolicy.blockSpacing(compresses: true),
+            RunFinishedSummaryLayoutPolicy.blockSpacing(compresses: false)
+        )
+        XCTAssertLessThan(
+            RunFinishedSummaryLayoutPolicy.cardPadding(compresses: true),
+            RunFinishedSummaryLayoutPolicy.cardPadding(compresses: false)
+        )
+        XCTAssertLessThan(
+            RunFinishedSummaryLayoutPolicy.rowSpacing(compresses: true),
+            RunFinishedSummaryLayoutPolicy.rowSpacing(compresses: false)
+        )
     }
 
-    /// 压缩槽位只改压缩档：未压缩时逐项等于既有语义 token（视图层不再出现裸数字）。
+    /// 未压缩槽位逐项等于既有语义 token（视图层不再出现裸数字）。
     func testUncompressedSlotsStayOnExistingTokens() {
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.topBreathing(compresses: false),
@@ -208,7 +231,7 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
         )
     }
 
-    /// 反例方向：辅助字号档保持 96pt（不被未压缩标准档的 180 覆盖）。
+    /// 反例方向：辅助字号档保持 96pt（不被标准档的 360 覆盖）。
     func testMapHeightKeepsAccessibilityBranch() {
         XCTAssertEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: true, isAccessibilitySize: true),
@@ -216,7 +239,59 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
         )
         XCTAssertNotEqual(
             RunFinishedSummaryLayoutPolicy.trackPreviewHeight(compresses: false, isAccessibilitySize: false),
-            RunFinishedSummaryLayoutPolicy.budgetCompressedTrackPreviewHeight
+            RunFinishedSummaryLayoutPolicy.accessibilityTrackPreviewHeight
+        )
+    }
+
+    /// ac-b1-content-fits-691：B1 实测合计 667.3 ≤ 691 通过；
+    /// 改前口径（地图 96 + 整行权限提示 44 + 四指标卡 4×117.7 + 分段 114 + 块间距 48 = 772.8）
+    /// 与 691.1 必须判红。
+    func testFinishedContentBudgetAcceptsB1AndRejectsPreChangeOverflow() {
+        XCTAssertEqual(RunFinishedSummaryLayoutPolicy.finishedContentHeightBudget, 691)
+        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsContentBudget(667.3))
+        XCTAssertTrue(RunFinishedSummaryLayoutPolicy.meetsContentBudget(691))
+        XCTAssertFalse(RunFinishedSummaryLayoutPolicy.meetsContentBudget(691.1))
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsContentBudget(96 + 44 + 4 * 117.7 + 114 + 48),
+            "改前版式（地图 96 + 整行权限提示 + 四指标卡）必须超预算"
+        )
+    }
+
+    /// ac-b1-action-bar-68：44pt 主操作 + 上下各 12pt = 68pt。
+    func testActionBarHeightIs68() {
+        XCTAssertEqual(RunFinishedSummaryLayoutPolicy.actionBarHeight, 68)
+        XCTAssertEqual(
+            RunFinishedSummaryLayoutPolicy.actionBarHeight,
+            DesignTokens.minTapTarget + 2 * DesignTokens.Spacing.sm
+        )
+    }
+
+    /// ac-b1-inline-hint：高度 ≤32pt 且宽度小于内容宽；
+    /// 整行 / ≥44pt 的提示与改前整行权限条必须判红。
+    func testInlineHintCapsuleJudge() {
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 23.7, width: 196.3, contentWidth: 361)
+        )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 44, width: 196.3, contentWidth: 361),
+            "≥44pt 的提示不是 inline 胶囊"
+        )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 23.7, width: 361, contentWidth: 361),
+            "整宽提示必须判红"
+        )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 60, width: 361, contentWidth: 361)
+        )
+        // 改前实测反例（2026-11-12，iPhone 16 / iOS 18.6，zh-Hans 长句换 2 行）：
+        // 整行 360×39.33pt 胶囊必须判红，证明「≤32 且不占整行」不是事后放阈值。
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 39.33, width: 360, contentWidth: 361),
+            "改前整行两行胶囊（39.33pt / 360pt）必须判红"
+        )
+        // 现实现：图标 + 短文案单行胶囊（实测约 23.7pt、宽度由内容决定）判绿。
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(height: 23.7, width: 236.3, contentWidth: 361)
         )
     }
 }

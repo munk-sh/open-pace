@@ -74,6 +74,11 @@ enum L10n {
         String(localized: "run.location.backgroundDegradedHint")
     }
 
+    /// 单行紧凑胶囊的短文案；完整长句仍作为该胶囊的 accessibilityLabel。
+    static var backgroundDegradedHintShort: String {
+        String(localized: "run.location.backgroundDegradedHintShort")
+    }
+
     // MARK: - 历史页
 
     static var historyNavigationTitle: LocalizedStringKey { LocalizedStringKey("history.navigation.title") }

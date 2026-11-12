@@ -170,8 +170,8 @@ struct RunDetailView: View {
                     .accessibilityIdentifier("runDetail.exported")
                 ShareLink(item: url) {
                     Text(L10n.runDetailShare)
-                        .font(DesignTokens.Typography.body)
-                        .foregroundStyle(DesignTokens.Colors.accent)
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .foregroundStyle(DesignTokens.Colors.primary)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: DesignTokens.minTapTarget)
                 }
