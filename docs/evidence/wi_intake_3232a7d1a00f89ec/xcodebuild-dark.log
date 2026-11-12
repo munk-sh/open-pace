@@ -1,0 +1,1493 @@
+################ [section 1/3] 截图腿（深色）：ScreenshotEvidenceUITests/testEvidenceScreensDark
+################ host: xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination 'platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD' -derivedDataPath .build/ios -only-testing:PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensDark -resultBundlePath .build/evidence/wi3232/dark-final.xcresult
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD" -derivedDataPath .build/ios "-only-testing:PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensDark" -resultBundlePath .build/evidence/wi3232/dark-final.xcresult
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/RunCore
+
+Writing result bundle at path:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/evidence/wi3232/dark-final.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'PurePaceUITests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceTests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/PurePace.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+2026-11-13 02:40:44.914940+0800 PurePaceUITests-Runner[91530:174147481] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-13 02:40:46.016.
+Test Suite 'PurePaceUITests.xctest' started at 2026-11-13 02:40:46.016.
+Test Suite 'ScreenshotEvidenceUITests' started at 2026-11-13 02:40:46.016.
+Test Case '-[PurePaceUITests.ScreenshotEvidenceUITests testEvidenceScreensDark]' started.
+    t =     0.00s Start Test at 2026-11-13 02:40:46.017
+    t =     0.01s Set Up
+    t =     0.02s Open sh.munk.purepace
+    t =     0.02s     Launch sh.munk.purepace
+    t =     0.64s         Setting up automation session
+    t =     1.17s         Wait for sh.munk.purepace to idle
+    t =     2.41s Checking existence of `"Allow While Using App" Button`
+    t =     2.43s Checking existence of `"Allow While Using App" Button`
+    t =     2.46s Checking existence of `"Allow While Using App" Button`
+    t =     2.52s Checking existence of `"Allow Once" Button`
+    t =     2.54s Checking existence of `"Allow Once" Button`
+    t =     2.57s Checking existence of `"Allow Once" Button`
+    t =     2.60s Checking existence of `"Allow" Button`
+    t =     2.61s Checking existence of `"Allow" Button`
+    t =     2.65s Checking existence of `"Allow" Button`
+    t =     2.67s Checking existence of `"Always Allow" Button`
+    t =     2.69s Checking existence of `"Always Allow" Button`
+    t =     2.72s Checking existence of `"Always Allow" Button`
+    t =     2.75s Checking existence of `"Change to Always Allow" Button`
+    t =     2.77s Checking existence of `"Change to Always Allow" Button`
+    t =     2.80s Checking existence of `"Change to Always Allow" Button`
+    t =     2.85s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.87s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.90s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.94s Checking existence of `"允许一次" Button`
+    t =     2.96s Checking existence of `"允许一次" Button`
+    t =     2.99s Checking existence of `"允许一次" Button`
+    t =     3.05s Checking existence of `"始终允许" Button`
+    t =     3.07s Checking existence of `"始终允许" Button`
+    t =     3.10s Checking existence of `"始终允许" Button`
+    t =     3.15s Checking existence of `"允许改为始终允许" Button`
+    t =     3.17s Checking existence of `"允许改为始终允许" Button`
+    t =     3.21s Checking existence of `"允许改为始终允许" Button`
+    t =     3.28s Checking existence of `Alert (First Match)`
+    t =     3.31s Checking existence of `Alert (First Match)`
+    t =     3.35s Waiting 30.0s for TabBar (First Match) to exist
+    t =     4.41s     Checking `Expect predicate `existsNoRetry == 1` for object TabBar (First Match)`
+    t =     4.41s         Checking existence of `TabBar (First Match)`
+    t =     4.43s Waiting 30.0s for "run.start" Button to exist
+    t =     5.49s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =     5.49s         Checking existence of `"run.start" Button`
+    t =     5.52s Checking existence of `"run.mapPreview" Any`
+    t =     5.57s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-not-started labels=23 violations=0 offenders=[]
+    t =     5.60s Find the "run.start" Button
+    t =     5.61s Find the "run.start" Button
+evidence-primary screen=run-not-started identifier=run.start label=开始记录跑次
+    t =     5.63s Find the "run.start" Button
+    t =     5.64s Find the "run.start" Button
+    t =     5.72s Added attachment named 'run-not-started-dark'
+evidence-shot screen=run-not-started-dark
+    t =     5.73s Tap "run.start" Button
+    t =     5.73s     Wait for sh.munk.purepace to idle
+    t =     5.73s     Find the "run.start" Button
+    t =     5.74s     Check for interrupting elements affecting "run.start" Button
+    t =     5.76s     Synthesize event
+    t =     6.06s     Wait for sh.munk.purepace to idle
+    t =     6.06s Waiting 20.0s for "run.pause" Button to exist
+    t =     7.14s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     7.14s         Checking existence of `"run.pause" Button`
+    t =     7.16s         Capturing element debug description
+    t =     8.12s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     8.12s         Checking existence of `"run.pause" Button`
+    t =     8.14s         Capturing element debug description
+    t =     9.09s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     9.09s         Checking existence of `"run.pause" Button`
+    t =     9.11s Find the "run.elapsed" StaticText
+    t =     9.34s Find the "run.elapsed" StaticText
+    t =     9.56s Find the "run.elapsed" StaticText
+    t =     9.78s Find the "run.elapsed" StaticText
+    t =    10.00s Find the "run.elapsed" StaticText
+    t =    10.23s Find the "run.elapsed" StaticText
+    t =    10.46s Find the "run.elapsed" StaticText
+    t =    10.69s Find the "run.elapsed" StaticText
+    t =    10.92s Find the "run.elapsed" StaticText
+    t =    11.15s Find the "run.elapsed" StaticText
+    t =    11.37s Find the "run.elapsed" StaticText
+    t =    11.60s Find the "run.elapsed" StaticText
+    t =    11.83s Find the "run.elapsed" StaticText
+    t =    12.06s Find the "run.elapsed" StaticText
+    t =    12.28s Find the "run.elapsed" StaticText
+    t =    12.49s Find the "run.elapsed" StaticText
+    t =    12.73s Find the "run.elapsed" StaticText
+    t =    12.95s Find the "run.elapsed" StaticText
+    t =    13.18s Find the "run.elapsed" StaticText
+    t =    13.40s Find the "run.elapsed" StaticText
+    t =    13.63s Find the "run.elapsed" StaticText
+    t =    13.86s Find the "run.elapsed" StaticText
+    t =    14.08s Find the "run.elapsed" StaticText
+    t =    14.31s Find the "run.elapsed" StaticText
+    t =    14.54s Find the "run.elapsed" StaticText
+    t =    14.78s Find the "run.elapsed" StaticText
+    t =    14.99s Find the "run.elapsed" StaticText
+    t =    15.23s Find the "run.elapsed" StaticText
+    t =    15.46s Find the "run.elapsed" StaticText
+    t =    15.69s Find the "run.elapsed" StaticText
+    t =    15.91s Find the "run.elapsed" StaticText
+    t =    16.14s Find the "run.elapsed" StaticText
+    t =    16.37s Find the "run.elapsed" StaticText
+    t =    16.60s Find the "run.elapsed" StaticText
+    t =    16.83s Find the "run.elapsed" StaticText
+    t =    17.05s Find the "run.elapsed" StaticText
+    t =    17.27s Find the "run.elapsed" StaticText
+    t =    17.50s Find the "run.elapsed" StaticText
+    t =    17.73s Find the "run.elapsed" StaticText
+    t =    17.97s Find the "run.elapsed" StaticText
+    t =    18.20s Find the "run.elapsed" StaticText
+    t =    18.43s Find the "run.elapsed" StaticText
+    t =    18.66s Find the "run.elapsed" StaticText
+    t =    18.89s Find the "run.elapsed" StaticText
+    t =    19.12s Find the "run.elapsed" StaticText
+    t =    19.34s Find the "run.elapsed" StaticText
+    t =    19.57s Find the "run.elapsed" StaticText
+    t =    19.80s Find the "run.elapsed" StaticText
+    t =    20.05s Find the "run.elapsed" StaticText
+    t =    20.28s Find the "run.elapsed" StaticText
+    t =    20.52s Find the "run.elapsed" StaticText
+    t =    20.74s Find the "run.elapsed" StaticText
+    t =    20.97s Find the "run.elapsed" StaticText
+    t =    21.19s Find the "run.elapsed" StaticText
+    t =    21.42s Find the "run.elapsed" StaticText
+    t =    21.64s Find the "run.elapsed" StaticText
+    t =    21.87s Find the "run.elapsed" StaticText
+    t =    22.11s Find the "run.elapsed" StaticText
+    t =    22.33s Find the "run.elapsed" StaticText
+    t =    22.55s Find the "run.elapsed" StaticText
+    t =    22.78s Find the "run.elapsed" StaticText
+    t =    23.01s Find the "run.elapsed" StaticText
+    t =    23.23s Find the "run.elapsed" StaticText
+    t =    23.45s Find the "run.elapsed" StaticText
+    t =    23.68s Find the "run.elapsed" StaticText
+    t =    23.92s Find the "run.elapsed" StaticText
+    t =    24.15s Find the "run.elapsed" StaticText
+    t =    24.38s Find the "run.elapsed" StaticText
+    t =    24.62s Find the "run.elapsed" StaticText
+    t =    24.84s Find the "run.elapsed" StaticText
+    t =    25.07s Find the "run.elapsed" StaticText
+    t =    25.29s Find the "run.elapsed" StaticText
+    t =    25.51s Find the "run.elapsed" StaticText
+    t =    25.74s Find the "run.elapsed" StaticText
+    t =    25.96s Find the "run.elapsed" StaticText
+    t =    26.18s Find the "run.elapsed" StaticText
+    t =    26.40s Find the "run.elapsed" StaticText
+    t =    26.62s Find the "run.elapsed" StaticText
+    t =    26.86s Find the "run.elapsed" StaticText
+    t =    27.08s Find the "run.elapsed" StaticText
+    t =    27.30s Find the "run.elapsed" StaticText
+    t =    27.53s Find the "run.elapsed" StaticText
+    t =    27.75s Find the "run.elapsed" StaticText
+    t =    27.97s Find the "run.elapsed" StaticText
+    t =    28.20s Find the "run.elapsed" StaticText
+    t =    28.42s Find the "run.elapsed" StaticText
+    t =    28.65s Find the "run.elapsed" StaticText
+    t =    28.89s Find the "run.elapsed" StaticText
+    t =    29.12s Find the "run.elapsed" StaticText
+    t =    29.34s Find the "run.elapsed" StaticText
+    t =    29.36s Find the "run.distance" StaticText
+    t =    29.37s Checking existence of `"run.mapPreview" Any`
+    t =    29.43s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-running labels=20 violations=0 offenders=[]
+    t =    29.44s Find the "run.pause" Button
+    t =    29.46s Find the "run.pause" Button
+evidence-primary screen=run-running identifier=run.pause label=暂停记录跑次
+    t =    29.47s Find the "run.pause" Button
+    t =    29.48s Find the "run.pause" Button
+    t =    29.53s Added attachment named 'run-running-dark'
+evidence-shot screen=run-running-dark
+    t =    29.53s Waiting 10.0s for "run.finish" Button to exist
+    t =    30.60s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =    30.60s         Checking existence of `"run.finish" Button`
+    t =    30.62s Tap "run.finish" Button
+    t =    30.62s     Wait for sh.munk.purepace to idle
+    t =    30.62s     Find the "run.finish" Button
+    t =    30.64s     Check for interrupting elements affecting "run.finish" Button
+    t =    30.65s     Synthesize event
+    t =    30.94s     Wait for sh.munk.purepace to idle
+    t =    30.94s Waiting 20.0s for "run.save" Button to exist
+    t =    31.99s     Checking `Expect predicate `existsNoRetry == 1` for object "run.save" Button`
+    t =    31.99s         Checking existence of `"run.save" Button`
+    t =    32.01s Waiting 20.0s for "run.mapPreview" Any to exist
+    t =    33.06s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    33.07s         Checking existence of `"run.mapPreview" Any`
+    t =    33.10s Find the Window (First Match)
+    t =    33.10s Checking existence of `"runDetail.export" Button`
+    t =    33.11s Checking existence of `"run.save" Button`
+    t =    33.13s Find the "run.save" Button
+    t =    33.14s Find the "run.save" Button
+    t =    33.15s Find the "run.mapPreview" Any
+    t =    33.18s Find the "run.mapPreview" Other
+evidence-map screen=run-finished identifier=run.mapPreview frame=(15.5, 109.16666666666667, 362.0, 361.0) visible=(0.0, 0.0, 393.0, 762.0)
+    t =    33.21s Checking existence of `"run.mapPreview" Any`
+    t =    33.24s Find the "run.mapPreview" Any
+    t =    33.27s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-finished labels=16 violations=0 offenders=[]
+    t =    33.29s Find the "run.save" Button
+    t =    33.30s Find the "run.save" Button
+evidence-primary screen=run-finished identifier=run.save label=保存本次跑步
+    t =    33.31s Find the "run.save" Button
+    t =    33.32s Find the "run.save" Button
+    t =    33.33s Find the "run.mapPreview" Any
+    t =    33.36s Find the Window (First Match)
+evidence-b1-finished mapHeight=361.0 screenHeight=852.0
+    t =    33.37s Checking existence of `"run.distance" StaticText`
+    t =    33.38s Checking existence of `"run.elapsed" StaticText`
+    t =    33.39s Checking existence of `"run.averagePace" StaticText`
+    t =    33.40s Waiting 10.0s for "run.backgroundDegraded" Any to exist
+    t =    34.44s     Checking `Expect predicate `existsNoRetry == 1` for object "run.backgroundDegraded" Any`
+    t =    34.45s         Checking existence of `"run.backgroundDegraded" Any`
+    t =    34.49s Find the Window (First Match)
+    t =    34.49s Find the "run.backgroundDegraded" Any
+evidence-inline-hint hint=(72.66666666666666, 679.3333333333333, 247.99999999999997, 23.66666666666663) maxHeight=32.0 contentWidth=361.0
+    t =    34.53s Find the "run.backgroundDegraded" Other
+    t =    34.56s Find the "run.backgroundDegraded" Other
+    t =    34.67s Added attachment named 'run-finished-dark'
+evidence-shot screen=run-finished-dark
+    t =    34.72s Added attachment named 'b1-finished-dark'
+evidence-shot screen=b1-finished-dark
+    t =    34.72s Waiting 10.0s for "run.discardRequest" Button to exist
+    t =    35.79s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discardRequest" Button`
+    t =    35.79s         Checking existence of `"run.discardRequest" Button`
+    t =    35.81s Tap "run.discardRequest" Button
+    t =    35.81s     Wait for sh.munk.purepace to idle
+    t =    35.81s     Find the "run.discardRequest" Button
+    t =    35.83s     Check for interrupting elements affecting "run.discardRequest" Button
+    t =    35.84s     Synthesize event
+    t =    36.13s     Wait for sh.munk.purepace to idle
+    t =    36.49s Waiting 10.0s for "run.discard" Button to exist
+    t =    37.55s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discard" Button`
+    t =    37.55s         Checking existence of `"run.discard" Button`
+    t =    37.58s Waiting 10.0s for "run.discardCancel" Button to exist
+    t =    38.65s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discardCancel" Button`
+    t =    38.65s         Checking existence of `"run.discardCancel" Button`
+    t =    38.68s Find the "run.discard" Button
+    t =    38.70s Find the "run.discardCancel" Button
+    t =    38.71s Find the "run.discard" Button
+    t =    38.73s Find the "run.discardCancel" Button
+evidence-discard sheet=discardRequest buttons=2 discard=丢弃本次跑步 cancel=取消
+    t =    38.74s Waiting 10.0s for "丢弃这次跑步？" StaticText to exist
+    t =    39.80s     Checking `Expect predicate `existsNoRetry == 1` for object "丢弃这次跑步？" StaticText`
+    t =    39.80s         Checking existence of `"丢弃这次跑步？" StaticText`
+    t =    39.82s Find the "丢弃这次跑步？" StaticText
+    t =    39.84s Find the "丢弃这次跑步？" StaticText
+    t =    39.86s Find the "run.discard" Button
+    t =    39.88s Find the "run.discardCancel" Button
+evidence-c2-discard screenHeight=852.0 sheetTop=682.3333333333334 sheetHeight=169.66666666666663 title=(68.0, 690.3333333333334, 125.0, 24.0) confirm=(16.0, 750.0, 235.66666666666666, 44.0) cancel=(263.66666666666663, 750.0, 113.33333333333331, 44.0)
+    t =    39.90s Find the "run.discard" Button
+    t =    39.91s Find the "run.discard" Button
+    t =    39.93s Find the "run.discardCancel" Button
+    t =    40.01s Added attachment named 'discard-confirmation-dark'
+evidence-shot screen=discard-confirmation-dark
+    t =    40.06s Added attachment named 'c2-discard-dark'
+evidence-shot screen=c2-discard-dark
+    t =    40.06s Tap "run.discardCancel" Button
+    t =    40.07s     Wait for sh.munk.purepace to idle
+    t =    40.07s     Find the "run.discardCancel" Button
+    t =    40.08s     Check for interrupting elements affecting "run.discardCancel" Button
+    t =    40.10s     Synthesize event
+    t =    40.39s     Wait for sh.munk.purepace to idle
+    t =    40.75s Checking existence of `"run.discard" Button`
+    t =    40.77s Tap "run.save" Button
+    t =    40.77s     Wait for sh.munk.purepace to idle
+    t =    40.77s     Find the "run.save" Button
+    t =    40.79s     Check for interrupting elements affecting "run.save" Button
+    t =    40.80s     Synthesize event
+    t =    41.09s     Wait for sh.munk.purepace to idle
+    t =    41.10s Waiting 20.0s for "run.saved" StaticText to exist
+    t =    42.16s     Checking `Expect predicate `existsNoRetry == 1` for object "run.saved" StaticText`
+    t =    42.16s         Checking existence of `"run.saved" StaticText`
+    t =    42.20s Terminate sh.munk.purepace:91733
+    t =    43.28s Open sh.munk.purepace
+    t =    43.28s     Launch sh.munk.purepace
+    t =    43.49s         Setting up automation session
+    t =    44.03s         Wait for sh.munk.purepace to idle
+    t =    45.25s Checking existence of `"Allow While Using App" Button`
+    t =    45.26s Checking existence of `"Allow While Using App" Button`
+    t =    45.30s Checking existence of `"Allow While Using App" Button`
+    t =    45.35s Checking existence of `"Allow Once" Button`
+    t =    45.37s Checking existence of `"Allow Once" Button`
+    t =    45.40s Checking existence of `"Allow Once" Button`
+    t =    45.42s Checking existence of `"Allow" Button`
+    t =    45.44s Checking existence of `"Allow" Button`
+    t =    45.47s Checking existence of `"Allow" Button`
+    t =    45.49s Checking existence of `"Always Allow" Button`
+    t =    45.50s Checking existence of `"Always Allow" Button`
+    t =    45.53s Checking existence of `"Always Allow" Button`
+    t =    45.55s Checking existence of `"Change to Always Allow" Button`
+    t =    45.57s Checking existence of `"Change to Always Allow" Button`
+    t =    45.60s Checking existence of `"Change to Always Allow" Button`
+    t =    45.62s Checking existence of `"使用 App 期间允许" Button`
+    t =    45.63s Checking existence of `"使用 App 期间允许" Button`
+    t =    45.66s Checking existence of `"使用 App 期间允许" Button`
+    t =    45.68s Checking existence of `"允许一次" Button`
+    t =    45.70s Checking existence of `"允许一次" Button`
+    t =    45.73s Checking existence of `"允许一次" Button`
+    t =    45.75s Checking existence of `"始终允许" Button`
+    t =    45.77s Checking existence of `"始终允许" Button`
+    t =    45.80s Checking existence of `"始终允许" Button`
+    t =    45.82s Checking existence of `"允许改为始终允许" Button`
+    t =    45.83s Checking existence of `"允许改为始终允许" Button`
+    t =    45.86s Checking existence of `"允许改为始终允许" Button`
+    t =    45.88s Checking existence of `Alert (First Match)`
+    t =    45.91s Checking existence of `Alert (First Match)`
+    t =    45.93s Get number of matches for: Elements matching predicate '"history.row" IN identifiers'
+    t =    45.95s Checking existence of `"run.mapPreview" Any`
+    t =    45.99s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=history-list labels=16 violations=0 offenders=[]
+    t =    46.01s Find the "history.row" Any
+    t =    46.04s Find the "history.row" Button
+evidence-primary screen=history-list identifier=history.row label=2026年11月13日 02:40，1.20 km，00:21，0:18 /km
+    t =    46.08s Find the "history.row" Button
+    t =    46.11s Find the "history.row" Button
+    t =    46.19s Added attachment named 'history-list-dark'
+evidence-shot screen=history-list-dark
+    t =    46.19s Tap "history.row" Any
+    t =    46.19s     Wait for sh.munk.purepace to idle
+    t =    46.19s     Find the "history.row" Any
+    t =    46.22s     Check for interrupting elements affecting "history.row" Button
+    t =    46.25s     Synthesize event
+    t =    46.55s     Wait for sh.munk.purepace to idle
+    t =    47.00s Waiting 20.0s for "runDetail.startedAt" StaticText to exist
+    t =    48.05s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.startedAt" StaticText`
+    t =    48.05s         Checking existence of `"runDetail.startedAt" StaticText`
+    t =    48.09s Waiting 20.0s for "run.mapPreview" Any to exist
+    t =    49.12s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    49.12s         Checking existence of `"run.mapPreview" Any`
+    t =    49.24s Find the Window (First Match)
+    t =    49.24s Checking existence of `"runDetail.export" Button`
+    t =    49.26s Checking existence of `"runDetail.export" Button`
+    t =    49.28s Find the "runDetail.export" Button
+    t =    49.30s Find the "runDetail.export" Button
+    t =    49.32s Find the "run.mapPreview" Any
+    t =    49.40s Find the "run.mapPreview" Other
+    t =    49.48s Find the Window (First Match)
+evidence-scroll from=426.0 to=226.0 mapMinY=512.0
+    t =    49.49s Press Target Application 'sh.munk.purepace'[0.00, 0.00] -> (196.5, 426.0) for 0.1 seconds, then drag to Target Application 'sh.munk.purepace'[0.00, 0.00] -> (196.5, 226.0) with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    49.49s     Wait for sh.munk.purepace to idle
+    t =    49.49s     Find the Target Application 'sh.munk.purepace'
+    t =    49.50s     Check for interrupting elements affecting "PurePace" Application
+    t =    49.52s     Synthesize event
+    t =    49.52s         Find the Target Application 'sh.munk.purepace'
+    t =    49.54s         Find the Target Application 'sh.munk.purepace'
+    t =    49.55s         Find the Target Application 'sh.munk.purepace'
+    t =    49.56s         Find the Target Application 'sh.munk.purepace'
+    t =    49.58s         Find the Target Application 'sh.munk.purepace'
+    t =    50.35s     Wait for sh.munk.purepace to idle
+    t =    50.72s Find the "run.mapPreview" Other
+    t =    50.82s Find the "run.mapPreview" Other
+evidence-map screen=history-detail identifier=run.mapPreview frame=(0.0, 387.0, 393.0, 224.0) visible=(0.0, 0.0, 393.0, 713.0)
+    t =    50.90s Checking existence of `"run.mapPreview" Any`
+    t =    50.98s Find the "run.mapPreview" Any
+    t =    51.07s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=history-detail labels=23 violations=0 offenders=[]
+    t =    51.10s Find the "runDetail.export" Button
+    t =    51.12s Find the "runDetail.export" Button
+evidence-primary screen=history-detail identifier=runDetail.export label=导出 GPX
+    t =    51.14s Find the "runDetail.export" Button
+    t =    51.16s Find the "runDetail.export" Button
+    t =    51.24s Added attachment named 'history-detail-dark'
+evidence-shot screen=history-detail-dark
+    t =    51.24s Terminate sh.munk.purepace:94436
+    t =    52.30s Open sh.munk.purepace
+    t =    52.30s     Launch sh.munk.purepace
+    t =    52.51s         Setting up automation session
+    t =    53.06s         Wait for sh.munk.purepace to idle
+    t =    54.24s Checking existence of `"Allow While Using App" Button`
+    t =    54.27s Checking existence of `"Allow While Using App" Button`
+    t =    54.31s Checking existence of `"Allow While Using App" Button`
+    t =    54.37s Checking existence of `"Allow Once" Button`
+    t =    54.39s Checking existence of `"Allow Once" Button`
+    t =    54.42s Checking existence of `"Allow Once" Button`
+    t =    54.49s Checking existence of `"Allow" Button`
+    t =    54.51s Checking existence of `"Allow" Button`
+    t =    54.54s Checking existence of `"Allow" Button`
+    t =    54.57s Checking existence of `"Always Allow" Button`
+    t =    54.59s Checking existence of `"Always Allow" Button`
+    t =    54.62s Checking existence of `"Always Allow" Button`
+    t =    54.66s Checking existence of `"Change to Always Allow" Button`
+    t =    54.68s Checking existence of `"Change to Always Allow" Button`
+    t =    54.71s Checking existence of `"Change to Always Allow" Button`
+    t =    54.74s Checking existence of `"使用 App 期间允许" Button`
+    t =    54.76s Checking existence of `"使用 App 期间允许" Button`
+    t =    54.79s Checking existence of `"使用 App 期间允许" Button`
+    t =    54.83s Checking existence of `"允许一次" Button`
+    t =    54.84s Checking existence of `"允许一次" Button`
+    t =    54.88s Checking existence of `"允许一次" Button`
+    t =    54.91s Checking existence of `"始终允许" Button`
+    t =    54.93s Checking existence of `"始终允许" Button`
+    t =    54.96s Checking existence of `"始终允许" Button`
+    t =    54.99s Checking existence of `"允许改为始终允许" Button`
+    t =    55.01s Checking existence of `"允许改为始终允许" Button`
+    t =    55.04s Checking existence of `"允许改为始终允许" Button`
+    t =    55.08s Checking existence of `Alert (First Match)`
+    t =    55.12s Checking existence of `Alert (First Match)`
+    t =    55.15s Waiting 30.0s for "settings.announcementToggle" Switch to exist
+    t =    56.18s     Checking `Expect predicate `existsNoRetry == 1` for object "settings.announcementToggle" Switch`
+    t =    56.19s         Checking existence of `"settings.announcementToggle" Switch`
+    t =    56.21s Checking existence of `"run.mapPreview" Any`
+    t =    56.27s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=settings labels=12 violations=0 offenders=[]
+    t =    56.29s Find the "settings.announcementToggle" Switch
+    t =    56.31s Find the "settings.announcementToggle" Switch
+evidence-primary screen=settings identifier=settings.announcementToggle label=每公里语音播报
+    t =    56.33s Find the "settings.announcementToggle" Switch
+    t =    56.34s Find the "settings.announcementToggle" Switch
+    t =    56.41s Added attachment named 'settings-dark'
+evidence-shot screen=settings-dark
+    t =    56.41s Terminate sh.munk.purepace:94715
+    t =    57.46s Tear Down
+Test Case '-[PurePaceUITests.ScreenshotEvidenceUITests testEvidenceScreensDark]' passed (57.461 seconds).
+Test Suite 'ScreenshotEvidenceUITests' passed at 2026-11-13 02:41:43.478.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.461 (57.462) seconds
+Test Suite 'PurePaceUITests.xctest' passed at 2026-11-13 02:41:43.478.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.461 (57.462) seconds
+Test Suite 'Selected tests' passed at 2026-11-13 02:41:43.479.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.461 (57.463) seconds
+2026-11-13 02:41:43.837 xcodebuild[90078:174144888] [MT] IDETestOperationsObserverDebug: 60.250 elapsed -- Testing started completed.
+2026-11-13 02:41:43.837 xcodebuild[90078:174144888] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-13 02:41:43.837 xcodebuild[90078:174144888] [MT] IDETestOperationsObserverDebug: 60.250 sec, +60.250 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/evidence/wi3232/dark-final.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started
+################ [section 1/3] xcodebuild exit=0
+################ [section 2/3] 断言来源腿（深色）：RunFlowUITests/testRunPauseResumeFinishAndHistory（ac-run-metrics-balanced 暂停态）
+################ host: xcodebuild test ... -only-testing:PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD" -derivedDataPath .build/ios "-only-testing:PurePaceUITests/RunFlowUITests/testRunPauseResumeFinishAndHistory"
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/RunCore
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'PurePaceUITests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceTests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/PurePace.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+2026-11-13 02:41:47.680018+0800 PurePaceUITests-Runner[97029:174164598] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-13 02:41:48.765.
+Test Suite 'PurePaceUITests.xctest' started at 2026-11-13 02:41:48.766.
+Test Suite 'RunFlowUITests' started at 2026-11-13 02:41:48.766.
+Test Case '-[PurePaceUITests.RunFlowUITests testRunPauseResumeFinishAndHistory]' started.
+    t =     0.00s Start Test at 2026-11-13 02:41:48.767
+    t =     0.02s Set Up
+    t =     0.02s Open sh.munk.purepace
+    t =     0.02s     Launch sh.munk.purepace
+    t =     0.64s         Setting up automation session
+    t =     1.12s         Wait for sh.munk.purepace to idle
+    t =     2.37s Checking existence of `"Allow While Using App" Button`
+    t =     2.39s Checking existence of `"Allow While Using App" Button`
+    t =     2.43s Checking existence of `"Allow While Using App" Button`
+    t =     2.48s Checking existence of `"Allow Once" Button`
+    t =     2.50s Checking existence of `"Allow Once" Button`
+    t =     2.53s Checking existence of `"Allow Once" Button`
+    t =     2.55s Checking existence of `"Allow" Button`
+    t =     2.57s Checking existence of `"Allow" Button`
+    t =     2.60s Checking existence of `"Allow" Button`
+    t =     2.62s Checking existence of `"Always Allow" Button`
+    t =     2.64s Checking existence of `"Always Allow" Button`
+    t =     2.67s Checking existence of `"Always Allow" Button`
+    t =     2.69s Checking existence of `"Change to Always Allow" Button`
+    t =     2.71s Checking existence of `"Change to Always Allow" Button`
+    t =     2.75s Checking existence of `"Change to Always Allow" Button`
+    t =     2.77s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.79s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.82s Checking existence of `"使用 App 期间允许" Button`
+    t =     2.85s Checking existence of `"允许一次" Button`
+    t =     2.87s Checking existence of `"允许一次" Button`
+    t =     2.90s Checking existence of `"允许一次" Button`
+    t =     2.96s Checking existence of `"始终允许" Button`
+    t =     2.98s Checking existence of `"始终允许" Button`
+    t =     3.01s Checking existence of `"始终允许" Button`
+    t =     3.04s Checking existence of `"允许改为始终允许" Button`
+    t =     3.05s Checking existence of `"允许改为始终允许" Button`
+    t =     3.09s Checking existence of `"允许改为始终允许" Button`
+    t =     3.12s Checking existence of `Alert (First Match)`
+    t =     3.15s Checking existence of `Alert (First Match)`
+    t =     3.19s Waiting 30.0s for "run.distance" StaticText to exist
+    t =     4.26s     Checking `Expect predicate `existsNoRetry == 1` for object "run.distance" StaticText`
+    t =     4.26s         Checking existence of `"run.distance" StaticText`
+    t =     4.28s Checking existence of `"run.elapsed" StaticText`
+    t =     4.29s Find the "run.distance" StaticText
+    t =     4.30s Find the "run.elapsed" StaticText
+    t =     4.32s Find the "run.currentPace" StaticText
+    t =     4.33s Find the "run.averagePace" StaticText
+    t =     4.34s Waiting 10.0s for TabBar (First Match) to exist
+    t =     5.39s     Checking `Expect predicate `existsNoRetry == 1` for object TabBar (First Match)`
+    t =     5.39s         Checking existence of `TabBar (First Match)`
+    t =     5.41s Checking existence of `"设置" Button`
+    t =     5.42s Checking existence of `"Log" Button`
+    t =     5.42s Waiting 15.0s for "run.start" Button to exist
+    t =     6.49s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =     6.49s         Checking existence of `"run.start" Button`
+    t =     6.51s Waiting 10.0s for "历史" Button to exist
+    t =     7.58s     Checking `Expect predicate `existsNoRetry == 1` for object "历史" Button`
+    t =     7.58s         Checking existence of `"历史" Button`
+    t =     7.60s Tap "历史" Button
+    t =     7.60s     Wait for sh.munk.purepace to idle
+    t =     7.60s     Find the "历史" Button
+    t =     7.61s     Check for interrupting elements affecting "tab.history" Button
+    t =     7.63s     Synthesize event
+    t =     7.92s     Wait for sh.munk.purepace to idle
+    t =     8.42s Waiting 10.0s for "history.empty" StaticText to exist
+    t =     9.50s     Checking `Expect predicate `existsNoRetry == 1` for object "history.empty" StaticText`
+    t =     9.50s         Checking existence of `"history.empty" StaticText`
+    t =     9.52s Get number of matches for: Elements matching predicate '"history.row" IN identifiers'
+    t =     9.53s Get number of matches for: Elements matching predicate '"runDetail.root" IN identifiers'
+    t =     9.54s Waiting 10.0s for "跑步" Button to exist
+    t =    10.60s     Checking `Expect predicate `existsNoRetry == 1` for object "跑步" Button`
+    t =    10.60s         Checking existence of `"跑步" Button`
+    t =    10.61s Tap "跑步" Button
+    t =    10.61s     Wait for sh.munk.purepace to idle
+    t =    10.61s     Find the "跑步" Button
+    t =    10.63s     Check for interrupting elements affecting "tab.run" Button
+    t =    10.64s     Synthesize event
+    t =    10.94s     Wait for sh.munk.purepace to idle
+    t =    11.40s Waiting 10.0s for "run.start" Button to exist
+    t =    12.46s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =    12.46s         Checking existence of `"run.start" Button`
+    t =    12.49s Find the "run.distance" StaticText
+    t =    12.50s Find the "run.elapsed" StaticText
+    t =    12.51s Tap "run.start" Button
+    t =    12.51s     Wait for sh.munk.purepace to idle
+    t =    12.51s     Find the "run.start" Button
+    t =    12.53s     Check for interrupting elements affecting "run.start" Button
+    t =    12.54s     Synthesize event
+    t =    12.83s     Wait for sh.munk.purepace to idle
+    t =    12.84s Find the "run.distance" StaticText
+    t =    12.86s Checking existence of `"Allow While Using App" Button`
+    t =    12.87s Checking existence of `"Allow While Using App" Button`
+    t =    12.91s Checking existence of `"Allow While Using App" Button`
+    t =    12.95s Checking existence of `"Allow Once" Button`
+    t =    12.97s Checking existence of `"Allow Once" Button`
+    t =    13.00s Checking existence of `"Allow Once" Button`
+    t =    13.03s Checking existence of `"Allow" Button`
+    t =    13.05s Checking existence of `"Allow" Button`
+    t =    13.08s Checking existence of `"Allow" Button`
+    t =    13.11s Checking existence of `"Always Allow" Button`
+    t =    13.13s Checking existence of `"Always Allow" Button`
+    t =    13.16s Checking existence of `"Always Allow" Button`
+    t =    13.21s Checking existence of `"Change to Always Allow" Button`
+    t =    13.23s Checking existence of `"Change to Always Allow" Button`
+    t =    13.26s Checking existence of `"Change to Always Allow" Button`
+    t =    13.30s Checking existence of `"使用 App 期间允许" Button`
+    t =    13.32s Checking existence of `"使用 App 期间允许" Button`
+    t =    13.35s Checking existence of `"使用 App 期间允许" Button`
+    t =    13.38s Checking existence of `"允许一次" Button`
+    t =    13.40s Checking existence of `"允许一次" Button`
+    t =    13.43s Checking existence of `"允许一次" Button`
+    t =    13.46s Checking existence of `"始终允许" Button`
+    t =    13.48s Checking existence of `"始终允许" Button`
+    t =    13.51s Checking existence of `"始终允许" Button`
+    t =    13.54s Checking existence of `"允许改为始终允许" Button`
+    t =    13.56s Checking existence of `"允许改为始终允许" Button`
+    t =    13.60s Checking existence of `"允许改为始终允许" Button`
+    t =    13.62s Find the "run.distance" StaticText
+    t =    13.85s Find the "run.distance" StaticText
+    t =    14.07s Find the "run.distance" StaticText
+    t =    14.30s Find the "run.distance" StaticText
+    t =    14.54s Find the "run.distance" StaticText
+    t =    14.76s Find the "run.distance" StaticText
+    t =    14.99s Find the "run.distance" StaticText
+    t =    15.21s Find the "run.distance" StaticText
+    t =    15.44s Find the "run.distance" StaticText
+    t =    15.67s Find the "run.distance" StaticText
+    t =    15.90s Find the "run.distance" StaticText
+    t =    16.13s Find the "run.distance" StaticText
+    t =    16.36s Find the "run.distance" StaticText
+    t =    16.59s Find the "run.distance" StaticText
+    t =    16.81s Find the "run.distance" StaticText
+    t =    17.03s Find the "run.distance" StaticText
+    t =    17.26s Find the "run.distance" StaticText
+    t =    17.49s Find the "run.distance" StaticText
+    t =    17.51s Find the "run.distance" StaticText
+    t =    17.53s Find the "run.elapsed" StaticText
+    t =    17.54s Waiting 10.0s for "run.pause" Button to exist
+    t =    18.61s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    18.61s         Checking existence of `"run.pause" Button`
+    t =    18.63s Find the "run.pause" Button
+    t =    18.64s Checking existence of `"run.pause" Button`
+    t =    18.66s Find the "run.pause" Button
+ac-finish-ui-rendered-accent 运行中暂停按钮: expected=(255,154,92) nearest=(255,154,92) delta=0 matches=27
+    t =    18.70s Tap "run.pause" Button
+    t =    18.70s     Wait for sh.munk.purepace to idle
+    t =    18.70s     Find the "run.pause" Button
+    t =    18.71s     Check for interrupting elements affecting "run.pause" Button
+    t =    18.73s     Synthesize event
+    t =    19.02s     Wait for sh.munk.purepace to idle
+    t =    19.03s Checking existence of `"run.resume" Button`
+    t =    19.04s Find the "run.currentPace" StaticText
+    t =    19.06s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden-paused 暂停: state=paused didSave=false tabBarCount=0 expected=0
+    t =    19.06s Checking existence of `"跑步" Button`
+    t =    19.08s Checking existence of `"跑步" Button`
+    t =    19.09s Checking existence of `"历史" Button`
+    t =    19.11s Checking existence of `"历史" Button`
+    t =    19.12s Checking existence of `"设置" Button`
+    t =    19.13s Checking existence of `"设置" Button`
+    t =    19.14s Waiting 10.0s for NavigationBar (First Match) to exist
+    t =    20.16s     Checking `Expect predicate `existsNoRetry == 1` for object NavigationBar (First Match)`
+    t =    20.16s         Checking existence of `NavigationBar (First Match)`
+    t =    20.18s Find the NavigationBar (First Match)
+    t =    20.20s Find the "run.resume" Button
+    t =    20.21s Find the Target Application 'sh.munk.purepace'
+    t =    20.23s Checking existence of `"run.mapPreview" Any`
+    t =    20.31s Checking existence of `"run.backgroundDegraded" Any`
+    t =    20.37s Find the "run.backgroundDegraded" Any
+    t =    20.45s Find the "run.backgroundDegraded" Other
+ac-run-metrics-balanced 暂停: top=79.41666666666666 bottom=79.33333333333337 largest=79.5 imbalance=0.08333333333328596 contentFrames=[(185.5, 229.08333333333331, 22.0, 13.333333333333314), (117.33333333333334, 250.41666666666663, 158.3333333333333, 76.66666666666663), (188.5, 335.08333333333326, 16.0, 13.333333333333371), (99.25, 423.83333333333337, 22.0, 13.333333333333258), (260.75, 423.83333333333337, 44.0, 13.333333333333258), (54.583333333333336, 445.16666666666663, 111.33333333333331, 43.0), (260.4166666666667, 445.16666666666663, 44.666666666666686, 43.0), (88.25, 521.1666666666666, 44.0, 13.333333333333371), (271.75, 521.1666666666666, 22.0, 13.333333333333371), (96.08333333333333, 542.5, 28.33333333333333, 15.666666666666629), (278.5833333333333, 542.5, 8.333333333333314, 15.666666666666629), (100.58333333333333, 566.1666666666666, 19.33333333333333, 13.333333333333371), (72.66666666666666, 659.0, 247.99999999999997, 23.66666666666663)]
+    t =    20.54s Find the "run.distance" StaticText
+    t =    20.56s Find the "run.elapsed" StaticText
+    t =    24.58s Find the "run.distance" StaticText
+    t =    24.60s Find the "run.elapsed" StaticText
+    t =    24.62s Checking existence of `"run.resume" Button`
+    t =    24.63s Tap "run.resume" Button
+    t =    24.63s     Wait for sh.munk.purepace to idle
+    t =    24.63s     Find the "run.resume" Button
+    t =    24.64s     Check for interrupting elements affecting "run.resume" Button
+    t =    24.66s     Synthesize event
+    t =    24.95s     Wait for sh.munk.purepace to idle
+    t =    24.96s Find the "run.distance" StaticText
+    t =    25.20s Find the "run.distance" StaticText
+    t =    25.42s Find the "run.distance" StaticText
+    t =    25.65s Find the "run.distance" StaticText
+    t =    25.89s Find the "run.distance" StaticText
+    t =    26.14s Find the "run.distance" StaticText
+    t =    26.36s Find the "run.distance" StaticText
+    t =    26.38s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden-recording 恢复运行: state=running didSave=false tabBarCount=0 expected=0
+    t =    26.40s Checking existence of `"跑步" Button`
+    t =    26.41s Checking existence of `"跑步" Button`
+    t =    26.42s Checking existence of `"历史" Button`
+    t =    26.43s Checking existence of `"历史" Button`
+    t =    26.44s Checking existence of `"设置" Button`
+    t =    26.45s Checking existence of `"设置" Button`
+    t =    26.46s Waiting 10.0s for "run.finish" Button to exist
+    t =    27.52s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =    27.52s         Checking existence of `"run.finish" Button`
+    t =    27.54s Find the "run.finish" Button
+    t =    27.55s Checking existence of `"run.finish" Button`
+    t =    27.56s Find the "run.finish" Button
+ac-finish-ui-rendered-accent 结束按钮: expected=(255,154,92) nearest=(255,154,92) delta=0 matches=27
+    t =    27.58s Tap "run.finish" Button
+    t =    27.58s     Wait for sh.munk.purepace to idle
+    t =    27.58s     Find the "run.finish" Button
+    t =    27.60s     Check for interrupting elements affecting "run.finish" Button
+    t =    27.61s     Synthesize event
+    t =    27.90s     Wait for sh.munk.purepace to idle
+    t =    27.90s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden-finished-pending 结束待保存: state=finished didSave=false tabBarCount=0 expected=0
+    t =    27.92s Checking existence of `"跑步" Button`
+    t =    27.94s Checking existence of `"跑步" Button`
+    t =    27.96s Checking existence of `"历史" Button`
+    t =    27.99s Checking existence of `"历史" Button`
+    t =    28.00s Checking existence of `"设置" Button`
+    t =    28.38s Checking existence of `"设置" Button`
+    t =    28.39s Checking existence of `"run.discardRequest" Button`
+    t =    28.41s Checking existence of `"run.discard" Button`
+    t =    28.42s Find the "run.distance" StaticText
+    t =    28.43s Find the "run.elapsed" StaticText
+    t =    28.44s Tap "run.discardRequest" Button
+    t =    28.44s     Wait for sh.munk.purepace to idle
+    t =    28.45s     Find the "run.discardRequest" Button
+    t =    28.46s     Check for interrupting elements affecting "run.discardRequest" Button
+    t =    28.48s     Synthesize event
+    t =    28.76s     Wait for sh.munk.purepace to idle
+    t =    29.14s Waiting 10.0s for "run.discard" Button to exist
+    t =    30.20s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discard" Button`
+    t =    30.20s         Checking existence of `"run.discard" Button`
+    t =    30.23s Tap "run.discardCancel" Button
+    t =    30.23s     Wait for sh.munk.purepace to idle
+    t =    30.24s     Find the "run.discardCancel" Button
+    t =    30.27s     Check for interrupting elements affecting "run.discardCancel" Button
+    t =    30.29s     Synthesize event
+    t =    30.57s     Wait for sh.munk.purepace to idle
+    t =    30.93s Checking existence of `"run.discard" Button`
+    t =    30.94s Checking existence of `"run.discardRequest" Button`
+    t =    30.95s Checking existence of `"run.save" Button`
+    t =    30.97s Checking existence of `"run.discard" Button`
+    t =    30.98s Find the "run.distance" StaticText
+    t =    30.99s Find the "run.elapsed" StaticText
+    t =    31.01s Checking existence of `"run.discardRequest" Button`
+    t =    31.02s Tap "run.discardRequest" Button
+    t =    31.02s     Wait for sh.munk.purepace to idle
+    t =    31.02s     Find the "run.discardRequest" Button
+    t =    31.04s     Check for interrupting elements affecting "run.discardRequest" Button
+    t =    31.05s     Synthesize event
+    t =    31.35s     Wait for sh.munk.purepace to idle
+    t =    31.68s Waiting 10.0s for "run.discard" Button to exist
+    t =    32.73s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discard" Button`
+    t =    32.73s         Checking existence of `"run.discard" Button`
+    t =    32.76s Tap "run.discard" Button
+    t =    32.76s     Wait for sh.munk.purepace to idle
+    t =    32.76s     Find the "run.discard" Button
+    t =    32.78s     Check for interrupting elements affecting "run.discard" Button
+    t =    32.80s     Synthesize event
+    t =    33.09s     Wait for sh.munk.purepace to idle
+    t =    33.45s Waiting 10.0s for "run.start" Button to exist
+    t =    34.51s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =    34.51s         Checking existence of `"run.start" Button`
+    t =    34.53s Checking existence of `"run.discard" Button`
+    t =    34.55s Checking existence of `"run.discardRequest" Button`
+    t =    34.56s Checking existence of `"run.save" Button`
+    t =    34.58s Tap "run.start" Button
+    t =    34.58s     Wait for sh.munk.purepace to idle
+    t =    34.58s     Find the "run.start" Button
+    t =    34.60s     Check for interrupting elements affecting "run.start" Button
+    t =    34.61s     Synthesize event
+    t =    34.91s     Wait for sh.munk.purepace to idle
+    t =    34.91s Waiting 15.0s for "run.pause" Button to exist
+    t =    35.96s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    35.96s         Checking existence of `"run.pause" Button`
+    t =    35.98s         Capturing element debug description
+    t =    36.92s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    36.92s         Checking existence of `"run.pause" Button`
+    t =    36.94s         Capturing element debug description
+    t =    38.01s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    38.01s         Checking existence of `"run.pause" Button`
+    t =    38.04s Find the "run.distance" StaticText
+    t =    38.06s Find the "run.distance" StaticText
+    t =    38.28s Find the "run.distance" StaticText
+    t =    38.51s Find the "run.distance" StaticText
+    t =    38.76s Find the "run.distance" StaticText
+    t =    38.98s Find the "run.distance" StaticText
+    t =    39.23s Find the "run.distance" StaticText
+    t =    39.45s Find the "run.distance" StaticText
+    t =    39.68s Find the "run.distance" StaticText
+    t =    39.90s Find the "run.distance" StaticText
+    t =    39.92s Find the "run.elapsed" StaticText
+    t =    40.15s Find the "run.elapsed" StaticText
+    t =    40.40s Find the "run.elapsed" StaticText
+    t =    40.63s Find the "run.elapsed" StaticText
+    t =    40.86s Find the "run.elapsed" StaticText
+    t =    40.87s Waiting 10.0s for "run.finish" Button to exist
+    t =    41.93s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =    41.93s         Checking existence of `"run.finish" Button`
+    t =    41.96s Tap "run.finish" Button
+    t =    41.96s     Wait for sh.munk.purepace to idle
+    t =    41.96s     Find the "run.finish" Button
+    t =    41.99s     Check for interrupting elements affecting "run.finish" Button
+    t =    42.01s     Synthesize event
+    t =    42.30s     Wait for sh.munk.purepace to idle
+    t =    42.30s Waiting 10.0s for "run.save" Button to exist
+    t =    43.35s     Checking `Expect predicate `existsNoRetry == 1` for object "run.save" Button`
+    t =    43.35s         Checking existence of `"run.save" Button`
+    t =    43.36s Checking existence of `"run.save" Button`
+    t =    43.38s Find the "run.save" Button
+    t =    43.39s Checking existence of `"run.save" Button`
+    t =    43.41s Find the "run.save" Button
+ac-finish-ui-rendered-accent 保存主操作: expected=(255,154,92) nearest=(255,154,92) delta=0 matches=27
+    t =    43.44s Waiting 10.0s for "保存本次跑步" Button to exist
+    t =    44.45s     Checking `Expect predicate `existsNoRetry == 1` for object "保存本次跑步" Button`
+    t =    44.45s         Checking existence of `"保存本次跑步" Button`
+    t =    44.47s Tap "保存本次跑步" Button
+    t =    44.47s     Wait for sh.munk.purepace to idle
+    t =    44.47s     Find the "保存本次跑步" Button
+    t =    44.49s     Check for interrupting elements affecting "run.save" Button
+    t =    44.50s     Synthesize event
+    t =    44.79s     Wait for sh.munk.purepace to idle
+    t =    44.79s Waiting 10.0s for "run.saved" StaticText to exist
+    t =    45.83s     Checking `Expect predicate `existsNoRetry == 1` for object "run.saved" StaticText`
+    t =    45.83s         Checking existence of `"run.saved" StaticText`
+    t =    45.86s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-restore-no-deadend 保存态: state=finished didSave=true tabBarCount=1 expected=1
+    t =    45.88s Checking existence of `"跑步" Button`
+    t =    45.89s Checking existence of `"历史" Button`
+    t =    45.90s Checking existence of `"设置" Button`
+    t =    45.91s Checking existence of `"run.finish" Button`
+    t =    45.92s Find the Target Application 'sh.munk.purepace'
+    t =    45.99s Added attachment named 'e2e-finish'
+    t =    45.99s Waiting 10.0s for "tab.history" Button to exist
+    t =    47.03s     Checking `Expect predicate `existsNoRetry == 1` for object "tab.history" Button`
+    t =    47.03s         Checking existence of `"tab.history" Button`
+    t =    47.05s Tap "tab.history" Button
+    t =    47.05s     Wait for sh.munk.purepace to idle
+    t =    47.05s     Find the "tab.history" Button
+    t =    47.07s     Check for interrupting elements affecting "tab.history" Button
+    t =    47.08s     Synthesize event
+    t =    47.37s     Wait for sh.munk.purepace to idle
+    t =    47.85s Get number of matches for: Elements matching predicate '"history.row" IN identifiers'
+    t =    47.87s Checking existence of `"history.empty" StaticText`
+    t =    47.88s Find the "history.row" Any
+    t =    47.91s Find the Target Application 'sh.munk.purepace'
+    t =    47.97s Added attachment named 'e2e-history'
+    t =    47.97s Tap "history.row" Button
+    t =    47.97s     Wait for sh.munk.purepace to idle
+    t =    47.97s     Find the "history.row" Button
+    t =    48.01s     Check for interrupting elements affecting "history.row" Button
+    t =    48.04s     Synthesize event
+    t =    48.33s     Wait for sh.munk.purepace to idle
+    t =    48.74s Waiting 10.0s for "runDetail.root" Any to exist
+    t =    49.78s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.root" Any`
+    t =    49.78s         Checking existence of `"runDetail.root" Any`
+    t =    49.82s Waiting 5.0s for "runDetail.startedAt" StaticText to exist
+    t =    50.86s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.startedAt" StaticText`
+    t =    50.86s         Checking existence of `"runDetail.startedAt" StaticText`
+    t =    50.89s Checking existence of `"runDetail.endedAt" StaticText`
+    t =    50.91s Find the "runDetail.startedAt" StaticText
+    t =    50.93s Find the "runDetail.startedAt" StaticText
+    t =    50.95s Find the "runDetail.endedAt" StaticText
+    t =    50.97s Checking existence of `"runDetail.distance" StaticText`
+    t =    50.99s Checking existence of `"runDetail.activeDuration" StaticText`
+    t =    51.01s Checking existence of `"runDetail.averagePace" StaticText`
+    t =    51.02s Find the "runDetail.distance" StaticText
+    t =    51.04s Find the "runDetail.activeDuration" StaticText
+    t =    51.06s Find the "runDetail.averagePace" StaticText
+    t =    51.08s Waiting 5.0s for "runDetail.splits" StaticText to exist
+    t =    52.13s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.splits" StaticText`
+    t =    52.14s         Checking existence of `"runDetail.splits" StaticText`
+    t =    52.16s Find the "runDetail.splits" StaticText
+    t =    52.18s Get number of matches for: Elements matching predicate '"runDetail.splitRow" IN identifiers'
+    t =    52.20s Checking existence of `"runDetail.splitsEmpty" StaticText`
+    t =    52.22s Find the Target Application 'sh.munk.purepace'
+    t =    52.30s Added attachment named 'e2e-detail'
+    t =    52.30s Waiting 5.0s for "runDetail.export" Button to exist
+    t =    53.35s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.export" Button`
+    t =    53.35s         Checking existence of `"runDetail.export" Button`
+    t =    53.38s Get number of matches for: Elements matching predicate '"runDetail.exported" IN identifiers'
+    t =    53.39s Get number of matches for: Elements matching predicate '"runDetail.share" IN identifiers'
+    t =    53.41s Tap "runDetail.export" Button
+    t =    53.41s     Wait for sh.munk.purepace to idle
+    t =    53.41s     Find the "runDetail.export" Button
+    t =    53.43s     Check for interrupting elements affecting "runDetail.export" Button
+    t =    53.45s     Synthesize event
+    t =    53.74s     Wait for sh.munk.purepace to idle
+    t =    53.74s Waiting 10.0s for "runDetail.exported" StaticText to exist
+    t =    54.81s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.exported" StaticText`
+    t =    54.81s         Checking existence of `"runDetail.exported" StaticText`
+    t =    54.85s Find the "runDetail.exported" StaticText
+    t =    54.87s Waiting 10.0s for "runDetail.share" Any to exist
+    t =    55.89s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.share" Any`
+    t =    55.89s         Checking existence of `"runDetail.share" Any`
+    t =    55.91s Checking existence of `"runDetail.exportFailed" StaticText`
+    t =    55.93s Tap "runDetail.share" Any
+    t =    55.93s     Wait for sh.munk.purepace to idle
+    t =    55.93s     Find the "runDetail.share" Any
+    t =    55.95s     Check for interrupting elements affecting "runDetail.share" Button
+    t =    55.98s     Synthesize event
+    t =    56.27s     Wait for sh.munk.purepace to idle
+    t =    56.76s Checking existence of `"ActivityListView" Other`
+    t =    56.81s Find the Target Application 'sh.munk.purepace'
+    t =    56.90s Added attachment named 'e2e-share'
+    t =    56.90s Checking existence of `"Close" Button`
+    t =    56.93s Tap "Close" Button
+    t =    56.93s     Wait for sh.munk.purepace to idle
+    t =    56.93s     Find the "Close" Button
+    t =    56.96s     Check for interrupting elements affecting "header.closeButton" Button
+    t =    56.99s     Synthesize event
+    t =    57.28s     Wait for sh.munk.purepace to idle
+    t =    57.61s Checking existence of `"runDetail.root" Any`
+    t =    57.64s Tear Down
+Test Case '-[PurePaceUITests.RunFlowUITests testRunPauseResumeFinishAndHistory]' passed (57.890 seconds).
+Test Suite 'RunFlowUITests' passed at 2026-11-13 02:42:46.657.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.890 (57.891) seconds
+Test Suite 'PurePaceUITests.xctest' passed at 2026-11-13 02:42:46.657.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.890 (57.892) seconds
+Test Suite 'Selected tests' passed at 2026-11-13 02:42:46.658.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.890 (57.892) seconds
+2026-11-13 02:42:46.980 xcodebuild[95530:174161677] [MT] IDETestOperationsObserverDebug: 60.653 elapsed -- Testing started completed.
+2026-11-13 02:42:46.980 xcodebuild[95530:174161677] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-13 02:42:46.980 xcodebuild[95530:174161677] [MT] IDETestOperationsObserverDebug: 60.653 sec, +60.653 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/Logs/Test/Test-PurePace-2026.11.13_02-41-45-+0800.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started
+################ [section 2/3] xcodebuild exit=0
+################ [section 3/3] 断言来源腿（深色）：RunFlowUITests/testZhHansCopyDatesAndBottomAnchoredPrimaryAction（未开始/运行中/保存态）
+################ host: xcodebuild test ... -only-testing:PurePaceUITests/RunFlowUITests/testZhHansCopyDatesAndBottomAnchoredPrimaryAction
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD" -derivedDataPath .build/ios "-only-testing:PurePaceUITests/RunFlowUITests/testZhHansCopyDatesAndBottomAnchoredPrimaryAction"
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/RunCore
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'PurePaceUITests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceTests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/PurePace.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+2026-11-13 02:42:52.201643+0800 PurePaceUITests-Runner[11379:174195157] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-13 02:42:52.727.
+Test Suite 'PurePaceUITests.xctest' started at 2026-11-13 02:42:52.727.
+Test Suite 'RunFlowUITests' started at 2026-11-13 02:42:52.727.
+Test Case '-[PurePaceUITests.RunFlowUITests testZhHansCopyDatesAndBottomAnchoredPrimaryAction]' started.
+    t =     0.00s Start Test at 2026-11-13 02:42:52.728
+    t =     0.02s Set Up
+    t =     0.02s Open sh.munk.purepace
+    t =     0.02s     Launch sh.munk.purepace
+    t =     2.48s         Setting up automation session
+    t =     3.09s         Wait for sh.munk.purepace to idle
+    t =     4.30s Checking existence of `"Allow While Using App" Button`
+    t =     4.32s Checking existence of `"Allow While Using App" Button`
+    t =     4.35s Checking existence of `"Allow While Using App" Button`
+    t =     4.40s Checking existence of `"Allow Once" Button`
+    t =     4.41s Checking existence of `"Allow Once" Button`
+    t =     4.44s Checking existence of `"Allow Once" Button`
+    t =     4.47s Checking existence of `"Allow" Button`
+    t =     4.48s Checking existence of `"Allow" Button`
+    t =     4.51s Checking existence of `"Allow" Button`
+    t =     4.53s Checking existence of `"Always Allow" Button`
+    t =     4.55s Checking existence of `"Always Allow" Button`
+    t =     4.58s Checking existence of `"Always Allow" Button`
+    t =     4.60s Checking existence of `"Change to Always Allow" Button`
+    t =     4.62s Checking existence of `"Change to Always Allow" Button`
+    t =     4.65s Checking existence of `"Change to Always Allow" Button`
+    t =     4.67s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.69s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.72s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.74s Checking existence of `"允许一次" Button`
+    t =     4.76s Checking existence of `"允许一次" Button`
+    t =     4.79s Checking existence of `"允许一次" Button`
+    t =     4.81s Checking existence of `"始终允许" Button`
+    t =     4.83s Checking existence of `"始终允许" Button`
+    t =     4.86s Checking existence of `"始终允许" Button`
+    t =     4.88s Checking existence of `"允许改为始终允许" Button`
+    t =     4.90s Checking existence of `"允许改为始终允许" Button`
+    t =     4.93s Checking existence of `"允许改为始终允许" Button`
+    t =     4.95s Checking existence of `Alert (First Match)`
+    t =     4.98s Checking existence of `Alert (First Match)`
+    t =     5.00s Waiting 30.0s for TabBar (First Match) to exist
+    t =     6.08s     Checking `Expect predicate `existsNoRetry == 1` for object TabBar (First Match)`
+    t =     6.08s         Checking existence of `TabBar (First Match)`
+    t =     6.10s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden 未开始: state=ready didSave=false tabBarCount=1 expected=1
+    t =     6.12s Checking existence of `"跑步" Button`
+    t =     6.13s Checking existence of `"历史" Button`
+    t =     6.15s Checking existence of `"设置" Button`
+    t =     6.16s Waiting 5.0s for "run.backgroundDegraded" Any to exist
+    t =     7.23s     Checking `Expect predicate `existsNoRetry == 1` for object "run.backgroundDegraded" Any`
+    t =     7.23s         Checking existence of `"run.backgroundDegraded" Any`
+    t =     7.30s Find the "run.distance" StaticText
+    t =     7.31s Find the "run.averagePace" StaticText
+    t =     7.33s Find the Window (First Match)
+    t =     7.33s Find the "run.backgroundDegraded" Any
+ac-permission-banner-demoted hint=(72.66666666666666, 617.0, 247.99999999999997, 23.66666666666663) distance=(117.33333333333333, 243.5, 158.33333333333331, 76.66666666666663) averagePace=(104.08333333333333, 528.6666666666666, 12.333333333333343, 15.666666666666629)
+ac-inline-hint-measured hintHeight=23.66666666666663 hintWidth=247.99999999999997 contentWidth=361.0 maxHeight=32.0
+    t =     7.38s Waiting 30.0s for "run.start" Button to exist
+    t =     8.44s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =     8.44s         Checking existence of `"run.start" Button`
+    t =     8.46s Checking existence of `"run.mapPreview" Any`
+    t =     8.51s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans 跑步页（未开始）: labels=23 violations=0 offenders=[]
+    t =     8.53s Checking existence of `TabBar (First Match)`
+    t =     8.54s Find the TabBar (First Match)
+    t =     8.55s Find the "标签页栏" TabBar
+    t =     8.56s Find the "标签页栏" TabBar
+    t =     8.57s Find the "run.start" Button
+ac-primary-action-bottom-anchored 未开始: height=44.0 bottomGap=12.0
+    t =     8.58s Waiting 10.0s for NavigationBar (First Match) to exist
+    t =     9.65s     Checking `Expect predicate `existsNoRetry == 1` for object NavigationBar (First Match)`
+    t =     9.65s         Checking existence of `NavigationBar (First Match)`
+    t =     9.66s Find the NavigationBar (First Match)
+    t =     9.68s Find the "run.start" Button
+    t =     9.70s Find the Target Application 'sh.munk.purepace'
+    t =     9.72s Checking existence of `"run.mapPreview" Any`
+    t =     9.76s Checking existence of `"run.backgroundDegraded" Any`
+    t =     9.80s Find the "run.backgroundDegraded" Any
+    t =     9.84s Find the "run.backgroundDegraded" Other
+ac-run-metrics-balanced 未开始: top=72.50000000000003 bottom=72.33333333333337 largest=72.66666666666674 imbalance=0.1666666666666572 contentFrames=[(185.5, 222.16666666666669, 22.0, 13.333333333333314), (117.33333333333334, 243.5, 158.3333333333333, 76.66666666666663), (188.5, 328.16666666666663, 16.0, 13.333333333333371), (99.25, 410.0, 22.0, 13.333333333333371), (260.75, 410.0, 44.0, 13.333333333333371), (54.583333333333336, 431.33333333333337, 111.33333333333331, 43.0), (260.4166666666667, 431.33333333333337, 44.666666666666686, 43.0), (88.25, 507.33333333333337, 44.0, 13.333333333333258), (271.75, 507.33333333333337, 22.0, 13.333333333333258), (104.08333333333333, 528.6666666666666, 12.333333333333329, 15.666666666666629), (278.5833333333333, 528.6666666666666, 8.333333333333314, 15.666666666666629), (72.66666666666666, 617.0, 247.99999999999997, 23.66666666666663)]
+    t =     9.88s Find the Target Application 'sh.munk.purepace'
+    t =     9.95s Added attachment named 'run-not-started'
+    t =     9.95s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    10.01s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    10.03s Added attachment named '01-run-not-started'
+    t =    10.03s Tap "历史" Button
+    t =    10.03s     Wait for sh.munk.purepace to idle
+    t =    10.03s     Find the "历史" Button
+    t =    10.04s     Check for interrupting elements affecting "tab.history" Button
+    t =    10.05s     Synthesize event
+    t =    10.35s     Wait for sh.munk.purepace to idle
+    t =    10.85s Waiting 10.0s for "history.empty" StaticText to exist
+    t =    11.91s     Checking `Expect predicate `existsNoRetry == 1` for object "history.empty" StaticText`
+    t =    11.91s         Checking existence of `"history.empty" StaticText`
+    t =    11.93s Checking existence of `"run.mapPreview" Any`
+    t =    11.96s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans 历史空态: labels=8 violations=0 offenders=[]
+    t =    11.98s Find the Target Application 'sh.munk.purepace'
+    t =    12.03s Added attachment named 'history-empty'
+    t =    12.04s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    12.07s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    12.09s Added attachment named '03-history-empty'
+    t =    12.09s Tap "跑步" Button
+    t =    12.09s     Wait for sh.munk.purepace to idle
+    t =    12.09s     Find the "跑步" Button
+    t =    12.10s     Check for interrupting elements affecting "tab.run" Button
+    t =    12.11s     Synthesize event
+    t =    12.40s     Wait for sh.munk.purepace to idle
+    t =    12.87s Waiting 10.0s for "run.start" Button to exist
+    t =    13.94s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =    13.94s         Checking existence of `"run.start" Button`
+    t =    13.96s Tap "run.start" Button
+    t =    13.96s     Wait for sh.munk.purepace to idle
+    t =    13.96s     Find the "run.start" Button
+    t =    13.97s     Check for interrupting elements affecting "run.start" Button
+    t =    13.99s     Synthesize event
+    t =    14.28s     Wait for sh.munk.purepace to idle
+    t =    14.28s Waiting 15.0s for "run.pause" Button to exist
+    t =    15.35s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    15.35s         Checking existence of `"run.pause" Button`
+    t =    15.36s         Capturing element debug description
+    t =    16.33s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    16.33s         Checking existence of `"run.pause" Button`
+    t =    16.34s         Capturing element debug description
+    t =    17.30s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =    17.30s         Checking existence of `"run.pause" Button`
+    t =    17.33s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden 运行中: state=running didSave=false tabBarCount=0 expected=0
+    t =    17.34s Checking existence of `"跑步" Button`
+    t =    17.35s Checking existence of `"跑步" Button`
+    t =    17.36s Checking existence of `"历史" Button`
+    t =    17.37s Checking existence of `"历史" Button`
+    t =    17.39s Checking existence of `"设置" Button`
+    t =    17.40s Checking existence of `"设置" Button`
+    t =    17.41s Checking existence of `"run.mapPreview" Any`
+    t =    17.48s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans 跑步页（运行中）: labels=20 violations=0 offenders=[]
+    t =    17.51s Checking existence of `TabBar (First Match)`
+    t =    17.53s Find the Window (First Match)
+    t =    17.54s Find the "run.pause" Button
+ac-primary-action-bottom-anchored 运行中: height=44.0 bottomGap=12.0
+    t =    17.55s Waiting 10.0s for NavigationBar (First Match) to exist
+    t =    18.63s     Checking `Expect predicate `existsNoRetry == 1` for object NavigationBar (First Match)`
+    t =    18.63s         Checking existence of `NavigationBar (First Match)`
+    t =    18.66s Find the NavigationBar (First Match)
+    t =    18.68s Find the "run.pause" Button
+    t =    18.70s Find the Target Application 'sh.munk.purepace'
+    t =    18.72s Checking existence of `"run.mapPreview" Any`
+    t =    18.78s Checking existence of `"run.backgroundDegraded" Any`
+    t =    18.83s Find the "run.backgroundDegraded" Any
+    t =    18.88s Find the "run.backgroundDegraded" Other
+ac-run-metrics-balanced 运行中: top=79.41666666666666 bottom=79.33333333333337 largest=79.5 imbalance=0.08333333333328596 contentFrames=[(185.5, 229.08333333333331, 22.0, 13.333333333333314), (117.33333333333334, 250.41666666666663, 158.3333333333333, 76.66666666666663), (188.5, 335.08333333333326, 16.0, 13.333333333333371), (99.25, 423.83333333333337, 22.0, 13.333333333333258), (260.75, 423.83333333333337, 44.0, 13.333333333333258), (54.583333333333336, 445.16666666666663, 111.33333333333331, 43.0), (260.4166666666667, 445.16666666666663, 44.666666666666686, 43.0), (88.25, 521.1666666666666, 44.0, 13.333333333333371), (271.75, 521.1666666666666, 22.0, 13.333333333333371), (96.08333333333333, 542.5, 28.33333333333333, 15.666666666666629), (278.5833333333333, 542.5, 8.333333333333314, 15.666666666666629), (100.58333333333333, 566.1666666666666, 19.33333333333333, 13.333333333333371), (72.66666666666666, 659.0, 247.99999999999997, 23.66666666666663)]
+    t =    18.93s Find the Target Application 'sh.munk.purepace'
+    t =    18.99s Added attachment named 'run-running'
+    t =    18.99s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    19.05s Requesting snapshot of accessibility hierarchy for app with pid 11494
+    t =    19.06s Added attachment named '02-run-running'
+    t =    19.06s Waiting 10.0s for "run.finish" Button to exist
+    t =    20.13s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =    20.13s         Checking existence of `"run.finish" Button`
+    t =    20.15s Tap "run.finish" Button
+    t =    20.15s     Wait for sh.munk.purepace to idle
+    t =    20.16s     Find the "run.finish" Button
+    t =    20.17s     Check for interrupting elements affecting "run.finish" Button
+    t =    20.19s     Synthesize event
+    t =    20.48s     Wait for sh.munk.purepace to idle
+    t =    20.49s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden 结束待保存: state=finished didSave=false tabBarCount=0 expected=0
+    t =    20.50s Checking existence of `"跑步" Button`
+    t =    20.53s Checking existence of `"跑步" Button`
+    t =    20.55s Checking existence of `"历史" Button`
+    t =    20.57s Checking existence of `"历史" Button`
+    t =    20.81s Checking existence of `"设置" Button`
+    t =    20.83s Checking existence of `"设置" Button`
+    t =    20.85s Checking existence of `"run.save" Button`
+    t =    20.86s Checking existence of `"run.discardRequest" Button`
+    t =    20.88s Checking existence of `"run.discard" Button`
+    t =    20.89s Waiting 10.0s for "run.mapPreview" Any to exist
+    t =    21.95s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    21.95s         Checking existence of `"run.mapPreview" Any`
+    t =    21.98s Find the "run.mapPreview" Any
+    t =    22.02s Find the Window (First Match)
+ac-b1-map-hero-360 结束待保存: mapHeight=361.0 screenHeight=852.0 minimum40Percent=340.8
+    t =    22.03s Waiting 10.0s for NavigationBar (First Match) to exist
+    t =    23.10s     Checking `Expect predicate `existsNoRetry == 1` for object NavigationBar (First Match)`
+    t =    23.10s         Checking existence of `NavigationBar (First Match)`
+    t =    23.15s Find the Target Application 'sh.munk.purepace'
+    t =    23.17s Checking existence of `"run.mapPreview" Any`
+    t =    23.26s Find the "run.mapPreview" Any
+    t =    23.35s Find the "run.mapPreview" Other
+    t =    23.45s Find the NavigationBar (First Match)
+    t =    23.47s Find the "run.save" Button
+    t =    23.49s Checking existence of `"run.backgroundDegraded" Any`
+    t =    23.64s Find the "run.backgroundDegraded" Any
+    t =    23.81s Find the "run.backgroundDegraded" Other
+    t =    23.97s Find the "跑步" NavigationBar
+    t =    24.01s Find the "跑步" NavigationBar
+    t =    24.05s Find the "run.save" Button
+    t =    24.07s Find the "跑步" NavigationBar
+    t =    24.11s Find the "run.save" Button
+    t =    24.14s Find the "跑步" NavigationBar
+    t =    24.17s Find the "run.save" Button
+    t =    24.20s Find the "跑步" NavigationBar
+    t =    24.24s Find the "run.save" Button
+    t =    24.27s Find the "跑步" NavigationBar
+    t =    24.30s Find the "run.save" Button
+    t =    24.33s Find the "跑步" NavigationBar
+    t =    24.35s Find the "run.save" Button
+    t =    24.38s Find the "跑步" NavigationBar
+    t =    24.41s Find the "run.save" Button
+    t =    24.43s Find the "跑步" NavigationBar
+    t =    24.45s Find the "run.save" Button
+    t =    24.47s Find the "跑步" NavigationBar
+    t =    24.49s Find the "run.save" Button
+    t =    24.51s Find the "跑步" NavigationBar
+    t =    24.54s Find the "run.save" Button
+    t =    24.56s Find the "跑步" NavigationBar
+    t =    24.59s Find the "run.save" Button
+    t =    24.61s Find the "跑步" NavigationBar
+    t =    24.63s Find the "run.save" Button
+    t =    24.65s Find the "跑步" NavigationBar
+    t =    24.67s Find the "run.save" Button
+    t =    24.70s Find the "跑步" NavigationBar
+    t =    24.72s Find the "run.save" Button
+    t =    24.84s Find the "run.save" Button
+ac-b1-content-fits-691 结束待保存: contentHeight=593.8333333333333 contentBottom=702.9999999999999 saveTop=762.0
+    t =    24.86s Find the "run.save" Button
+    t =    24.88s Checking existence of `"run.save" Button`
+    t =    24.89s Find the Window (First Match)
+    t =    24.90s Find the "run.save" Button
+    t =    24.92s Find the "run.save" Button
+ac-b1-action-bar-68 结束待保存: saveHeight=44.0 saveTop=762.0 screenHeight=852.0 policyBarHeight=68.0
+    t =    24.93s Find the "run.save" Button
+    t =    24.95s Find the "run.save" Button
+    t =    24.96s Waiting 10.0s for "run.distance" StaticText to exist
+    t =    26.05s     Checking `Expect predicate `existsNoRetry == 1` for object "run.distance" StaticText`
+    t =    26.05s         Checking existence of `"run.distance" StaticText`
+    t =    26.07s Waiting 10.0s for "run.elapsed" StaticText to exist
+    t =    27.13s     Checking `Expect predicate `existsNoRetry == 1` for object "run.elapsed" StaticText`
+    t =    27.13s         Checking existence of `"run.elapsed" StaticText`
+    t =    27.15s Waiting 10.0s for "run.averagePace" StaticText to exist
+    t =    28.22s     Checking `Expect predicate `existsNoRetry == 1` for object "run.averagePace" StaticText`
+    t =    28.22s         Checking existence of `"run.averagePace" StaticText`
+    t =    28.24s Checking existence of `"run.mapPreview" Any`
+    t =    28.27s Checking existence of `"run.finished.splits" StaticText`
+    t =    28.28s Get number of matches for: Elements matching predicate '"run.finished.splitRow" IN identifiers'
+    t =    28.30s Checking existence of `"run.finished.splitsEmpty" StaticText`
+    t =    28.31s Checking existence of `"run.discardRequest" Button`
+    t =    28.32s Tap "run.discardRequest" Button
+    t =    28.32s     Wait for sh.munk.purepace to idle
+    t =    28.33s     Find the "run.discardRequest" Button
+    t =    28.35s     Check for interrupting elements affecting "run.discardRequest" Button
+    t =    28.37s     Synthesize event
+    t =    28.66s     Wait for sh.munk.purepace to idle
+    t =    29.02s Waiting 10.0s for "run.discard" Button to exist
+    t =    30.08s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discard" Button`
+    t =    30.08s         Checking existence of `"run.discard" Button`
+    t =    30.11s Waiting 10.0s for "run.discardCancel" Button to exist
+    t =    31.17s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discardCancel" Button`
+    t =    31.17s         Checking existence of `"run.discardCancel" Button`
+    t =    31.19s Find the "run.discard" Button
+    t =    31.21s Find the "run.discard" Button
+    t =    31.23s Find the "run.discardCancel" Button
+    t =    31.25s Find the Window (First Match)
+    t =    31.26s Waiting 10.0s for "丢弃这次跑步？" StaticText to exist
+    t =    32.32s     Checking `Expect predicate `existsNoRetry == 1` for object "丢弃这次跑步？" StaticText`
+    t =    32.33s         Checking existence of `"丢弃这次跑步？" StaticText`
+    t =    32.35s Checking existence of `"run.discard" Button`
+    t =    32.36s Checking existence of `"run.discardCancel" Button`
+    t =    32.38s Find the "丢弃这次跑步？" StaticText
+    t =    32.40s Find the "丢弃这次跑步？" StaticText
+    t =    32.42s Find the "run.discard" Button
+    t =    32.44s Find the "run.discardCancel" Button
+ac-c2-sheet-autosize: presented=true screenHeight=852.0 derivedTop=682.3333333333334 derivedHeight=169.66666666666663 title=(68.0, 690.3333333333334, 125.0, 24.0) confirm=(16.0, 750.0, 235.66666666666666, 44.0) cancel=(263.66666666666663, 750.0, 113.33333333333331, 44.0)
+    t =    32.46s Find the "run.discard" Button
+    t =    32.47s Checking existence of `"run.discard" Button`
+    t =    32.49s Find the "run.discard" Button
+ac-c2-filled-danger-primary: sampled=(0.9607843137254902,0.22745098039215686,0.2823529411764706) expected=(0.4,0.050980392156862744,0.03529411764705882) delta=0.5607843137254902
+/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/PurePaceUITests/RunFlowUITests.swift:1145: error: -[PurePaceUITests.RunFlowUITests testZhHansCopyDatesAndBottomAnchoredPrimaryAction] : XCTAssertLessThanOrEqual failed: ("0.5607843137254902") is greater than ("0.00784313725490196") - 确认丢弃不是 danger 实心填充
+    t =    32.70s Tear Down
+Test Case '-[PurePaceUITests.RunFlowUITests testZhHansCopyDatesAndBottomAnchoredPrimaryAction]' failed (32.935 seconds).
+Test Suite 'RunFlowUITests' failed at 2026-11-13 02:43:25.663.
+	 Executed 1 test, with 1 failure (0 unexpected) in 32.935 (32.935) seconds
+Test Suite 'PurePaceUITests.xctest' failed at 2026-11-13 02:43:25.663.
+	 Executed 1 test, with 1 failure (0 unexpected) in 32.935 (32.936) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 02:43:25.663.
+	 Executed 1 test, with 1 failure (0 unexpected) in 32.935 (32.936) seconds
+2026-11-13 02:43:48.684 xcodebuild[11253:174194461] [MT] IDETestOperationsObserverDebug: 59.610 elapsed -- Testing started completed.
+2026-11-13 02:43:48.685 xcodebuild[11253:174194461] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-13 02:43:48.685 xcodebuild[11253:174194461] [MT] IDETestOperationsObserverDebug: 59.610 sec, +59.610 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/Logs/Test/Test-PurePace-2026.11.13_02-42-47-+0800.xcresult
+
+** TEST FAILED **
+
+Testing started
+################ [section 3/3] xcodebuild exit=65
+################ [section 4/4] 断源尾腿（深色）：RunFlowUITests/testSavedStateWithoutSplitsKeepsMapFloorAndBalance（保存态 ac-run-metrics-balanced 行）
+################ 说明：section 3 在深色外观下红在 RunFlowUITests.swift:1145 ac-c2-filled-danger-primary（该断言把采样与 danger.light token 比对，深色外观下 token 为 danger.dark），属既有断言的外观局限，不在本项范围（ios/ 零 diff）。故深色日志的「保存态」实测行由本腿（保存态（无分段））提供。
+################ host: xcodebuild test ... -only-testing:PurePaceUITests/RunFlowUITests/testSavedStateWithoutSplitsKeepsMapFloorAndBalance
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD" -derivedDataPath .build/ios "-only-testing:PurePaceUITests/RunFlowUITests/testSavedStateWithoutSplitsKeepsMapFloorAndBalance"
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/RunCore
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'PurePaceUITests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceTests' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePace' in project 'PurePace'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore'
+        ➜ Explicit dependency on target 'PurePaceRunCore' in project 'PurePaceRunCore'
+    Target 'PurePaceRunCore' in project 'PurePaceRunCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/ios/PurePace.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/SDKStatCaches.noindex/iphonesimulator26.2-23C57-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+2026-11-13 02:44:44.874522+0800 PurePaceUITests-Runner[38914:174252016] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-13 02:44:45.802.
+Test Suite 'PurePaceUITests.xctest' started at 2026-11-13 02:44:45.802.
+Test Suite 'RunFlowUITests' started at 2026-11-13 02:44:45.802.
+Test Case '-[PurePaceUITests.RunFlowUITests testSavedStateWithoutSplitsKeepsMapFloorAndBalance]' started.
+    t =     0.00s Start Test at 2026-11-13 02:44:45.803
+    t =     0.02s Set Up
+    t =     0.02s Open sh.munk.purepace
+    t =     0.02s     Launch sh.munk.purepace
+    t =     2.50s         Setting up automation session
+    t =     3.08s         Wait for sh.munk.purepace to idle
+    t =     4.28s Checking existence of `"Allow While Using App" Button`
+    t =     4.32s Checking existence of `"Allow While Using App" Button`
+    t =     4.36s Checking existence of `"Allow While Using App" Button`
+    t =     4.40s Checking existence of `"Allow Once" Button`
+    t =     4.43s Checking existence of `"Allow Once" Button`
+    t =     4.46s Checking existence of `"Allow Once" Button`
+    t =     4.48s Checking existence of `"Allow" Button`
+    t =     4.50s Checking existence of `"Allow" Button`
+    t =     4.53s Checking existence of `"Allow" Button`
+    t =     4.55s Checking existence of `"Always Allow" Button`
+    t =     4.57s Checking existence of `"Always Allow" Button`
+    t =     4.60s Checking existence of `"Always Allow" Button`
+    t =     4.62s Checking existence of `"Change to Always Allow" Button`
+    t =     4.64s Checking existence of `"Change to Always Allow" Button`
+    t =     4.67s Checking existence of `"Change to Always Allow" Button`
+    t =     4.69s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.71s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.74s Checking existence of `"使用 App 期间允许" Button`
+    t =     4.76s Checking existence of `"允许一次" Button`
+    t =     4.78s Checking existence of `"允许一次" Button`
+    t =     4.81s Checking existence of `"允许一次" Button`
+    t =     4.83s Checking existence of `"始终允许" Button`
+    t =     4.85s Checking existence of `"始终允许" Button`
+    t =     4.88s Checking existence of `"始终允许" Button`
+    t =     4.90s Checking existence of `"允许改为始终允许" Button`
+    t =     4.92s Checking existence of `"允许改为始终允许" Button`
+    t =     4.95s Checking existence of `"允许改为始终允许" Button`
+    t =     4.97s Checking existence of `Alert (First Match)`
+    t =     5.00s Checking existence of `Alert (First Match)`
+    t =     5.02s Waiting 30.0s for "run.start" Button to exist
+    t =     6.07s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =     6.07s         Checking existence of `"run.start" Button`
+    t =     6.10s Tap "run.start" Button
+    t =     6.10s     Wait for sh.munk.purepace to idle
+    t =     6.10s     Find the "run.start" Button
+    t =     6.11s     Check for interrupting elements affecting "run.start" Button
+    t =     6.13s     Synthesize event
+    t =     6.42s     Wait for sh.munk.purepace to idle
+    t =     6.43s Waiting 15.0s for "run.finish" Button to exist
+    t =     7.51s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =     7.51s         Checking existence of `"run.finish" Button`
+    t =     7.53s         Capturing element debug description
+    t =     8.49s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =     8.49s         Checking existence of `"run.finish" Button`
+    t =     8.51s         Capturing element debug description
+    t =     9.47s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =     9.47s         Checking existence of `"run.finish" Button`
+    t =     9.49s Tap "run.finish" Button
+    t =     9.49s     Wait for sh.munk.purepace to idle
+    t =     9.49s     Find the "run.finish" Button
+    t =     9.51s     Check for interrupting elements affecting "run.finish" Button
+    t =     9.53s     Synthesize event
+    t =     9.81s     Wait for sh.munk.purepace to idle
+    t =     9.82s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden 结束待保存（无分段）: state=finished didSave=false tabBarCount=0 expected=0
+    t =     9.83s Checking existence of `"跑步" Button`
+    t =     9.84s Checking existence of `"跑步" Button`
+    t =     9.85s Checking existence of `"历史" Button`
+    t =     9.86s Checking existence of `"历史" Button`
+    t =     9.88s Checking existence of `"设置" Button`
+    t =    10.08s Checking existence of `"设置" Button`
+    t =    10.10s Checking existence of `"run.save" Button`
+    t =    10.11s Waiting 10.0s for "保存本次跑步" Button to exist
+    t =    11.18s     Checking `Expect predicate `existsNoRetry == 1` for object "保存本次跑步" Button`
+    t =    11.18s         Checking existence of `"保存本次跑步" Button`
+    t =    11.19s Tap "保存本次跑步" Button
+    t =    11.19s     Wait for sh.munk.purepace to idle
+    t =    11.19s     Find the "保存本次跑步" Button
+    t =    11.20s     Check for interrupting elements affecting "run.save" Button
+    t =    11.22s     Synthesize event
+    t =    11.51s     Wait for sh.munk.purepace to idle
+    t =    11.52s Waiting 15.0s for "run.saved" StaticText to exist
+    t =    12.59s     Checking `Expect predicate `existsNoRetry == 1` for object "run.saved" StaticText`
+    t =    12.59s         Checking existence of `"run.saved" StaticText`
+    t =    12.62s Get number of matches for: Descendants matching type TabBar
+ac-tabbar-hidden 保存态（无分段）: state=finished didSave=true tabBarCount=1 expected=1
+    t =    12.63s Checking existence of `"跑步" Button`
+    t =    12.64s Checking existence of `"历史" Button`
+    t =    12.65s Checking existence of `"设置" Button`
+    t =    12.66s Waiting 10.0s for "run.viewHistory" Button to exist
+    t =    13.72s     Checking `Expect predicate `existsNoRetry == 1` for object "run.viewHistory" Button`
+    t =    13.72s         Checking existence of `"run.viewHistory" Button`
+    t =    13.74s Waiting 10.0s for "run.finished.splitsEmpty" StaticText to exist
+    t =    14.81s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finished.splitsEmpty" StaticText`
+    t =    14.81s         Checking existence of `"run.finished.splitsEmpty" StaticText`
+    t =    14.83s Get number of matches for: Elements matching predicate '"run.finished.splitRow" IN identifiers'
+ac-finished-content-canonical 保存态（无分段）: splitRows=0 expected=0
+    t =    14.85s Waiting 10.0s for "run.mapPreview" Any to exist
+    t =    15.92s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    15.92s         Checking existence of `"run.mapPreview" Any`
+    t =    15.96s Find the "run.mapPreview" Any
+    t =    16.00s Find the Window (First Match)
+ac-b1-map-hero-360 保存态（无分段）: mapHeight=361.0 screenHeight=852.0 minimum40Percent=340.8
+    t =    16.00s Waiting 10.0s for NavigationBar (First Match) to exist
+    t =    17.08s     Checking `Expect predicate `existsNoRetry == 1` for object NavigationBar (First Match)`
+    t =    17.08s         Checking existence of `NavigationBar (First Match)`
+    t =    17.10s Find the NavigationBar (First Match)
+    t =    17.11s Find the "run.viewHistory" Button
+    t =    17.13s Find the Target Application 'sh.munk.purepace'
+    t =    17.15s Checking existence of `"run.mapPreview" Any`
+    t =    17.18s Find the "run.mapPreview" Any
+    t =    17.22s Find the "run.mapPreview" Other
+    t =    17.25s Checking existence of `"run.backgroundDegraded" Any`
+    t =    17.29s Find the "run.backgroundDegraded" Any
+    t =    17.33s Find the "run.backgroundDegraded" Other
+ac-run-metrics-balanced 保存态（无分段）: top=27.5 bottom=37.66666666666674 largest=48.16666666666663 imbalance=10.166666666666742 contentFrames=[(40.0, 441.66666666666663, 43.66666666666666, 24.0), (87.66666666666666, 445.83333333333337, 18.33333333333333, 15.666666666666629), (99.25, 509.66666666666663, 22.0, 13.333333333333371), (260.75, 509.66666666666663, 44.0, 13.333333333333371), (54.583333333333336, 531.0, 111.33333333333331, 43.0), (238.08333333333334, 531.0, 89.33333333333334, 43.0), (273.08333333333337, 582.0, 19.333333333333314, 13.333333333333258), (28.0, 631.3333333333333, 59.66666666666666, 18.0), (28.0, 657.3333333333333, 104.33333333333331, 18.0), (15.5, 125.16666666666667, 362.0, 361.0)]
+    t =    17.37s Tear Down
+Test Case '-[PurePaceUITests.RunFlowUITests testSavedStateWithoutSplitsKeepsMapFloorAndBalance]' passed (17.620 seconds).
+Test Suite 'RunFlowUITests' passed at 2026-11-13 02:45:03.423.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.620 (17.621) seconds
+Test Suite 'PurePaceUITests.xctest' passed at 2026-11-13 02:45:03.424.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.620 (17.622) seconds
+Test Suite 'Selected tests' passed at 2026-11-13 02:45:03.424.
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.620 (17.622) seconds
+2026-11-13 02:45:03.736 xcodebuild[38795:174251477] [MT] IDETestOperationsObserverDebug: 21.968 elapsed -- Testing started completed.
+2026-11-13 02:45:03.736 xcodebuild[38795:174251477] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-13 02:45:03.736 xcodebuild[38795:174251477] [MT] IDETestOperationsObserverDebug: 21.968 sec, +21.968 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_3232a7d1a00f89ec/.build/ios/Logs/Test/Test-PurePace-2026.11.13_02-44-40-+0800.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started
+################ [section 4/4] xcodebuild exit=0
