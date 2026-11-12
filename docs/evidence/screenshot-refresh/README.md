@@ -155,11 +155,25 @@ bash scripts/capture-ios-screenshots.sh --stage verify
 `VERSION` 与 `0.1.0(1)` 均不变），`.munk/code-gates.json` 仍 22 门，
 `scripts/test-ios.sh` 的 `ui_call` 仍 4 段且预算/阈值不变，`.github/workflows/ios.yml` 零 diff。
 
-## 8. CI 权威腿回执（待推送后回填）
+## 8. CI 权威腿回执（阻塞：基线 run 判红 + 证据 commit 未推送）
 
-证据 commit（本 README / 14 张 PNG / 7 张并排 / 三份日志所在 commit）由本仓库推送后在
-`ios.yml` 上跑权威腿，回执字段如下（**不得伪造**；推送由 Delivery 阶段执行，本 coding
-会话无 `git push` / `gh auth` 权限）：
+**基线 `a677e17` 的 `ios.yml` run 判红（2026-11-12 实查）**：
+
+| 字段 | 实取值 |
+|---|---|
+| run id | `43234566773` |
+| head sha | `a677e175ca56c113e13cf5d2f652781febeb1223` |
+| status / conclusion | `completed` / `failure` |
+| 失败步 | `test`（14:25:29Z–14:37:44Z，`test-logs` 成功、`build` skipped） |
+| 断言行 1 | `ios/PurePaceUITests/RunFlowUITests.swift:890: error: -[PurePaceUITests.RunFlowUITests testRunPauseResumeFinishAndHistory] : XCTAssertTrue failed - 暂停 指标区未垂直居中（顶部留白 73.41666666666669pt，底部留白 81.33333333333337pt，最大空洞 81.5pt）：["底部留白 81.33333333333337pt > 80.0pt", "最大单一垂直空洞 81.5pt > 80.0pt"]` |
+| 断言行 2 | `ios/PurePaceUITests/RunFlowUITests.swift:890: error: -[PurePaceUITests.RunFlowUITests testZhHansCopyDatesAndBottomAnchoredPrimaryAction] : XCTAssertTrue failed - 运行中 指标区未垂直居中（顶部留白 73.41666666666669pt，底部留白 81.33333333333337pt，最大空洞 81.5pt）：["底部留白 81.33333333333337pt > 80.0pt", "最大单一垂直空洞 81.5pt > 80.0pt"]` |
+
+该失败发生在产品视图 / `RunFlowUITests` 的版式判据，本项改动面（`ScreenshotEvidenceUITests.swift`、
+`scripts/**`、`docs/**`）不含该文件；按 ac-ci-no-weakening「基线 run 判红按失败腿原文作为阻塞上报，
+不得伪造绿」处理，已上报阻塞，不在此宣称权威绿。
+
+**证据 commit（本 README / 14 张 PNG / 7 张并排 / 三份日志所在 commit）**：本 coding 会话无
+`git push` / `gh auth` 权限，尚未推送，因此其 `ios.yml` run 不存在；推送后须由 Delivery 实取并回填：
 
 | 回执字段 | 取值 |
 |---|---|
