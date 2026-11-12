@@ -16,9 +16,27 @@ enum RunFinishedSummaryLayoutPolicy {
     /// 辅助字号档的地图预览高度：3 × `Spacing.xl`(32) = 96pt。
     static let accessibilityTrackPreviewHeight: CGFloat = 3 * DesignTokens.Spacing.xl
 
+    /// 标准字号档在可用内容区不足时的地图预览高度（实测口径 → 参数 → 复用点）。
+    ///
+    /// 实测（2026-11-12，iPhone 16 竖屏，标准字号档保存态）：`run.averagePace` 单位行底 492.7
+    /// → `run.finished.splits` 顶 620.7，最大单一垂直空洞 128pt；拆开为地图预览 96 + 区块间距 4
+    /// + 分段卡内边距 8 + 文本行盒 20。地图占比 75%，是空洞主因（间距已是最小档）。
+    /// 参数：要让空洞 ≤ 80pt，地图需 ≤ 48；取既有 `Spacing.xl`(32)，留 16pt 余量。
+    /// 复用点：仅标准字号档且 `compressesFinishedSummary == true` 的结束总结地图；
+    /// 辅助字号档仍用 96pt（AX5 可读性不变），标准未压缩档仍用 180pt。
+    static let budgetCompressedTrackPreviewHeight: CGFloat = DesignTokens.Spacing.xl
+
     /// 地图预览高度：辅助字号档压缩到 96pt，其余档位保持既有 180pt。
     static func trackPreviewHeight(isAccessibilitySize: Bool) -> CGFloat {
         isAccessibilitySize ? accessibilityTrackPreviewHeight : standardTrackPreviewHeight
+    }
+
+    /// 结束态地图高度：辅助字号档 96；标准字号档在预算不足时收到 32，预算充足时保 180。
+    static func trackPreviewHeight(compresses: Bool, isAccessibilitySize: Bool) -> CGFloat {
+        if isAccessibilitySize {
+            return accessibilityTrackPreviewHeight
+        }
+        return compresses ? budgetCompressedTrackPreviewHeight : standardTrackPreviewHeight
     }
 
     /// 未压缩结束态所需的最小内容区高度（实测口径 → 参数 → 复用点）。

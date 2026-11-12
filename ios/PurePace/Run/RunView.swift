@@ -218,7 +218,12 @@ struct RunView: View {
                 emptyIdentifier: "run.mapEmpty",
                 singlePointIdentifier: "run.mapEmpty.single"
             )
-            .frame(height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(isAccessibilitySize: compresses))
+            .frame(
+                height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(
+                    compresses: compresses,
+                    isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                )
+            )
             splitsDetail(compresses: compresses)
         }
     }
