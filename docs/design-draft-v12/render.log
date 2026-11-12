@@ -1,0 +1,250 @@
+== a1-run-not-started appearance=light file=a1-run-not-started
+designDraft.screen a1-run-not-started scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-run-not-started run.content w=80.0 h=782.3
+designDraft.height a1-run-not-started run.metrics w=48.0 h=303.7
+designDraft.height a1-run-not-started run.hero w=48.0 h=211.7
+designDraft.height a1-run-not-started run.content w=393.0 h=551.3
+designDraft.height a1-run-not-started run.metrics w=361.0 h=166.3
+designDraft.height a1-run-not-started run.hero w=361.0 h=135.3
+designDraft.ready a1-run-not-started
+== a1-run-running appearance=light file=a1-run-running
+designDraft.screen a1-run-running scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-run-running run.content w=80.0 h=786.3
+designDraft.height a1-run-running run.metrics w=48.0 h=298.7
+designDraft.height a1-run-running run.hero w=48.0 h=211.7
+designDraft.height a1-run-running run.content w=393.0 h=551.3
+designDraft.height a1-run-running run.metrics w=361.0 h=187.7
+designDraft.height a1-run-running run.hero w=361.0 h=135.3
+designDraft.ready a1-run-running
+== a1-run-finished appearance=light file=a1-run-finished
+designDraft.screen a1-run-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-run-finished run.content w=120.0 h=918.3
+designDraft.height a1-run-finished run.splits w=88.0 h=239.3
+designDraft.height a1-run-finished run.map w=88.0 h=96.0
+designDraft.height a1-run-finished run.metrics w=88.0 h=197.3
+designDraft.height a1-run-finished run.hero w=88.0 h=211.7
+designDraft.height a1-run-finished run.content w=393.0 h=568.3
+designDraft.height a1-run-finished run.splits w=361.0 h=90.0
+designDraft.height a1-run-finished run.map w=361.0 h=96.0
+designDraft.height a1-run-finished run.metrics w=361.0 h=155.7
+designDraft.height a1-run-finished run.hero w=361.0 h=135.3
+designDraft.ready a1-run-finished
+== a1-history-list appearance=light file=a1-history-list
+designDraft.screen a1-history-list scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-history-list history.row w=361.0 h=101.7
+designDraft.height a1-history-list history.row w=361.3 h=101.7
+designDraft.height a1-history-list history.row w=361.0 h=101.7
+designDraft.ready a1-history-list
+== a1-history-detail appearance=light file=a1-history-detail
+designDraft.screen a1-history-detail scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-history-detail detail.splits w=353.0 h=88.0
+designDraft.height a1-history-detail detail.map w=353.0 h=232.0
+designDraft.height a1-history-detail detail.metrics w=353.0 h=117.7
+designDraft.height a1-history-detail detail.distance w=353.0 h=128.3
+designDraft.ready a1-history-detail
+== a1-settings appearance=light file=a1-settings
+designDraft.screen a1-settings scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a1-settings settings.toggleRow w=361.0 h=85.7
+designDraft.ready a1-settings
+== a2-run-not-started appearance=light file=a2-run-not-started
+designDraft.screen a2-run-not-started scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-run-not-started run.content w=80.0 h=782.3
+designDraft.height a2-run-not-started run.metrics w=48.0 h=303.7
+designDraft.height a2-run-not-started run.hero w=48.0 h=211.7
+designDraft.height a2-run-not-started run.content w=393.0 h=551.3
+designDraft.height a2-run-not-started run.metrics w=361.0 h=166.3
+designDraft.height a2-run-not-started run.hero w=361.0 h=135.3
+designDraft.ready a2-run-not-started
+== a2-run-running appearance=light file=a2-run-running
+designDraft.screen a2-run-running scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-run-running run.content w=80.0 h=786.3
+designDraft.height a2-run-running run.metrics w=48.0 h=298.7
+designDraft.height a2-run-running run.hero w=48.0 h=211.7
+designDraft.height a2-run-running run.content w=393.0 h=551.3
+designDraft.height a2-run-running run.metrics w=361.0 h=187.7
+designDraft.height a2-run-running run.hero w=361.0 h=135.3
+designDraft.ready a2-run-running
+== a2-run-finished appearance=light file=a2-run-finished
+designDraft.screen a2-run-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-run-finished run.content w=120.0 h=918.3
+designDraft.height a2-run-finished run.splits w=88.0 h=239.3
+designDraft.height a2-run-finished run.map w=88.0 h=96.0
+designDraft.height a2-run-finished run.metrics w=88.0 h=197.3
+designDraft.height a2-run-finished run.hero w=88.0 h=211.7
+designDraft.height a2-run-finished run.content w=393.0 h=568.3
+designDraft.height a2-run-finished run.splits w=361.0 h=90.0
+designDraft.height a2-run-finished run.map w=361.0 h=96.0
+designDraft.height a2-run-finished run.metrics w=361.0 h=155.7
+designDraft.height a2-run-finished run.hero w=361.0 h=135.3
+designDraft.ready a2-run-finished
+== a2-history-list appearance=light file=a2-history-list
+designDraft.screen a2-history-list scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-history-list history.row w=361.0 h=101.7
+designDraft.height a2-history-list history.row w=361.3 h=101.7
+designDraft.height a2-history-list history.row w=361.0 h=101.7
+designDraft.ready a2-history-list
+== a2-history-detail appearance=light file=a2-history-detail
+designDraft.screen a2-history-detail scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-history-detail detail.splits w=353.0 h=88.0
+designDraft.height a2-history-detail detail.map w=353.0 h=232.0
+designDraft.height a2-history-detail detail.metrics w=353.0 h=117.7
+designDraft.height a2-history-detail detail.distance w=353.0 h=128.3
+designDraft.ready a2-history-detail
+== a2-settings appearance=light file=a2-settings
+designDraft.screen a2-settings scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height a2-settings settings.toggleRow w=361.0 h=85.7
+designDraft.ready a2-settings
+== b1-finished appearance=light file=b1-finished-light
+designDraft.screen b1-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height b1-finished screen.actionBar w=136.0 h=68.0
+designDraft.height b1-finished screen.content w=136.3 h=698.3
+designDraft.height b1-finished finished.hint w=95.0 h=54.7
+designDraft.height b1-finished finished.splits w=104.3 h=114.0
+designDraft.height b1-finished finished.metrics w=104.3 h=130.7
+designDraft.height b1-finished finished.map w=104.3 h=360.0
+designDraft.height b1-finished screen.actionBar w=393.0 h=68.0
+designDraft.height b1-finished screen.content w=393.0 h=667.3
+designDraft.height b1-finished finished.hint w=196.3 h=23.7
+designDraft.height b1-finished finished.splits w=361.0 h=114.0
+designDraft.height b1-finished finished.metrics w=361.0 h=117.7
+designDraft.height b1-finished finished.map w=361.0 h=360.0
+designDraft.ready b1-finished
+== b1-finished appearance=dark file=b1-finished-dark
+designDraft.screen b1-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height b1-finished screen.actionBar w=136.0 h=68.0
+designDraft.height b1-finished screen.content w=136.3 h=698.3
+designDraft.height b1-finished finished.hint w=95.0 h=54.7
+designDraft.height b1-finished finished.splits w=104.3 h=114.0
+designDraft.height b1-finished finished.metrics w=104.3 h=130.7
+designDraft.height b1-finished finished.map w=104.3 h=360.0
+designDraft.height b1-finished screen.actionBar w=393.0 h=68.0
+designDraft.height b1-finished screen.content w=393.0 h=667.3
+designDraft.height b1-finished finished.hint w=196.3 h=23.7
+designDraft.height b1-finished finished.splits w=361.0 h=114.0
+designDraft.height b1-finished finished.metrics w=361.0 h=117.7
+designDraft.height b1-finished finished.map w=361.0 h=360.0
+designDraft.ready b1-finished
+== b2-finished appearance=light file=b2-finished-light
+designDraft.screen b2-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height b2-finished screen.actionBar w=114.7 h=68.0
+designDraft.height b2-finished screen.content w=114.7 h=504.3
+designDraft.height b2-finished finished.hint w=82.3 h=70.3
+designDraft.height b2-finished finished.metrics w=82.7 h=117.7
+designDraft.height b2-finished finished.summary w=82.7 h=60.0
+designDraft.height b2-finished finished.map w=82.7 h=220.0
+designDraft.height b2-finished screen.actionBar w=393.0 h=68.0
+designDraft.height b2-finished screen.content w=393.0 h=600.3
+designDraft.height b2-finished finished.hint w=196.3 h=23.7
+designDraft.height b2-finished finished.metrics w=361.0 h=117.7
+designDraft.height b2-finished finished.summary w=361.0 h=60.0
+designDraft.height b2-finished finished.map w=361.0 h=220.0
+designDraft.height b2-finished screen.content w=393.0 h=652.3
+designDraft.ready b2-finished
+== b2-finished appearance=dark file=b2-finished-dark
+designDraft.screen b2-finished scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height b2-finished screen.actionBar w=114.7 h=68.0
+designDraft.height b2-finished screen.content w=114.7 h=504.3
+designDraft.height b2-finished finished.hint w=82.3 h=70.3
+designDraft.height b2-finished finished.metrics w=82.7 h=117.7
+designDraft.height b2-finished finished.summary w=82.7 h=60.0
+designDraft.height b2-finished finished.map w=82.7 h=220.0
+designDraft.height b2-finished screen.actionBar w=393.0 h=68.0
+designDraft.height b2-finished screen.content w=393.0 h=600.3
+designDraft.height b2-finished finished.hint w=196.3 h=23.7
+designDraft.height b2-finished finished.metrics w=361.0 h=117.7
+designDraft.height b2-finished finished.summary w=361.0 h=60.0
+designDraft.height b2-finished finished.map w=361.0 h=220.0
+designDraft.height b2-finished screen.content w=393.0 h=652.3
+designDraft.ready b2-finished
+== b2-finished-expanded appearance=light file=<measure-only>
+designDraft.screen b2-finished-expanded scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height b2-finished-expanded screen.actionBar w=114.7 h=68.0
+designDraft.height b2-finished-expanded screen.content w=114.7 h=631.0
+designDraft.height b2-finished-expanded finished.hint w=82.3 h=70.3
+designDraft.height b2-finished-expanded finished.metrics w=83.0 h=143.7
+designDraft.height b2-finished-expanded finished.summary w=83.0 h=171.0
+designDraft.height b2-finished-expanded finished.splits w=83.0 h=103.0
+designDraft.height b2-finished-expanded finished.map w=83.0 h=220.0
+designDraft.height b2-finished-expanded screen.actionBar w=393.0 h=68.0
+designDraft.height b2-finished-expanded screen.content w=393.0 h=600.3
+designDraft.height b2-finished-expanded finished.hint w=196.3 h=23.7
+designDraft.height b2-finished-expanded finished.metrics w=361.0 h=117.7
+designDraft.height b2-finished-expanded finished.summary w=361.0 h=171.0
+designDraft.height b2-finished-expanded finished.splits w=361.0 h=103.0
+designDraft.height b2-finished-expanded finished.map w=361.0 h=220.0
+designDraft.height b2-finished-expanded screen.content w=393.0 h=652.3
+designDraft.ready b2-finished-expanded
+== c1-discard appearance=light file=c1-discard-light
+designDraft.screen c1-discard scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height c1-discard sheet.panel w=393.0 h=210.0
+designDraft.height c1-discard sheet.primary w=361.0 h=44.0
+designDraft.height c1-discard sheet.title w=125.0 h=24.0
+designDraft.height c1-discard screen.actionBar w=114.7 h=68.0
+designDraft.height c1-discard screen.content w=114.7 h=504.3
+designDraft.height c1-discard finished.hint w=82.3 h=70.3
+designDraft.height c1-discard finished.metrics w=82.7 h=117.7
+designDraft.height c1-discard finished.summary w=82.7 h=60.0
+designDraft.height c1-discard finished.map w=82.7 h=220.0
+designDraft.height c1-discard screen.actionBar w=393.0 h=68.0
+designDraft.height c1-discard screen.content w=393.0 h=600.3
+designDraft.height c1-discard finished.hint w=196.3 h=23.7
+designDraft.height c1-discard finished.metrics w=361.0 h=117.7
+designDraft.height c1-discard finished.summary w=361.0 h=60.0
+designDraft.height c1-discard finished.map w=361.0 h=220.0
+designDraft.height c1-discard screen.content w=393.0 h=652.3
+designDraft.ready c1-discard
+== c1-discard appearance=dark file=c1-discard-dark
+designDraft.screen c1-discard scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height c1-discard sheet.panel w=393.0 h=210.0
+designDraft.height c1-discard sheet.primary w=361.0 h=44.0
+designDraft.height c1-discard sheet.title w=125.0 h=24.0
+designDraft.height c1-discard screen.actionBar w=114.7 h=68.0
+designDraft.height c1-discard screen.content w=114.7 h=504.3
+designDraft.height c1-discard finished.hint w=82.3 h=70.3
+designDraft.height c1-discard finished.metrics w=82.7 h=117.7
+designDraft.height c1-discard finished.summary w=82.7 h=60.0
+designDraft.height c1-discard finished.map w=82.7 h=220.0
+designDraft.height c1-discard screen.actionBar w=393.0 h=68.0
+designDraft.height c1-discard screen.content w=393.0 h=600.3
+designDraft.height c1-discard finished.hint w=196.3 h=23.7
+designDraft.height c1-discard finished.metrics w=361.0 h=117.7
+designDraft.height c1-discard finished.summary w=361.0 h=60.0
+designDraft.height c1-discard finished.map w=361.0 h=220.0
+designDraft.height c1-discard screen.content w=393.0 h=652.3
+designDraft.ready c1-discard
+== c2-discard appearance=light file=c2-discard-light
+designDraft.screen c2-discard scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height c2-discard sheet.panel w=393.0 h=143.7
+designDraft.height c2-discard sheet.title w=125.0 h=24.0
+designDraft.height c2-discard screen.actionBar w=114.7 h=68.0
+designDraft.height c2-discard screen.content w=114.7 h=504.3
+designDraft.height c2-discard finished.hint w=82.3 h=70.3
+designDraft.height c2-discard finished.metrics w=82.7 h=117.7
+designDraft.height c2-discard finished.summary w=82.7 h=60.0
+designDraft.height c2-discard finished.map w=82.7 h=220.0
+designDraft.height c2-discard screen.actionBar w=393.0 h=68.0
+designDraft.height c2-discard screen.content w=393.0 h=600.3
+designDraft.height c2-discard finished.hint w=196.3 h=23.7
+designDraft.height c2-discard finished.metrics w=361.0 h=117.7
+designDraft.height c2-discard finished.summary w=361.0 h=60.0
+designDraft.height c2-discard finished.map w=361.0 h=220.0
+designDraft.height c2-discard screen.content w=393.0 h=652.3
+designDraft.ready c2-discard
+== c2-discard appearance=dark file=c2-discard-dark
+designDraft.screen c2-discard scale=3.0 pt=393.0x759.0 px=1179x2277
+designDraft.height c2-discard sheet.panel w=393.0 h=143.7
+designDraft.height c2-discard sheet.title w=125.0 h=24.0
+designDraft.height c2-discard screen.actionBar w=114.7 h=68.0
+designDraft.height c2-discard screen.content w=114.7 h=504.3
+designDraft.height c2-discard finished.hint w=82.3 h=70.3
+designDraft.height c2-discard finished.metrics w=82.7 h=117.7
+designDraft.height c2-discard finished.summary w=82.7 h=60.0
+designDraft.height c2-discard finished.map w=82.7 h=220.0
+designDraft.height c2-discard screen.actionBar w=393.0 h=68.0
+designDraft.height c2-discard screen.content w=393.0 h=600.3
+designDraft.height c2-discard finished.hint w=196.3 h=23.7
+designDraft.height c2-discard finished.metrics w=361.0 h=117.7
+designDraft.height c2-discard finished.summary w=361.0 h=60.0
+designDraft.height c2-discard finished.map w=361.0 h=220.0
+designDraft.height c2-discard screen.content w=393.0 h=652.3
+designDraft.ready c2-discard
