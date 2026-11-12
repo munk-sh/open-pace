@@ -1,56 +1,56 @@
-Attributes: Application, 0x105970670, pid: 66346, label: 'PurePace'
+Attributes: Application, 0x110012530, pid: 72623, label: 'PurePace'
 Element subtree:
- →Application, 0x105970670, pid: 66346, label: 'PurePace'
-    Window (Main), 0x105905390, {{0.0, 0.0}, {393.0, 852.0}}
-      Other, 0x105905c70, {{0.0, 0.0}, {393.0, 852.0}}
-        Other, 0x10590da60, {{0.0, 0.0}, {393.0, 852.0}}
-          Other, 0x10590eee0, {{0.0, 0.0}, {393.0, 852.0}}
-            Other, 0x1059058f0, {{0.0, 0.0}, {393.0, 852.0}}
-              Other, 0x10590e840, {{0.0, 0.0}, {393.0, 852.0}}
-                Other, 0x10590bf50, {{0.0, 0.0}, {393.0, 852.0}}
-                  Other, 0x10590fb50, {{0.0, 0.0}, {393.0, 852.0}}
-                    Other, 0x10590fec0, {{0.0, 0.0}, {393.0, 852.0}}
-                      Other, 0x1059110b0, {{0.0, 0.0}, {393.0, 852.0}}
-                        Other, 0x105911400, {{0.0, 0.0}, {393.0, 852.0}}
-                          Other, 0x105918760, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
-                            NavigationBar, 0x105918ac0, {{0.0, 53.7}, {393.0, 96.0}}, identifier: '历史'
-                              StaticText, 0x105918e10, {{16.0, 101.3}, {64.7, 40.7}}, label: '历史'
-                            Other, 0x105919190, {{0.0, 0.0}, {393.0, 852.0}}
-                              Other, 0x105919530, {{0.0, 0.0}, {393.0, 852.0}}
-                                Other, 0x1059198a0, {{0.0, 0.0}, {393.0, 852.0}}
-                                  Other, 0x105919c00, {{0.0, 0.0}, {393.0, 852.0}}
-                                    CollectionView, 0x105919f60, {{0.0, 0.0}, {393.0, 852.0}}
-                                      Other, 0x10591a2d0, {{0.0, -1554.3}, {393.0, 3519.3}}
-                                      Cell, 0x10591a610, {{0.0, 149.7}, {393.0, 111.3}}
-                                        Other, 0x10591a970, {{0.0, 149.7}, {393.0, 111.3}}
-                                          Other, 0x10591acd0, {{0.0, 149.7}, {393.0, 111.3}}
-                                            Other, 0x10591b050, {{0.0, 149.7}, {393.0, 111.3}}
-                                        Other, 0x10591b3c0, {{0.0, 149.7}, {393.0, 111.3}}
-                                          Other, 0x10591b740, {{0.0, 149.7}, {393.0, 111.3}}
-                                            Other, 0x10591bad0, {{0.0, 149.7}, {393.0, 111.3}}
-                                              Button, 0x10591be20, {{0.0, 149.7}, {393.0, 111.3}}, identifier: 'history.row', label: '2026年11月11日 15:17，0.31 km，00:31，1:40 /km'
-                                                StaticText, 0x10591c1c0, {{15.5, 157.2}, {343.7, 96.3}}, label: '2026年11月11日 15:17，0.31 km，00:31，1:40 /km'
-                                                  StaticText, 0x10591c540, {{28.0, 169.7}, {204.0, 24.0}}, label: '2026年11月11日 15:17'
-                                                  StaticText, 0x10591c8d0, {{28.0, 201.7}, {56.7, 18.0}}, label: '0.31 km'
-                                                  StaticText, 0x10591cc30, {{28.0, 227.7}, {22.0, 13.3}}, label: '距离'
-                                                  StaticText, 0x10591cfa0, {{139.6, 201.7}, {41.3, 18.0}}, label: '00:31'
-                                                  StaticText, 0x10591d310, {{139.6, 227.7}, {22.0, 13.3}}, label: '用时'
-                                                  StaticText, 0x10591d690, {{251.1, 201.7}, {61.0, 18.0}}, label: '1:40 /km'
-                                                  StaticText, 0x10591da00, {{251.1, 227.7}, {44.0, 13.3}}, label: '平均配速'
-                                                Image, 0x10591dd60, {{369.3, 199.0}, {7.0, 12.0}}, identifier: 'chevron.forward'
-                                      Other, 0x10591e0b0, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
-                                        Other, 0x10591e430, {{387.0, 759.0}, {3.0, 7.0}}
-                                      Other, 0x10591e7b0, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
-                                        Other, 0x10591eb00, {{387.0, 759.0}, {3.0, 7.0}}
-                TabBar, 0x10591ee70, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
-                  Button, 0x10591f1e0, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
-                  Button, 0x10591f540, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史', Selected
-                    Image, 0x10591f8a0, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
-                  Button, 0x10591fc10, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
+ →Application, 0x110012530, pid: 72623, label: 'PurePace'
+    Window (Main), 0x11000a1d0, {{0.0, 0.0}, {393.0, 852.0}}
+      Other, 0x1100109c0, {{0.0, 0.0}, {393.0, 852.0}}
+        Other, 0x110010ae0, {{0.0, 0.0}, {393.0, 852.0}}
+          Other, 0x110009720, {{0.0, 0.0}, {393.0, 852.0}}
+            Other, 0x11000a840, {{0.0, 0.0}, {393.0, 852.0}}
+              Other, 0x11000daf0, {{0.0, 0.0}, {393.0, 852.0}}
+                Other, 0x110004820, {{0.0, 0.0}, {393.0, 852.0}}
+                  Other, 0x1100094e0, {{0.0, 0.0}, {393.0, 852.0}}
+                    Other, 0x110009600, {{0.0, 0.0}, {393.0, 852.0}}
+                      Other, 0x11000a600, {{0.0, 0.0}, {393.0, 852.0}}
+                        Other, 0x11000a720, {{0.0, 0.0}, {393.0, 852.0}}
+                          Other, 0x11000bc30, {{0.0, 0.0}, {393.0, 852.0}}, identifier: 'tab.history'
+                            NavigationBar, 0x11000bd50, {{0.0, 53.7}, {393.0, 96.0}}, identifier: '历史'
+                              StaticText, 0x11000be70, {{16.0, 101.3}, {64.7, 40.7}}, label: '历史'
+                            Other, 0x11000bf90, {{0.0, 0.0}, {393.0, 852.0}}
+                              Other, 0x11000c0b0, {{0.0, 0.0}, {393.0, 852.0}}
+                                Other, 0x11000c1d0, {{0.0, 0.0}, {393.0, 852.0}}
+                                  Other, 0x11000c2f0, {{0.0, 0.0}, {393.0, 852.0}}
+                                    CollectionView, 0x11000c410, {{0.0, 0.0}, {393.0, 852.0}}
+                                      Other, 0x11000c530, {{0.0, -1554.3}, {393.0, 3519.3}}
+                                      Cell, 0x11000c650, {{0.0, 149.7}, {393.0, 111.3}}
+                                        Other, 0x11000c770, {{0.0, 149.7}, {393.0, 111.3}}
+                                          Other, 0x11000c890, {{0.0, 149.7}, {393.0, 111.3}}
+                                            Other, 0x11000c9b0, {{0.0, 149.7}, {393.0, 111.3}}
+                                        Other, 0x11000cad0, {{0.0, 149.7}, {393.0, 111.3}}
+                                          Other, 0x11000cbf0, {{0.0, 149.7}, {393.0, 111.3}}
+                                            Other, 0x11000cd10, {{0.0, 149.7}, {393.0, 111.3}}
+                                              Button, 0x11000ae60, {{0.0, 149.7}, {393.0, 111.3}}, identifier: 'history.row', label: '2026年11月12日 12:58，0.31 km，00:31，1:40 /km'
+                                                StaticText, 0x11000af80, {{15.5, 157.2}, {343.7, 96.3}}, label: '2026年11月12日 12:58，0.31 km，00:31，1:40 /km'
+                                                  StaticText, 0x11000b0a0, {{28.0, 169.7}, {211.0, 24.0}}, label: '2026年11月12日 12:58'
+                                                  StaticText, 0x11000b1c0, {{28.0, 201.7}, {56.7, 18.0}}, label: '0.31 km'
+                                                  StaticText, 0x11000b2e0, {{28.0, 227.7}, {22.0, 13.3}}, label: '距离'
+                                                  StaticText, 0x11000b400, {{139.6, 201.7}, {41.3, 18.0}}, label: '00:31'
+                                                  StaticText, 0x11000b520, {{139.6, 227.7}, {22.0, 13.3}}, label: '用时'
+                                                  StaticText, 0x11000b640, {{251.1, 201.7}, {61.0, 18.0}}, label: '1:40 /km'
+                                                  StaticText, 0x11000b760, {{251.1, 227.7}, {44.0, 13.3}}, label: '平均配速'
+                                                Image, 0x11000b880, {{369.3, 199.0}, {7.0, 12.0}}, identifier: 'chevron.forward'
+                                      Other, 0x11000dee0, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x11000e000, {{387.0, 759.0}, {3.0, 7.0}}
+                                      Other, 0x11000e120, {{360.0, 103.0}, {30.0, 666.0}}, label: '垂直滚动条, 1页', value: 0%
+                                        Other, 0x11000e240, {{387.0, 759.0}, {3.0, 7.0}}
+                TabBar, 0x11000e360, {{0.0, 769.0}, {393.0, 83.0}}, label: '标签页栏'
+                  Button, 0x11000e480, {{2.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.run', label: '跑步'
+                  Button, 0x11000e5a0, {{133.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.history', label: '历史', Selected
+                    Image, 0x11000e6c0, {{182.3, 774.0}, {27.7, 27.3}}, identifier: 'clock.arrow.trianglehead.counterclockwise.rotate.90', label: 'clock.arrow.trianglehead.counterclockwise.rotate.90'
+                  Button, 0x11000e7e0, {{264.0, 770.0}, {127.0, 48.0}}, identifier: 'tab.settings', label: '设置'
 Path to element:
- →Application, 0x105970670, pid: 66346, label: 'PurePace'
+ →Application, 0x110012530, pid: 72623, label: 'PurePace'
 Query chain:
  →Find: Target Application 'sh.munk.purepace'
   Output: {
-    Application, 0x105e0fe20, pid: 66346, label: 'PurePace'
+    Application, 0x117505a60, pid: 72623, label: 'PurePace'
   }

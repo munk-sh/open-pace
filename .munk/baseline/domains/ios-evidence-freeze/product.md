@@ -1,33 +1,46 @@
 # Domain: ios-evidence-freeze
 
-PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可复核、可复算的模拟器证据——12 张浅/深真实 `simctl` 截图（`docs/screenshots/`）、六棵新构建可及树（`docs/evidence/a11y/`）、AX5 最大辅助字号实拍与 frame 实测（`docs/evidence/evidence-freeze/ax5/`），以及只含实测事实、路径、命令、sha256 与退出码的 digest（`docs/evidence/evidence-freeze/digest.md`）。本域只产证据，不改产品面：业务逻辑、文案键值、`DesignTokens` 取值、`.munk/code-gates.json` 门列表均为只读。唯一例外（2026-11-12 起）是结束态 AX5 溢出的共享布局策略 `RunFinishedSummaryLayoutPolicy`，只在辅助字号档生效、标准档取值不变。证据采集入口 `scripts/capture-ios-screenshots.sh --stage all`，取证用例 `ios/PurePaceUITests/EvidenceCaptureUITests.swift`。
+PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可复核、可复算的模拟器证据——14 张浅/深 UI 测试实拍截图（`docs/screenshots/`，6 屏 × 浅/深 + 结束态丢弃确认浅/深）、六棵新构建可及树（`docs/evidence/a11y/`）、AX5 最大辅助字号实拍与 frame 实测（`docs/evidence/evidence-freeze/ax5/`），以及只含实测事实、路径、命令、sha256 与退出码的 digest（`docs/evidence/evidence-freeze/digest.md`）。本域只产证据，不改产品面：业务逻辑、文案键值、`DesignTokens` 取值、`.munk/code-gates.json` 门列表均为只读。唯一例外（2026-11-12 起）是结束态 AX5 溢出的共享布局策略 `RunFinishedSummaryLayoutPolicy`，只在辅助字号档生效、标准档取值不变。证据采集入口 `scripts/capture-ios-screenshots.sh --stage all`（截图阶段与只读 `verify` 自检同脚本）；取证用例 `ios/PurePaceUITests/EvidenceCaptureUITests.swift`（六树 / AX5）与 `ios/PurePaceUITests/ScreenshotEvidenceUITests.swift`（14 张截图）；截图重出登记与日志落 `docs/evidence/screenshot-refresh/`。
 
 ## 范围
 
-- `docs/screenshots/`：六屏（`run-not-started` / `run-running` / `run-finished` / `history-list` / `history-detail` / `settings`）× 浅/深 = 12 张 PNG，命名 `<screen>.png` 与 `<screen>-dark.png`，同一台模拟器原生竖屏分辨率；`history-empty.png` 退役（历史列表改真实归档列表），`SHA256SUMS` 为逐文件 sha256 + 最近改动 commit 登记。
+- `docs/screenshots/`：六屏（`run-not-started` / `run-running` / `run-finished` / `history-list` / `history-detail` / `settings`）× 浅/深 = 12 张，加结束态丢弃确认层 `discard-confirmation.png` / `discard-confirmation-dark.png`，共 14 张 PNG；命名 `<screen>.png` 与 `<screen>-dark.png`，同一台模拟器原生竖屏分辨率、无裁切/改色/再编码；取图链路为 `XCUIScreen.main.screenshot()` → `XCTAttachment(name:)`（`lifetime = .keepAlways`）→ `xcrun xcresulttool export attachments` 直接写入本目录（附件名即文件名，导出后不改名）；`history-empty.png` 退役（历史列表改真实归档列表），`SHA256SUMS` 为 14 行逐文件 sha256 + 头部登记构建 head sha。
+- `docs/evidence/screenshot-refresh/`：本批截图的重出登记——`README.md`（构建 head sha、模拟器 UDID/runtime、xcodebuild 命令、断言源 `ios/PurePaceUITests/ScreenshotEvidenceUITests.swift`、脚本路径、日志路径、14 张逐图 sha 与来源、旧/新 sha 对照、`git merge-base --is-ancestor` 实测输出、边界声明「人肉眼验收待办」）、`capture.log`、`xcodebuild-light.log`、`xcodebuild-dark.log`、`SHA256SUMS`（覆盖 14 张 PNG 与入库日志）；运行原始 xcresult 仍只落 `.build/evidence/`（不入库）。
 - `docs/evidence/a11y/`：恰六棵与六屏一一对应的可及树（`01-run-not-started` / `02-run-running` / `03-run-finished` / `04-history-list` / `05-history-detail` / `06-settings`），由 `XCTAttachment(string: app.debugDescription)` 产出并 `xcrun xcresulttool export attachments` 导出；不对应六屏的旧树（`03-history-empty` / `06-tabs`）不在该目录。
 - `docs/evidence/evidence-freeze/ax5/`：`content_size accessibility-extra-extra-extra-large` 档下 4 张关键屏实拍（Run 首屏 / 结束总结 / History 详情 / Settings）与同档实测树。
 - `docs/evidence/evidence-freeze/digest.md`：预算回执、环境与构建、逐张生成命令、History 归档来源、六树与「一屏一主操作」清单、AX5 frame 实测、Dynamic Type 既有口径、22 门退出码、commit 绑定、改动范围。
 - `docs/evidence/ax5-order-independence/digest.md`：AX5 取证腿顺序无关回执，含「干净容器单用例绿 / 同容器整包腿状态 / 反例与正向对照」三条口径，只写实测事实、日志文件名与未修清单。
-- `scripts/capture-ios-screenshots.sh`：唯一采集入口（`--stage all|shots|trees|ax5`），只用 `xcrun simctl` / `xcodebuild`，不做后处理。
+- `scripts/capture-ios-screenshots.sh`：唯一采集入口（`--stage all|trees|screenshots|ax5|verify`），只用 `xcrun simctl` / `xcodebuild`，不做后处理；`screenshots` 阶段设 `simctl ui appearance light|dark` 后分别 `-only-testing` 调起 `ScreenshotEvidenceUITests` 两个方法，导出后重写 `docs/screenshots/SHA256SUMS` 并登记构建 head sha；`verify` 阶段只读校验 14 张命名、SHA 清单与 `shasum -c`、旧 sha 零复用、六树、AX5 4+4 与 README 必填项；`all` 仍按 trees → screenshots → ax5。
+- `ios/PurePaceUITests/ScreenshotEvidenceUITests.swift`：14 张截图的唯一驱动（`testEvidenceScreensLight` / `testEvidenceScreensDark` 共用 `captureAllScreens()`；浅/深只由宿主机 `appearance` 区分），截图前断言 `run.mapPreview` 在可见区、逐屏跑 `VisibleTextPolicy` zh-Hans 判定；**不进 CI UI 腿**，只由采集脚本显式 `-only-testing` 调起。
 - `ios/PurePaceUITests/EvidenceCaptureUITests.swift`：取证用例（真实记录链路造归档、六树导出、AX5 布局实测、主操作记录）。
 - DEBUG-only 截图门控：`ios/PurePace/Run/RunLaunchArguments.swift` 的 `-screenshotRunFinished`（配合 `-autoStartRecording`，真实采样约 30s 后结束到待保存总结态、不落盘、`#if DEBUG` 内）与既有 `-screenshotInitialTab` / `-screenshotOpenRunDetail` / `-autoStartRecording` / `-uiTestLocation` / `-uiTestResetArchive`；`-screenshotHistoryDemo` 本域禁用。
-- `README.md`：仅图集数量与描述（「完整 12 张：六屏浅色与深色」），其余章节不动。
+- `README.md`：仅图集数量与描述（「完整 14 张：六屏浅色与深色 + 结束态丢弃确认浅/深各 1 张」）与指向 `docs/evidence/screenshot-refresh/README.md` 的一句链接，其余章节不动。
 
 ## 验收
 
-- ac-screenshot-set-12: `docs/screenshots/` 存在本项产出的 12 张 PNG，覆盖六屏 × 浅/深无缺项；浅色 `<screen>.png`、深色 `<screen>-dark.png`，`screen` ∈ {`run-not-started`, `run-running`, `run-finished`, `history-list`, `history-detail`, `settings`}；每张为同一模拟器原生竖屏分辨率（与实取 `simctl` 截图尺寸逐张相等，无后处理缩放）。
-- ac-same-simulator-os: digest 记录唯一 UDID 与唯一 runtime（版本号 + build），12 张截图与 6 棵可及树的采集命令中 UDID 完全一致；证据命令中不出现第二台设备或第二个 runtime。
-- ac-real-simctl-capture: 每张截图由 `xcrun simctl io <udid> screenshot` 实取，digest 逐张贴出完整命令（含 `appearance` 设置命令）；截图未经手绘、改色、裁切或再编码（digest 记录该图 sha256 与 `simctl` 输出文件 sha256 相等，且不存在中间编辑产物）。
-- ac-history-from-real-archive: History 列表与详情的截图和可及树显示的跑次，来自本机一次真实记录链路产生的归档——digest 给出容器内归档文件路径与 mtime，并给出该归档记录的开始时间/距离，与列表、详情中的可见值逐项相等；证据生成命令中 `-screenshotHistoryDemo` 出现次数为 0（贴出命令原文与 grep 结果）。
+- ac-screenshot-set-14: `docs/screenshots/` 恰有本批产出的 14 张 PNG——6 屏浅色 `<screen>.png`、深色 `<screen>-dark.png`（`screen` ∈ {`run-not-started`, `run-running`, `run-finished`, `history-list`, `history-detail`, `settings`}）加 `discard-confirmation.png` / `discard-confirmation-dark.png`，无其它新增图片文件；每张为同一模拟器原生竖屏分辨率，无裁切、改色、再编码或缩放。
+- ac-all-fresh-from-head: 14 张均由 `scripts/capture-ios-screenshots.sh --stage screenshots` 在 clean 工作树（`git status --porcelain` 为空）的 `git rev-parse HEAD` 上经 `xcodebuild test-without-building -only-testing:PurePaceUITests/ScreenshotEvidenceUITests/...` 产出；`docs/evidence/screenshot-refresh/README.md` 记录该构建 head sha、构建命令、xcresult 路径与生成时间。
+- ac-palette-and-map-ancestry: README 记录 `git merge-base --is-ancestor 67ff54b HEAD` 与 `git merge-base --is-ancestor 22b84ab HEAD` 均退出 0（构建含 A 色板与 `TrackMapView`），并贴出实际命令与输出，不靠口述。
+- ac-no-reuse-old: 记录生成前 `docs/screenshots/SHA256SUMS` 的 12 个旧 sha；生成后 14 张中与任一旧 sha 相同的文件数为 0，且不存在由旧文件复制/改名而来的图片（README 给出旧/新 sha 对照；`--stage verify` 逐张比对同一份旧 sha 清单）。
+- ac-same-simulator-os: digest / README 记录唯一 UDID 与唯一 runtime（版本号 + build），14 张截图与 6 棵可及树的采集命令中 UDID 完全一致；证据命令中不出现第二台设备或第二个 runtime。
+- ac-xcuiscreen-attachment-capture: 每张截图由用例内 `XCUIScreen.main.screenshot()` → `XCTAttachment`（`lifetime = .keepAlways`，附件名即目标文件名）产出，再由 `xcrun xcresulttool export attachments` 直接导出到 `docs/screenshots/`；宿主侧不做改名、裁切、改色或再编码，`--stage screenshots` 只在导出后重写 SHA 清单。
+- ac-history-from-real-archive: 截图阶段的 History 列表与详情读取的跑次，来自同一会话内先跑完 `run.start → run.finish → run.save → run.saved` 并真实落盘到容器 `Documents/Runs/` 的归档（以 `-uiTestResetArchive` 保证干净容器起步、该跑次即列表唯一一条），不是演示注入；证据生成命令与用例源码中 `-screenshotHistoryDemo` 出现次数为 0（贴出命令原文与 grep 结果）。逐步可及树 / AX5 阶段的归档来源仍按既有 seed 口径。
 - ac-a11y-trees-six: `docs/evidence/a11y/` 下恰有六棵对应六屏的新构建可及树（`01-run-not-started` / `02-run-running` / `03-run-finished` / `04-history-list` / `05-history-detail` / `06-settings`），每棵包含该屏主操作的 identifier 与非空 label；旧集合中不对应六屏的树（`03-history-empty` / `06-tabs`）从该目录移除。
-- ac-one-primary-per-screen: digest 的「一屏一主操作」清单恰六行，每屏一行，列该屏主操作的 identifier 与可读 label，两者均非空；identifier 依次为 `run.start`（Run 首屏）/ `run.pause`（跑步中）/ `run.save`（结束总结）/ `history.row`（History 列表首行）/ `runDetail.export`（History 详情）/ `settings.announcementToggle`（Settings）；若新构建实测与此不符，按实测值记录并列明偏差，不得改写期望值或补造标识。
+- ac-one-primary-per-screen: digest / README 的「一屏一主操作」清单恰六行，每屏一行，列该屏主操作的 identifier 与可读 label，两者均非空；identifier 依次为 `run.start`（Run 首屏）/ `run.pause`（跑步中）/ `run.save`（结束总结）/ `history.row`（History 列表首行）/ `runDetail.export`（History 详情）/ `settings.announcementToggle`（Settings）；若新构建实测与此不符，按实测值记录并列明偏差，不得改写期望值或补造标识。
+- ac-map-asserted-before-capture: 截图 `run-finished` 与 `history-detail` 前，用例断言 `run.mapPreview` 存在、frame 非空且完整落在「窗口扣除固定底部主操作区」的可见区内（详情不足时先滚动 ≤4 次再判），断言通过后才调 `XCUIScreen` 截图；两屏日志各有 `evidence-map screen=... identifier=run.mapPreview frame=... visible=...` 且与对应 PNG 一一对应。
+- ac-zh-hans-six-screens: 6 屏逐屏以 `VisibleTextPolicy.violations` 判定可见文案（地图卡内部注记按 `RunFlowUITests` 既有口径过滤、`run.telemetry` 与 SF Symbol 标识排除），日志出现 6 条 `ac-visible-copy-zh-hans screen=... violations=0`；允许的拉丁 token 仅 `/km`、`km`、`GPX`、`PurePace`，其余 ASCII 字母即判红。
+- ac-discard-confirmation: 2 张确认层截图均来自结束态 `run.discardRequest` 打开的 sheet；截图前断言 sheet 同时含 `run.discard` 与 `run.discardCancel` 且 label 非空；README 以 `grep -rn '\.sheet(' ios/PurePace`（实测 1 处）说明仓内确认层仅此一个，并注明取「结束态丢弃确认」。
+- ac-light-dark-same-flow: 浅/深两轮共用同一 `captureAllScreens()` 驱动，仅宿主机 `simctl ui appearance` 不同；每屏两版都命中同一主操作 identifier（`run.start` / `run.pause` / `run.save` / `history.row` / `runDetail.export` / `settings.announcementToggle`），不允许缺一版或只出一种外观。
+- ac-ax5-refreshed: `docs/evidence/evidence-freeze/ax5/` 下 4 张 AX5 实拍与 4 棵实测树由本项构建重出，脚本日志记录 `content_size` before/after 且结束后还原原字号。
+- ac-ui-case-count-13: `scripts/test-ios.sh` 的 UI 腿仍为两段共 13 条（RunFlow 6 + 取证 / AX5 / 音频 7）；`ScreenshotEvidenceUITests` 只由采集脚本显式 `-only-testing` 调起，不进入 CI 腿；`bash scripts/test-ios.sh --unit-only` 与 13 条 UI 腿本地全绿，另单跑新证据测试绿。
+- ac-evidence-bundle: `docs/evidence/screenshot-refresh/README.md` 含构建 head sha、模拟器 UDID/runtime、xcodebuild 命令、断言源文件路径、脚本路径、日志路径、14 张逐图 sha 与来源；`capture.log` 与浅/深两次 xcodebuild 日志同目录入库；README 明写「截图只证明素材与断言绿，人肉眼验收待办」。
 - ac-ax5-capture-and-fit: 最大辅助字号档（`xcrun simctl ui <udid> content_size accessibility-extra-extra-extra-large`）下实拍至少 4 张关键屏（Run 首屏 / 结束总结 / History 详情 / Settings），digest 记录该命令与设置前后 `content_size` 实读值；同档可及树中每个元素 frame 均落在屏内，主操作 frame 与其它内容 frame 无相交，digest 贴出实测 frame 数值与判定结果。
 - ac-dynamic-type-limitation-disclosed: digest 明写「`DesignTokens.Typography` 全部为固定 `Font.system(size:)`，字号阶梯不随 Dynamic Type 缩放」这一既有口径，并说明 AX5 证据只能证明固定字号布局在最大系统字号档不截断不重叠；全文不出现「无障碍适配已完成 / 达标」之类结论。
-- ac-sha256-manifest: `docs/screenshots/SHA256SUMS` 覆盖目录内全部 PNG（含 12 张新图），`shasum -a 256 -c docs/screenshots/SHA256SUMS` 退出码为 0；digest 中的 sha256 表与该输出逐行一致（无一处冲突或占位值）。
+- ac-sha256-manifest: `docs/screenshots/SHA256SUMS` 恰 14 行哈希（头部登记构建 head sha），`shasum -a 256 -c docs/screenshots/SHA256SUMS` 在仓库根退出 0；`docs/evidence/screenshot-refresh/SHA256SUMS` 覆盖 14 张 PNG 与入库日志且校验通过；README 逐图 sha 表与该输出逐行一致（无冲突或占位值）。
+- ac-verification-matrix-row: `docs/verification-matrix.md` 证据行（现状 / 证据路径 / 归属项）写入本项 workItemId、`docs/evidence/screenshot-refresh/README.md` 与 14 张截图、地图断言；接缝总数保持 22，不改 `DocsVerificationMatrixTests` 的 `expectedSeamCount`。
 - ac-commit-binding: digest 记录被测构建 commit SHA（`git rev-parse HEAD` 实取，与截图构建对应）与每个证据文件的最近改动 commit 全 SHA（`git log --format=%H -1 -- <file>` 实取）；不得出现猜测值或沿用旧值；若「被测构建 SHA」与「证据入库 SHA」不同，须分列标注成因。
-- ac-gates-green: `.munk/code-gates.json` 门列表不变（22 门），digest 逐门记录 id 与真实退出码，全部为 0。
-- ac-no-scope-creep: 本项改动路径 ⊆ {`docs/screenshots/**`, `docs/evidence/a11y/**`, `docs/evidence/evidence-freeze/**`, `README.md`（仅图集数量与描述）, `ios/PurePaceUITests/**`, DEBUG-only 截图门控相关视图文件, 新增的截图脚本 `scripts/**`}；不含业务逻辑、`L10n` 键值、`DesignTokens` 取值、`.munk/code-gates.json` 的任何变更。
+- ac-gates-green: `.munk/code-gates.json` 门列表不变（22 门），digest 逐门记录 id 与真实退出码，全部为 0；未触及 `ios/PurePace/**` 受管视图 / identifier 时 `check-ios-shell.sh --self-test` 可不跑，但须在 README 写明实际跑 / 未跑及理由。
+- ac-no-scope-creep: 改动路径 ⊆ {`ios/PurePaceUITests/**`, `scripts/capture-ios-screenshots.sh`, `docs/**`, `README.md`, `.munk/changes/**`}；不改 `ios/PurePace/**`（无新 identifier、无 `DesignTokens` / 布局 / 文案 / 启动参数变更）、不改 `.munk/code-gates.json` 门列表、不改 `.github/workflows/**`。
 - ac-claims-discipline: digest 只写实测事实、路径、命令、sha256 与退出码，不含「达标 / 可以给用户用 / 发布就绪」等自判，也不含真机验收与分发动作（ASC / ipa / TestFlight / tag / Release）。
 - ac-budget-receipt: 开工首条回执写明预算（预计耗时与门禁轮次上限）与期望收口时刻；超预算即停手并在回执写明已完成的证据与缺口，不靠长会话补绿。
 - ac-evidence-seed-single-source: `ios/PurePaceUITests/EvidenceCaptureUITests.swift` 的真实 seed 链路（`launchApp(["-uiTestLocation"])` → `run.start` → `run.elapsed >= "00:30"` → `run.finish` → `run.save` → `run.saved`）只存在一处 `private seedRealArchive(onNotStarted:onRunning:onFinished:)` 实现，`testEvidenceTreesAndRealArchive` 与 `testEvidenceAx5Layout` 共用；断言中等待 `run.saved` 的次数为 1（无内联副本）。
@@ -55,14 +68,15 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 - 不做任何分发动作（ASC / ipa / TestFlight / tag / Release）；不排真机验收，真机项（锁屏定位、音频实听、授权弹窗观感）继续 `pending: 待人现场`。
 - 不手绘、不改色、不裁切、不重排任何截图；不使用第三方素材。
 - 不新增 Tab、屏或二级入口；不为截图新增用户可达的演示/示例入口（demo 入口数仍为 0，Release 不可达）。
-- 不把 History 空态纳入这 12 张（空态由既有 UI 断言覆盖）。
+- 不把 History 空态纳入这套截图（空态由既有 UI 断言覆盖）；确认层只取结束态丢弃确认，不扩充其它 sheet。
 - 不宣称无障碍适配完成，不写发布就绪结论。
 
 ## 实现约束
 
 - 设备与 OS：一律沿用 iPhone 16 / iOS 18.6（UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD`，runtime `18.6` build `22G86`）以与既有 `393.0 × 852.0` 可及树可比；全部证据只允许一台机、一个 runtime，最终以实取 UDID 与 `simctl list runtimes` 写入 digest 为准。
-- 采集能力只用系统 `simctl`：`xcrun simctl ui <udid> appearance light|dark`、`xcrun simctl ui <udid> content_size <档位>`、`xcrun simctl io <udid> screenshot <path>`；构建产物来自 `xcodebuild build-for-testing ... -derivedDataPath .build/ios`，采集日志与 xcresult 落 `.build/evidence/`（不入库）。
-- 截图启动参数不得包含 `-uiTestResetArchive`（会清掉真实归档）；使用 `-autoStartRecording` / `-uiTestLocation` / `-screenshotRunFinished` 必须在 digest 披露实际启动命令。新增截图门控只能在 `#if DEBUG` 内且 Release 不可达。
+- 采集能力只用系统工具：截图走用例内 `XCUIScreen.main.screenshot()` + `xcrun xcresulttool export attachments`；`xcrun simctl ui <udid> appearance light|dark` / `content_size <档位>` 设定状态，AX5 实拍仍用 `xcrun simctl io <udid> screenshot <path>`；构建产物来自 `xcodebuild build-for-testing ... -derivedDataPath .build/ios`，采集日志与 xcresult 落 `.build/evidence/`（不入库）。
+- 截图启动参数：截图驱动以 `-uiTestLocation -uiTestLocationTargetMeters 1200 -uiTestResetArchive` 起步（干净容器 + 距离 canonical），History 两屏复用同会话真实落盘的归档；不得使用 `-screenshotHistoryDemo`，不得对 PNG 做裁切/改色/再编码；新增截图门控只能在 `#if DEBUG` 内且 Release 不可达。
+- 干净树硬约束：`--stage screenshots` 默认要求 `git status --porcelain` 为空（否则 fail 并指出不满足 `ac-all-fresh-from-head`），`CAPTURE_ALLOW_DIRTY=1` 仅供本地调试、证据不入库。
 - 真实归档优先：History 列表/详情必须由 App 真实「开始记录 → 跑步中 → 结束 → 保存」产生并落盘，再以真实归档渲染；`-screenshotHistoryDemo`（固定 5.12 km / `startedAt = 1_760_000_000`、不落盘）禁用，其固定值组合是「演示注入 vs 真实归档」判据。
 - 可及树来源：复用 `ios/PurePaceUITests/RunFlowUITests.swift` 的 `XCTAttachment(string: app.debugDescription)` + `xcrun xcresulttool export attachments` 范式（`scripts/verify-ios-ui-e2e.sh` 同类），树的归属屏必须与六屏一一对应。
 - 门禁与 UI 腿：`.munk/code-gates.json` 22 门保持不变，iOS 相关 test 门只跑 `test-ios.sh --unit-only`；UI 驱动腿权威在 `.github/workflows/ios.yml`。`RunFlowUITests` 历史 signal-kill 崩溃属环境 flake（stash 回 HEAD 同复现），不得当作回归结论，遇崩溃如实记录实测输出与重试次数。
@@ -73,7 +87,7 @@ PurePace iOS 证据冻结域：在已交付的六屏 UI 之上，产出一套可
 
 ## 最近交付证明
 
-- workItemId: wi_intake_10a242e64803035b（2026-11-12，pass）
-- 交付：`RunFinishedSummaryLayoutPolicy` 标准字号压缩档地图从 32pt 回 `finishedMapFloor`(96pt，与 AX5 同值)，新增 `meetsMapFloor` 判据与 6 个非地图槽位命名参数（回收 60pt）；`RunView` 只读策略属性。AX5 四屏 `outOfBounds=0 / overlaps=0`、AX5 结束态地图仍 96pt、主操作不重叠保持绿；`runDetail.export` 固定底部位置未变。
-- 判定与证据：`code_gates` 22 门 attempt 001 全绿（`test-ios` / `test-ios-core` 均 0）；本地 UI 全包 `bash scripts/test-ios.sh` 含 `testEvidenceAx5Layout` 全绿；矩阵行「详情导出固定底部 / 指标区居中 / 暂停态 Tab 栏 / 结束态地图下限」已更新为 96pt 口径（断言名 / 反例 / 证据路径 / 归属项齐备）；日志 `.munk/logs/ui-0split-green.log` / `.munk/logs/ui-1split-green.log` / `.munk/logs/check-ios-shell-self-test.log`。
-- 偏离与边界：本项不改 `DesignTokens` 取值与 80 / 16 阈值；不重做 12 张复评截图；真机观感 `pending: 待人现场`。
+- workItemId: wi_intake_ef7a16bf35f35fb3（2026-11-12，pass）
+- 交付：`docs/screenshots/` 整批换成 14 张新图（六屏 × 浅/深 + `discard-confirmation` 浅/深），全部由新增 `ios/PurePaceUITests/ScreenshotEvidenceUITests.swift`（`testEvidenceScreensLight` / `testEvidenceScreensDark` 共用 `captureAllScreens()`）经 `XCUIScreen.main.screenshot()` → `XCTAttachment` → `xcresulttool export attachments` 直落，附件名即文件名、无改名/裁切/再编码；截前断言 `run.mapPreview` 完整落在「窗口扣底部主操作区」可见区内（详情先滚动 ≤4 次），逐屏跑 `VisibleTextPolicy` zh-Hans。`scripts/capture-ios-screenshots.sh` 新增 `screenshots` / `verify` 阶段（`all` 仍 trees→screenshots→ax5），干净树硬校验 + SHA 清单重写 + 旧 sha 零复用自检；新增 `docs/evidence/screenshot-refresh/`（README/`capture.log`/浅深两份 xcodebuild 日志/`SHA256SUMS`）；六棵树与 AX5 4 实拍 + 4 实测树同构建重出；`README.md` 图集说明 12 → 14 张；`docs/verification-matrix.md` 证据行回填本项。
+- 判定与证据：`code_gates` 22 门 attempt 001 全绿（`test-ios` / `test-ios-core` / `build-ios` 均 0）；构建 head sha `cbebc19`（clean 树实取），`git merge-base --is-ancestor 67ff54b|22b84ab HEAD` 均 0；`shasum -a 256 -c docs/screenshots/SHA256SUMS`（14 行）与 `docs/evidence/screenshot-refresh/SHA256SUMS`（17 行）全 OK；旧 12 个 sha 与新 14 张重合数 0；`evidence-map` / `ac-visible-copy-zh-hans` / `evidence-discard` / `evidence-primary` 逐屏日志入库。
+- 偏离与边界：截图与登记分两次提交（先测试 + 脚本，后 PNG + SHA + 证据目录），README 记的是 C1 的 head sha；附件导出用脚本内一小段 `python3` 按 `manifest.json` 把附件按原名复制到 `docs/screenshots/`（不是图像处理，无改名/再编码）；不改 `ios/PurePace/**` / `.munk/code-gates.json` / `.github/workflows/**`，不新增 identifier，CI UI 腿仍 13 条；排版与色彩观感、真机表现 `pending: 待人现场`。
