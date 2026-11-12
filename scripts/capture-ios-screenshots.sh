@@ -229,6 +229,15 @@ if missing:
     print("missing attachments: %s" % ", ".join(missing), file=sys.stderr)
     sys.exit(1)
 PY
+
+  # 逐张登记导出结果（ac-screenshot-set-14：capture.log 14 条 shot 行 + 像素尺寸）。
+  local name size
+  for name in "$@"; do
+    [ -f "$shots_dir/$name.png" ] || continue
+    size="$(sips -g pixelWidth -g pixelHeight "$shots_dir/$name.png" \
+      | awk '/pixelWidth|pixelHeight/{printf "%s ", $2}')"
+    say "shot: docs/screenshots/$name.png（${size}px）"
+  done
 }
 
 # ------------------------------------------------ 可及树导出
@@ -406,7 +415,15 @@ run_screenshot_appearance() { # <light|dark> <method>
 assert_screenshot_log() { # <light|dark> <log>
   local appearance="$1"
   local log="$2"
-  local screen ok expected_map=0
+  local screen ok expected_map=0 shot_ok=0 shot_name
+  for screen in "${screenshot_bases[@]}"; do
+    shot_name="$screen"
+    [ "$appearance" = "dark" ] && shot_name="${screen}-dark"
+    ok="$(grep -cx "evidence-shot screen=${shot_name}" "$log" || true)"
+    [ "$ok" -ge 1 ] || fail "日志缺 evidence-shot screen=${shot_name} 行（${log}）"
+    shot_ok=$((shot_ok + 1))
+  done
+  say "assert: evidence-shot ${shot_ok}/14 ✓（${appearance}）"
   for screen in "${screenshot_screens[@]}"; do
     ok="$(grep -c "ac-visible-copy-zh-hans screen=${screen} labels=.* violations=0 " "$log" || true)"
     [ "$ok" -ge 1 ] || fail "日志缺 ${screen} 的 violations=0 行（${log}）"
@@ -556,6 +573,12 @@ stage_verify() {
       fi
     done
   done
+  local shot_lines
+  shot_lines="$(grep -cE '^shot: docs/screenshots/[^/]+\.png（[0-9]+ [0-9]+ px）$' "$refresh_dir/capture.log" 2>/dev/null || true)"
+  if [ "${shot_lines:-0}" != "14" ]; then
+    say "verify: capture.log 期望 14 条 shot 行（含像素尺寸），实际 ${shot_lines:-0}"
+    failures=$((failures + 1))
+  fi
 
   # 2) SHA256SUMS 恰 14 行哈希 + 头部登记 40 位构建 head sha + shasum -c 通过
   hash_lines="$(grep -cE '^[0-9a-f]{64}  docs/screenshots/[^/]+\.png$' "$shots_dir/SHA256SUMS" || true)"
