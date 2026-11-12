@@ -84,7 +84,7 @@ fi
 
 app_path=".build/ios/Build/Products/Debug-iphonesimulator/PurePace.app"
 if [ "$skip_build" = "1" ]; then
-  [ -d "$app_path" ] || fail "缺少 $app_path（去掉 --skip-build 重新构建）"
+  [ -d "$app_path" ] || fail "缺少 ${app_path}（去掉 --skip-build 重新构建）"
 else
   say "构建 Debug App（scripts/build-ios.sh）"
   bash scripts/build-ios.sh >/dev/null || fail "scripts/build-ios.sh 失败"
@@ -180,7 +180,7 @@ capture() {
     printf '== %s appearance=%s file=%s\n' "$variant" "$appearance" "${out:-<measure-only>}"
     grep -E 'designDraft\.(screen|height|ready)' "$log" || true
   } >>"$render_log"
-  say "ok: ${out:-$variant（仅量测）} [$appearance]"
+  say "ok: ${out:-${variant}（仅量测）} [$appearance]"
 }
 
 for entry in "${shots[@]}"; do
@@ -277,4 +277,4 @@ with open(os.path.join(shots_dir, "SHA256SUMS"), "w", encoding="utf-8") as fh:
 print(f"png={len(pngs)}")
 PY
 
-say "完成：$shots_dir（20 张 PNG + render.log + manifest.md + SHA256SUMS + heights.tsv）"
+say "完成：${shots_dir}（20 张 PNG + render.log + manifest.md + SHA256SUMS + heights.tsv）"
