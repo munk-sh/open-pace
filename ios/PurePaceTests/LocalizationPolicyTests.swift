@@ -246,6 +246,35 @@ final class LocalizationPolicyTests: XCTestCase {
         }
     }
 
+    /// ac-counterexample-shift-red：四态判绿代表帧整体上移 24pt（≥20pt）后必红。
+    /// 反例只喂合成帧，不依赖生产代码回退；命中的 problems 至少覆盖
+    /// 「底部留白 / 最大单一垂直空洞 / 上下留白差」之一。
+    func testFourStatesShiftedUpBy24Fails() {
+        let states: [(String, [CGRect], CGFloat, CGFloat)] = [
+            ("未开始", balancedFrames(hintTop: 601.03), 137.3, 701.0),
+            ("运行中", balancedFrames(hintTop: 599.03), 137.3, 701.0),
+            ("暂停", balancedFrames(hintTop: 603.03), 137.3, 701.0),
+            ("已保存", savedStateFramesWithMapCard, 149.67, 713.0)
+        ]
+        for (state, frames, navigationBarBottom, primaryActionTop) in states {
+            let shifted = frames.map { $0.offsetBy(dx: 0, dy: -24) }
+            let evaluation = RunLayoutBalancePolicy.evaluate(
+                contentFrames: shifted,
+                navigationBarBottom: navigationBarBottom,
+                primaryActionTop: primaryActionTop
+            )
+            XCTAssertFalse(evaluation.passes, "\(state): 整体上移 24pt 后必须判红")
+            XCTAssertTrue(
+                evaluation.problems.contains {
+                    $0.contains("底部留白")
+                        || $0.contains("最大单一垂直空洞")
+                        || $0.contains("上下留白差")
+                },
+                "\(state): \(evaluation.problems)"
+            )
+        }
+    }
+
     /// ac-balance-audit-counts-map-card：96pt 地图卡（实测帧 97pt 含描边）作为可见内容块纳入采样后
     /// 保存态判绿，地图不再被计成「最大单一垂直空洞」；三判据与 UI 腿实测同值。
     func testSavedStateWithMapCardPasses() {

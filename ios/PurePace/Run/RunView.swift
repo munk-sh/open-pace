@@ -146,6 +146,12 @@ struct RunView: View {
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
         }
         .padding(.horizontal, DesignTokens.Spacing.cardGap)
+        // 顶部固定 chrome 补一档 `xs`：非结束态三个区间的既有固定留白本不等
+        // （顶部 hero 上呼吸位 sm=12；指标卡下 cardPadding + metricCardBottomPadding=16+4；
+        // 底部提示层尾隙 + 操作条内边距实测合计 20），补齐到 20pt 等权后，
+        // 四层等权 Spacer 才能把 top / bottom / largest 同时压进 80pt
+        // （`RunLayoutBalancePolicy` 阈值与采样口径不变）。
+        .padding(.top, DesignTokens.Spacing.xs)
         .frame(maxWidth: .infinity)
     }
 
