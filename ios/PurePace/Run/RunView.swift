@@ -16,6 +16,8 @@ struct RunView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 丢弃确认层开合：结束待保存屏的破坏性动作必须先经过这里。
     @State private var showsDiscardConfirmation = false
+    /// C2 sheet 的内容实测高度：由内容驱动 detent，不落 `.medium` 固定档。
+    @State private var discardSheetContentHeight = RunFinishedSummaryLayoutPolicy.discardSheetFallbackHeight
 
     var body: some View {
         NavigationStack {
@@ -28,13 +30,42 @@ struct RunView: View {
             // 第一分支、退不回滚动」的入口。
             GeometryReader { proxy in
                 ScrollView {
-                    balancedMetrics(
-                        compressesFinishedSummary: RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
-                            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
-                            availableContentHeight: proxy.size.height
+                    if viewModel.state == .finished {
+                        // B1 只定义「结束待保存态」的顶对齐 hero 版式；已保存态用上下等权
+                        // Spacer 保持既有「保存总结垂直居中」观感（`assertRunMetricsBalanced` 判据不变）。
+                        if viewModel.didSave {
+                            VStack(spacing: .zero) {
+                                // 保存态与底部主操作条共用同一内容区：条内已有 12pt 上内边距，
+                                // 顶部多补一档 `md` 让内容块在「导航栏下沿 → 主操作顶边」之间光学居中
+                                // （`assertRunMetricsBalanced` 的上下留白差 ≤ 16pt 判据不变）。
+                                Spacer(minLength: DesignTokens.Spacing.md)
+                                finishedContent(
+                                    compresses: RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+                                        availableContentHeight: proxy.size.height
+                                    )
+                                )
+                                Spacer(minLength: DesignTokens.Spacing.sm)
+                            }
+                            .frame(minHeight: proxy.size.height)
+                        } else {
+                            finishedContent(
+                                compresses: RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                                    isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+                                    availableContentHeight: proxy.size.height
+                                )
+                            )
+                            .frame(minHeight: proxy.size.height, alignment: .top)
+                        }
+                    } else {
+                        balancedMetrics(
+                            compressesFinishedSummary: RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+                                availableContentHeight: proxy.size.height
+                            )
                         )
-                    )
-                    .frame(minHeight: proxy.size.height)
+                        .frame(minHeight: proxy.size.height)
+                    }
                 }
             }
             // DEBUG 诊断摘要不是指标内容块，贴内容区底部渲染，不参与居中。
@@ -44,6 +75,8 @@ struct RunView: View {
             .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.state)
             .animation(.easeInOut(duration: DesignTokens.Motion.duration(DesignTokens.Motion.durationState, reduceMotion: reduceMotion)), value: viewModel.didSave)
             .navigationTitle(L10n.runNavigationTitle)
+            // B1 结束态用 inline 标题（不占大标题高度），把垂直预算全部让给地图 hero。
+            .navigationBarTitleDisplayMode(viewModel.state == .finished ? .inline : .large)
             // 记录态（running / paused）与结束待保存态收起底部三 Tab；idle / 保存总结
             // 显式恢复可见。判定只读状态与 `didSave`，同一进程内不留只能杀进程的断头路。
             .toolbar(
@@ -59,6 +92,7 @@ struct RunView: View {
                     .padding(.horizontal, DesignTokens.Spacing.md)
                     .padding(.vertical, DesignTokens.Spacing.sm)
                     .frame(maxWidth: .infinity)
+                    .frame(minHeight: RunFinishedSummaryLayoutPolicy.actionBarHeight)
                     .background(DesignTokens.Colors.surface)
                     .overlay(alignment: .top) {
                         Rectangle()
@@ -78,7 +112,7 @@ struct RunView: View {
                 }
             }
         }
-        .tint(DesignTokens.Colors.accent)
+        .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.run")
         .sheet(isPresented: $showsDiscardConfirmation) {
             discardConfirmationSheet
@@ -107,9 +141,6 @@ struct RunView: View {
                 Spacer(minLength: DesignTokens.Spacing.cardGap)
             }
             metricsPanel(compresses: compresses)
-            if viewModel.state == .finished {
-                finishedTrackSummary(compresses: compresses)
-            }
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
             hintLayer
             Spacer(minLength: DesignTokens.Spacing.sectionGap)
@@ -215,26 +246,93 @@ struct RunView: View {
         }
     }
 
-    // MARK: - 结束态总结（仅 finished）
+    // MARK: - 结束态 B1（地图 hero + 指标行 + 分段 + inline 提示）
 
-    /// 结束态专属：轨迹预览卡（与详情页同一 `TrackMapView`）+ 分段明细。
-    /// 记录态 / 暂停 / 未开始一律不出现这些块。
-    /// `compresses` 由 `RunFinishedSummaryLayoutPolicy.compressesFinishedSummary` 按可用内容区判定：
-    /// 辅助字号档恒压缩，标准字号档在内容区预算不足时同样压缩（本机实测溢出 75.3pt）。
-    private func finishedTrackSummary(compresses: Bool) -> some View {
+    /// B1 结束待保存态：地图 hero 360pt → 指标行 → 分段明细 → inline 提示，
+    /// 内容合计按 `finishedContentHeightBudget`（≤ 691）排布；不再保留独立距离 hero 卡，
+    /// 距离作为地图上的常显值（仍是 `run.distance`），指标行承载时长 + 平均配速。
+    private func finishedContent(compresses: Bool) -> some View {
         VStack(spacing: RunFinishedSummaryLayoutPolicy.blockSpacing(compresses: compresses)) {
+            finishedMapHero(compresses: compresses)
+            finishedMetricsRow(compresses: compresses)
+            splitsDetail(compresses: compresses)
+            if plan.notice != nil || plan.recovery != nil || viewModel.didSave {
+                hintLayer
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.cardGap)
+        .padding(.top, DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// B1 地图 hero：`TrackMapView` 真实轨迹 + 左下距离常显值。
+    /// 空轨迹 / 单点由地图壳自己给明确中文空态，不构造裸 `Map`、不留白。
+    private func finishedMapHero(compresses: Bool) -> some View {
+        ZStack(alignment: .bottomLeading) {
             TrackMapView(
                 samples: viewModel.acceptedSamples,
                 emptyIdentifier: "run.mapEmpty",
                 singlePointIdentifier: "run.mapEmpty.single"
             )
-            .frame(
-                height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(
-                    compresses: compresses,
-                    isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
-                )
+            HStack(spacing: DesignTokens.Spacing.xxs) {
+                Text(RunFormatting.distanceValueText(viewModel.metrics.distance))
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(DesignTokens.Colors.primary)
+                    .monospacedDigit()
+                    .accessibilityIdentifier("run.distance")
+                    .accessibilityLabel(Text(viewModel.distanceText))
+                Text(RunFormatting.distanceUnitText)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.vertical, DesignTokens.Spacing.xs)
+            .background(
+                DesignTokens.Colors.surface,
+                in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
             )
-            splitsDetail(compresses: compresses)
+            .padding(RunFinishedSummaryLayoutPolicy.cardPadding(compresses: compresses))
+        }
+        .frame(
+            height: RunFinishedSummaryLayoutPolicy.trackPreviewHeight(
+                compresses: compresses,
+                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            )
+        )
+    }
+
+    /// B1 指标行：时长 + 平均配速两项常显（距离已在地图 hero 上）。
+    private func finishedMetricsRow(compresses: Bool) -> some View {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.metricGroupGap) {
+            metricBlock(
+                label: L10n.runMetricTime,
+                value: viewModel.elapsedText,
+                unit: nil,
+                valueFont: DesignTokens.Typography.primaryValue,
+                valueTint: DesignTokens.Colors.primary,
+                identifier: "run.elapsed",
+                accessibilityText: viewModel.elapsedText
+            )
+            .monospacedDigit()
+            metricBlock(
+                label: L10n.runMetricAverage,
+                value: RunFormatting.paceValueText(viewModel.metrics.averagePace),
+                unit: RunFormatting.paceUnitText(viewModel.metrics.averagePace),
+                valueFont: DesignTokens.Typography.primaryValue,
+                valueTint: DesignTokens.Colors.primary,
+                identifier: "run.averagePace",
+                accessibilityText: viewModel.averagePaceText
+            )
+            .monospacedDigit()
+        }
+        .padding(RunFinishedSummaryLayoutPolicy.metricCardPadding(compresses: compresses))
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
         }
     }
 
@@ -342,7 +440,7 @@ struct RunView: View {
             if let countdownText = plan.countdownText {
                 Text(countdownText)
                     .font(DesignTokens.Typography.primaryValue)
-                    .foregroundStyle(DesignTokens.Colors.accent)
+                    .foregroundStyle(DesignTokens.Colors.primary)
                     .monospacedDigit()
             }
 
@@ -386,13 +484,23 @@ struct RunView: View {
             hint(L10n.waitingAuthorization, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
         case .backgroundDegraded:
             if let message = viewModel.authorization.backgroundDegradationHint {
-                // 后台定位降级降为指标卡下方的紧凑 `caption` 次级行：无胶囊底、无整宽弱底。
-                // 仍是 warning 语义的非阻断内联提示，不进入 hero / 主操作着色。
-                Text(message)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(color(for: notice.tint))
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("run.backgroundDegraded")
+                // 后台定位降级是单行紧凑胶囊（图标 + 短文案，实测约 23.7pt 高、宽度由内容决定），
+                // 仍是 warning 语义的非阻断内联提示，不进入 hero / 主操作着色；动作入口由就绪态
+                // 「打开设置」Link 承担，胶囊本身不承诺可点（24pt 胶囊给不了 44pt 点按区）。
+                HStack(spacing: DesignTokens.Spacing.xxs) {
+                    Image(systemName: "location.slash")
+                        .font(DesignTokens.Typography.caption)
+                    Text(L10n.backgroundDegradedHintShort)
+                        .font(DesignTokens.Typography.caption)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .foregroundStyle(color(for: notice.tint))
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .padding(.vertical, DesignTokens.Spacing.xxs)
+                .background(DesignTokens.Colors.warningSoft, in: Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(message))
+                .accessibilityIdentifier("run.backgroundDegraded")
             }
         }
     }
@@ -405,8 +513,8 @@ struct RunView: View {
             if let url = viewModel.locationSettingsURL {
                 Link(destination: url) {
                     Text(L10n.runActionOpenSettings)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Colors.accent)
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .foregroundStyle(DesignTokens.Colors.primary)
                         .frame(minHeight: DesignTokens.minTapTarget)
                 }
             }
@@ -415,8 +523,8 @@ struct RunView: View {
                 viewModel.retryLocation()
             } label: {
                 Text(L10n.runActionRetryLocation)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.accent)
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(DesignTokens.Colors.primary)
                     .frame(minHeight: DesignTokens.minTapTarget)
             }
         }
@@ -552,8 +660,18 @@ struct RunView: View {
                 lineWidth: DesignTokens.Stroke.hairline * 2,
                 action: action
             )
-        case .neutralOutline, .dangerOutline:
+        case .neutralOutline:
             outlineControl(title, label: label, tint: color(for: item.tint), action: action)
+        case .textSecondary:
+            textControl(title, label: label, action: action)
+        case .dangerFilled:
+            filledControl(
+                title,
+                label: label,
+                tint: color(for: item.tint),
+                onTint: DesignTokens.Colors.onDanger,
+                action: action
+            )
         }
     }
 
@@ -563,17 +681,50 @@ struct RunView: View {
         label: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
+        filledControl(
+            title,
+            label: label,
+            tint: actionTint,
+            onTint: actionOnTint,
+            action: action
+        )
+    }
+
+    /// 唯一填充控件（主操作 / 确认层破坏性主操作）：实心底 + 高对比文字，`minTapTarget` 高。
+    private func filledControl(
+        _ title: LocalizedStringKey,
+        label: LocalizedStringKey,
+        tint: Color,
+        onTint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(DesignTokens.Typography.control)
-                .foregroundStyle(actionOnTint)
+                .foregroundStyle(onTint)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
         .background(
-            actionTint,
+            tint,
             in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
         )
+        .accessibilityLabel(Text(label))
+    }
+
+    /// 无填充 / 无边框文字次操作（C2 取消、结束屏丢弃入口）：不与填充主操作同形状。
+    private func textControl(
+        _ title: LocalizedStringKey,
+        label: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(DesignTokens.Typography.body)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .frame(minHeight: DesignTokens.minTapTarget)
+        }
         .accessibilityLabel(Text(label))
     }
 
@@ -589,7 +740,8 @@ struct RunView: View {
         Button(action: action) {
             Text(title)
                 .font(DesignTokens.Typography.body)
-                .foregroundStyle(tint)
+                // 浅色下 accent 只作填充/描边：文字层级恒用 primary，靠描边与字重区分主次。
+                .foregroundStyle(DesignTokens.Colors.primary)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minHeight: DesignTokens.minTapTarget)
         }
@@ -600,30 +752,60 @@ struct RunView: View {
         .accessibilityLabel(Text(label))
     }
 
-    // MARK: - 丢弃确认层
+    // MARK: - 丢弃确认层（C2 图标式紧凑版）
 
-    /// 唯一破坏性确认层：标题 / 说明 / 取消 / 丢弃全部走 `L10n`，丢弃为 danger 描边无填充。
+    /// 唯一破坏性确认层：图标块 + 标题/说明行内排布 + 「唯一填充 danger 主操作 + 无填充取消」同行。
+    /// 标题 / 说明 / 取消 / 丢弃全部走 `L10n`；sheet 高度由内容自适应（无 `.medium` 固定档），
+    /// 破坏性 danger 只出现在本层，不与 accent 填充主操作同屏同形状并列。
     @ViewBuilder
     private var discardConfirmationSheet: some View {
         if let confirmation = plan.discardConfirmation {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                Text(L10n.runDiscardConfirmTitle)
-                    .font(DesignTokens.Typography.title)
-                    .foregroundStyle(DesignTokens.Colors.primary)
-                Text(L10n.runDiscardConfirmMessage)
-                    .font(DesignTokens.Typography.body)
-                    .foregroundStyle(DesignTokens.Colors.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(DesignTokens.Colors.danger)
+                        .frame(
+                            width: DesignTokens.Spacing.xl + DesignTokens.Spacing.xs,
+                            height: DesignTokens.Spacing.xl + DesignTokens.Spacing.xs
+                        )
+                        .background(
+                            DesignTokens.Colors.dangerSoft,
+                            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                        )
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Text(L10n.runDiscardConfirmTitle)
+                            .font(DesignTokens.Typography.title)
+                            .foregroundStyle(DesignTokens.Colors.primary)
+                        Text(L10n.runDiscardConfirmMessage)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Colors.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 HStack(spacing: DesignTokens.Spacing.sm) {
-                    control(for: confirmation.cancel)
                     control(for: confirmation.confirm)
+                    control(for: confirmation.cancel)
                 }
             }
-            .padding(DesignTokens.Spacing.md)
+            .padding(.top, DesignTokens.Spacing.xs)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .padding(.bottom, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(DesignTokens.Colors.surface)
-            .presentationDetents([.medium])
+            // C2 自适应高度：iPhone 底部 sheet 不认 `.presentationSizing(.fitted)`，
+            // 改为实测内容高度驱动 detent（内容驱动，不是 `.medium` 固定档）。
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                if height > 0 {
+                    discardSheetContentHeight = height
+                }
+            }
+            .presentationDetents([.height(discardSheetContentHeight)])
             .presentationDragIndicator(.visible)
         }
     }
 }
+

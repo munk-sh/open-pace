@@ -673,6 +673,11 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["run.save"].exists, "结束待保存态缺少保存主操作")
         XCTAssertTrue(app.buttons["run.discardRequest"].exists, "结束待保存态缺少丢弃确认入口")
         XCTAssertFalse(app.buttons["run.discard"].exists, "确认层出现前不得直接暴露破坏性丢弃按钮")
+        assertFinishedMapFloor(app, state: "结束待保存")
+        assertFinishedContentBudget(app, primaryAction: app.buttons["run.save"], state: "结束待保存")
+        assertFinishedActionBar(app, state: "结束待保存")
+        assertFinishedItemsVisible(app, state: "结束待保存")
+        assertDiscardSheetC2(app)
         saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
         assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
@@ -857,11 +862,21 @@ final class RunFlowUITests: XCTestCase {
         ) {
             frames.append(mapFrame)
         }
+        // 同一采样口径：inline 权限胶囊（合并可及元素，非 staticText）也是可见内容块。
+        let hintFrame = inlineHintFrame(
+            app,
+            navigationBarBottom: navigationBarBottom,
+            primaryActionTop: primaryActionTop
+        )
+        if let hintFrame {
+            frames.append(hintFrame)
+        }
         frames = frames.filter { frame in
             !frame.isEmpty
                 && frame.minY >= navigationBarBottom
                 && frame.maxY <= primaryActionTop
         }
+        frames = dedupeFramesInsideHint(frames, hint: hintFrame)
         let evaluation = RunLayoutBalancePolicy.evaluate(
             contentFrames: frames,
             navigationBarBottom: navigationBarBottom,
@@ -877,6 +892,26 @@ final class RunFlowUITests: XCTestCase {
             "\(state) 指标区未垂直居中（顶部留白 \(evaluation.topGap)pt，底部留白 \(evaluation.bottomGap)pt，"
                 + "最大空洞 \(evaluation.largestGap)pt）：\(evaluation.problems)"
         )
+    }
+
+    /// 合并可及元素的内层文本仍会出现在 `staticTexts` 里：采样时把落在胶囊内的帧去重，
+    /// 避免同一可见内容块被当成「胶囊 + 块内文字」双计（改前胶囊本身即 staticText）。
+    private func dedupeFramesInsideHint(_ frames: [CGRect], hint: CGRect?) -> [CGRect] {
+        guard let hint else { return frames }
+        return frames.filter { $0.equalTo(hint) || !hint.contains($0) }
+    }
+
+    /// `run.backgroundDegraded` 胶囊（图标 + 短文案合并元素）的真实 frame；越界帧返回 nil。
+    private func inlineHintFrame(
+        _ app: XCUIApplication,
+        navigationBarBottom: CGFloat,
+        primaryActionTop: CGFloat
+    ) -> CGRect? {
+        let hint = app.descendants(matching: .any).matching(identifier: "run.backgroundDegraded").firstMatch
+        guard hint.exists, !hint.frame.isEmpty else { return nil }
+        let frame = hint.frame
+        guard frame.minY >= navigationBarBottom, frame.maxY <= primaryActionTop else { return nil }
+        return frame
     }
 
     /// `run.mapPreview` 的真实 frame（仅结束态存在）；越界帧返回 nil，不塞脏样本。
@@ -911,14 +946,204 @@ final class RunFlowUITests: XCTestCase {
         print("ac-finished-content-canonical \(state): splitRows=\(rows.count) expected=\(expected)")
     }
 
-    /// ac-finished-map-floor-96：结束态轨迹预览地图实测高度 ≥ 96pt（打印实测值）。
-    /// 断言只用数值下限，不复述生产常量；历史 32pt 细条实测必红。
+    /// ac-b1-map-hero-360：标准字号结束态地图实测 = 360pt 且 ≥ 屏高 40%（340.8pt）；
+    /// 历史 96 / 180 细条实测必红（数值下限写死，不复述生产常量别名）。
     private func assertFinishedMapFloor(_ app: XCUIApplication, state: String) {
         let map = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
         XCTAssertTrue(map.waitForExistence(timeout: 10), "\(state) 缺少轨迹预览地图 run.mapPreview")
         let height = map.frame.height
-        print("ac-finished-map-floor-96 \(state): mapHeight=\(height)")
-        XCTAssertGreaterThanOrEqual(height, 96, "\(state) 轨迹预览地图被压缩成细条：\(height)pt < 96pt")
+        let screenHeight = app.windows.firstMatch.frame.height
+        let minimum = screenHeight * 0.40
+        print(
+            "ac-b1-map-hero-360 \(state): mapHeight=\(height) screenHeight=\(screenHeight) "
+                + "minimum40Percent=\(minimum)"
+        )
+        XCTAssertEqual(height, 360, accuracy: 1, "\(state) B1 地图 hero 必须为 360pt，实际 \(height)pt")
+        XCTAssertGreaterThanOrEqual(height, minimum, "\(state) 地图 hero 未达屏高 40%")
+    }
+
+    /// ac-b1-content-fits-691：结束态「地图 + 指标 + 分段 + inline 提示」合计 ≤691pt，
+    /// 且内容底沿不越过主操作顶边（无需滚动、无遮挡、无裁切）。
+    private func assertFinishedContentBudget(
+        _ app: XCUIApplication,
+        primaryAction: XCUIElement,
+        state: String
+    ) {
+        let navigationBar = app.navigationBars.firstMatch
+        XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
+        let map = app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch
+        var frames = app.staticTexts.allElementsBoundByIndex
+            .filter { $0.identifier != "run.telemetry" }
+            .map { $0.frame }
+        if map.exists, !map.frame.isEmpty {
+            frames.append(map.frame)
+        }
+        // inline 权限胶囊是图标 + 短文案的合并可及元素，不在 staticTexts 里；它是可见内容块，
+        // 不采样会把胶囊内边距误计成空白（改前它是 staticText，同一口径必须保留）。
+        let hintFrame = inlineHintFrame(
+            app,
+            navigationBarBottom: navigationBar.frame.maxY,
+            primaryActionTop: primaryAction.frame.minY
+        )
+        if let hintFrame {
+            frames.append(hintFrame)
+        }
+        frames = frames.filter { frame in
+            !frame.isEmpty
+                && frame.minY >= navigationBar.frame.maxY
+                && frame.maxY <= primaryAction.frame.minY
+        }
+        frames = dedupeFramesInsideHint(frames, hint: hintFrame)
+        let top = frames.map(\.minY).min() ?? 0
+        let bottom = frames.map(\.maxY).max() ?? 0
+        let total = bottom - top
+        print("ac-b1-content-fits-691 \(state): contentHeight=\(total) contentBottom=\(bottom) saveTop=\(primaryAction.frame.minY)")
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.meetsContentBudget(total),
+            "\(state) 结束态内容合计 \(total)pt 超过 691pt 预算"
+        )
+        XCTAssertLessThanOrEqual(
+            bottom,
+            primaryAction.frame.minY,
+            "\(state) 内容底沿 \(bottom) 压到主操作顶边 \(primaryAction.frame.minY)"
+        )
+    }
+
+    /// ac-b1-action-bar-68：保存主操作实测 44pt 且贴底部安全区上方；68pt 条 = 44 + 上下各 12。
+    private func assertFinishedActionBar(_ app: XCUIApplication, state: String) {
+        let save = app.buttons["run.save"]
+        XCTAssertTrue(save.exists, "\(state) 缺少保存主操作")
+        let screenHeight = app.windows.firstMatch.frame.height
+        print(
+            "ac-b1-action-bar-68 \(state): saveHeight=\(save.frame.height) "
+                + "saveTop=\(save.frame.minY) screenHeight=\(screenHeight) "
+                + "policyBarHeight=\(RunFinishedSummaryLayoutPolicy.actionBarHeight)"
+        )
+        XCTAssertEqual(save.frame.height, DesignTokens.minTapTarget, accuracy: 1, "\(state) 保存主操作必须 44pt 高")
+        XCTAssertEqual(RunFinishedSummaryLayoutPolicy.actionBarHeight, 68, "主操作条合计必须 68pt")
+        XCTAssertLessThanOrEqual(
+            save.frame.maxY,
+            screenHeight,
+            "\(state) 保存主操作越过窗口底边"
+        )
+    }
+
+    /// ac-b1-metrics-and-splits-visible：距离 / 时长 / 平均配速 / 地图 / 分段（含空态）同时常显。
+    private func assertFinishedItemsVisible(_ app: XCUIApplication, state: String) {
+        for id in ["run.distance", "run.elapsed", "run.averagePace"] {
+            XCTAssertTrue(
+                app.staticTexts[id].waitForExistence(timeout: 10),
+                "\(state) 缺少常显指标 \(id)"
+            )
+        }
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "run.mapPreview").firstMatch.exists
+                || app.descendants(matching: .any).matching(identifier: "run.mapEmpty").firstMatch.exists
+                || app.descendants(matching: .any).matching(identifier: "run.mapEmpty.single").firstMatch.exists,
+            "\(state) 缺少轨迹预览或明确空态"
+        )
+        XCTAssertTrue(
+            app.staticTexts["run.finished.splits"].exists,
+            "\(state) 缺少分段明细标题"
+        )
+        let rows = app.descendants(matching: .any).matching(identifier: "run.finished.splitRow").count
+        let empty = app.staticTexts["run.finished.splitsEmpty"].exists
+        XCTAssertTrue(rows > 0 || empty, "\(state) 分段卡既无分段行也无空态替代文案")
+        if rows == 0 {
+            XCTAssertTrue(empty, "\(state) 无分段时必须显示「本轮无分段数据」")
+        }
+    }
+
+    /// ac-c2-filled-danger-primary + ac-c2-sheet-autosize：
+    /// 确认层唯一填充 danger 主操作 44pt、无填充取消同行（中心差 ≤2pt），
+    /// sheet 紧凑（顶边落在窗口高 70% 以下、估算高度 ≤200pt）。
+    private func assertDiscardSheetC2(_ app: XCUIApplication) {
+        let request = app.buttons["run.discardRequest"]
+        XCTAssertTrue(request.exists, "结束待保存态缺少丢弃入口")
+        request.tap()
+        let confirm = app.buttons["run.discard"]
+        let cancel = app.buttons["run.discardCancel"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "确认层缺少丢弃按钮")
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "确认层缺少取消按钮")
+        XCTAssertEqual(confirm.frame.height, DesignTokens.minTapTarget, accuracy: 1, "确认丢弃必须 44pt 高")
+        XCTAssertEqual(
+            confirm.frame.midY,
+            cancel.frame.midY,
+            accuracy: 2,
+            "C2 确认与取消必须同一行"
+        )
+        let screenHeight = app.windows.firstMatch.frame.height
+        // 取数闭环：`app.sheets` 在 iOS 18.6 不匹配 SwiftUI `.presentationDetents` sheet
+        // （旧日志 sheetExists=false 却同时报 height=167），不再用它做存在性判据；
+        // 顶边改由确认层标题静态文本的真实 frame − 内容顶内边距推导，可复核且无并存矛盾。
+        let title = app.staticTexts["丢弃这次跑步？"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "确认层缺少标题静态文本")
+        let presented = confirm.exists && cancel.exists
+        let derivedTop = title.frame.minY - DesignTokens.Spacing.xs
+        let derivedHeight = screenHeight - derivedTop
+        print(
+            "ac-c2-sheet-autosize: presented=\(presented) screenHeight=\(screenHeight) "
+                + "derivedTop=\(derivedTop) derivedHeight=\(derivedHeight) title=\(title.frame) "
+                + "confirm=\(confirm.frame) cancel=\(cancel.frame)"
+        )
+        XCTAssertTrue(presented, "确认层未呈现（confirm 与 cancel 必须同时存在）")
+        XCTAssertGreaterThanOrEqual(derivedTop, screenHeight * 0.70, "确认层顶边过高（非紧凑自适应高度）")
+        XCTAssertLessThanOrEqual(derivedHeight, 200, "确认层高度 \(derivedHeight)pt 超过紧凑 200pt")
+        assertRenderedDanger(confirm)
+        cancel.tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { !confirm.exists }, "取消后确认层未收起")
+        XCTAssertTrue(app.buttons["run.discardRequest"].exists, "取消后应回到结束待保存态")
+    }
+
+    /// C2 破坏性主操作必须是 danger 实心（像素采样自 `DesignTokens.danger` 当前外观）。
+    private func assertRenderedDanger(_ element: XCUIElement) {
+        let frame = element.frame
+        guard frame.width > 0, frame.height > 0 else {
+            XCTFail("确认丢弃按钮无有效 frame")
+            return
+        }
+        guard let image = element.screenshot().image.cgImage else {
+            XCTFail("无法取得确认丢弃按钮截图")
+            return
+        }
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: &pixels,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            XCTFail("无法建立确认丢弃按钮采样上下文")
+            return
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let x = min(4, width - 1)
+        let y = height / 2
+        let offset = (y * width + x) * 4
+        let sampled = (
+            red: CGFloat(pixels[offset]) / 255,
+            green: CGFloat(pixels[offset + 1]) / 255,
+            blue: CGFloat(pixels[offset + 2]) / 255
+        )
+        guard let expected = DesignTokens.Colors.palette["danger"]?.light else {
+            XCTFail("缺少 danger token")
+            return
+        }
+        let distance = max(
+            abs(sampled.red - CGFloat(expected.red)),
+            max(abs(sampled.green - CGFloat(expected.green)), abs(sampled.blue - CGFloat(expected.blue)))
+        )
+        print(
+            "ac-c2-filled-danger-primary: sampled=(\(sampled.red),\(sampled.green),\(sampled.blue)) "
+                + "expected=(\(expected.red),\(expected.green),\(expected.blue)) delta=\(distance)"
+        )
+        XCTAssertLessThanOrEqual(distance, 2.0 / 255.0, "确认丢弃不是 danger 实心填充")
     }
 
     /// Tab 栏可见性：把实测数量喂给与单测相同的纯判定，并打印可复核证据。
@@ -953,19 +1178,34 @@ final class RunFlowUITests: XCTestCase {
     /// 权限横幅降级：WhenInUse 降级态下提示降到指标卡内/之后的 `caption` 次级行，
     /// 不得压在距离 hero 之上，也不得插在 hero 与指标卡之间。
     private func assertBackgroundDegradedDemoted(_ app: XCUIApplication) {
-        let hint = app.staticTexts["run.backgroundDegraded"]
+        // 胶囊已改为「图标 + 短文案」合并可及元素，按 identifier 取任意类型元素（名称不变）。
+        let hint = app.descendants(matching: .any).matching(identifier: "run.backgroundDegraded").firstMatch
         guard hint.waitForExistence(timeout: 5) else {
             print("ac-permission-banner-demoted skipped: 当前授权非 WhenInUse 降级态")
             return
         }
         let distance = app.staticTexts["run.distance"].frame
         let averagePace = app.staticTexts["run.averagePace"].frame
+        let contentWidth = app.windows.firstMatch.frame.width - 2 * DesignTokens.Spacing.cardGap
+        let hintFrame = hint.frame
         print(
-            "ac-permission-banner-demoted hint=\(hint.frame) distance=\(distance) "
+            "ac-permission-banner-demoted hint=\(hintFrame) distance=\(distance) "
                 + "averagePace=\(averagePace)"
         )
-        XCTAssertGreaterThan(hint.frame.minY, distance.maxY, "降级提示不得压在距离 hero 之上")
-        XCTAssertGreaterThan(hint.frame.minY, averagePace.maxY, "降级提示必须在指标卡内/之后，不得插在 hero 与指标卡之间")
+        print(
+            "ac-inline-hint-measured hintHeight=\(hintFrame.height) hintWidth=\(hintFrame.width) "
+                + "contentWidth=\(contentWidth) maxHeight=\(RunFinishedSummaryLayoutPolicy.inlineHintMaxHeight)"
+        )
+        XCTAssertGreaterThan(hintFrame.minY, distance.maxY, "降级提示不得压在距离 hero 之上")
+        XCTAssertGreaterThan(hintFrame.minY, averagePace.maxY, "降级提示必须在指标卡内/之后，不得插在 hero 与指标卡之间")
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.meetsInlineHint(
+                height: hintFrame.height,
+                width: hintFrame.width,
+                contentWidth: contentWidth
+            ),
+            "inline 权限胶囊实测 \(hintFrame.width)×\(hintFrame.height)pt 未满足 ≤32pt 且不占满内容宽 \(contentWidth)pt"
+        )
     }
 
     /// ac-finish-ui-rendered-accent：对按钮截图做真实像素采样，期望值从 `DesignTokens` 的

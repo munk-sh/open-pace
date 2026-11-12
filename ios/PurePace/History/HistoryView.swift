@@ -56,7 +56,7 @@ struct HistoryView: View {
                 }
             }
         }
-        .tint(DesignTokens.Colors.accent)
+        .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.history")
         .onAppear { load() }
         .onChange(of: refreshToken) { _, _ in load() }

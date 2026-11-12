@@ -23,11 +23,13 @@ struct RunInteractionPlan: Equatable {
     }
 
     /// 强调语义：`primary` 是每屏唯一填充主操作；`accent` 是记录态主操作族的
-    /// 非填充 accent 型（结束）；`secondary` 是中性入口；`danger` 只允许出现在确认层。
+    /// 非填充 accent 型（结束）；`secondary` / `text` 是中性入口（`text` 为无填充文字次操作）；
+    /// `danger` 只允许出现在确认层，且是唯一填充破坏性主操作。
     enum Emphasis: Equatable, Sendable {
         case primary
         case accent
         case secondary
+        case text
         case danger
     }
 
@@ -36,7 +38,8 @@ struct RunInteractionPlan: Equatable {
         case primaryAccent
         case accentOutline
         case neutralOutline
-        case dangerOutline
+        case textSecondary
+        case dangerFilled
     }
 
     /// 动作 / hero 主值解析出的 palette 键；`warning` 只服务非阻断内联提示，永不给任何动作或 hero。
@@ -59,7 +62,8 @@ struct RunInteractionPlan: Equatable {
             case .primary: .primaryAccent
             case .accent: .accentOutline
             case .secondary: .neutralOutline
-            case .danger: .dangerOutline
+            case .text: .textSecondary
+            case .danger: .dangerFilled
             }
         }
 
@@ -69,18 +73,20 @@ struct RunInteractionPlan: Equatable {
             if action == .viewHistory { return .success }
             switch style {
             case .primaryAccent, .accentOutline: return .accent
-            case .neutralOutline: return .secondary
-            case .dangerOutline: return .danger
+            case .neutralOutline, .textSecondary: return .secondary
+            case .dangerFilled: return .danger
             }
         }
 
-        /// 是否渲染填充底：每屏最多一个（`primary`），破坏性动作恒不填充。
+        /// 是否渲染填充底：每屏最多一个（主操作 / 确认层唯一破坏性主操作）；
+        /// 文字次操作与描边入口恒不填充。
         var fillsWithTint: Bool {
-            style == .primaryAccent
+            style == .primaryAccent || style == .dangerFilled
         }
     }
 
-    /// 结束待保存屏的确认层：破坏性按钮只在这里出现，且不填充、不与 accent 主操作并列。
+    /// 结束待保存屏的确认层：C2 形态——唯一填充 danger 破坏性主操作 +
+    /// 无填充文字次操作，二者只在 sheet 内出现、不与 accent 主操作同屏同形状并列。
     struct DiscardConfirmation: Equatable, Sendable {
         let cancel: Item
         let confirm: Item
@@ -225,17 +231,18 @@ struct RunInteractionPlan: Equatable {
                 ? [Item(action: .viewHistory, emphasis: .primary)]
                 : [
                     Item(action: .save, emphasis: .primary),
-                    Item(action: .discardRequest, emphasis: .secondary)
+                    Item(action: .discardRequest, emphasis: .text)
                 ]
         }
     }
 
-    /// hero 主值着色：记录中 / 暂停取品牌 accent（暂停不切 warning），未开始取中性 primary。
+    /// hero 主值着色：文字层级恒用 primary/secondary（浅色下 accent 只作填充），
+    /// 记录中 / 暂停与未开始同为 primary（暂停不切 warning），已保存总结取 success。
     private static func heroTint(state: RunSessionState, didSave: Bool) -> Tint {
         if didSave { return .success }
         switch state {
-        case .running, .paused: return .accent
-        default: return .primary
+        case .running, .paused: return .primary
+        case .ready, .finished: return .primary
         }
     }
 
@@ -245,7 +252,7 @@ struct RunInteractionPlan: Equatable {
     ) -> DiscardConfirmation? {
         guard state == .finished, !didSave else { return nil }
         return DiscardConfirmation(
-            cancel: Item(action: .cancel, emphasis: .secondary),
+            cancel: Item(action: .cancel, emphasis: .text),
             confirm: Item(action: .discard, emphasis: .danger)
         )
     }

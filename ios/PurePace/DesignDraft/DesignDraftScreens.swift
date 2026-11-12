@@ -190,7 +190,7 @@ struct DesignDraftRunScreen: View {
             emptyIdentifier: "draft.mapEmpty",
             singlePointIdentifier: "draft.mapSingle"
         )
-        .frame(height: RunFinishedSummaryLayoutPolicy.finishedMapFloor)
+        .frame(height: RunFinishedSummaryLayoutPolicy.standardMapHeroHeight)
         .designDraftProbe("run.map", variant: variant.rawValue)
     }
 

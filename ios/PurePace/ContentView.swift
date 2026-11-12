@@ -126,7 +126,7 @@ struct ContentView: View {
                 }
                 .tag(Tab.settings)
         }
-        .tint(DesignTokens.Colors.accent)
+        .tint(DesignTokens.Colors.primary)
         .onChange(of: settings.isEnabled) { _, enabled in
             runModel.setAnnouncementsEnabled(enabled)
         }
