@@ -1,0 +1,23 @@
+# V1.2 设计稿校验清单（20 张 PNG，路径相对仓库根）
+# 校验（在仓库根执行）：shasum -a 256 -c docs/design-draft-v12/SHA256SUMS
+# 生成（在仓库根执行）：bash scripts/capture-design-draft-v12.sh
+67e3a101188f5222e9519e3bef3b1c76828f70a3a62086be5b31ca2052466ddc  docs/design-draft-v12/a1-history-detail.png
+9c4486be4a974c18d49c52cb628682dbd41d9259aa9be7101640a95e09e2f9ef  docs/design-draft-v12/a1-history-list.png
+e644dc97897dfcf1047f5daa6fc6c25912553c6fdf09fe9205df689172fbda62  docs/design-draft-v12/a1-run-finished.png
+c782c55a5cfdaa576da031eafe639e2889bef189c7e1fd30ffcfb3f941fcc192  docs/design-draft-v12/a1-run-not-started.png
+680566b6b7838c539e8983b6ae903b9688ccd300ee012418aa7bf0c68a7f4287  docs/design-draft-v12/a1-run-running.png
+456ac77c480ce3fb6d9a6732eb626f06aabcd2ba9d59a93cc803dd799dc1110f  docs/design-draft-v12/a1-settings.png
+345934b078e7f10ee55d2705dcc007a687487628be3204e9b6bcff8ea30f0c55  docs/design-draft-v12/a2-history-detail.png
+9213ea256774b9f0256f20c36075a41e9c442082e5b55a645df4243457be9507  docs/design-draft-v12/a2-history-list.png
+078a8b4dc7a1fad6641b7f559387c92e24e2f27e670eaa2162676b34884fff98  docs/design-draft-v12/a2-run-finished.png
+9a665a199919664d2b46706eda836b443690497503037792a07cae41d064d446  docs/design-draft-v12/a2-run-not-started.png
+f2497785029bdc6f3be9eb24ea9428baac15adf4cd8105d6f349be11339ab3ec  docs/design-draft-v12/a2-run-running.png
+d39f706fc8bc16df726e48fab13d6c6ba82a4436b19fce302a63c78db1ff27f9  docs/design-draft-v12/a2-settings.png
+2cd51a65df3c522861cff2bb8453ba7399c09328caac428d1751cfaa199cfa5c  docs/design-draft-v12/b1-finished-dark.png
+312f75857aa5c7da751bea4fcfa125d18167f46c0b3f4b95aeecbc6151db21bc  docs/design-draft-v12/b1-finished-light.png
+19a09420f4c00fc93b9dfb1cee163195ef05f5bdbc5d3edd304f7a4d139f80ea  docs/design-draft-v12/b2-finished-dark.png
+de549cd129a59d74f95f54f0fa7cf1187cc961dfdedb5653d35dddf5b039ec33  docs/design-draft-v12/b2-finished-light.png
+00c00416b49f8f491442e759cbbff489355594ee712e1737b8e670f41ff5d834  docs/design-draft-v12/c1-discard-dark.png
+071eb418850bc59d8640c20ef8dfe7af9d39a6da883dd5d47748b465434230f6  docs/design-draft-v12/c1-discard-light.png
+39363608f612c6594af419bd6934dc107f191c5b007d818bf54e8711b628c057  docs/design-draft-v12/c2-discard-dark.png
+433d0a6982518bfef53ca26009a02febcf2c29290416dc81fb36756a9f866145  docs/design-draft-v12/c2-discard-light.png

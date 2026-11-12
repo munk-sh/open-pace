@@ -1,0 +1,47 @@
+# V1.2 设计稿改动清单（ac-zero-production-diff 证据）
+# 基线（改动前）: 37c772521a0f3605cab5a6e000aaa3b08aea260b
+# 交付提交: e2db252ed5197a05f2810e4495eb051de147ed5c（20 张 PNG + docs + debug-only 稿件文件）
+# 生成命令: git diff --name-only 37c7725..e2db252
+#
+# 生产文件改动仅 1 个且被 #if DEBUG 包裹（-designDraftV12 入口分支）：
+#   ios/PurePace/PurePaceApp.swift
+# DesignTokens.swift / 生产视图 / RunFinishedSummaryLayoutPolicy.swift / UITests / test-ios.sh / code-gates.json 零改动。
+
+docs/design-draft-v12/README.md
+docs/design-draft-v12/SHA256SUMS
+docs/design-draft-v12/a1-history-detail.png
+docs/design-draft-v12/a1-history-list.png
+docs/design-draft-v12/a1-run-finished.png
+docs/design-draft-v12/a1-run-not-started.png
+docs/design-draft-v12/a1-run-running.png
+docs/design-draft-v12/a1-settings.png
+docs/design-draft-v12/a2-history-detail.png
+docs/design-draft-v12/a2-history-list.png
+docs/design-draft-v12/a2-run-finished.png
+docs/design-draft-v12/a2-run-not-started.png
+docs/design-draft-v12/a2-run-running.png
+docs/design-draft-v12/a2-settings.png
+docs/design-draft-v12/b1-finished-dark.png
+docs/design-draft-v12/b1-finished-light.png
+docs/design-draft-v12/b2-finished-dark.png
+docs/design-draft-v12/b2-finished-light.png
+docs/design-draft-v12/c1-discard-dark.png
+docs/design-draft-v12/c1-discard-light.png
+docs/design-draft-v12/c2-discard-dark.png
+docs/design-draft-v12/c2-discard-light.png
+docs/design-draft-v12/heights.tsv
+docs/design-draft-v12/manifest.md
+docs/design-draft-v12/render.log
+docs/design-draft-v12/token-diff.md
+ios/PurePace/DesignDraft/DesignDraftDiscard.swift
+ios/PurePace/DesignDraft/DesignDraftEntry.swift
+ios/PurePace/DesignDraft/DesignDraftFinished.swift
+ios/PurePace/DesignDraft/DesignDraftScreens.swift
+ios/PurePace/DesignDraft/DesignDraftTheme.swift
+ios/PurePace/PurePaceApp.swift
+scripts/capture-design-draft-v12.sh
+      33
+
+# 本提交追加的证据索引文件（不属于交付渲染物）：
+docs/design-draft-v12/changed-files.txt
+docs/design-draft-v12/commit.txt
