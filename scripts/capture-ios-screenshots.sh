@@ -105,21 +105,23 @@ screenshot_screens=(
   history-list history-detail settings
 )
 
-# 刷新前（2026-11-11 15:30 入库）的 12 个旧 sha，取自当时 docs/screenshots/SHA256SUMS。
-# verify 阶段逐张比对：新 14 张不得与其中任何一个相同（ac-no-reuse-old）。
+# 本批之前一轮（cbebc19 批次）的 14 个旧 sha，取自刷新前的 docs/screenshots/SHA256SUMS。
+# verify 阶段逐张比对：新 14 张不得与其中任何一个相同（ac-no-reuse-prev-batch）。
 old_shot_shas=(
-  889aac39997dc423188e8ab130b6bd8c2a0a1b4ed70df91fc1ae3568a6378c53
-  1f808ce83b01b1492693177b2cd1bb8f0e94d5f2b44653a327a9579ae32bb48e
-  0e309280efbc0e44df27430827b6748aceb2eff79d4bab2708c5c73dab3a47e4
-  c1d7ff17266a9c89f9b186e9096222aa08b336b88ead42f136f568d28ec82c02
-  53d3c2a05fecf8d3bc35418ecdf8e4b8d11d28eb46b13b643c1dfc4136cb8283
-  ec9aed68eaba8ee7278f9b94a5ee3e7f0b4077bb6f9ee4680e094d4764507790
-  fa589aaac4d0304a87afa164c4bb98da0befc8311d4ac029d71e23c6b6cd5663
-  9f52fafdea201558e5793d85258108172cc4cef10901f93575783ac93486a124
-  f44171a6121b06b287689907397cac99628ce814ac0c34fd747a4f91d75e5158
-  3b3c34925faee3bcee46dac5aab63ce1ca8950f9d15a0c76d7409368090d8a70
-  7166ae7db7f1d5846c8509cf49233e7deecacd7db02e66aa52b7dc7b1067aba9
-  250cd35bed77b2483be0b8702102a749a919f48154bc59a6196a4a95f41be880
+  1b62989ebe29f070a873e4c67815acaeaf9a5ba38b7594aab884ec8285621aae
+  448eb7c933ed820daa0b415a55bd2cff5586ba4a8fc3be0b01a172906845b67d
+  261a9c594245b1534dfcc634bc22fe0146823554528f6f6cc89a5ed310a67c17
+  65dca19d8b8e503f83f0f8b40a10ad22b5d03ab7410eb58f5b74fe8134502a9a
+  adf7fee347e72a9205ebfb653886dae1c02dcc5b20ff92557a3f14228702085b
+  80028ad0e7d6e99005943d2e77906def51568b165fff8447aaa06f4a338d83b9
+  c5f31dad9f5f37bd96143ca1239a8fc8c330ebdbc614a41a9d42101436a681e9
+  c10554ea187349b2c48c49d0081d5a2120ec2bf5f9bf63d37338c408e4652677
+  07b5b175c8b5c760515218bd0b7b99611a40886123b7281537801233cbd3f803
+  af06a2bc504b70b0396921c6c3b7cf682b51f93632cf8296e39601de5f205fd0
+  143896f88c14477d259d0c0412fa59624cfe7274a264f43cc7411a62abb69074
+  f9f38251c7bb3b2aa3648d07caf56754a73882242dcd841e73a472c7e97d3b66
+  3be45b5ba7446c14e950ec6e2df37c041d6d36f7b8d6b90c19b5b2d09b1d8910
+  bb604f077c0631b460c0355fa726933a15e4121d2c03562be0c44eb1063692ae
 )
 
 mkdir -p "$work_dir" "$shots_dir" "$a11y_dir" "$ax5_dir" "$refresh_staging"
@@ -128,6 +130,7 @@ capture_log="$refresh_staging/capture.log"
 
 # 构建基线在任何阶段写文件之前取：trees 会重写 docs/evidence/a11y，之后 git status 不再干净。
 capture_head_sha="$(git rev-parse HEAD)"
+capture_tree_sha="$(git rev-parse HEAD^{tree})"
 capture_worktree_status="$(git status --porcelain)"
 
 say() {
@@ -290,8 +293,9 @@ run_ui_test() { # <method> <result_bundle>
 
 # ------------------------------------------------ SHA256SUMS
 
-write_sha256sums() { # <构建 head sha>
+write_sha256sums() { # <构建 head sha> <构建 tree sha>
   local head_sha="${1:-unknown}"
+  local tree_sha="${2:-unknown}"
   local file="$shots_dir/SHA256SUMS"
   local tmp="$file.tmp"
   {
@@ -301,15 +305,17 @@ write_sha256sums() { # <构建 head sha>
     echo "# 生成（在仓库根执行）：shasum -a 256 docs/screenshots/*.png"
     echo "#"
     echo "# 构建 head sha（本批 14 张均由该 commit 的构建产出，实取 git rev-parse HEAD）：${head_sha}"
-    echo "# 归属项：wi_intake_ef7a16bf35f35fb3（截图证据刷新：A 色板 + 轨迹地图）"
-    echo "# 逐图断言 / 旧新 sha 对照 / 日志：docs/evidence/screenshot-refresh/README.md"
+    echo "# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：${tree_sha}"
+    echo "# 归属项：wi_intake_85d08fa7106efc3f（V1.2 复评证据重出：14 张 + 7 张浅/深并排）"
+    echo "# 逐图断言 / 旧新 sha 对照 / 并排对照 / 日志：docs/evidence/screenshot-refresh/README.md"
+    echo "# 浅/深并排对照（7 张）：docs/screenshots/side-by-side/ 及其 SHA256SUMS"
     echo "#"
     echo "# 新增或替换截图后必须同步更新本文件：sha256 与最近改动 commit 全 sha 一律实取，不许猜。"
     echo "#"
   } >"$tmp"
   shasum -a 256 "$shots_dir"/*.png >>"$tmp"
   mv "$tmp" "$file"
-  say "info: 已重写 ${file}（14 张 PNG + 构建 head sha ${head_sha}）"
+  say "info: 已重写 ${file}（14 张 PNG + 构建 head sha ${head_sha} / tree sha ${tree_sha}）"
 }
 
 # ------------------------------------------------ 阶段：六屏可及树 + 真实归档
@@ -414,7 +420,12 @@ assert_screenshot_log() { # <light|dark> <log>
   done
   ok="$(grep -c "evidence-discard sheet=discardRequest buttons=2" "$log" || true)"
   [ "$ok" -ge 1 ] || fail "日志缺确认层断言行（${log}）"
-  say "assert: evidence-discard ✓（${appearance}，地图断言 ${expected_map} 条）"
+  ok="$(grep -c "evidence-inline-hint hint=.* maxHeight=" "$log" || true)"
+  [ "$ok" -ge 1 ] || fail "日志缺 B1 inline 胶囊实测行（${log}）"
+  say "assert: evidence-inline-hint ✓（${appearance}）"
+  ok="$(grep -c "evidence-c2-discard screenHeight=.* sheetTop=.* sheetHeight=" "$log" || true)"
+  [ "$ok" -ge 1 ] || fail "日志缺 C2 确认层实测行（${log}）"
+  say "assert: evidence-c2-discard ✓（${appearance}，地图断言 ${expected_map} 条）"
 }
 
 stage_screenshots() {
@@ -455,7 +466,11 @@ stage_screenshots() {
   xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
   set_appearance "$original_appearance"
   say "appearance: after=$(xcrun simctl ui "$udid" appearance)"
-  write_sha256sums "$head_sha"
+  write_sha256sums "$head_sha" "$capture_tree_sha"
+  local compose="scripts/compose-ios-screenshots-side-by-side.sh"
+  [ -f "$compose" ] || fail "缺少并排合成脚本 ${compose}"
+  bash "$compose"
+  say "info: 已重出 7 张浅/深并排对照（docs/screenshots/side-by-side/）"
 }
 
 # ------------------------------------------------ 阶段：AX5 实测
@@ -552,12 +567,29 @@ stage_verify() {
     say "verify: SHA256SUMS 头部未登记构建 head sha"
     failures=$((failures + 1))
   fi
+  local registered_head registered_tree actual_tree
+  registered_head="$(grep -oE '^# 构建 head sha.*[0-9a-f]{40}' "$shots_dir/SHA256SUMS" | grep -oE '[0-9a-f]{40}$' || true)"
+  registered_tree="$(grep -oE '^# 构建 tree sha.*[0-9a-f]{40}' "$shots_dir/SHA256SUMS" | grep -oE '[0-9a-f]{40}$' || true)"
+  actual_tree="$(git rev-parse HEAD^{tree})"
+  if [ -z "$registered_tree" ]; then
+    say "verify: SHA256SUMS 头部未登记构建 tree sha"
+    failures=$((failures + 1))
+  fi
+  if [ -n "$registered_head" ] && ! grep -q -- "$registered_head" "$refresh_dir/README.md" 2>/dev/null; then
+    say "verify: README 未记录与 SHA256SUMS 相同的构建 head sha ${registered_head}"
+    failures=$((failures + 1))
+  fi
+  if [ -n "$registered_tree" ] && ! grep -q -- "$registered_tree" "$refresh_dir/README.md" 2>/dev/null; then
+    say "verify: README 未记录与 SHA256SUMS 相同的构建 tree sha ${registered_tree}"
+    failures=$((failures + 1))
+  fi
+  say "info: 构建绑定 head=${registered_head:-missing} tree=${registered_tree:-missing}（当前 HEAD tree=${actual_tree}）"
   if ! shasum -a 256 -c "$shots_dir/SHA256SUMS" >/dev/null 2>&1; then
     say "verify: shasum -a 256 -c docs/screenshots/SHA256SUMS 未通过"
     failures=$((failures + 1))
   fi
 
-  # 3) 新图与 12 个旧 sha 零重合（ac-no-reuse-old）
+  # 3) 新图与上一轮 14 个旧 sha 零重合（ac-no-reuse-prev-batch）
   local new_shas old
   new_shas="$(shasum -a 256 "$shots_dir"/*.png)"
   for old in "${old_shot_shas[@]}"; do
@@ -610,13 +642,51 @@ stage_verify() {
     failures=$((failures + 1))
   fi
 
-  # 6) README / 证据 SHA 清单 / 仓内唯一确认层
+  # 6) 浅/深并排对照：7 张 `<screen>-side-by-side.png`，宽 = 2×浅色宽、高 = 浅色高，
+  #    目录内无多余 PNG，SHA256SUMS 7 行且 shasum -c 通过（ac-side-by-side-7）。
+  local side_dir="$shots_dir/side-by-side" side_name light_w light_h dark_w dark_h side_w side_h side_lines
+  count="$(find "$side_dir" -maxdepth 1 -type f -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "$count" != "7" ]; then
+    say "verify: ${side_dir} 期望 7 张并排图，实际 ${count}"
+    failures=$((failures + 1))
+  fi
+  for name in "${screenshot_bases[@]}"; do
+    side_name="${name}-side-by-side"
+    if [ ! -f "$side_dir/${side_name}.png" ]; then
+      say "verify: 缺并排图 ${side_dir}/${side_name}.png"
+      failures=$((failures + 1))
+      continue
+    fi
+    read -r light_w light_h < <(sips -g pixelWidth -g pixelHeight "$shots_dir/${name}.png" \
+      | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w, h}')
+    read -r dark_w dark_h < <(sips -g pixelWidth -g pixelHeight "$shots_dir/${name}-dark.png" \
+      | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w, h}')
+    read -r side_w side_h < <(sips -g pixelWidth -g pixelHeight "$side_dir/${side_name}.png" \
+      | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w, h}')
+    if [ "$side_w" != "$((light_w * 2))" ] || [ "$side_h" != "$light_h" ] \
+      || [ "$dark_w" != "$light_w" ] || [ "$dark_h" != "$light_h" ]; then
+      say "verify: ${side_name} 尺寸不符（side=${side_w}x${side_h} light=${light_w}x${light_h} dark=${dark_w}x${dark_h}）"
+      failures=$((failures + 1))
+    fi
+  done
+  side_lines="$(grep -cE '^[0-9a-f]{64}  docs/screenshots/side-by-side/[^/]+\.png$' "$side_dir/SHA256SUMS" 2>/dev/null || true)"
+  if [ "$side_lines" != "7" ]; then
+    say "verify: ${side_dir}/SHA256SUMS 期望 7 行哈希，实际 ${side_lines:-0}"
+    failures=$((failures + 1))
+  fi
+  if ! shasum -a 256 -c "$side_dir/SHA256SUMS" >/dev/null 2>&1; then
+    say "verify: shasum -a 256 -c ${side_dir}/SHA256SUMS 未通过"
+    failures=$((failures + 1))
+  fi
+
+  # 7) README / 证据 SHA 清单 / 仓内唯一确认层
   if [ ! -f "$refresh_dir/README.md" ]; then
     say "verify: 缺 ${refresh_dir}/README.md"
     failures=$((failures + 1))
   else
     for token in '构建 head sha' 'ScreenshotEvidenceUITests.swift' 'capture.log' \
-      'xcodebuild-light.log' 'xcodebuild-dark.log' 'run.mapPreview' '肉眼' '14'; do
+      'xcodebuild-light.log' 'xcodebuild-dark.log' 'run.mapPreview' '肉眼' '14' \
+      'side-by-side' 'evidence-inline-hint' 'evidence-c2-discard'; do
       if ! grep -q -- "$token" "$refresh_dir/README.md"; then
         say "verify: README 缺必填项 '${token}'"
         failures=$((failures + 1))
@@ -635,7 +705,7 @@ stage_verify() {
   fi
 
   [ "$failures" -eq 0 ] || fail "verify: ${failures} 项未通过"
-  say "verify: OK（14 张 PNG / 14 行 SHA / 旧 sha 零复用 / 6 棵可及树 / AX5 4+4 / README 必填项齐）"
+  say "verify: OK（14 张 PNG / 14 行 SHA / 旧 sha 零复用 / 7 张并排 / 6 棵可及树 / AX5 4+4 / README 必填项齐）"
 }
 
 case "$stage" in
