@@ -69,4 +69,42 @@ final class RunFinishedSummaryLayoutPolicyTests: XCTestCase {
             RunFinishedSummaryLayoutPolicy.rowSpacing(isAccessibilitySize: false)
         )
     }
+
+    /// 标准字号档也受内容区预算约束：iPhone 16 竖屏实测可用内容区 612.3pt
+    /// （导航栏下沿 149.7 → 主操作顶边 762.0）< 未压缩所需 688pt → 必须压缩。
+    /// 反例（「永不压缩」实现）：本条与下一条同时存在，任一方向的错判都会判红。
+    func testStandardSizeCompressesWhenContentBudgetIsShort() {
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: false,
+                availableContentHeight: 762.0 - 149.7
+            )
+        )
+    }
+
+    /// 反例（「一律压缩」实现）：内容区给足 688pt 及以上时标准字号档保既有的 180pt 视觉。
+    func testStandardSizeKeepsUncompressedSummaryWhenBudgetIsEnough() {
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: false,
+                availableContentHeight: RunFinishedSummaryLayoutPolicy.uncompressedFinishedContentHeight
+            )
+        )
+        XCTAssertFalse(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: false,
+                availableContentHeight: RunFinishedSummaryLayoutPolicy.uncompressedFinishedContentHeight + 120
+            )
+        )
+    }
+
+    /// 辅助字号档不依赖预算：任何内容区高度都压缩（与既有 AX5 实测一致）。
+    func testAccessibilitySizeAlwaysCompressesRegardlessOfBudget() {
+        XCTAssertTrue(
+            RunFinishedSummaryLayoutPolicy.compressesFinishedSummary(
+                isAccessibilitySize: true,
+                availableContentHeight: 4000
+            )
+        )
+    }
 }

@@ -21,6 +21,28 @@ enum RunFinishedSummaryLayoutPolicy {
         isAccessibilitySize ? accessibilityTrackPreviewHeight : standardTrackPreviewHeight
     }
 
+    /// 未压缩结束态所需的最小内容区高度（实测口径 → 参数 → 复用点）。
+    ///
+    /// 实测（2026-11-12，iPhone 16 竖屏 393×852，标准字号档）：可用内容区 =
+    /// 导航栏下沿 149.7 → 主操作顶边 762.0，共 612.3pt；结束待保存屏未压缩内容实测底沿 837.3，
+    /// `run.backgroundDegraded` 与 `run.save` 相交 75.3pt（保存态叠加「已保存」提示后溢出更多）。
+    /// 参数：未压缩所需内容区 ≥ 612.3 + 75.3 = 687.6 → 取整 688。
+    /// 复用点：`RunView` 的结束总结（地图高度 / 区块间距 / 分段卡内边距与行距）与滚动体最小高度，
+    /// 三处共用同一判定，不逐屏补丁、不在视图层写裸数字。
+    static let uncompressedFinishedContentHeight: CGFloat = 688
+
+    /// 结束态是否走压缩档：辅助字号档恒压缩；标准字号档只在可用内容区够不到未压缩预算时压缩。
+    /// 反例只喂不同输入即可判红，不需要改生产代码。
+    static func compressesFinishedSummary(
+        isAccessibilitySize: Bool,
+        availableContentHeight: CGFloat
+    ) -> Bool {
+        if isAccessibilitySize {
+            return true
+        }
+        return availableContentHeight < uncompressedFinishedContentHeight
+    }
+
     /// 结束态内容块之间的垂直间距：辅助字号档收到最小档 `xxs`。
     static func blockSpacing(isAccessibilitySize: Bool) -> CGFloat {
         isAccessibilitySize ? DesignTokens.Spacing.xxs : DesignTokens.Spacing.sectionGap
