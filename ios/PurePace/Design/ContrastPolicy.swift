@@ -52,16 +52,18 @@ enum ContrastPolicy {
         Pair(name: "success/background", foregroundKey: "success", backgroundKey: "background", minimum: bodyThreshold, tier: .body),
         Pair(name: "success/surface", foregroundKey: "success", backgroundKey: "surface", minimum: bodyThreshold, tier: .body),
         Pair(name: "success/successSoft", foregroundKey: "success", backgroundKey: "successSoft", minimum: bodyThreshold, tier: .body),
-        Pair(name: "danger/background", foregroundKey: "danger", backgroundKey: "background", minimum: bodyThreshold, tier: .body),
-        Pair(name: "danger/surface", foregroundKey: "danger", backgroundKey: "surface", minimum: bodyThreshold, tier: .body),
-        Pair(name: "danger/dangerSoft", foregroundKey: "danger", backgroundKey: "dangerSoft", minimum: bodyThreshold, tier: .body),
-        // 唯一品牌橙：accent 浅/深同值 #FF9A5C，onAccent 浅/深同值 #2A1206，两模式实测均 8.44。
+        // light danger 仅作确认层填充主操作与 C2 图标着色，不作正文文字：三条按非文本 UI 3.0 档判
+        // （light 实测 3.6026 / 3.7626 / 3.2315；dark 同色实测 5.2034 / 4.7312 / 4.8198，均 ≥3.0）。
+        Pair(name: "danger/background", foregroundKey: "danger", backgroundKey: "background", minimum: largeThreshold, tier: .large),
+        Pair(name: "danger/surface", foregroundKey: "danger", backgroundKey: "surface", minimum: largeThreshold, tier: .large),
+        Pair(name: "danger/dangerSoft", foregroundKey: "danger", backgroundKey: "dangerSoft", minimum: largeThreshold, tier: .large),
+        // 唯一品牌橙：accent 浅/深同值 #FF6B00，onAccent 浅/深同值 #2A1206，两模式实测均 6.1932。
         Pair(name: "onAccent/accent", foregroundKey: "onAccent", backgroundKey: "accent", minimum: bodyThreshold, tier: .body),
         Pair(name: "onWarning/warning", foregroundKey: "onWarning", backgroundKey: "warning", minimum: bodyThreshold, tier: .body),
         Pair(name: "onSuccess/success", foregroundKey: "onSuccess", backgroundKey: "success", minimum: bodyThreshold, tier: .body),
         // 实心按钮文字按正文/小字 4.5 判定（与 body 档同源，不另设按钮阈值）：
-        // light 白字 vs #660D09 = 12.91；dark 深字 #2A0608 vs #F53A48 = 4.95。
-        // dark 侧保留深字 onDanger：白字 vs dark danger 仅 3.76，不达标，不能反向放宽。
+        // danger 两模式同色 #F53A48，深字 onDanger #2A0608 vs danger 实测 4.9479（两侧同值）。
+        // 白字 vs #F53A48 仅 3.76，不达标，不能反向放宽。
         Pair(name: "onDanger/danger", foregroundKey: "onDanger", backgroundKey: "danger", minimum: bodyThreshold, tier: .body),
         // 非文本 UI 边界 3.0 档
         Pair(name: "accent/background@large", foregroundKey: "accent", backgroundKey: "background", minimum: largeThreshold, tier: .large),
@@ -82,21 +84,23 @@ enum ContrastPolicy {
         let source: String
     }
 
-    /// 人的拍板来源：V1.2 定稿「品牌优先」——唯一品牌橙 #FF9A5C 作前景压不住浅色中性底。
+    /// 人的拍板来源：V1.2 终版「品牌优先」——唯一品牌橙 #FF6B00 作前景压不住浅色中性底。
     static let brandPrioritySource =
-        "V1.2 定稿人拍板：唯一品牌橙作为前景 vs 浅色中性底，品牌优先；补偿仅限描边/字重/尺寸，禁改色相或压暗"
+        "V1.2 终版人拍板：唯一品牌橙作为前景 vs 浅色中性底，品牌优先；补偿仅限描边/字重/尺寸，禁改色相或压暗"
 
     /// 品牌优先豁免族（唯一豁免登记，恰 6 条）：
     /// 只登记 light 侧 `accent` 作前景的 3 个浅色中性底 × body/large 两档；dark 侧零豁免。
     /// 登记 ≠ 改公式：`problems` 仍对每条真算比值，只对登记名放行；清空本表后 6 条全部判红，
     /// 未登记的低对比对仍 fail-closed，`bodyThreshold` / `largeThreshold` / `decorativeThreshold` 与 37 对数量零改动。
+    /// 实测值随 `accent #FF6B00` 与 `accentSoft #FFE3CF` 重跑更新（light accent↔accentSoft 仅 2.3304，
+    /// 该值由派生口径决定，不为凑旧预期反推公式或改 hex）。
     static let brandPriorityExemptions: [Exemption] = [
-        Exemption(name: "light accent/background", measured: 2.0049, source: brandPrioritySource),
-        Exemption(name: "light accent/surface", measured: 2.0940, source: brandPrioritySource),
-        Exemption(name: "light accent/accentSoft", measured: 1.8274, source: brandPrioritySource),
-        Exemption(name: "light accent/background@large", measured: 2.0049, source: brandPrioritySource),
-        Exemption(name: "light accent/surface@large", measured: 2.0940, source: brandPrioritySource),
-        Exemption(name: "light accent/surfaceMuted@large", measured: 1.8693, source: brandPrioritySource)
+        Exemption(name: "light accent/background", measured: 2.7338, source: brandPrioritySource),
+        Exemption(name: "light accent/surface", measured: 2.8552, source: brandPrioritySource),
+        Exemption(name: "light accent/accentSoft", measured: 2.3304, source: brandPrioritySource),
+        Exemption(name: "light accent/background@large", measured: 2.7338, source: brandPrioritySource),
+        Exemption(name: "light accent/surface@large", measured: 2.8552, source: brandPrioritySource),
+        Exemption(name: "light accent/surfaceMuted@large", measured: 2.5488, source: brandPrioritySource)
     ]
 
     /// 判定所用的外观侧。

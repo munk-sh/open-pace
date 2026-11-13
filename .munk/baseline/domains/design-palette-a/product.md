@@ -4,7 +4,7 @@
 
 ## 范围
 
-- `Colors.palette`：18 键 × 浅/深 = 36 hex 槽位（石墨中性骨架 + 唯一品牌橙单点强调）；键集、键名、`static let` 数量不增不减。V1.2 定稿后 `accent` 与 `onAccent` 浅深同值，其余 16 键仍须 light≠dark。
+- `Colors.palette`：18 键 × 浅/深 = 36 hex 槽位（石墨中性骨架 + 唯一品牌橙单点强调）；键集、键名、`static let` 数量不增不减。V1.2 终版后 `accent` / `onAccent` / `danger` / `onDanger` 浅深同值（恰 4 键），其余 14 键仍须 light≠dark。
 - `Colors.purposes`：键集不变，用途文本按新色板重映射——accent = 唯一主操作色（开始/暂停/继续/结束/保存）、warning = 非阻断内联提示（不作填充主按钮）、danger = 确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版）。
 - `ContrastPolicy.pairMatrix`：37 对，按 body 4.5 / large 3.0 / decorative 1.10 三档求解；`onDanger/danger` 恰 1 条、body 档。
 - `ContrastPolicy.brandPriorityExemptions`：唯一豁免登记表，恰 6 条，只登记 light 侧 `accent` 作前景的 3 个浅色中性底 × body/large 两档；dark 侧零豁免；豁免是登记而非改公式。
@@ -14,32 +14,36 @@
 
 ## 验收
 
-- ac-palette-hex-exact: 36 hex 槽位与方向 A 表逐键逐侧完全相等；表驱动断言把期望值写成字面 `UInt32`，任一键改回旧值或改任一分量即红（accent light 改回 `0xB4400B` 或设计稿候选 `0xE85D04` 必红）。
-- ac-accent-single-orange: `palette["accent"]` light 与 dark 同为 `0xFF9A5C`（HSL 22.8/100/68.0），不等于旧 `0xB4400B`、不等于 `0xE85D04`；全色板橙区间扫描只命中 accent 两个槽位，不存在第二套橙或压暗 fallback 值。
-- ac-onaccent-single-deep: `palette["onAccent"]` light 与 dark 同为 `0x2A1206`；`ratio(onAccent, accent)` 两侧均 8.44（±0.01）且 ≥4.5；旧白字 `0xFFFFFF` 作为反例必须判红。
-- ac-palette-keys-frozen / shape-frozen: 调色板恰 18 键、18 条 `ColorPair`、36 个 hex 槽位；键集等于冻结清单、无重复、`purposes` 键集等于 palette 键集、`static let <key> = color("<key>")` 数量 = 18；**仅 `accent` 与 `onAccent` 允许 light==dark**，其余 16 键同值必红，`warning`/`danger`/`success` 系仍为双值。
-- ac-accentsoft-light-recomputed: light `accentSoft` == `0xFFECE0`（HSL 23.2/100/93.9）且 ≠ 旧 `0xFCEFE7`；vs light `background` 1.0971（≥1.05）、vs `surface` 1.1459（≥1.10）；`primary`/`secondary` 在其上 15.50 / 5.60（≥4.5）；dark `accentSoft` 保持 `0x3A1F12`。
+- ac-palette-hex-exact: 36 hex 槽位与方向 A 表逐键逐侧完全相等；表驱动断言把期望值写成字面 `UInt32`，任一键改回旧值或改任一分量即红（accent 改回 `0xFF9A5C`/`0xB4400B`、`danger.light` 改回 `0x660D09`、`accentSoft.light` 改回 `0xFFECE0` 必红）。
+- ac-accent-value / ac-accent-single-orange: `palette["accent"]` light 与 dark 同为 `0xFF6B00`（HSL 25.2/100/50.0），两侧同值；不等于旧 `0xFF9A5C`、`0xB4400B`、设计稿候选 `0xE85D04`；全色板橙区间扫描只命中 accent 两个槽位，不存在第二套橙或压暗 fallback 值。
+- ac-onaccent-value / ac-onaccent-single-deep: `palette["onAccent"]` light 与 dark 同为 `0x2A1206`；`ratio(onAccent, accent)` 两侧均 6.1932（±0.05）且 ≥4.5；旧白字 `0xFFFFFF` 作为反例必须判红。
+- ac-danger-value: `danger` light 与 dark 同为 `0xF53A48`；`onDanger` light 与 dark 同为 `0x2A0608`；浅色侧不再是 `0x660D09`/`0xFFFFFF`。
+- ac-palette-keys-frozen / shape-frozen: 调色板恰 18 键、18 条 `ColorPair`、36 个 hex 槽位；键集等于冻结清单、无重复、`purposes` 键集等于 palette 键集、`static let <key> = color("<key>")` 数量 = 18；**light==dark 白名单恰 4 键：`accent` / `onAccent` / `danger` / `onDanger`**，其余 14 键同值必红（`warning`/`success`/`dangerSoft` 系仍为双值）。
+- ac-accentsoft-derived / ac-accentsoft-light-recomputed: light `accentSoft` == `0xFFE3CF` = `round(0.19·accent + 0.81·#FFFFFF)` 逐通道取整（同一口径从旧 `0xFF9A5C`→`0xFFECE0` 沿用），公式写在 `docs/design/palette-a.md`；≠ 旧 `0xFFECE0`/`0xFCEFE7`；vs light `background` 1.1731（≥1.05）、vs `surface` 1.2252（≥1.10）；`primary`/`secondary` 在其上 14.5014 / 5.2384（≥4.5）；dark `accentSoft` 保持 `0x3A1F12`。
 - ac-palette-neutral-purity: 深色三中性键 `#0B0C0D` / `#16181A` / `#1E2124` 判据为「HSL 色相 210°，落在 60–200° 之外」且「chroma/255 = 0.78% / 1.57% / 2.35% ≤ 3.0%」；旧值 `#0A1211`(166°) / `#141F1D`(168°) / `#1A2724`(172°) 必须判红。浅色三键 `#FAFAF9` / `#FFFFFF` / `#F2F2F1` 饱和度 ≤4% 一并断言。
 - ac-palette-no-green: 36 hex 全部落在禁区外——不得命中 H 72–85°(S≥90%)、H 120–150°(S≥45%)、H 165–180°(S≥55%)、泛绿中性任一项。
-- ac-accent-separation: accent 与 warning、accent 与 danger 在 HSL 口径下至少满足 ΔH≥25° / ΔL≥15pp / ΔS≥30pp 之一；warning/danger 系数值按公司裁决 `owe_40221a8e983c7516` 取。
-- ac-danger-one-pass-separation: light `danger` 维持 `0x660D09`、dark 维持 `0xF53A48`；`accent↔danger` 两模式均满足 ΔH≥25° / ΔL≥15pp / ΔS≥30pp 之一（light 靠 ΔL 46.27pp，dark 靠 ΔH 27.31°）；明度分离最多一档且不新增方案。
-- ac-danger-semantics: `purposes["danger"]` 与 `Colors.danger` 文档注释均为「确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版）」，不再出现「仅文本或描边」；旧文案作为反例判红；`warning`/`success` 语义与 hex 不变。
+- ac-accent-separation / ac-separation-dh: 分离度判据为 HSL 口径 ΔH≥25°（另有 ΔL≥15pp / ΔS≥30pp 同域 OR 口径，阈值常量零改动）：`accent↔danger` 两侧 ΔH 29.6685°（ΔL 仅 9.4118pp / ΔS 9.6618pp，**不再作为通过理由**）；`accent↔warning` light ΔH 25.0053°（另有 ΔL 28.4314pp）、dark ΔH 25.285°（`warning.dark #EECF2B`，经 Owner 批准 A1 微调，S/L 与旧值零漂移）；旧 `warning.dark #EECA2B` 对新 accent ΔH 23.7466° 三项全不成立，作为反例必须判红。
+- ac-danger-one-pass-separation: light 与 dark `danger` 同为 `0xF53A48`；`accent↔danger` 两模式均满足 ΔH 29.6685°±0.05 ≥25°；断言中不再出现 `0x660D09`、`46.27`、`27.31` 作为通过依据，判据阈值常量不变；反例 accent 置 `0xFF4000` 使 ΔH<25 必红。
+- ac-danger-semantics: `purposes["danger"]` 与 `Colors.danger` 文档注释均为「确认层实心破坏性主操作（丢弃）+ 无填充次操作（C2 图标式紧凑版）；浅色侧作填充主操作与 C2 图标着色，不作正文文字」，不再出现「仅文本或描边」；旧文案作为反例判红；`warning`/`success` 语义不变。
 - ac-dark-danger-red: dark `danger` ∈ H≤8° 或 ≥352°（实测 355.5°）、S≥55%（90.3%）、L≤60%（59.4%）；暖橙近似值必红。
-- ac-ondanger-matrix-pair: `pairMatrix` 中 `onDanger/danger` 恰 1 条、`.body` 档、minimum == `bodyThreshold`；light 12.91、dark 4.95（均 ≥4.5）；注释写明「实心按钮文字按正文/小字 4.5」的推导，并说明 dark 保留深字 `onDanger`（白字 vs dark danger 仅 3.76，不达标）；`pairMatrix` 总数仍 37。
-- ac-brand-exemption-scoped: 豁免以显式登记表存在，恰 6 条且只命中 light 侧 `accent` 作前景：`accent/background` 2.0049、`accent/surface` 2.0940、`accent/accentSoft` 1.8274（body 4.5），`accent/background@large` 2.0049、`accent/surface@large` 2.0940、`accent/surfaceMuted@large` 1.8693（large 3.0）；每条带实测比值与拍板来源；dark 侧零豁免。
+- ac-danger-nontext: light `danger/background` 3.6026、`danger/surface` 3.7626、`danger/dangerSoft` 3.2315 三条不以 4.50 断言，改判非文本 3.0 档（`largeThreshold` / `.large`，实测均 ≥3.0，**不从矩阵移除**，`pairMatrix` 总数仍 37）；dark 同三对 5.2034 / 4.7312 / 4.8198 一并 ≥3.0；证据与色板文档写明「light danger 仅作确认层填充主操作与 C2 图标着色，不作正文文字」。
+- ac-ondanger-pair / ac-ondanger-matrix-pair: `pairMatrix` 中 `onDanger/danger` 恰 1 条、`.body` 档、minimum == `bodyThreshold`；light 与 dark 均 4.9479（light 落在 4.95±0.05，两侧 ≥4.5），证据文件含该行；注释写明「实心按钮文字按正文/小字 4.5」的推导，并说明白字 vs `#F53A48` 仅 3.76 不达标、不能反向放宽；`pairMatrix` 总数仍 37。
+- ac-brand-exemption-scoped / ac-exemptions-remeasured: 豁免以显式登记表存在，恰 6 条且只命中 light 侧 `accent` 作前景：`accent/background` 2.7338、`accent/surface` 2.8552、`accent/accentSoft` 2.3304（body 4.5），`accent/background@large` 2.7338、`accent/surface@large` 2.8552、`accent/surfaceMuted@large` 2.5488（large 3.0）；每条带实测比值与拍板来源；dark 侧零豁免；全仓旧值 `2.0049`/`2.0940`/`1.8274`/`1.8693` 零命中。
 - ac-exemption-not-formula: 清空登记表后上述 6 条必须全部判红；删 1 条只红 1 条；未登记的低对比 synthetic pair 必须判红；`bodyThreshold`/`largeThreshold`/`decorativeThreshold` 与 37 对数量零改动（禁止改小阈值或删对补绿）。
-- ac-no-other-hex-drift: 相对 V1.2 起始提交，palette 仅 3 个 light 槽位变化（`accent.light`、`onAccent.light`、`accentSoft.light`），其余 33 个 hex 逐字节不变。
+- ac-no-other-hex-drift / ac-untouched-24: 相对本项改动前，palette 仅 7 个槽位变化（`accent.light`/`accent.dark`、`accentSoft.light`、`danger.light`/`danger.dark`、`onDanger.light`、`warning.dark`——后者为 Owner 批准的 A1 唯一非品牌微调），其余 29 个 hex 逐字节不变；PRD 原「24 hex 零改动」由该 Owner 决策取代，不得再据此判红。
 - ac-contrast-matrix-pass: `checks(for:)` 对 light 与 dark 各 37 对全部 PASS；删任一对或改任一 hex 使任一对跌破阈值（且未登记豁免）即红。
-- ac-contrast-evidence / evidence-bound: `docs/evidence/palette-a-contrast.txt` 逐行 `scheme pair fg bg ratio(4 位) threshold`，覆盖 74 行且与 `ContrastPolicy.ratio` 现场重算误差 ≤1e-4；含「品牌优先豁免」（6 条 + 拍板来源 + 补偿仅限描边/字重/尺寸）与「矩阵来源/公式/阈值来源」段；旁挂 `.sha256` 记录证据 sha256 与 commit sha，`shasum -a 256 -c` 通过且该 commit 能读到同批新值。
-- ac-gate-direction-a-hex-lock / gate-execution-sync: `scripts/check-ios-shell.sh` 期望表同步为新值；同值白名单仅放行 `accent`/`onAccent`（`surface` 等非白名单同值仍判「色对 light/dark 相同」）；`--self-test` 含 accent 同值绿例 + 非白名单同值红例 + accent 回退红例（原因串含「方向 A 表不一致」），退出 0；删键原因串含「方向 A 期望表缺键」；对比度阈值与公式不在这条门里、不得借机改动。
-- ac-doc-palette-sync: `docs/design/palette-a.md` 18×2 表与代码一致（accent 两侧 `#FF9A5C`、onAccent 两侧 `#2A1206`、accentSoft light `#FFECE0`），并注明 V1.2 单一橙定稿与豁免来源，文件内 hex 与代码逐键一致。
-- ac-token-tests-red-both-ways: 上述单橙 / onAccent / accentSoft / danger 语义与分离 / onDanger 对比度 / 6 条豁免均有同 commit 反例：旧 `0xB4400B`·`0xFFFFFF`·`0xFCEFE7`、白字 vs dark danger、未登记低对比对、删登记项，均在不改生产代码的前提下判红；把新值改错也必须红。
+- ac-contrast-evidence / ac-evidence-bound: `docs/evidence/palette-a-contrast.txt` 重跑重出，逐行 `scheme pair fg bg ratio(4 位) threshold`，覆盖 74 行且与 `ContrastPolicy.ratio` 现场重算误差 ≤1e-4；含「品牌优先豁免」（6 条新值 + 拍板来源 + 补偿仅限描边/字重/尺寸）与「矩阵来源/公式/阈值来源」段；旁挂 `.sha256` 记录证据 sha256 与本项 commit sha，`shasum -a 256 -c` 通过且该 commit 能读到同批新值。
+- ac-gate-direction-a-hex-lock / gate-execution-sync: `scripts/check-ios-shell.sh` 期望表同步为终版 36 hex；同值白名单恰放行 `accent`/`onAccent`/`danger`/`onDanger`（`surface` 等非白名单同值仍判「色对 light/dark 相同」）；`--self-test` 含 4 键同值绿例 + accent 回退红例 + `danger.light` 回退 `0x660D09` 红例 + `accentSoft.light` 回退 `0xFFECE0` 红例（原因串含「方向 A 表不一致」），退出 0；对比度阈值与公式不在这条门里、不得借机改动。
+- ac-doc-palette-sync: `docs/design/palette-a.md` 18×2 表与代码一致（accent 两侧 `#FF6B00`、onAccent 两侧 `#2A1206`、danger/onDanger 两侧 `#F53A48`/`#2A0608`、accentSoft light `#FFE3CF`、warning.dark `#EECF2B`），含 `accentSoft` 派生公式段、关键对比度表、`light danger` 非文本声明与 HSL 分离度段；`docs/verification-matrix.md`、`.munk/baseline/design/foundations.md` 同步；旧值 `#FF9A5C` 作主色、`#660D09` 作 light danger、`8.44:1`、旧豁免实测值零残留；`docs/design-draft-v12/token-diff.md` 顶部含「已被 V1.2 终版取代」标注。
+- ac-token-tests-red-both-ways: 上述单橙 / onAccent / accentSoft / danger 语义与分离 / light danger 非文本档 / onDanger 对比度 / 6 条豁免均有同 commit 反例：旧 `0xFF9A5C`·`0xB4400B`·`0x660D09`·`0xFFFFFF`·`0xFFECE0`、旧 `warning.dark 0xEECA2B`（ΔH 23.7466°）、accent `0xFF4000`（ΔH<25）、白字 vs danger、未登记低对比对、删登记项，均在不改生产代码的前提下判红；把新值改错也必须红。
+- ac-screenshots: 14 张屏（7 屏 × light/dark）+ 7 张并排重出并绑本项 commit；两份 `SHA256SUMS` 用实取 sha256 更新且 `shasum -a 256 -c` exit 0；头部记录 build head sha、tree sha、采集时 HEAD、归属 workItem 与「除色 token 外零布局 diff」声明。
+- ac-scope-frozen: 改动路径集 ⊆ {`ios/PurePace/Design/DesignTokens.swift`, `ios/PurePace/Design/ContrastPolicy.swift`, `ios/PurePaceTests/DesignTokensTests.swift`, `ios/PurePaceTests/ContrastPolicyTests.swift`, `scripts/check-ios-shell.sh`, `docs/**`, `.munk/changes/{workItemId}/**`}；`DesignDraft/**`、`Views/**` 的 `git diff` 为空（视图修正与 `DesignDraftDiscard` 内旧注释清理归后续子项）。
 - ac-no-fallback-enabled: 代码注释明确「同色相更深一档（H 22–26）仅作 fallback，必须人看过拍板后才可启用，本轮未启用」；palette 中不存在压暗候选/第二套橙。
 
 ## 非目标
 
 - 不新增第 19 个色键、不改键集与 `purposes` 键数、不引入第二个 token 真源文件。
-- 不靠截图取色、不自行微调 hex（warning/danger 系例外，按公司裁决重取并留痕）。
+- 不靠截图取色、不自行微调 hex（warning/danger 系例外：按公司裁决重取并留痕；`warning.dark` 的 A1 微调属 Owner 逐值批准的一次性例外，不得作为后续「顺手调色」先例）。
 - 不改 Layout、结束态总结、丢弃确认弹窗等视图结构与交互（归 `ios-ui-design` 等后续子项）；本域不获得视图改动授权。
 - 不改字号档、字重集合、间距、圆角、动效常量（归 `design-token-gates`）；不改 `ios/PurePaceUITests/**`、identifier 冻结集、`VERSION`、Info.plist、签名与 CI workflow。
 - 不做主题切换器、用户自定义色板、双 SDK 地图配色、Android 侧色板同步。
@@ -51,14 +55,16 @@
 - 判据口径：深色中性不用 HSV S（深色 V≈5% 时分母极小，实测 8.3–9.1% 会把正确实现判红）；公司裁决 `owe_0b599686dc8f7475` 定的 HSL 口径（色相 + chroma/255）为准，口径理由写进代码注释与 `palette-a.md`，避免复评误判为「放宽门」。
 - 对比度：WCAG 2.x 相对亮度；比值保留 4 位小数；`pairMatrix` 是单一真源，测试与证据都从它派生，不另立期望表。
 - 豁免纪律：只登记不改公式——`problems` 对每条真算比值，仅对登记名放行；禁止改小 `bodyThreshold`/`largeThreshold`/`decorativeThreshold`、禁止删 pair 或放宽 dark 侧；补偿手段只允许描边/字重/尺寸，绝不改色相或压暗。
-- 同值白名单边界：`check-ios-shell.sh` 只允许 `accent`/`onAccent` light==dark，其余键同值仍判红；期望表值同步与自检夹具更新属执行面同步，不是放宽门。
+- 同值白名单边界：`check-ios-shell.sh` 只允许 `accent`/`onAccent`/`danger`/`onDanger` light==dark，其余键同值仍判红；期望表值同步与自检夹具更新属执行面同步，不是放宽门。
 - 反例纪律：新增断言必须同 commit 附反例，反例不得依赖改生产代码才红（改回旧值 / 改分量 / 清空豁免都能独立判红）。
 - 证据口径：只写命令、退出码、实测比值与断言数，不把「已按 V1.2 对齐」当证据。
-- 已知遗留风险：`RunView` 仍有 `Colors.accent` 作正文/链接前景（约 L345/L409/L419），浅色下约 2.00:1；本域只登记豁免与补偿约束，视图修正归下一子项。
+- 已知遗留风险：`RunView` 仍有 `Colors.accent` 作正文/链接前景，浅色下实测 2.7338（低于 body 4.50，已在豁免表登记）；本域只登记豁免与补偿约束，视图修正归下一子项。`DesignDraftDiscard` 注释仍提旧 light danger `#660D09`，属视图/Draft 只读范围，清理归后续子项。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_029a7f0234099ff4（2026-11-12，pass）
-- 交付（V1.2 定稿）：`accent` 浅深同值 `0xFF9A5C`、`onAccent` 浅深同值 `0x2A1206`（8.44）、`accentSoft` light 重算为 `0xFFECE0`，其余 33 个 hex 零漂移；`purposes`/`Colors.danger` 语义改为「实心破坏性主操作 + 无填充次操作」；新增 `ContrastPolicy.brandPriorityExemptions` 恰 6 条 light accent 豁免（2.0049 / 2.0940 / 1.8274 / 2.0049 / 2.0940 / 1.8693），阈值与 37 对零改动；证据文件 74 行同名覆盖 + `.sha256` 旁挂；`check-ios-shell.sh` 期望表同步并加同值白名单与三类自检夹具。
-- 实测：`test-ios --unit-only` 262 例 0 失败（含 `DesignTokensTests` 新增单橙/onAccent/单遍分离/语义/同值反例、`ContrastPolicyTests` 新增 onDanger 档位与豁免 fail-closed 反例）；`check-ios-shell.sh` 33 项断言 0 失败、`--self-test` 95 项 0 失败；`code_gates` 22 门全绿（attempt 001，`.munk/runs/run_redispatch_bb33c32e51919014/code-gates/attempts/001/`）。
-- 边界：本轮只落 token + 策略 + 单测 + 证据，未动任何视图/版式/布局；`RunView` 的 accent 前景低对比与更深一档橙 fallback 均为有意未启用项。
+- workItemId: wi_intake_a7e3a95c0d6f61bb（2026-11-13，pass）
+- 交付（V1.2 配色终版）：`accent` 浅深同值 `0xFF6B00`、`onAccent` 浅深同值 `0x2A1206`（6.1932）、`danger` 浅深同值 `0xF53A48`、`onDanger` 浅深同值 `0x2A0608`（4.9479）、`accentSoft.light` 按文档化 19% 混白口径重算为 `0xFFE3CF`（dark 仍 `0x3A1F12`）；同值白名单扩到恰 4 键，其余 14 键仍双值；`danger/background`、`danger/surface`、`danger/dangerSoft` 三条改判非文本 3.0 档（3.6026 / 3.7626 / 3.2315），矩阵仍 37 对、阈值常量零改动；6 条 light accent 豁免重测为 2.7338 / 2.8552 / 2.3304 / 2.7338 / 2.8552 / 2.5488 且旧值全仓零命中；分离度判据切到 ΔH 口径（accent↔danger 29.6685°，accent↔warning light 25.0053° / dark 25.285°）。
+- 与 PRD 的偏离（经 Owner 决策，已落库）：① `warning.dark` `#EECA2B` → `#EECF2B`——accent 换 `#FF6B00` 后 dark accent↔warning ΔH 仅 23.7466°，与「阈值零放宽 × warning hex 零改动」不可同时成立，Owner 选 A1 批准唯一非品牌微调（S/L 零漂移）；② `accentSoft.light` 实测 `accent/accentSoft` 为 2.3304，PRD 预期「≈2.49」只对旧 `#FFECE0` 亮度成立，按派生口径实测落库并作废该预期；③ `DesignDraftDiscard` 内旧 `#660D09` 注释未改（scope-frozen 只读）。
+- 实测：`test-ios` 173 例单测 + UI 腿 0 失败；`check-ios-shell.sh` 33 项断言 0 失败、`--self-test` 102 项 0 失败（含 accent / light danger / accentSoft 三类回退红例）；`code_gates` 22 门全绿（attempt 001，`.munk/runs/run_redispatch_be3eb5f3e2221070/code-gates/attempts/001/`）。
+- 证据与截图：`docs/evidence/palette-a-contrast.txt` 74 行重跑重出 + `.sha256` 绑 commit；14 张屏 + 7 张并排重出并绑 `4d2e611`，两份 `SHA256SUMS` 实取且 `shasum -c` 通过。
+- 边界：本轮只落色 token + 策略 + 单测 + 证据/截图/文档，未动布局与视图；「更深一档橙」fallback 仍为有意未启用项。

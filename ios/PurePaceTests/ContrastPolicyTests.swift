@@ -79,21 +79,21 @@ final class ContrastPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightOnAccent, background: lightAccent) ?? 0,
-            8.44,
+            6.1932,
             accuracy: 0.01,
-            "light onAccent/accent 与 dark 同值口径，实测 8.44"
+            "light onAccent/accent 与 dark 同值口径，实测 6.1932"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightAccent, background: DesignTokens.SRGB(hex: 0xFAFAF9)) ?? 0,
-            2.0049,
+            2.7338,
             accuracy: 0.0001,
-            "light accent/background 实测 2.0049（品牌优先豁免，见登记表）"
+            "light accent/background 实测 2.7338（品牌优先豁免，见登记表）"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: darkOnAccent, background: darkAccent) ?? 0,
-            8.44,
+            6.1932,
             accuracy: 0.01,
-            "dark onAccent/accent 实测值应为 8.44"
+            "dark onAccent/accent 实测值应为 6.1932"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightSuccess, background: lightSuccessSoft) ?? 0,
@@ -110,27 +110,27 @@ final class ContrastPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightAccentSoft, background: lightBackground) ?? 0,
-            1.0971,
+            1.1731,
             accuracy: 0.0001,
             "light accentSoft/background 必须 ≥1.05"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightAccentSoft, background: lightSurface) ?? 0,
-            1.1459,
+            1.2252,
             accuracy: 0.0001,
             "light accentSoft/surface 必须 ≥1.10"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightPrimary, background: lightAccentSoft) ?? 0,
-            15.5047,
+            14.5014,
             accuracy: 0.0001,
-            "primary/accentSoft 实测 15.5047"
+            "primary/accentSoft 实测 14.5014"
         )
         XCTAssertEqual(
             ContrastPolicy.ratio(foreground: lightSecondary, background: lightAccentSoft) ?? 0,
-            5.6008,
+            5.2384,
             accuracy: 0.0001,
-            "secondary/accentSoft 实测 5.6008"
+            "secondary/accentSoft 实测 5.2384"
         )
 
         XCTAssertEqual(ContrastPolicy.bodyThreshold, 4.5)
@@ -155,7 +155,7 @@ final class ContrastPolicyTests: XCTestCase {
         }
         let light = ContrastPolicy.ratio(foreground: lightOnDanger, background: lightDanger) ?? 0
         let dark = ContrastPolicy.ratio(foreground: darkOnDanger, background: darkDanger) ?? 0
-        XCTAssertEqual(light, 12.91, accuracy: 0.01)
+        XCTAssertEqual(light, 4.95, accuracy: 0.01)
         XCTAssertEqual(dark, 4.95, accuracy: 0.01)
         XCTAssertGreaterThanOrEqual(dark, ContrastPolicy.bodyThreshold)
 
@@ -171,12 +171,12 @@ final class ContrastPolicyTests: XCTestCase {
     // MARK: - ac-brand-exemption-scoped / ac-exemption-not-formula
 
     private let expectedExemptions: [(name: String, measured: Double)] = [
-        ("light accent/background", 2.0049),
-        ("light accent/surface", 2.0940),
-        ("light accent/accentSoft", 1.8274),
-        ("light accent/background@large", 2.0049),
-        ("light accent/surface@large", 2.0940),
-        ("light accent/surfaceMuted@large", 1.8693)
+        ("light accent/background", 2.7338),
+        ("light accent/surface", 2.8552),
+        ("light accent/accentSoft", 2.3304),
+        ("light accent/background@large", 2.7338),
+        ("light accent/surface@large", 2.8552),
+        ("light accent/surfaceMuted@large", 2.5488)
     ]
 
     func testBrandExemptionRegistryIsExactlySixLightAccentPairs() {

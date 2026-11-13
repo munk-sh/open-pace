@@ -1,7 +1,26 @@
 # 截图证据刷新（V1.2 复评重出）：14 张浅/深 + 7 张并排对照
 
-归属项：`wi_intake_85d08fa7106efc3f`。本目录是本轮复评证据的登记与日志落点：
-14 张 PNG 逐图 sha、构建 head/tree sha、7 张浅/深并排对照、断言实测行、本地门结论与 CI 回执位置。
+归属项：`wi_intake_85d08fa7106efc3f`（§1–§9 为上一批）；**最新一批见 §0（`wi_intake_a7e3a95c0d6f61bb`）**。
+本目录是本轮复评证据的登记与日志落点：14 张 PNG 逐图 sha、构建 head/tree sha、7 张浅/深并排对照、断言实测行、本地门结论与 CI 回执位置。
+
+## 0. 最新一批（2026-11-13，V1.2 配色终版）
+
+归属项：`wi_intake_a7e3a95c0d6f61bb`（accent `#FF6B00` / danger `#F53A48` 双模式同色；`accentSoft` light 重算为 `#FFE3CF`）。
+
+| 项 | 实取值 |
+|---|---|
+| 构建 head sha | `4d2e611af16bd4eebcf0aed282db29215b9e4ed1` |
+| 构建 tree sha | `c45b36045e8eb8eaf33e210d99a93d1e93cfa6ff` |
+| 采集时 HEAD（实取 `git rev-parse HEAD`；采集开始 `git status --porcelain` 空输出） | `4d2e611af16bd4eebcf0aed282db29215b9e4ed1` |
+| 设备 / 工具链 | 同 §1（iPhone 16，UDID `B3F00298-E08A-41E0-876E-6E8A75C730FD`；iOS 18.6；Xcode 26.3） |
+| 生成方式 / 时间 | 单次 `--stage all`，2026-11-13（CST） |
+
+- 14 张 + 7 张并排逐图 sha 以 `docs/screenshots/SHA256SUMS`、`docs/screenshots/side-by-side/SHA256SUMS`
+  与本目录 `SHA256SUMS` 为准（同批 `shasum -a 256` 实取，未猜未复制）；§1 的 head/tree/逐图 sha 仅代表上一批。
+- **除色 token 外零布局 diff**：本批相对 §1 批次的产品面 diff 仅色 token 与其派生期望值，布局、间距、
+  字号、圆角、identifier、文案均未改动；浅/深屏间排版一致，仅取色变化。
+- `docs/evidence/palette-a-contrast.txt` 与本批同源重出（74 行），sha256 见
+  `docs/evidence/palette-a-contrast.sha256`（绑定 commit `4d2e611`）。
 
 **口径**：截图只证明素材与断言绿（B1 inline 胶囊单行化、C2 紧凑确认层、地图卡在窗内、
 六屏 zh-Hans）；**人肉眼复评待办**——排版观感、色彩观感与真机表现不在本目录的结论范围内，

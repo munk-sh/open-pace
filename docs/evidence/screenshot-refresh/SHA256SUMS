@@ -1,24 +1,26 @@
 # 截图证据刷新校验清单（docs/evidence/screenshot-refresh/SHA256SUMS）
 #
 # 校验（在仓库根执行）：shasum -a 256 -c docs/evidence/screenshot-refresh/SHA256SUMS
-# 构建 head sha（证据绑定：产品面基线 main）：a677e175ca56c113e13cf5d2f652781febeb1223
-# 构建 tree sha（同上，产品面 tree）：400c010454c56683ee53ec72f78f815e387cc1e3
-# 采集时 HEAD（与该基线差异仅 scripts/ 、UITests、docs/）：2200ed7cbc3a80a4e0c084f874a8827c56f8bc4e（tree 6871aadd37e6af71b18fbb7b76d7d7995a81796f）
+# 构建 head sha（本批 14 张 + 7 张并排 + 3 份日志由该 commit 的构建产出）：4d2e611af16bd4eebcf0aed282db29215b9e4ed1
+# 构建 tree sha（实取 git rev-parse HEAD^{tree}）：c45b36045e8eb8eaf33e210d99a93d1e93cfa6ff
+# 采集时 HEAD（实取，采集开始工作树零 diff）：4d2e611af16bd4eebcf0aed282db29215b9e4ed1
+# 归属 workItem：wi_intake_a7e3a95c0d6f61bb（V1.2 配色终版）
+# 除色 token 外零布局 diff：本批仅色 token 变化，布局/间距/字号/圆角零改动。
 # 覆盖：docs/screenshots/ 14 张 PNG + 本目录 3 份入库日志（capture.log / xcodebuild-light.log / xcodebuild-dark.log）
-c608cb497fe642b0dc0f2359b79026c6457b7fd301f794bbb41e77ea8ec69c5b  docs/screenshots/discard-confirmation-dark.png
-e293771006e763e2cfdfae7d1ad759796a93cefe1dc1f2b64b54a82716c9706e  docs/screenshots/discard-confirmation.png
-1d89caa1cfb687befe71b9f5d473af1001d1534f369ba7751876df105e017e02  docs/screenshots/history-detail-dark.png
-198ca8ca44dfb4eed7da9a01c5e2ad3996f62d270d567c2b1d1a5d0fd1485bb9  docs/screenshots/history-detail.png
-123097ddad46322e4635da45821676b0d3080f52146880d418ec180bcc536104  docs/screenshots/history-list-dark.png
-78bccb09e6eff1bf5c8a0f766a37c4d0db4efeeba5efbdbeae168b7b015acdee  docs/screenshots/history-list.png
-9e2351b3803d9cf49e82ef04794e7e85d1bd359172bd7601b15948fde1f5b087  docs/screenshots/run-finished-dark.png
-6eef6ec004045eda379a0480e52b74bb0d95dce67f42e061bcc6ee3fcbffd67c  docs/screenshots/run-finished.png
-46c00383776e2e793fd66009b515b895fd33efa2fd7b153016acc153b587e505  docs/screenshots/run-not-started-dark.png
-e31727e12da292c531487dccc10474deb07bda54618da550135fba5c8f966785  docs/screenshots/run-not-started.png
-b42fb536cbab1972640a2d6b822af69c66a03a3ee3e58e896a3e0a499b8da996  docs/screenshots/run-running-dark.png
-9a9ba019e1b3e964d648475c34b96390a6db03652c23cabcbbbe1bd3c72d3699  docs/screenshots/run-running.png
-e9df4e5e91ff58614a9055183f07c70240bff2a924ee11b2861b1557d4009cac  docs/screenshots/settings-dark.png
-0e5058badf7dbdb10f10fef5b841b8c0212cff610beee8f5a30bfcc35cf8e583  docs/screenshots/settings.png
-f654d848c55c608ebde438b60269cb8c473d3a8dcff8f3a91d772b0a3cf71316  docs/evidence/screenshot-refresh/capture.log
-beabaaed9e670da45fd31ce1ad9684cf51df08013c62240c4c3a23ee7a89e870  docs/evidence/screenshot-refresh/xcodebuild-light.log
-6f72431ef9f55db1a89faf75216989c594ce142bc2637cbffa9740534ddb6771  docs/evidence/screenshot-refresh/xcodebuild-dark.log
+098499d7520872158fe657cce793284b8cb8d96e3d2c29095cbab753e8ad28d8  docs/screenshots/discard-confirmation-dark.png
+77ac11cfee8447e16d5e92fde589ff111b7d83759dba54f2070b8f6cb44f0f33  docs/screenshots/discard-confirmation.png
+f2efc31b7a170fd72c97d541cd47c6c420090f050cac15bb4762d10852c78ca6  docs/screenshots/history-detail-dark.png
+2ec3ae55c97f61c9163eb6c4412456bd892846bc5d63c1cb9b1d9ce2376410c4  docs/screenshots/history-detail.png
+f1889ffa954716d6016261525a9a5ec65ebb857974ec1a5d3f8b39d16fe91854  docs/screenshots/history-list-dark.png
+101bb9037762f365219e7e99b707e4c895e2c397690c844c61cb03eec0cef20d  docs/screenshots/history-list.png
+42f5f5caa8817fb070bb16ba6625842a5ad12e34b5ab895ecaa9e4b272723dd6  docs/screenshots/run-finished-dark.png
+2756bff7856c83124fe56b9634e37f4e1279a06ade657e926aaee1699e662d63  docs/screenshots/run-finished.png
+0b2a62f4eedf22dd6f9c34cc5a0ae321d5a947be81149a92064fb7c2d6a1a39b  docs/screenshots/run-not-started-dark.png
+685b22ac54b6bf4a7fd72912520ee401c8cc4b86dd81aff36056bcf63ec0f02c  docs/screenshots/run-not-started.png
+5343507939f08433f9c23f9d715e16d37b8b8ea56347671d5c005f959ee53296  docs/screenshots/run-running-dark.png
+c5c41c611730046cd40230d7051452cd599e70e05243f2443391a134603ac090  docs/screenshots/run-running.png
+560351eba836c04d0b83de13f6f6dd2c76196eeb65c608451c8fe65cb9f50661  docs/screenshots/settings-dark.png
+ce252c5c2e3fb689c2adbe2a9642ceb77dece4c5c9e0c8a7ea5aca7695569b26  docs/screenshots/settings.png
+7bec829fa72d6db6ca2809a3ee6bf81cf8cd935692d5cb4c77f14bb59c177b71  docs/evidence/screenshot-refresh/capture.log
+a2f7400c718a5a0d0aec9d6321b2679180f631a6c32443f89ad61af7607b1989  docs/evidence/screenshot-refresh/xcodebuild-light.log
+44bb5b8a53eabe68898549ad049f94bfc5fdc52f938128cc1008d99df268e771  docs/evidence/screenshot-refresh/xcodebuild-dark.log

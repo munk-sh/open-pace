@@ -1,5 +1,7 @@
 # V1.2 token diff 草案（只写建议值，不应用）
 
+> **已被 V1.2 终版取代（2026-11-13 人拍板）**：本文件的历史建议值（A1 `#E85D04` / A2 `#BE4E05` 等）全部作废，不再作为任何实现或验收依据。当前唯一真源为 `ios/PurePace/Design/DesignTokens.swift` 的 `Colors.palette`（accent `#FF6B00` / danger `#F53A48` 双模式同色），落地口径与实测见 `docs/design/palette-a.md` 与 `docs/evidence/palette-a-contrast.txt`。
+
 > **边界**：本文件只给建议值。`ios/PurePace/Design/DesignTokens.swift` 本轮**零改动**（`git diff` 可证，见 `changed-files.txt`），落地由下一轮实现条目执行。所有数值用与 `ContrastPolicy` 一致的 WCAG 2.x 公式实测：相对亮度 `c ≤ 0.04045 → c/12.92`，否则 `((c+0.055)/1.055)^2.4`，`L = 0.2126R + 0.7152G + 0.0722B`；对比度 `(L1+0.05)/(L2+0.05)`。阈值先定后测：非文本组件 ≥3:1、按钮文字 ≥4.5:1、浅色 accent H ∈ [20°,35°] 且 S ≥60%。
 
 ## 1. `accent` / `onAccent`（首选 A1，备选 A2）
