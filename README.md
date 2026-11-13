@@ -28,6 +28,14 @@ bash scripts/version.sh --tools
 
 `--tools` 在版本号之外追加 Xcode / Swift / JDK / Gradle 版本摘要；工具缺失时该行显式标注「未就绪」，不伪造版本。
 
+版本记录：
+
+| 版本 | 日期 | 状态 | CHANGELOG |
+|---|---|---|---|
+| 0.1.0 | 2026-11-14 | 未发布（候选） | [CHANGELOG](./CHANGELOG.md) |
+
+版本表首行、[`CHANGELOG.md`](./CHANGELOG.md) 首条与根 `VERSION` 必须三源一致（版本与日期都比对），由 `scripts/check-baseline.sh` 的 `ac-version-tri-source-consistency` 断言；不一致即判红。
+
 ## 构建与测试入口
 
 所有入口都在 `scripts/` 下，统一 bash 实现（`set -euo pipefail`、幂等、支持 `--help`、路径以仓库根为基准）：
