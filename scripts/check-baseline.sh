@@ -10,7 +10,10 @@ usage() {
 对仓库协作基线做结构断言并打印逐条结果：
   - 根 VERSION 单一真源（单行、无 BOM、x.y.z）
   - scripts/version.sh 真实读取 VERSION（含沙箱内改值后输出随之改变）
-  - README.md / scripts/*.sh 无版本字面值
+  - README.md / scripts/*.sh 无版本字面值（README 版本表数据行是唯一受控豁免，表格外写入仍判红）
+  - README 版本表首行 / CHANGELOG 首条 / VERSION 三源一致（版本与日期），并含沙箱判红自检
+  - docs/release/ 下 release notes 英文四节 + zh-CN 折叠段、未发布口径、三条已知限制、构建不可复现事实保留
+  - .github/workflows/release.yml 仅 workflow_dispatch、tag 由 VERSION 派生、无版本字面值、只 push tag、最小权限，并含三类反例判红自检
   - AGENTS.md 四节齐全且正文非空、测试金字塔落点与命令齐全
   - AGENTS.md skill 路由表与 .agents/skills/ 磁盘内容双向一致
   - 至少 1 个 iOS/SwiftUI 与 1 个 Android 对应 skill
@@ -138,15 +141,400 @@ else
   fi
 fi
 
+# ------------------------------------------------------------ 发布前语义断言
+# 以下函数统一接受 root 参数，反例自检在 mktemp 副本上执行，不修改生产文件。
+
+# README 版本表数据行（首行）：| 版本 | 日期 | 状态 | CHANGELOG |
+readme_version_row() {
+  grep -E '^\| *[0-9]+\.[0-9]+\.[0-9]+ *\|' "$1/README.md" 2>/dev/null | head -n 1 || true
+}
+
+# CHANGELOG 首条版本标题：## [x.y.z] - YYYY-MM-DD
+changelog_version_heading() {
+  grep -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$1/CHANGELOG.md" 2>/dev/null | head -n 1 || true
+}
+
+# README 剔除版本表数据行后的正文（版本字面值只在该数据行上受控豁免）
+readme_body_without_version_table() {
+  awk '!/^\| *[0-9]+\.[0-9]+\.[0-9]+ *\|/' "$1"
+}
+
+# 表格外正文中命中根 VERSION 字面值的行（空输出即通过）
+readme_version_literal_hits() {
+  readme_body_without_version_table "$1" | grep -Fn -- "$version_value" 2>/dev/null || true
+}
+
+# 三源一致：README 表首行 / CHANGELOG 首条 / VERSION（版本与日期都比对）
+version_tri_source_problems() { # $1 = root；通过时静默返回 0，失败时打印问题并返回 1
+  local root="$1"
+  local problems=""
+  local version row cl_heading entry
+  local row_version row_date row_status row_link
+  local cl_version cl_date
+
+  if [ ! -f "$root/VERSION" ]; then
+    printf '%s' "缺少 VERSION"
+    return 1
+  fi
+  version="$(tr -d '\r\n' < "$root/VERSION")"
+
+  if [ ! -f "$root/README.md" ]; then
+    printf '%s' "缺少 README.md"
+    return 1
+  fi
+  if ! grep -Fq '| 版本 | 日期 | 状态 | CHANGELOG |' "$root/README.md"; then
+    problems="${problems} README 缺少四列表头 '| 版本 | 日期 | 状态 | CHANGELOG |';"
+  fi
+  row="$(readme_version_row "$root")"
+  if [ -z "$row" ]; then
+    problems="${problems} README 版本表缺少数据行;"
+  else
+    IFS='|' read -r _ row_version row_date row_status row_link _ <<< "$row"
+    row_version="$(printf '%s' "$row_version" | tr -d ' ')"
+    row_date="$(printf '%s' "$row_date" | tr -d ' ')"
+    row_status="$(printf '%s' "$row_status" | tr -d ' ')"
+    row_link="$(printf '%s' "$row_link" | tr -d ' ')"
+    [ "$row_version" = "$version" ] || problems="${problems} README 表首行版本 '$row_version' 与 VERSION '$version' 不一致;"
+    printf '%s' "$row_status" | grep -Fq '未发布' || problems="${problems} README 表首行状态未标注未发布;"
+    [ "$row_link" = '[CHANGELOG](./CHANGELOG.md)' ] || problems="${problems} README 表首行 CHANGELOG 列不是 './CHANGELOG.md' 相对链接;"
+  fi
+
+  if [ ! -f "$root/CHANGELOG.md" ]; then
+    problems="${problems} 缺少 CHANGELOG.md;"
+  else
+    grep -Fq '# Changelog' "$root/CHANGELOG.md" || problems="${problems} CHANGELOG 缺少 '# Changelog';"
+    grep -Fqi 'keep a changelog' "$root/CHANGELOG.md" || problems="${problems} CHANGELOG 未声明 Keep a Changelog 风格;"
+    cl_heading="$(changelog_version_heading "$root")"
+    if [ -z "$cl_heading" ]; then
+      problems="${problems} CHANGELOG 缺少 '## [x.y.z] - YYYY-MM-DD' 首条版本标题;"
+    else
+      cl_version="$(sed -E 's/^## \[([0-9.]+)\] - .*$/\1/' <<< "$cl_heading")"
+      cl_date="$(sed -E 's/^## \[[0-9.]+\] - (.*)$/\1/' <<< "$cl_heading")"
+      [ "$cl_version" = "$version" ] || problems="${problems} CHANGELOG 首条版本 '$cl_version' 与 VERSION '$version' 不一致;"
+      if [ -n "${row_date:-}" ] && [ "$cl_date" != "$row_date" ]; then
+        problems="${problems} CHANGELOG 首条日期 '$cl_date' 与 README 表首行日期 '$row_date' 不一致;"
+      fi
+      entry="$(awk -v start="$cl_heading" '
+        $0 == start { inside = 1; print; next }
+        inside && /^## / { exit }
+        inside { print }
+      ' "$root/CHANGELOG.md")"
+      printf '%s' "$entry" | grep -Fq '未发布' || problems="${problems} CHANGELOG 首条未标注未发布;"
+      if printf '%s' "$entry" | grep -Eq '已发布|已分发|可分发'; then
+        problems="${problems} CHANGELOG 首条出现肯定式已发布口径;"
+      fi
+    fi
+  fi
+
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# 三源一致判红自检：版本漂移 / 日期漂移必须在临时副本上非零退出，未改动副本必须判绿
+version_tri_source_red_selftest_problems() { # $1 = root
+  local root="$1"
+  local problems=""
+  local ts
+  ts="$(mktemp -d "${TMPDIR:-/tmp}/purepace-tri-source.XXXXXX")"
+  if ! cp "$root/VERSION" "$root/README.md" "$root/CHANGELOG.md" "$ts/" 2>/dev/null; then
+    rm -rf "$ts"
+    printf '%s' "无法复制三源文件到沙箱"
+    return 1
+  fi
+  version_tri_source_problems "$ts" >/dev/null || problems="${problems} 未改动副本未判绿;"
+
+  awk -v v="9.9.9" 'BEGIN { done = 0 } /^\| *[0-9]+\.[0-9]+\.[0-9]+ *\|/ && !done { sub(/\| *[0-9]+\.[0-9]+\.[0-9]+ *\|/, "| " v " |"); done = 1 } { print }' \
+    "$ts/README.md" > "$ts/README.tmp" && mv "$ts/README.tmp" "$ts/README.md"
+  version_tri_source_problems "$ts" >/dev/null && problems="${problems} README 表首行版本漂移未判红;"
+
+  cp "$root/README.md" "$ts/README.md"
+  awk -v v="9.9.9" 'BEGIN { done = 0 } /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / && !done { sub(/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/, "## [" v "]"); done = 1 } { print }' \
+    "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
+  version_tri_source_problems "$ts" >/dev/null && problems="${problems} CHANGELOG 首条版本漂移未判红;"
+
+  cp "$root/CHANGELOG.md" "$ts/CHANGELOG.md"
+  awk 'BEGIN { done = 0 } /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$/ && !done { sub(/- [0-9]{4}-[0-9]{2}-[0-9]{2}$/, "- 1999-01-01"); done = 1 } { print }' \
+    "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
+  version_tri_source_problems "$ts" >/dev/null && problems="${problems} CHANGELOG 首条日期漂移未判红;"
+
+  rm -rf "$ts"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# release notes：结构 / 未发布口径 / 三条已知限制 / Build reproducibility 事实保留
+release_notes_section() { # $1 文件，$2 精确标题行
+  awk -v heading="$2" '$0 == heading { inside = 1; next } inside && /^## / { exit } inside && /^<details>/ { exit } inside { print }' "$1"
+}
+
+release_notes_problems() { # $1 = root
+  local root="$1"
+  local problems=""
+  local version notes limitations count zh zh_count covered
+  version="$(tr -d '\r\n' < "$root/VERSION" 2>/dev/null || true)"
+  notes="$root/docs/release/release-notes-${version}.md"
+  if [ ! -f "$notes" ]; then
+    printf '%s' "缺少 docs/release/release-notes-${version}.md"
+    return 1
+  fi
+
+  local heading
+  for heading in "What's in this release" "What's covered" "Privacy" "Known limitations"; do
+    grep -Fxq "## ${heading}" "$notes" || problems="${problems} 缺少英文节 '## ${heading}';"
+  done
+  grep -Fq '<summary>简体中文</summary>' "$notes" || problems="${problems} 缺少 zh-CN 折叠段 <summary>简体中文</summary>;"
+
+  # 未发布口径：先剔除否定式，再要求肯定式零命中。
+  local stripped
+  stripped="$(sed -E 's/(Not|not) (yet )?(released|shipped|distributable)/NEG/g; s/尚未发布//g; s/未发布//g; s/未分发//g; s/不可分发//g' "$notes")"
+  if printf '%s' "$stripped" | grep -Eqi 'released|shipped|distributable|已发布|已分发|可分发'; then
+    problems="${problems} 出现肯定式已发布 / 已分发 / 可分发口径;"
+  fi
+  grep -Fqi 'not released' "$notes" || problems="${problems} 缺少否定式 'Not released yet' 表述;"
+
+  limitations="$(release_notes_section "$notes" '## Known limitations')"
+  count="$(printf '%s\n' "$limitations" | grep -Ec '^[0-9]+\. ' || true)"
+  [ "$count" = "3" ] || problems="${problems} Known limitations 条目数为 ${count}（应为 3）;"
+  printf '%s' "$limitations" | grep -Fq 'zh-Hans' || problems="${problems} Known limitations 缺 zh-Hans 单语限制;"
+  printf '%s' "$limitations" | grep -Fq 'pending: 待人现场' || problems="${problems} Known limitations 缺 pending: 待人现场;"
+  printf '%s' "$limitations" | grep -Fq 'docs/device-manual-acceptance.md' || problems="${problems} Known limitations 缺真机验收文档指针;"
+  printf '%s' "$limitations" | grep -Fq '20pt' || problems="${problems} Known limitations 缺 Dynamic Type 固定 20pt 事实;"
+
+  covered="$(release_notes_section "$notes" '## What'"'"'s covered')"
+  printf '%s' "$covered" | grep -Fq 'Build reproducibility' || problems="${problems} What's covered 缺 Build reproducibility 段;"
+  printf '%s' "$covered" | grep -Fq '57' || problems="${problems} Build reproducibility 段缺 57 处派生路径事实;"
+  printf '%s' "$covered" | grep -Fq 'LC_UUID' || problems="${problems} Build reproducibility 段缺 LC_UUID 随机事实;"
+
+  zh="$(sed -n '/<summary>简体中文<\/summary>/,$p' "$notes")"
+  printf '%s' "$zh" | grep -Fq '未发布' || problems="${problems} zh-CN 段缺未发布表述;"
+  printf '%s' "$zh" | grep -Fq '隐私' || problems="${problems} zh-CN 段缺隐私节;"
+  printf '%s' "$zh" | grep -Fq '已知限制' || problems="${problems} zh-CN 段缺已知限制节;"
+  zh_count="$(printf '%s\n' "$zh" | grep -Ec '^[0-9]+\. ' || true)"
+  [ "$zh_count" = "3" ] || problems="${problems} zh-CN 已知限制条目数为 ${zh_count}（应为 3）;"
+
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# release notes 未发布口径判红自检：注入肯定式「已发布」必须非零退出
+release_notes_wording_red_selftest_problems() { # $1 = root
+  local root="$1"
+  local version notes ts problems=""
+  version="$(tr -d '\r\n' < "$root/VERSION" 2>/dev/null || true)"
+  notes="$root/docs/release/release-notes-${version}.md"
+  if [ ! -f "$notes" ]; then
+    printf '%s' "缺少 release notes，无法自检"
+    return 1
+  fi
+  ts="$(mktemp -d "${TMPDIR:-/tmp}/purepace-notes.XXXXXX")"
+  mkdir -p "$ts/docs/release"
+  cp "$notes" "$ts/docs/release/release-notes-${version}.md"
+  cp "$root/VERSION" "$ts/VERSION"
+  printf '\nThis build was shipped.\n' >> "$ts/docs/release/release-notes-${version}.md"
+  release_notes_problems "$ts" >/dev/null && problems="${problems} 注入肯定式 shipped 后未判红;"
+  rm -rf "$ts"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# release.yml：存在性 + YAML 解析 + 顶层 name / on / jobs 非空
+workflow_parse_problems() { # $1 = root
+  local wf="$1/.github/workflows/release.yml"
+  if [ ! -f "$wf" ]; then
+    printf '%s' "缺少 .github/workflows/release.yml"
+    return 1
+  fi
+  if ! command -v ruby >/dev/null 2>&1; then
+    printf '%s' "缺少 ruby，无法解析 YAML（禁止跳过）"
+    return 1
+  fi
+  local out
+  out="$(ruby -ryaml - "$wf" <<'RUBY'
+require 'yaml'
+raw = File.read(ARGV[0], encoding: 'UTF-8')
+doc = begin
+  YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(raw) : YAML.load(raw)
+rescue StandardError => e
+  puts "YAML 解析失败: #{e.message}"
+  exit 1
+end
+unless doc.is_a?(Hash)
+  puts '顶层不是映射'
+  exit 1
+end
+problems = []
+problems << '顶层 name 为空' if doc['name'].to_s.strip.empty?
+on_key = doc.key?('on') ? 'on' : (doc.key?(true) ? true : nil)
+on_value = on_key.nil? ? nil : doc[on_key]
+problems << '顶层 on 为空' unless on_value.is_a?(Hash) && !on_value.empty?
+problems << '顶层 jobs 为空' unless doc['jobs'].is_a?(Hash) && !doc['jobs'].empty?
+puts problems.join('; ')
+exit(problems.empty? ? 0 : 1)
+RUBY
+)" && return 0
+  printf '%s' "$out"
+  return 1
+}
+
+# release.yml：on 只含 workflow_dispatch
+workflow_trigger_problems() { # $1 = root
+  local wf="$1/.github/workflows/release.yml"
+  if [ ! -f "$wf" ]; then
+    printf '%s' "缺少 .github/workflows/release.yml"
+    return 1
+  fi
+  local out
+  out="$(ruby -ryaml - "$wf" <<'RUBY'
+require 'yaml'
+raw = File.read(ARGV[0], encoding: 'UTF-8')
+doc = begin
+  YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(raw) : YAML.load(raw)
+rescue StandardError => e
+  puts "YAML 解析失败: #{e.message}"
+  exit 1
+end
+on_key = doc.is_a?(Hash) && doc.key?('on') ? 'on' : (doc.is_a?(Hash) && doc.key?(true) ? true : nil)
+on_value = on_key.nil? ? nil : doc[on_key]
+triggers = on_value.is_a?(Hash) ? on_value.keys.map(&:to_s).sort : (on_value.is_a?(String) ? [on_value] : [])
+exit 0 if triggers == ['workflow_dispatch']
+puts "on 触发为 #{triggers.join(',')}，必须只含 workflow_dispatch"
+exit 1
+RUBY
+)" && return 0
+  printf '%s' "$out"
+  return 1
+}
+
+# release.yml：tag 由 VERSION 派生、dispatch 可覆盖、形态校验、零版本字面值
+workflow_tag_problems() { # $1 = root
+  local wf="$1/.github/workflows/release.yml"
+  local problems=""
+  if [ ! -f "$wf" ]; then
+    printf '%s' "缺少 .github/workflows/release.yml"
+    return 1
+  fi
+  grep -Eq 'v\$\((bash )?scripts/version\.sh\)' "$wf" || problems="${problems} 缺 VERSION 派生（v + scripts/version.sh 输出）;"
+  grep -Fq 'inputs.tag' "$wf" || problems="${problems} 缺 workflow_dispatch inputs.tag 覆盖;"
+  grep -Fq '^v[0-9]+\.[0-9]+\.[0-9]+$' "$wf" || problems="${problems} 缺 tag 形态校验 ^v[0-9]+\.[0-9]+\.[0-9]+$;"
+  local literal_hits
+  literal_hits="$(grep -En '[0-9]+\.[0-9]+\.[0-9]+' "$wf" || true)"
+  [ -z "$literal_hits" ] || problems="${problems} 出现版本字面值: ${literal_hits};"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# release.yml：只 push tag refspec、最小权限、无凭据与分发调用
+workflow_push_problems() { # $1 = root
+  local wf="$1/.github/workflows/release.yml"
+  local problems=""
+  if [ ! -f "$wf" ]; then
+    printf '%s' "缺少 .github/workflows/release.yml"
+    return 1
+  fi
+  local bad_push flag_hits forbidden_hits
+  bad_push="$(awk '/^[[:space:]]*#/ { next } /git push/ && $0 !~ /refs\/tags\// { print NR": "$0 }' "$wf")"
+  [ -z "$bad_push" ] || problems="${problems} 存在非 tag refspec 的 push: ${bad_push};"
+  grep -Fq 'git push origin "refs/tags/' "$wf" || problems="${problems} 缺显式 tag refspec push;"
+  flag_hits="$(grep -En -- '--tags|--force|push -f' "$wf" || true)"
+  [ -z "$flag_hits" ] || problems="${problems} 出现禁止的 push 参数: ${flag_hits};"
+  forbidden_hits="$(grep -En 'secrets\.|TESTFLIGHT|fastlane|altool|app-store-connect|transporter|notarytool' "$wf" || true)"
+  [ -z "$forbidden_hits" ] || problems="${problems} 出现凭据或分发调用: ${forbidden_hits};"
+  local perm_out
+  perm_out="$(ruby -ryaml - "$wf" <<'RUBY'
+require 'yaml'
+raw = File.read(ARGV[0], encoding: 'UTF-8')
+doc = begin
+  YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(raw) : YAML.load(raw)
+rescue StandardError => e
+  puts "YAML 解析失败: #{e.message}"
+  exit 1
+end
+perms = doc.is_a?(Hash) ? doc['permissions'] : nil
+exit 0 if perms.is_a?(Hash) && perms.size == 1 && perms['contents'].to_s == 'write'
+puts "permissions 必须只含 contents: write，实际 #{perms.inspect}"
+exit 1
+RUBY
+)" && perm_out=""
+  [ -z "$perm_out" ] || problems="${problems} ${perm_out};"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# release.yml 结构判红自检：删派生 / 注入字面值 / 加分支 push 三类反例必须判红
+release_workflow_red_selftest_problems() { # $1 = root
+  local root="$1"
+  local wf="$1/.github/workflows/release.yml"
+  local problems=""
+  if [ ! -f "$wf" ]; then
+    printf '%s' "缺少 .github/workflows/release.yml"
+    return 1
+  fi
+  local ws probe
+  ws="$(mktemp -d "${TMPDIR:-/tmp}/purepace-release-wf.XXXXXX")"
+  mkdir -p "$ws/.github/workflows"
+  probe="$ws/.github/workflows/release.yml"
+
+  cp "$wf" "$probe"
+  workflow_tag_problems "$ws" >/dev/null || problems="${problems} 未改动副本未判绿;"
+
+  { grep -v 'scripts/version.sh' "$wf" || true; } > "$probe"
+  workflow_tag_problems "$ws" >/dev/null && problems="${problems} 删除 VERSION 派生后未判红;"
+
+  cp "$wf" "$probe"
+  printf '%s\n' '          echo "9.9.9"' >> "$probe"
+  workflow_tag_problems "$ws" >/dev/null && problems="${problems} 注入硬编码版本后未判红;"
+
+  cp "$wf" "$probe"
+  printf '%s\n' '          git push origin "refs/heads/main"' >> "$probe"
+  workflow_push_problems "$ws" >/dev/null && problems="${problems} 加入分支 push 后未判红;"
+
+  rm -rf "$ws"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
 # --------------------------------------------------- 无硬编码版本字面值
 if [ -z "$version_value" ]; then
   fail "ac-no-hardcoded-version" "VERSION 不可用，无法校验字面值"
 else
-  hits="$(grep -Fn -- "$version_value" README.md scripts/*.sh 2>/dev/null || true)"
-  if [ -z "$hits" ]; then
+  problems=""
+  readme_hits="$(readme_version_literal_hits README.md)"
+  [ -z "$readme_hits" ] || problems="${problems} README 版本表之外出现版本字面值 '$version_value': ${readme_hits};"
+  script_hits="$(grep -Fn -- "$version_value" scripts/*.sh 2>/dev/null || true)"
+  [ -z "$script_hits" ] || problems="${problems} scripts/*.sh 出现版本字面值 '$version_value': $(printf '%s' "$script_hits" | tr '\n' ' ');"
+  # 反例自检：版本表数据行受控豁免，表格外写入字面值必须仍判红。
+  literal_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-literal.XXXXXX")"
+  cp README.md "$literal_sandbox/README.md"
+  printf '\n版本字面值回归探针：%s\n' "$version_value" >> "$literal_sandbox/README.md"
+  if [ -z "$(readme_version_literal_hits "$literal_sandbox/README.md")" ]; then
+    problems="${problems} 表格外写入字面值未判红（豁免范围过宽）;"
+  fi
+  rm -rf "$literal_sandbox"
+  if [ -z "$problems" ]; then
     pass "ac-no-hardcoded-version"
   else
-    fail "ac-no-hardcoded-version" "出现版本字面值 '$version_value': $(printf '%s' "$hits" | tr '\n' ' ')"
+    fail "ac-no-hardcoded-version" "$problems"
   fi
 fi
 
@@ -159,6 +547,63 @@ if [ -f scripts/version.sh ]; then
   fi
 else
   fail "ac-version-source-only-version-file" "缺少 scripts/version.sh"
+fi
+
+# -------------------------------------------------- 版本三源一致与判红自检
+if tri_out="$(version_tri_source_problems "$repo_root")"; then
+  pass "ac-version-tri-source-consistency"
+else
+  fail "ac-version-tri-source-consistency" "$tri_out"
+fi
+
+if tri_red_out="$(version_tri_source_red_selftest_problems "$repo_root")"; then
+  pass "ac-version-drift-red-selftest"
+else
+  fail "ac-version-drift-red-selftest" "$tri_red_out"
+fi
+
+# ------------------------------------------------------- release notes 改写
+if notes_out="$(release_notes_problems "$repo_root")"; then
+  pass "ac-release-notes-structure-rewritten"
+else
+  fail "ac-release-notes-structure-rewritten" "$notes_out"
+fi
+
+if notes_red_out="$(release_notes_wording_red_selftest_problems "$repo_root")"; then
+  pass "ac-release-notes-not-released-wording"
+else
+  fail "ac-release-notes-not-released-wording" "$notes_red_out"
+fi
+
+# --------------------------------------------- .github/workflows/release.yml
+if wf_parse_out="$(workflow_parse_problems "$repo_root")"; then
+  pass "ac-release-workflow-exists-parses"
+else
+  fail "ac-release-workflow-exists-parses" "$wf_parse_out"
+fi
+
+if wf_trigger_out="$(workflow_trigger_problems "$repo_root")"; then
+  pass "ac-release-workflow-dispatch-only"
+else
+  fail "ac-release-workflow-dispatch-only" "$wf_trigger_out"
+fi
+
+if wf_tag_out="$(workflow_tag_problems "$repo_root")"; then
+  pass "ac-release-workflow-tag-derived"
+else
+  fail "ac-release-workflow-tag-derived" "$wf_tag_out"
+fi
+
+if wf_push_out="$(workflow_push_problems "$repo_root")"; then
+  pass "ac-release-workflow-no-branch-push"
+else
+  fail "ac-release-workflow-no-branch-push" "$wf_push_out"
+fi
+
+if wf_red_out="$(release_workflow_red_selftest_problems "$repo_root")"; then
+  pass "ac-release-workflow-structure-red-selftest"
+else
+  fail "ac-release-workflow-structure-red-selftest" "$wf_red_out"
 fi
 
 # ------------------------------------------------------------- AGENTS.md

@@ -814,12 +814,16 @@ else
 fi
 
 # ------------------------------------------- 脚本与 README 无根 VERSION 字面值
+# README 版本表数据行（| 版本 | 日期 | 状态 | CHANGELOG |）是唯一受控豁免；
+# 表格外正文与全部 scripts/*.sh 继续禁字面值，补偿控制是 check-baseline.sh 的三源一致断言。
 problems=""
 if [ -z "$version_value" ]; then
   problems="$problems 根 VERSION 不可用;"
 else
-  hits="$(grep -Fn -- "$version_value" scripts/*.sh README.md 2>/dev/null || true)"
+  hits="$(grep -Fn -- "$version_value" scripts/*.sh 2>/dev/null || true)"
   [ -z "$hits" ] || problems="$problems 出现版本字面值 '$version_value': $(printf '%s' "$hits" | tr '\n' ' ');"
+  readme_hits="$(awk '!/^\| *[0-9]+\.[0-9]+\.[0-9]+ *\|/' README.md 2>/dev/null | grep -Fn -- "$version_value" || true)"
+  [ -z "$readme_hits" ] || problems="$problems README 版本表之外出现版本字面值 '$version_value': $(printf '%s' "$readme_hits" | tr '\n' ' ');"
 fi
 if [ -z "$problems" ]; then
   pass "ac-no-version-literal"
