@@ -1,0 +1,62 @@
+name: Release Tag
+
+# 仅手动触发（workflow_dispatch）：不 dispatch 就不会动。
+# 本工作流只从根 VERSION 派生 tag 并 push 该 tag refspec；不 push 分支、不创建 Release、不做商店上传、不写凭据。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create; leave empty to derive v<VERSION> from the root VERSION file'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: create-release-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive tag from VERSION
+        id: derive
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          derived="v$(bash scripts/version.sh)"
+          tag="${INPUT_TAG:-${derived}}"
+          if ! printf '%s\n' "${tag}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "invalid tag: ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify release notes for tag
+        env:
+          TAG: ${{ steps.derive.outputs.tag }}
+        run: |
+          set -euo pipefail
+          notes="docs/release/release-notes-${TAG#v}.md"
+          if [ ! -f "${notes}" ]; then
+            echo "missing release notes: ${notes}" >&2
+            exit 1
+          fi
+          echo "release notes found: ${notes}"
+
+      - name: Create tag
+        env:
+          TAG: ${{ steps.derive.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "tag already exists, refusing to overwrite: ${TAG}" >&2
+            exit 1
+          fi
+          git tag "${TAG}"
+          git push origin "refs/tags/${TAG}"
