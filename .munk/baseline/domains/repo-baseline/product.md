@@ -18,7 +18,7 @@
 
 - ac-version-file-single-source: 仓库根 `VERSION` 单行匹配 `^[0-9]+\.[0-9]+\.[0-9]+$`，初始 `0.1.0`，无 `v` 前缀、无 BOM、无空行。
 - ac-version-script-reads-file: `bash scripts/version.sh` 退出码 0，stdout 去换行等于 `VERSION` 内容；修改 `VERSION` 后输出随之变化（证明未缓存、未硬编码）。
-- ac-no-hardcoded-version: `README.md` 与 `scripts/*.sh` 不出现 `VERSION` 的字面值；`scripts/version.sh` 的版本来源只有读取 `VERSION` 文件一条路径。
+- ac-no-hardcoded-version: `README.md` 与 `scripts/*.sh` 不出现 `VERSION` 的字面值；`scripts/version.sh` 的版本来源只有读取 `VERSION` 文件一条路径。唯一受控豁免是 README「版本」表数据行（判定先剔除表行再 grep），其余 README 正文照旧禁字面值，且表格外写入字面值必须仍判红（沙箱反例自检）；补偿控制见 `release-pipeline` 的三源一致断言。
 - ac-agents-four-sections: `AGENTS.md` 含「技术栈」「目录约定」「测试金字塔」「skill 路由」四节标题且各节正文非空。
 - ac-test-pyramid-doc: 测试金字塔节写明 L1 落点（`ios/Core/Tests` 的 `swift test`、`android/app/src/test` 的 JVM JUnit）与 L2 落点（`ios/PurePaceUITests` 的 XCUITest、Android Robolectric 或 Compose UI test），并给出单跑（`swift test --filter` / `xcodebuild test -only-testing:` / `./gradlew testDebugUnitTest --tests`）与全跑入口。
 - ac-skill-routing-matches-disk: 路由表条目均真实存在于磁盘且含非空 `SKILL.md`，磁盘 skill 目录也都在表中出现（双向一一对应，无悬空条目）。
@@ -44,7 +44,7 @@
 - ac-check-ios-scripts-detects-drift: 人为改动可检测点（删除某脚本 `--help` 分支，或把 destination 改成非法机型）后 `bash scripts/check-ios-scripts.sh` 非零退出并指出具体失败项；恢复后退出 0。
 - ac-code-gates-ios-scripts: `.munk/code-gates.json` 合法 JSON 且 `version=1`，含 `lint-ios-scripts` / `build-ios` / `test-ios` 三门，command 均为单一 argv（无 `&&`、`||`、`|`、`;`、重定向、反引号、`echo`、`true`）；既有六条门 id 与 command 语义不变，`test` 门仍为 `bash scripts/check-baseline.sh`。
 - ac-code-gates-all-green: 本机逐条执行 `.munk/code-gates.json` 全部门（含新增三门）均退出 0，且 `bash scripts/check-baseline.sh` 仍全部 PASS。
-- ac-no-version-literal: 新增/修改的 `scripts/*.sh` 与 `README.md` 均不出现根 `VERSION` 当前字面值；版本一律经 `scripts/version.sh` 取得。
+- ac-no-version-literal: 新增/修改的 `scripts/*.sh` 与 `README.md` 均不出现根 `VERSION` 当前字面值；版本一律经 `scripts/version.sh` 取得。README 版本表数据行是唯一受控豁免（`check-ios-scripts.sh` 同样先剔除表行再 grep），表格外仍判红。
 - ac-no-fake-evidence: 脚本、门禁与 README 输出/文案不出现「CI 通过」「真机已验证」；工程缺失时不得输出 `BUILD SUCCEEDED` 或伪造的 XCTest 通过行。
 - ac-scan-zero-hits: 对上述扫描范围的非注释行，`$标识符` 紧跟非 ASCII 字节的展开命中数为 0；`grep` 与门脚本两种口径结果一致。
 - ac-shell-expansion-wrap-only: 全部命中改为 `${var}` 形式且变量名/语义不变（纯加花括号，除 workflow 该行允许的必要引号修正）；`android/gradlew` 逐字节未改，其注释内命中仍存在并被豁免。
