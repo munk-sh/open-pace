@@ -665,7 +665,7 @@ validate_design_tokens() {
   local expected_palette_keys palette_duplicates palette_line palette_key light_hex dark_hex
   local expected_palette_hex expected_hex exp_light exp_dark
   # 方向 A 逐键锁值（light:dark），任一分量被改或回退旧值即判红。
-  expected_palette_hex="background:FAFAF9:0B0C0D surface:FFFFFF:16181A surfaceMuted:F2F2F1:1E2124 primary:17181A:F2F3F4 secondary:5C5F63:A2A7AC accent:FF9A5C:FF9A5C onAccent:2A1206:2A1206 accentSoft:FFECE0:3A1F12 separator:D8D8D3:33383D warning:6E5C00:EECA2B onWarning:FFFFFF:2B1A00 warningSoft:FBF1DC:3A2A0D success:1F6B45:58CF9B onSuccess:FFFFFF:042416 successSoft:E7F2EB:11311F danger:660D09:F53A48 onDanger:FFFFFF:2A0608 dangerSoft:FBEAE8:2C0A10"
+  expected_palette_hex="background:FAFAF9:0B0C0D surface:FFFFFF:16181A surfaceMuted:F2F2F1:1E2124 primary:17181A:F2F3F4 secondary:5C5F63:A2A7AC accent:FF6B00:FF6B00 onAccent:2A1206:2A1206 accentSoft:FFE3CF:3A1F12 separator:D8D8D3:33383D warning:6E5C00:EECF2B onWarning:FFFFFF:2B1A00 warningSoft:FBF1DC:3A2A0D success:1F6B45:58CF9B onSuccess:FFFFFF:042416 successSoft:E7F2EB:11311F danger:F53A48:F53A48 onDanger:2A0608:2A0608 dangerSoft:FBEAE8:2C0A10"
   palette_block="$(token_array_block "$token_file" 'static let palette: [String: ColorPair] = [')"
   purposes_block="$(token_array_block "$token_file" 'static let purposes: [String: String] = [')"
   expected_palette_keys="accent accentSoft background danger dangerSoft onAccent onDanger onSuccess onWarning primary secondary separator success successSoft surface surfaceMuted warning warningSoft"
@@ -708,10 +708,10 @@ validate_design_tokens() {
     if [ -z "$light_hex" ] || [ -z "$dark_hex" ]; then
       problems="$problems 色对缺合法 hex（${palette_key}）;"
     else
-      # 同值白名单：仅 accent / onAccent 允许 light==dark（V1.2 唯一品牌橙）；其余键同值仍判红。
+      # 同值白名单：仅 accent / onAccent / danger / onDanger 允许 light==dark（V1.2 终版同色语义色）；其余键同值仍判红。
       if [ "$light_hex" = "$dark_hex" ]; then
         case "$palette_key" in
-          accent | onAccent) ;;
+          accent | onAccent | danger | onDanger) ;;
           *) problems="$problems 色对 light/dark 相同（${palette_key}）;" ;;
         esac
       fi
@@ -1713,14 +1713,28 @@ run_self_test() {
 
   design_bad="$tmp_dir/design-accent-reverted"
   cp -R "$design_root" "$design_bad"
-  sed -i '' 's/light: SRGB(hex: 0xFF9A5C), dark: SRGB(hex: 0xFF9A5C)/light: SRGB(hex: 0xE85D04), dark: SRGB(hex: 0xFF9A5C)/' \
+  sed -i '' 's/light: SRGB(hex: 0xFF6B00), dark: SRGB(hex: 0xFF6B00)/light: SRGB(hex: 0xE85D04), dark: SRGB(hex: 0xFF6B00)/' \
     "$design_bad/ios/PurePace/Design/DesignTokens.swift"
   check_fail_reason "accent 回退设计稿候选/压暗橙反例" \
     "$(validate_design_tokens "$design_bad")" "方向 A 表不一致"
 
+  design_bad="$tmp_dir/design-danger-reverted"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"danger": ColorPair(light: SRGB(hex: 0xF53A48), dark: SRGB(hex: 0xF53A48))/"danger": ColorPair(light: SRGB(hex: 0x660D09), dark: SRGB(hex: 0xF53A48))/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "light danger 回退旧值 #660D09 反例" \
+    "$(validate_design_tokens "$design_bad")" "方向 A 表不一致"
+
+  design_bad="$tmp_dir/design-accentsoft-old"
+  cp -R "$design_root" "$design_bad"
+  sed -i '' 's/"accentSoft": ColorPair(light: SRGB(hex: 0xFFE3CF), dark: SRGB(hex: 0x3A1F12))/"accentSoft": ColorPair(light: SRGB(hex: 0xFFECE0), dark: SRGB(hex: 0x3A1F12))/' \
+    "$design_bad/ios/PurePace/Design/DesignTokens.swift"
+  check_fail_reason "accentSoft 回退旧派生值 #FFECE0 反例" \
+    "$(validate_design_tokens "$design_bad")" "方向 A 表不一致"
+
   design_bad="$tmp_dir/design-accent-single-orange"
   cp -R "$design_root" "$design_bad"
-  check_ok "accent/onAccent 同值白名单绿例" "$(validate_design_tokens "$design_bad")"
+  check_ok "accent/onAccent/danger/onDanger 同值白名单绿例" "$(validate_design_tokens "$design_bad")"
 
   design_bad="$tmp_dir/design-pair-missing-dark"
   cp -R "$design_root" "$design_bad"

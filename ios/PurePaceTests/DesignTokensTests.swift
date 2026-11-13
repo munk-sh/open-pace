@@ -93,7 +93,7 @@ final class DesignTokensTests: XCTestCase {
             "success", "onSuccess", "successSoft", "danger", "onDanger", "dangerSoft"
         ]
         XCTAssertEqual(DesignTokens.Colors.palette.count, expected.count)
-        let sameValueAllowed: Set<String> = ["accent", "onAccent"]
+        let sameValueAllowed: Set<String> = ["accent", "onAccent", "danger", "onDanger"]
         for name in expected {
             guard let pair = DesignTokens.Colors.palette[name] else {
                 XCTFail("调色板缺少语义色 \(name)")
@@ -292,18 +292,18 @@ final class DesignTokensTests: XCTestCase {
         "surfaceMuted": (0xF2F2F1, 0x1E2124),
         "primary": (0x17181A, 0xF2F3F4),
         "secondary": (0x5C5F63, 0xA2A7AC),
-        "accent": (0xFF9A5C, 0xFF9A5C),
+        "accent": (0xFF6B00, 0xFF6B00),
         "onAccent": (0x2A1206, 0x2A1206),
-        "accentSoft": (0xFFECE0, 0x3A1F12),
+        "accentSoft": (0xFFE3CF, 0x3A1F12),
         "separator": (0xD8D8D3, 0x33383D),
-        "warning": (0x6E5C00, 0xEECA2B),
+        "warning": (0x6E5C00, 0xEECF2B),
         "onWarning": (0xFFFFFF, 0x2B1A00),
         "warningSoft": (0xFBF1DC, 0x3A2A0D),
         "success": (0x1F6B45, 0x58CF9B),
         "onSuccess": (0xFFFFFF, 0x042416),
         "successSoft": (0xE7F2EB, 0x11311F),
-        "danger": (0x660D09, 0xF53A48),
-        "onDanger": (0xFFFFFF, 0x2A0608),
+        "danger": (0xF53A48, 0xF53A48),
+        "onDanger": (0x2A0608, 0x2A0608),
         "dangerSoft": (0xFBEAE8, 0x2C0A10)
     ]
 
@@ -320,26 +320,27 @@ final class DesignTokensTests: XCTestCase {
         }
     }
 
-    // MARK: - ac-accent-single-orange / ac-onaccent-single-deep / ac-accentsoft-light-recomputed
+    // MARK: - ac-accent-value / ac-onaccent-value / ac-accentsoft-derived
 
     func testAccentIsSingleBrandOrangeInBothSchemes() {
         XCTAssertEqual(singleBrandOrangeProblems(DesignTokens.Colors.palette), [], "V1.2 唯一品牌橙口径不成立")
         for side in ["light", "dark"] {
             let value = color("accent", side)
-            XCTAssertEqual(hex(value), 0xFF9A5C, "accent.\(side) 必须是唯一品牌橙 #FF9A5C")
+            XCTAssertEqual(hex(value), 0xFF6B00, "accent.\(side) 必须是唯一品牌橙 #FF6B00")
             let c = hsl(value)
-            XCTAssertEqual(c.h, 22.8, accuracy: 0.1, "accent.\(side) 色相")
+            XCTAssertEqual(c.h, 25.2, accuracy: 0.1, "accent.\(side) 色相")
             XCTAssertEqual(c.s, 100, accuracy: 0.1, "accent.\(side) 饱和度")
-            XCTAssertEqual(c.l, 68.0, accuracy: 0.1, "accent.\(side) 明度")
+            XCTAssertEqual(c.l, 50.0, accuracy: 0.1, "accent.\(side) 明度")
         }
         XCTAssertNotEqual(hex(color("accent", "light")), 0xB4400B, "旧砖红作废")
         XCTAssertNotEqual(hex(color("accent", "dark")), 0xE85D04, "设计稿候选作废")
+        XCTAssertNotEqual(hex(color("accent", "light")), 0xFF9A5C, "旧品牌橙作废")
 
-        // 反例（不改生产代码）：回退旧砖红、切设计稿候选/压暗橙，同一判据都必须判红。
+        // 反例（不改生产代码）：回退旧砖红、切设计稿候选/压暗橙、回退旧品牌橙，同一判据都必须判红。
         var reverted = DesignTokens.Colors.palette
         reverted["accent"] = DesignTokens.ColorPair(
             light: DesignTokens.SRGB(hex: 0xB4400B),
-            dark: DesignTokens.SRGB(hex: 0xFF9A5C)
+            dark: DesignTokens.SRGB(hex: 0xFF6B00)
         )
         XCTAssertFalse(singleBrandOrangeProblems(reverted).isEmpty, "回退旧砖红必须判红")
 
@@ -349,6 +350,13 @@ final class DesignTokensTests: XCTestCase {
             dark: DesignTokens.SRGB(hex: 0xE85D04)
         )
         XCTAssertFalse(singleBrandOrangeProblems(candidate).isEmpty, "设计稿候选/压暗橙必须判红")
+
+        var oldOrange = DesignTokens.Colors.palette
+        oldOrange["accent"] = DesignTokens.ColorPair(
+            light: DesignTokens.SRGB(hex: 0xFF9A5C),
+            dark: DesignTokens.SRGB(hex: 0xFF6B00)
+        )
+        XCTAssertFalse(singleBrandOrangeProblems(oldOrange).isEmpty, "回退旧品牌橙 #FF9A5C 必须判红")
     }
 
     func testOnAccentSingleDeepInBothSchemes() {
@@ -359,7 +367,7 @@ final class DesignTokensTests: XCTestCase {
                 foreground: color("onAccent", side),
                 background: color("accent", side)
             ) ?? 0
-            XCTAssertEqual(ratio, 8.44, accuracy: 0.01, "\(side) onAccent/accent 实测值应为 8.44")
+            XCTAssertEqual(ratio, 6.19, accuracy: 0.01, "\(side) onAccent/accent 实测值应为 6.19")
             XCTAssertGreaterThanOrEqual(ratio, ContrastPolicy.bodyThreshold)
         }
 
@@ -374,19 +382,30 @@ final class DesignTokensTests: XCTestCase {
     func testAccentSoftLightRecomputedAndDarkFrozen() {
         XCTAssertEqual(accentSoftProblems(DesignTokens.Colors.palette), [])
         let light = DesignTokens.Colors.palette["accentSoft"]!.light
+        let accentLight = DesignTokens.Colors.palette["accent"]!.light
         let c = hsl(light)
-        XCTAssertEqual(hex(light), 0xFFECE0)
-        XCTAssertEqual(c.h, 23.2, accuracy: 0.1)
+        XCTAssertEqual(hex(light), 0xFFE3CF)
+        XCTAssertEqual(c.h, 25.0, accuracy: 0.1)
         XCTAssertEqual(c.s, 100, accuracy: 0.1)
-        XCTAssertEqual(c.l, 93.9, accuracy: 0.1)
+        XCTAssertEqual(c.l, 90.6, accuracy: 0.1)
         XCTAssertEqual(hex(DesignTokens.Colors.palette["accentSoft"]!.dark), 0x3A1F12, "dark accentSoft 不得改动")
 
-        var old = DesignTokens.Colors.palette
-        old["accentSoft"] = DesignTokens.ColorPair(
-            light: DesignTokens.SRGB(hex: 0xFCEFE7),
-            dark: DesignTokens.SRGB(hex: 0x3A1F12)
-        )
-        XCTAssertFalse(accentSoftProblems(old).isEmpty, "旧 accentSoft #FCEFE7 必须判红")
+        // 派生口径（文档化）：0.19·accent + 0.81·白，逐通道四舍五入 → #FFE3CF。
+        let derived = deriveAccentSoft(from: accentLight)
+        XCTAssertEqual(hex(derived), 0xFFE3CF, "accentSoft light 必须由新 accent 按 19% 混白口径派生")
+        XCTAssertEqual(hex(derived), hex(light))
+
+        // 反例 1：旧 accentSoft #FCEFE7 / #FFECE0 都不是新口径派生值，同判据必须判红。
+        for legacy in [UInt32(0xFCEFE7), UInt32(0xFFECE0)] {
+            var old = DesignTokens.Colors.palette
+            old["accentSoft"] = DesignTokens.ColorPair(
+                light: DesignTokens.SRGB(hex: legacy),
+                dark: DesignTokens.SRGB(hex: 0x3A1F12)
+            )
+            XCTAssertFalse(accentSoftProblems(old).isEmpty, "旧 accentSoft \(String(format: "#%06X", legacy)) 必须判红")
+        }
+        XCTAssertNotEqual(hex(deriveAccentSoft(from: DesignTokens.SRGB(hex: 0xFF9A5C))), 0xFFE3CF,
+                          "用旧橙派生必须得到不同值（口径随主色变）")
     }
 
     func testPaletteShapeFrozenAfterSingleOrange() {
@@ -396,9 +415,10 @@ final class DesignTokensTests: XCTestCase {
         let sameValue = DesignTokens.Colors.palette
             .filter { $0.value.light == $0.value.dark }
             .keys.sorted()
-        XCTAssertEqual(sameValue, ["accent", "onAccent"], "仅 accent / onAccent 允许 light==dark")
+        XCTAssertEqual(sameValue, ["accent", "danger", "onAccent", "onDanger"],
+                       "仅 accent / onAccent / danger / onDanger 允许 light==dark")
 
-        // 反例（不改生产代码）：非白名单同值 / 少一个语义键都必须判红。
+        // 反例（不改生产代码）：非白名单同值 / 少一个语义键 / danger 恢复双值都必须判红。
         var surfaceSame = DesignTokens.Colors.palette
         surfaceSame["surface"] = DesignTokens.ColorPair(
             light: DesignTokens.SRGB(hex: 0xFFFFFF),
@@ -409,6 +429,13 @@ final class DesignTokensTests: XCTestCase {
         var missing = DesignTokens.Colors.palette
         missing.removeValue(forKey: "warning")
         XCTAssertFalse(paletteShapeProblems(missing).isEmpty, "少语义键必须判红")
+
+        var recalledDanger = DesignTokens.Colors.palette
+        recalledDanger["danger"] = DesignTokens.ColorPair(
+            light: DesignTokens.SRGB(hex: 0x660D09),
+            dark: DesignTokens.SRGB(hex: 0xF53A48)
+        )
+        XCTAssertFalse(paletteShapeProblems(recalledDanger).isEmpty, "danger 回退浅深双值必须判红")
     }
 
     func testDangerSemanticsDescribeSolidDestructivePrimaryAction() {
@@ -416,6 +443,7 @@ final class DesignTokensTests: XCTestCase {
         let purpose = DesignTokens.Colors.purposes["danger"] ?? ""
         XCTAssertTrue(purpose.contains("实心破坏性主操作"))
         XCTAssertTrue(purpose.contains("C2"))
+        XCTAssertTrue(purpose.contains("不作正文文字"), "light danger 仅非文本用途必须写明")
         XCTAssertFalse(purpose.contains("仅出现在确认层文本或描边按钮"))
         XCTAssertTrue(
             dangerSemanticsProblems(["danger": "丢弃等破坏性操作，仅出现在确认层文本或描边按钮"])
@@ -425,25 +453,63 @@ final class DesignTokensTests: XCTestCase {
     }
 
     func testDangerKeepsValuesAfterSinglePassSeparation() {
-        XCTAssertEqual(hex(color("danger", "light")), 0x660D09, "light danger 本次校验 0 档调整")
-        XCTAssertEqual(hex(color("danger", "dark")), 0xF53A48, "dark danger 维持")
-        // 实测：light 靠 ΔL 46.27pp、dark 靠 ΔH 27.31° 达标。
-        let accentLight = hsl(color("accent", "light"))
-        let dangerLight = hsl(color("danger", "light"))
-        XCTAssertEqual(abs(accentLight.l - dangerLight.l), 46.27, accuracy: 0.05)
-        let accentDark = hsl(color("accent", "dark"))
-        let dangerDark = hsl(color("danger", "dark"))
-        let rawHue = abs(accentDark.h - dangerDark.h)
-        XCTAssertEqual(min(rawHue, 360 - rawHue), 27.31, accuracy: 0.05)
+        XCTAssertEqual(hex(color("danger", "light")), 0xF53A48, "light danger 与 dark 同色 #F53A48")
+        XCTAssertEqual(hex(color("danger", "dark")), 0xF53A48, "dark danger 维持 #F53A48")
+        XCTAssertNotEqual(hex(color("danger", "light")), 0x660D09, "旧 light danger #660D09 作废")
+        XCTAssertEqual(hex(color("onDanger", "light")), 0x2A0608, "light onDanger 改为 #2A0608")
+        XCTAssertEqual(hex(color("onDanger", "dark")), 0x2A0608, "dark onDanger 维持 #2A0608")
 
-        // 反例：dark 侧若改用白字 onDanger 只有 3.76，不达标。
+        // 分离度按 ΔH 口径：accent #FF6B00 (H 25.1765) vs danger #F53A48 (H 355.508)，两模式同值。
+        // 实测 ΔH = 29.6685°；ΔL 仅 9.4118pp、ΔS 仅 9.6618pp，均不构成通过理由。
+        for scheme in ["light", "dark"] {
+            let accent = color("accent", scheme)
+            let danger = color("danger", scheme)
+            let measured = deltaHue(accent, danger)
+            XCTAssertEqual(measured, 29.6685, accuracy: 0.05, "\(scheme) accent↔danger 实测 ΔH")
+            XCTAssertGreaterThanOrEqual(measured, 25, "\(scheme) accent↔danger 必须 ΔH≥25°")
+            XCTAssertLessThan(abs(hsl(accent).l - hsl(danger).l), 15, "ΔL 不得成为通过理由")
+            XCTAssertLessThan(abs(hsl(accent).s - hsl(danger).s), 30, "ΔS 不得成为通过理由")
+        }
+
+        // 反例（不改生产代码）：accent 若为 #FF4000（H 15.06，ΔH 仅 ≈19.6°）必须判红。
+        let wrongAccent = DesignTokens.SRGB(hex: 0xFF4000)
+        XCTAssertLessThan(deltaHue(wrongAccent, color("danger", "light")), 25, "#FF4000 必须 ΔH<25 判红")
+        XCTAssertFalse(deltaHueHolds(wrongAccent, color("danger", "light")), "构造错误输入必须失败")
+
+        // 反例：banner 白字 onDanger 只有 3.76，不达标（两侧同值）。
         let white = DesignTokens.SRGB(hex: 0xFFFFFF)
-        let whiteOnDarkDanger = ContrastPolicy.ratio(
+        let whiteOnDanger = ContrastPolicy.ratio(
             foreground: white,
-            background: color("danger", "dark")
+            background: color("danger", "light")
         ) ?? 0
-        XCTAssertEqual(whiteOnDarkDanger, 3.76, accuracy: 0.01)
-        XCTAssertLessThan(whiteOnDarkDanger, ContrastPolicy.bodyThreshold)
+        XCTAssertEqual(whiteOnDanger, 3.76, accuracy: 0.01)
+        XCTAssertLessThan(whiteOnDanger, ContrastPolicy.bodyThreshold)
+    }
+
+    func testLightDangerPairsAreNonTextTier() {
+        // light danger 仅作确认层填充主操作与 C2 图标着色，不作正文文字 → 三条按非文本 3.0 档。
+        let names = ["danger/background", "danger/surface", "danger/dangerSoft"]
+        for name in names {
+            let pairs = ContrastPolicy.pairMatrix.filter { $0.name == name }
+            XCTAssertEqual(pairs.count, 1, "\(name) 恰 1 条")
+            XCTAssertEqual(pairs.first?.tier, .large, "\(name) 必须改判非文本档")
+            XCTAssertEqual(pairs.first?.minimum, ContrastPolicy.largeThreshold)
+        }
+        for scheme in [ContrastPolicy.Scheme.light, .dark] {
+            for entry in ContrastPolicy.ratios(for: ContrastPolicy.checks(for: scheme))
+            where names.contains(entry.name.replacingOccurrences(of: "\(scheme.rawValue) ", with: "")) {
+                XCTAssertGreaterThanOrEqual(entry.ratio ?? 0, ContrastPolicy.largeThreshold,
+                                            "\(entry.name) 实测必须 ≥3.0")
+            }
+        }
+        // 反例：light danger/background 低于 bodyThreshold（改判前 4.50 断言必红），实测 3.6026。
+        let lightRatio = ContrastPolicy.ratio(
+            foreground: color("danger", "light"),
+            background: color("background", "light")
+        ) ?? 0
+        XCTAssertEqual(lightRatio, 3.6026, accuracy: 0.0001)
+        XCTAssertLessThan(lightRatio, ContrastPolicy.bodyThreshold, "light danger 作正文对不可能达 4.5")
+        XCTAssertGreaterThanOrEqual(lightRatio, ContrastPolicy.largeThreshold)
     }
 
     // MARK: - ac-palette-neutral-purity（裁决 owe_40221a8e983c7516）
@@ -518,13 +584,27 @@ final class DesignTokensTests: XCTestCase {
             }
         }
 
-        // 反例：旧值必须全部判红（浅/深 × warning/danger 四对）。
+        // 实测记录：light accent↔warning ΔH 25.0053°（同时 ΔL 28.4314pp）；
+        // dark accent↔warning 靠 Owner 批准的 warning.dark #EECF2B，ΔH 25.285°（≠旧 #EECA2B）。
+        XCTAssertEqual(deltaHue(color("accent", "light"), color("warning", "light")), 25.0053, accuracy: 0.05)
+        XCTAssertEqual(deltaHue(color("accent", "dark"), color("warning", "dark")), 25.285, accuracy: 0.05)
+        XCTAssertGreaterThanOrEqual(deltaHue(color("accent", "dark"), color("warning", "dark")), 25)
+        XCTAssertEqual(hex(color("warning", "dark")), 0xEECF2B, "dark warning 必须是 Owner 批准的微调值")
+        XCTAssertEqual(hex(color("warning", "light")), 0x6E5C00, "light warning 零漂移")
+
+        // 必红反例（不改生产代码）：
+        // 1) 旧 dark warning #EECA2B 对新 accent #FF6B00 实测 ΔH 23.7466° / ΔL 5.098pp / ΔS 14.847pp，三项全不成立。
+        let oldDarkWarning = DesignTokens.SRGB(hex: 0xEECA2B)
+        let accentDark = color("accent", "dark")
+        XCTAssertEqual(deltaHue(accentDark, oldDarkWarning), 23.7466, accuracy: 0.05)
+        XCTAssertFalse(separationHolds(accentDark, oldDarkWarning), "旧 dark warning #EECA2B 必须判红")
+        // 2) 旧 accent / 旧 danger / 旧撞色 warning 反例。
         let oldAccentLight = DesignTokens.SRGB(hex: 0xB4400B)
         let oldAccentDark = DesignTokens.SRGB(hex: 0xFF9A5C)
         XCTAssertFalse(separationHolds(oldAccentLight, DesignTokens.SRGB(hex: 0xA5231C)), "旧浅色 danger 必须判红")
         XCTAssertFalse(separationHolds(oldAccentDark, DesignTokens.SRGB(hex: 0xFF8A80)), "旧深色 danger 必须判红")
         // 旧浅色 warning #7A5A00 的 ΔH≈25.4° 恰好压线通过，故不作为反例；
-        // 真正撞色的是深色 warning #F0B44C（ΔH≈15.5°、ΔL≈6、ΔS=0）。
+        // 真正撞色的是深色 warning #F0B44C（ΔH≈15.5°、ΔL≈6、ΔS≈15.5）。
         XCTAssertFalse(separationHolds(oldAccentDark, DesignTokens.SRGB(hex: 0xF0B44C)), "旧深色 warning 必须判红")
     }
 
@@ -609,6 +689,29 @@ final class DesignTokensTests: XCTestCase {
         return deltaH >= 25 || deltaL >= 15 || deltaS >= 30
     }
 
+    /// ΔH 口径（色相环最短弧），accent↔danger 的唯一通过理由。
+    private func deltaHue(_ a: DesignTokens.SRGB, _ b: DesignTokens.SRGB) -> Double {
+        let raw = abs(hsl(a).h - hsl(b).h)
+        return min(raw, 360 - raw)
+    }
+
+    private func deltaHueHolds(_ a: DesignTokens.SRGB, _ b: DesignTokens.SRGB) -> Bool {
+        deltaHue(a, b) >= 25
+    }
+
+    /// `accentSoft` light 的文档化派生口径：0.19·accent + 0.81·白（逐通道四舍五入）。
+    /// 旧 #FFECE0 即 #FF9A5C 同一口径；新主色 #FF6B00 代入后为 #FFE3CF。
+    private func deriveAccentSoft(from accent: DesignTokens.SRGB) -> DesignTokens.SRGB {
+        func mix(_ component: Double) -> Double {
+            (0.19 * component + 0.81 * 255).rounded()
+        }
+        return DesignTokens.SRGB(
+            red: mix(accent.red * 255) / 255,
+            green: mix(accent.green * 255) / 255,
+            blue: mix(accent.blue * 255) / 255
+        )
+    }
+
     private func metrics(_ a: DesignTokens.SRGB, _ b: DesignTokens.SRGB) -> String {
         let x = hsl(a)
         let y = hsl(b)
@@ -624,12 +727,12 @@ final class DesignTokensTests: XCTestCase {
                 continue
             }
             let value = side == "light" ? pair.light : pair.dark
-            if hex(value) != 0xFF9A5C {
-                problems.append("accent.\(side) 不是 #FF9A5C")
+            if hex(value) != 0xFF6B00 {
+                problems.append("accent.\(side) 不是 #FF6B00")
                 continue
             }
             let c = hsl(value)
-            if abs(c.h - 22.8) > 0.1 || abs(c.s - 100) > 0.1 || abs(c.l - 68.0) > 0.1 {
+            if abs(c.h - 25.2) > 0.1 || abs(c.s - 100) > 0.1 || abs(c.l - 50.0) > 0.1 {
                 problems.append("accent.\(side) HSL 漂移")
             }
         }
@@ -664,7 +767,7 @@ final class DesignTokensTests: XCTestCase {
                 problems.append("onAccent.\(side) 无法计算")
                 continue
             }
-            if abs(ratio - 8.44) > 0.01 || ratio < ContrastPolicy.bodyThreshold {
+            if abs(ratio - 6.19) > 0.01 || ratio < ContrastPolicy.bodyThreshold {
                 problems.append("onAccent.\(side) 对比度 \(ratio)")
             }
         }
@@ -674,11 +777,11 @@ final class DesignTokensTests: XCTestCase {
     private func accentSoftProblems(_ palette: [String: DesignTokens.ColorPair]) -> [String] {
         var problems: [String] = []
         guard let pair = palette["accentSoft"] else { return ["缺 accentSoft"] }
-        if hex(pair.light) != 0xFFECE0 {
-            problems.append("light accentSoft 不是 #FFECE0")
+        if hex(pair.light) != 0xFFE3CF {
+            problems.append("light accentSoft 不是 #FFE3CF")
         }
         let c = hsl(pair.light)
-        if abs(c.h - 23.2) > 0.1 || abs(c.s - 100) > 0.1 || abs(c.l - 93.9) > 0.1 {
+        if abs(c.h - 25.0) > 0.1 || abs(c.s - 100) > 0.1 || abs(c.l - 90.6) > 0.1 {
             problems.append("light accentSoft HSL 漂移")
         }
         if hex(pair.dark) != 0x3A1F12 {
@@ -693,12 +796,12 @@ final class DesignTokensTests: XCTestCase {
             problems.append("键数 \(palette.count)")
         }
         let sameValue = palette.filter { $0.value.light == $0.value.dark }.keys.sorted()
-        if sameValue != ["accent", "onAccent"] {
+        if sameValue != ["accent", "danger", "onAccent", "onDanger"] {
             problems.append("同值键 \(sameValue)")
         }
         for key in [
             "warning", "onWarning", "warningSoft",
-            "danger", "onDanger", "dangerSoft",
+            "dangerSoft",
             "success", "onSuccess", "successSoft"
         ] {
             guard let pair = palette[key] else {
