@@ -187,7 +187,7 @@ final class EvidenceCaptureUITests: XCTestCase {
 
     private func launchApp(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = arguments
+        app.launchArguments = arguments + ["-uiTestConsentGranted"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]

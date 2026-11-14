@@ -111,4 +111,23 @@ enum L10n {
     static var settingsAnnouncementBody: LocalizedStringKey { LocalizedStringKey("settings.announcement.body") }
     static var settingsSectionAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.section.announcement") }
     static var settingsFooterAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.footer.announcement") }
+
+    // MARK: - 隐私与同意
+
+    static var consentGateTitle: LocalizedStringKey { LocalizedStringKey("consent.gate.title") }
+    static var consentGateBody: LocalizedStringKey { LocalizedStringKey("consent.gate.body") }
+    static var consentGateAgree: LocalizedStringKey { LocalizedStringKey("consent.gate.agree") }
+    static var consentGateDecline: LocalizedStringKey { LocalizedStringKey("consent.gate.decline") }
+    static var settingsSectionAbout: LocalizedStringKey { LocalizedStringKey("settings.section.about") }
+    static var settingsPrivacyPolicyTitle: LocalizedStringKey { LocalizedStringKey("settings.privacyPolicy.title") }
+    static var settingsPrivacyPolicyBody: LocalizedStringKey { LocalizedStringKey("settings.privacyPolicy.body") }
+    static var settingsConsentStatus: LocalizedStringKey { LocalizedStringKey("settings.consent.status") }
+    static var settingsConsentRevoke: LocalizedStringKey { LocalizedStringKey("settings.consent.revoke") }
+    static var privacyPolicyNavigationTitle: LocalizedStringKey { LocalizedStringKey("privacyPolicy.navigation.title") }
+    static var privacyPolicyUnavailable: LocalizedStringKey { LocalizedStringKey("privacyPolicy.unavailable") }
+
+    /// 未同意时记录入口被禁用的原因文案（拼接进 `String?` 的纯文本）。
+    static var runConsentRequired: String {
+        String(localized: "run.consent.required")
+    }
 }

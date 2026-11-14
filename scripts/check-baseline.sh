@@ -483,6 +483,15 @@ changelog_status_parity_red_selftest_problems() { # $1 = root
   return 1
 }
 
+# 精确子串判定：大文本不经 printf|grep -q 管道（grep -q 提前退出会让 printf 收 SIGPIPE，
+# 在 pipefail 下把命中误判成未命中，造成自检随机判红）。
+has_fixed() { # $1 haystack，$2 needle
+  case "$1" in
+  *"$2"*) return 0 ;;
+  esac
+  return 1
+}
+
 # release notes：结构 / 未发布口径 / 三条已知限制 / Build reproducibility 事实保留
 release_notes_section() { # $1 文件，$2 精确标题行
   awk -v heading="$2" '$0 == heading { inside = 1; next } inside && /^## / { exit } inside && /^<details>/ { exit } inside { print }' "$1"
@@ -491,7 +500,7 @@ release_notes_section() { # $1 文件，$2 精确标题行
 release_notes_problems() { # $1 = root
   local root="$1"
   local problems=""
-  local version notes limitations count zh zh_count covered
+  local version notes limitations count zh zh_count covered wording_hits
   version="$(tr -d '\r\n' < "$root/VERSION" 2>/dev/null || true)"
   notes="$root/docs/release/release-notes-${version}.md"
   if [ ! -f "$notes" ]; then
@@ -529,35 +538,34 @@ release_notes_problems() { # $1 = root
     -e 's/[Nn]ot (yet )?(released|shipped|distributed|distributable)/NEG/g' \
     -e 's/尚未发布//g; s/未发布//g; s/尚未分发//g; s/未分发//g; s/不可分发//g; s/未上传//g; s/未提供安装包//g; s/未建 [Gg]it[Hh]ub [Rr]elease//g' \
     -e 's/未上架//g' "$notes")"
-  if printf '%s' "$stripped" | grep -Eqi 'released|shipped|distributed|distributable|available for download|live on store|已发布|已分发|可下载|已上架|可分发'; then
-    problems="${problems} 出现肯定式已发布 / 已分发 / 可下载 / 已上架口径;"
-  fi
+  wording_hits="$(printf '%s' "$stripped" | grep -Eci 'released|shipped|distributed|distributable|available for download|live on store|已发布|已分发|可下载|已上架|可分发' || true)"
+  [ "${wording_hits:-0}" = "0" ] || problems="${problems} 出现肯定式已发布 / 已分发 / 可下载 / 已上架口径;"
 
   limitations="$(release_notes_section "$notes" '## Known limitations')"
   count="$(printf '%s\n' "$limitations" | grep -Ec '^[0-9]+\. ' || true)"
   [ "$count" = "3" ] || problems="${problems} Known limitations 条目数为 ${count}（应为 3）;"
-  printf '%s' "$limitations" | grep -Fq 'zh-Hans' || problems="${problems} Known limitations 缺 zh-Hans 单语限制;"
-  printf '%s' "$limitations" | grep -Fq 'pending: 待人现场' || problems="${problems} Known limitations 缺 pending: 待人现场;"
-  printf '%s' "$limitations" | grep -Fq 'docs/device-manual-acceptance.md' || problems="${problems} Known limitations 缺真机验收文档指针;"
-  printf '%s' "$limitations" | grep -Fq '20pt' || problems="${problems} Known limitations 缺 Dynamic Type 固定 20pt 事实;"
+  has_fixed "$limitations" 'zh-Hans' || problems="${problems} Known limitations 缺 zh-Hans 单语限制;"
+  has_fixed "$limitations" 'pending: 待人现场' || problems="${problems} Known limitations 缺 pending: 待人现场;"
+  has_fixed "$limitations" 'docs/device-manual-acceptance.md' || problems="${problems} Known limitations 缺真机验收文档指针;"
+  has_fixed "$limitations" '20pt' || problems="${problems} Known limitations 缺 Dynamic Type 固定 20pt 事实;"
 
   covered="$(release_notes_section "$notes" '## What'"'"'s covered')"
-  printf '%s' "$covered" | grep -Fq 'Build reproducibility' || problems="${problems} What's covered 缺 Build reproducibility 段;"
-  printf '%s' "$covered" | grep -Fq '57' || problems="${problems} Build reproducibility 段缺 57 处派生路径事实;"
-  printf '%s' "$covered" | grep -Fq 'LC_UUID' || problems="${problems} Build reproducibility 段缺 LC_UUID 随机事实;"
+  has_fixed "$covered" 'Build reproducibility' || problems="${problems} What's covered 缺 Build reproducibility 段;"
+  has_fixed "$covered" '57' || problems="${problems} Build reproducibility 段缺 57 处派生路径事实;"
+  has_fixed "$covered" 'LC_UUID' || problems="${problems} Build reproducibility 段缺 LC_UUID 随机事实;"
 
   zh="$(sed -n '/<summary>简体中文<\/summary>/,$p' "$notes")"
-  printf '%s' "$zh" | grep -Fq '已推 tag' || problems="${problems} zh-CN 段缺已推 tag 表述;"
-  printf '%s' "$zh" | grep -Fq '尚未分发' || problems="${problems} zh-CN 段缺尚未分发表述;"
-  printf '%s' "$zh" | grep -Fq '501ba9e' || problems="${problems} zh-CN 段缺 tag sha 501ba9e;"
-  printf '%s' "$zh" | grep -Fq '2026-11-14' || problems="${problems} zh-CN 段缺 tag 日期 2026-11-14;"
-  printf '%s' "$zh" | grep -Fq '43599497314' || problems="${problems} zh-CN 段缺 ios CI run 43599497314;"
-  printf '%s' "$zh" | grep -Fq '43599497253' || problems="${problems} zh-CN 段缺 android CI run 43599497253;"
-  printf '%s' "$zh" | grep -Fq '未上传 TestFlight' || problems="${problems} zh-CN 段缺未上传 TestFlight;"
-  printf '%s' "$zh" | grep -Fq '未提供安装包' || problems="${problems} zh-CN 段缺未提供安装包;"
-  printf '%s' "$zh" | grep -Fq '未建 GitHub Release' || problems="${problems} zh-CN 段缺未建 GitHub Release;"
-  printf '%s' "$zh" | grep -Fq '隐私' || problems="${problems} zh-CN 段缺隐私节;"
-  printf '%s' "$zh" | grep -Fq '已知限制' || problems="${problems} zh-CN 段缺已知限制节;"
+  has_fixed "$zh" '已推 tag' || problems="${problems} zh-CN 段缺已推 tag 表述;"
+  has_fixed "$zh" '尚未分发' || problems="${problems} zh-CN 段缺尚未分发表述;"
+  has_fixed "$zh" '501ba9e' || problems="${problems} zh-CN 段缺 tag sha 501ba9e;"
+  has_fixed "$zh" '2026-11-14' || problems="${problems} zh-CN 段缺 tag 日期 2026-11-14;"
+  has_fixed "$zh" '43599497314' || problems="${problems} zh-CN 段缺 ios CI run 43599497314;"
+  has_fixed "$zh" '43599497253' || problems="${problems} zh-CN 段缺 android CI run 43599497253;"
+  has_fixed "$zh" '未上传 TestFlight' || problems="${problems} zh-CN 段缺未上传 TestFlight;"
+  has_fixed "$zh" '未提供安装包' || problems="${problems} zh-CN 段缺未提供安装包;"
+  has_fixed "$zh" '未建 GitHub Release' || problems="${problems} zh-CN 段缺未建 GitHub Release;"
+  has_fixed "$zh" '隐私' || problems="${problems} zh-CN 段缺隐私节;"
+  has_fixed "$zh" '已知限制' || problems="${problems} zh-CN 段缺已知限制节;"
   zh_count="$(printf '%s\n' "$zh" | grep -Ec '^[0-9]+\. ' || true)"
   [ "$zh_count" = "3" ] || problems="${problems} zh-CN 已知限制条目数为 ${zh_count}（应为 3）;"
 
@@ -1088,6 +1096,17 @@ else
   else
     fail "ac-code-gates-test-real" "$(printf '%s' "$gate_error" | tr '\n' ' ')"
   fi
+fi
+
+# ------------------------------------------- 隐私政策正文真源 + 反例
+if [ ! -f scripts/check-privacy-policy.sh ]; then
+  fail "ac-policy-covers-required-items" "缺少 scripts/check-privacy-policy.sh"
+elif privacy_out="$(bash scripts/check-privacy-policy.sh 2>&1)"; then
+  pass "ac-policy-covers-required-items"
+  pass "ac-policy-single-source"
+  pass "ac-policy-keyword-red-proof"
+else
+  fail "ac-policy-covers-required-items" "$(printf '%s' "$privacy_out" | tr '\n' ' ')"
 fi
 
 printf '\n%d 项断言，%d 项失败\n' "$CHECKS" "$FAILURES"

@@ -10,6 +10,8 @@ struct RunView: View {
     @ObservedObject var viewModel: RunSessionViewModel
     /// 保存态主操作：切到历史 Tab（纯视图回调，不触碰状态机）。
     var onShowHistory: () -> Void = {}
+    /// 未同意轨迹数据授权时记录入口禁用（默认 true，既有 preview / 调用不受影响）。
+    var hasRecordingConsent: Bool = true
     /// Reduce Motion 打开时时长归零（无动画）；读取环境，不用 `UIAccessibility` 单例。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 动态字号档：结束态总结（地图预览 + 分段明细）据此压缩垂直预算，保证 AX5 不溢屏。
@@ -488,6 +490,10 @@ struct RunView: View {
             hint(L10n.locationUnavailable, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
         case .waitingAuthorization:
             hint(L10n.waitingAuthorization, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
+        case .consentRequired:
+            hint(L10n.runConsentRequired, tint: color(for: notice.tint), soft: DesignTokens.Colors.warningSoft)
+                .accessibilityIdentifier("run.consentRequired")
+                .accessibilityLabel(Text(L10n.runConsentRequired))
         case .backgroundDegraded:
             if let message = viewModel.authorization.backgroundDegradationHint {
                 // 后台定位降级是单行紧凑胶囊（图标 + 短文案，实测约 23.7pt 高、宽度由内容决定），
@@ -550,7 +556,11 @@ struct RunView: View {
 
     /// 视图唯一决策入口：所有可见操作 / 提示 / 恢复动作 / 过渡时长都来自 plan。
     private var plan: RunInteractionPlan {
-        RunInteractionPlan(viewModel: viewModel, reduceMotion: reduceMotion)
+        RunInteractionPlan(
+            viewModel: viewModel,
+            reduceMotion: reduceMotion,
+            consentGranted: hasRecordingConsent
+        )
     }
 
     /// 主操作强调色：记录态主操作族（开始 / 暂停 / 继续 / 结束 / 保存）统一品牌 accent，
@@ -582,8 +592,10 @@ struct RunView: View {
         switch item.action {
         case .start:
             styledControl(item, title: L10n.runActionStart, label: L10n.runStartLabel) {
+                guard plan.startEnabled else { return }
                 viewModel.start()
             }
+            .disabled(!plan.startEnabled)
             .accessibilityIdentifier("run.start")
         case .cancelCountdown:
             styledControl(item, title: L10n.runActionCancel, label: L10n.runCancelCountdownLabel) {

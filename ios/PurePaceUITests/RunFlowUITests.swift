@@ -26,7 +26,7 @@ final class RunFlowUITests: XCTestCase {
     func testRunPauseResumeFinishAndHistory() {
         let app = XCUIApplication()
         // 确定性测试定位源（仅 DEBUG 生效）：不依赖 hosted runner 的 simulator 定位投递。
-        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive"]
+        app.launchArguments += ["-uiTestLocation", "-uiTestResetArchive", "-uiTestConsentGranted"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
@@ -370,7 +370,7 @@ final class RunFlowUITests: XCTestCase {
     /// 无障碍摘要断言授权/音频遥测。定位源为确定性快速源，仅用于触发公里边界。
     func testRunProducesTelemetryAcrossKilometerBoundary() {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestLocation", "-uiTestLocationFast", "-uiTestResetArchive"]
+        app.launchArguments += ["-uiTestLocation", "-uiTestLocationFast", "-uiTestResetArchive", "-uiTestConsentGranted"]
         app.launch()
 
         let distance = app.staticTexts["run.distance"]
@@ -420,7 +420,7 @@ final class RunFlowUITests: XCTestCase {
     /// 最新一行（按 startedAt 降序的首行）即本次记录，不依赖容器全局恰 1 条。
     func testStartFinishExportGPXArtifact() {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestLocation"]
+        app.launchArguments += ["-uiTestLocation", "-uiTestConsentGranted"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
@@ -539,6 +539,7 @@ final class RunFlowUITests: XCTestCase {
 
     func testAnnouncementTogglePersistsAcrossRelaunch() {
         let app = XCUIApplication()
+        app.launchArguments += ["-uiTestConsentGranted"]
         addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
             for label in Self.locationAllowLabels {
                 let button = alert.buttons[label]
@@ -613,6 +614,7 @@ final class RunFlowUITests: XCTestCase {
         app.launchArguments += [
             "-uiTestLocation",
             "-uiTestResetArchive",
+            "-uiTestConsentGranted",
             "-uiTestLocationTargetMeters",
             "1200"
         ]
@@ -735,6 +737,7 @@ final class RunFlowUITests: XCTestCase {
         app.launchArguments += [
             "-uiTestLocation",
             "-uiTestResetArchive",
+            "-uiTestConsentGranted",
             "-uiTestLocationTargetMeters",
             "400"
         ]
@@ -1344,7 +1347,7 @@ final class RunFlowUITests: XCTestCase {
     /// 只读、只在失败路径调用，不参与断言判据。
     private func attachPersistedAnnouncementProbe(_ app: XCUIApplication, name: String) {
         app.terminate()
-        app.launchArguments += ["-screenshotInitialTab", "settings"]
+        app.launchArguments += ["-screenshotInitialTab", "settings", "-uiTestConsentGranted"]
         app.launch()
         let toggle = app.switches["settings.announcementToggle"]
         let ready = toggle.waitForExistence(timeout: 30)
@@ -1549,5 +1552,105 @@ final class RunFlowUITests: XCTestCase {
         expected.isInverted = true
         wait(for: [expected], timeout: seconds)
         return true
+    }
+
+    /// ac-consent-gate-three-states：未同意 → 同意 → 撤回 三态。
+    /// 断言全部基于可及树与控件 enabled 值，不使用固定 sleep、不依赖墙钟时长。
+    func testTrajectoryConsentGateThreeStates() {
+        let consentReason = "未同意轨迹与位置数据授权，暂不能开始记录。"
+
+        func monitorLocation() {
+            addUIInterruptionMonitor(withDescription: "Location Authorization") { alert in
+                for label in Self.locationAllowLabels {
+                    let button = alert.buttons[label]
+                    if button.exists {
+                        button.tap()
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+
+        // ---- 状态 1：未同意 → 独立同意屏出现；关闭后 start 禁用 + 显示原因 ----
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestLocation", "-uiTestResetConsent"]
+        monitorLocation()
+        app.launch()
+        allowLocationIfNeeded()
+
+        let gateTitle = app.staticTexts["settings.consentGate"]
+        XCTAssertTrue(gateTitle.waitForExistence(timeout: 30), "首次启动未出现独立同意屏")
+        let decline = app.buttons["settings.consentDecline"]
+        XCTAssertTrue(decline.waitForExistence(timeout: 10), "同意屏缺少次操作「不同意」")
+        decline.tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { !gateTitle.exists }, "点「不同意」后同意屏未关闭")
+
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "缺少 run.start 主操作")
+        XCTAssertFalse(start.isEnabled, "未同意态 run.start 必须禁用")
+        XCTAssertTrue(
+            app.staticTexts["run.consentRequired"].waitForExistence(timeout: 10),
+            "未同意态必须显示禁用原因"
+        )
+        XCTAssertEqual(app.staticTexts["run.consentRequired"].label, consentReason, "禁用原因文案不符")
+        app.terminate()
+
+        // ---- 状态 2：同意 → 门消失、start 启用；冷启动保持 ----
+        app.launchArguments = ["-uiTestLocation", "-uiTestResetConsent"]
+        monitorLocation()
+        app.launch()
+        allowLocationIfNeeded()
+        XCTAssertTrue(gateTitle.waitForExistence(timeout: 30), "重置后应再次出现同意屏")
+        let agree = app.buttons["settings.consentAgree"]
+        XCTAssertTrue(agree.waitForExistence(timeout: 10), "同意屏缺少 accent 主操作「同意并继续」")
+        agree.tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { !gateTitle.exists }, "点「同意并继续」后同意屏未关闭")
+        XCTAssertTrue(waitUntil(timeout: 10) { start.exists && start.isEnabled }, "同意后 run.start 应立即可用")
+        XCTAssertFalse(app.staticTexts["run.consentRequired"].exists, "同意后不应再显示禁用原因")
+
+        app.terminate()
+        app.launchArguments = ["-uiTestLocation"]
+        monitorLocation()
+        app.launch()
+        allowLocationIfNeeded()
+        XCTAssertTrue(waitUntil(timeout: 30) { start.exists }, "冷启动后缺少 run.start")
+        XCTAssertTrue(start.isEnabled, "同意应跨冷启动持久化")
+        XCTAssertFalse(gateTitle.exists, "已同意后冷启动不应再出现同意屏")
+
+        // ---- 状态 3：设置页读全文 + 撤回 → 记录入口再次禁用 ----
+        XCTAssertTrue(tapSettingsUntilReady(app, screen: "consent-settings"), "设置页未就绪")
+        let policyLink = app.buttons["settings.privacyPolicy"]
+        XCTAssertTrue(policyLink.waitForExistence(timeout: 10), "设置页缺少「关于」政策入口")
+        policyLink.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.privacyPolicyBody"].waitForExistence(timeout: 10),
+            "应用内政策全文容器未渲染"
+        )
+        XCTAssertTrue(app.staticTexts["采集项"].waitForExistence(timeout: 10), "应用内政策全文未渲染采集项正文")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        let revoke = app.buttons["settings.consentRevoke"]
+        XCTAssertTrue(revoke.waitForExistence(timeout: 10), "同意态缺少撤回同意入口")
+        revoke.tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { !revoke.exists }, "撤回后撤回入口应消失（回到未同意态）")
+
+        let runTab = app.tabBars.firstMatch.buttons["跑步"]
+        XCTAssertTrue(runTab.waitForExistence(timeout: 10), "缺少「跑步」Tab")
+        runTab.tap()
+        XCTAssertTrue(waitUntil(timeout: 10) { start.exists }, "撤回后未回到跑步页")
+        XCTAssertFalse(start.isEnabled, "撤回后 run.start 必须再次禁用")
+        XCTAssertTrue(
+            app.staticTexts["run.consentRequired"].waitForExistence(timeout: 10),
+            "撤回后必须显示禁用原因"
+        )
+
+        // 撤回后冷启动重进：键已置未同意，独立同意屏应再次出现。
+        app.terminate()
+        app.launchArguments = ["-uiTestLocation"]
+        monitorLocation()
+        app.launch()
+        allowLocationIfNeeded()
+        XCTAssertTrue(gateTitle.waitForExistence(timeout: 30), "撤回后冷启动重进应再次出现同意屏")
     }
 }
