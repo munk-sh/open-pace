@@ -1,0 +1,10 @@
+info: JDK 21 (openjdk version "21.0.1" 2024-01-15)
+info: ANDROID_HOME=/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-wi8cf-existing.n7Z1ot/pkg/fake-sdk
+info: gradle assembleDebug（有界重试：网络类失败最多重试 3 次）
+info: gradle assembleDebug 第 1/4 次尝试
+info: 既有产物目录保持不动（不覆盖/不删除/不改名）: /private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-existing.n7Z1ot/dist-new/purepace-dist/android/0.1.0-1
+info: 本次改用兄弟目录: /private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-existing.n7Z1ot/dist-new/purepace-dist/android/0.1.0-1-b3（已存在最大序号 2 + 1）
+info: 本次实际输出目录: /private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-existing.n7Z1ot/dist-new/purepace-dist/android/0.1.0-1-b3
+APK=/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-existing.n7Z1ot/dist-new/purepace-dist/android/0.1.0-1-b3/purepace-0.1.0-1-debug.apk
+SHA256=5df78b316a96f270e2894bcdaa67e590ec5c5ae96084535b59765efdf93905d5
+DIST_DIR=/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-existing.n7Z1ot/dist-new/purepace-dist/android/0.1.0-1-b3

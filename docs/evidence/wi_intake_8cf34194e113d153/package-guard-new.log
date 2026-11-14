@@ -1,7 +1,0 @@
-info: JDK 21 (openjdk version "21.0.1" 2024-01-15)
-info: ANDROID_HOME=/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-wi8cf-guard.nzsQoB/pkg/fake-sdk
-info: gradle assembleDebug（有界重试：网络类失败最多重试 3 次）
-info: gradle assembleDebug 第 1/4 次尝试
-error: 分发目录已存在，默认拒绝覆盖: /private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-guard.nzsQoB/dist-new/purepace-dist/android/0.1.0-1
-info: 既有 manifest.json commit=0000000000000000000000000000000000000000 buildTime=1970-01-01T00:00:00Z
-hint: 目标目录已存在时默认不改动既有产物；可改 PUREPACE_DIST_ROOT 指向新根目录，或显式加 --force 覆盖（同一 commit 下 sha256 变化仍会判红）

@@ -1,0 +1,56 @@
+# 出包产物 sha256 口径实证（wi_intake_8cf34194e113d153）
+# 结论口径：表内 sha256 只对应本次交付的这一个文件；同机重跑实测一致；跨构建/跨环境不可复现。
+# 生成时间: 2026-11-14T20:59:01Z
+
+## 1) TMPDIR 现场各目录（目录名 + sha256 + 字节数）
+0.1.0-1  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+0.1.0-1-b2  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+0.1.0-1-b3  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+0.1.0-1-b4  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+0.1.0-1-b5  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+
+## 2) 持久目录（仓外，不随 TMPDIR 清理）逐件复算
+目录: /Users/zhutao/purepace-dist/android/0.1.0-1
+total 22992
+-rw-r--r--@ 1 zhutao  staff        93 Nov 15 04:17 checksums.txt
+-rw-r--r--@ 1 zhutao  staff       294 Nov 15 04:17 manifest.json
+-rw-r--r--@ 1 zhutao  staff  11760611 Nov 15 04:17 purepace-0.1.0-1-debug.apk
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /Users/zhutao/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+9153dd0cfdd4d9a8e4c36632c39b52fa5a272a0c22d7e62b6e3d4918a0b6bedc  /Users/zhutao/purepace-dist/android/0.1.0-1/manifest.json
+d93413e21486e9cf5c03f791d0dffb605f0b943ecec41085148846d27499f7b1  /Users/zhutao/purepace-dist/android/0.1.0-1/checksums.txt
+APK 字节数: 11760611
+purepace-0.1.0-1-debug.apk: OK
+目录内自校验退出码: 0
+
+## 3) 持久目录与 TMPDIR 现场的字节对照
+purepace-0.1.0-1-debug.apk: identical
+manifest.json: identical
+checksums.txt: identical
+
+## 4) 跨环境差异（非本机实测，引用 CI 观测）
+# 来源: projects/ops_75c530285b695ccb/.munk/runs/trun_25f3e4b9c69e2e84/digest.md 第 62-68 行
+CI run 43634680117 → 11f3adce…
+CI run 43636713531 → 66576b94…
+本机交付文件（两轮本地构建 + 本轮 5 个目录）→ 8b80c8e2…990e0
+# 同机重跑实测一致；跨机不可复现，故不得用「自己出包的结果」与本表比对。
+
+## 5) 多余副本处置（方案 a：确认 sha 与候选一致后删除）
+# 依据：持久目录 /Users/zhutao/purepace-dist/android/0.1.0-1 已留存交付三件，sha256/字节数与下列逐目录一致；
+# 删除理由：同名同 sha 的重复副本无额外信息，留给后续门禁运行继续产生兄弟目录。
+# 清理策略仍是本项非目标：不自动删旧目录、不加归档逻辑。
+记录: 0.1.0-1-b2  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+已删除: /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b2
+记录: 0.1.0-1-b3  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+已删除: /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b3
+记录: 0.1.0-1-b4  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+已删除: /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b4
+记录: 0.1.0-1-b5  8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  11760611
+已删除: /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b5
+
+## 6) 处置后盘上目录清单
+0.1.0-1
+
+## 7) 基名目录（出包现场，保持不动）
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+purepace-0.1.0-1-debug.apk: OK
+自校验退出码: 0

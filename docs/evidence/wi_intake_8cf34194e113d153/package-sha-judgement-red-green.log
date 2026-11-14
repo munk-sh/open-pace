@@ -1,0 +1,32 @@
+# 跨构建 sha256 差异：旧判据（跨构建相等）必红 / 新判据（目录内自校验）必绿
+# 沙箱：/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-wi8cf-sha.aC3yN5（stub gradlew：varysha 模式两次产出不同字节的 APK）
+# 被测新脚本：scripts/package-android.sh（工作树）
+# 旧判据副本：新脚本 + 重新插入「跨构建 sha256 必须相等」块
+
+=== 1) 旧判据副本（varysha：第二次 sha256 与第一次不同）===
+第一次(ok)退出码: 0
+第二次(varysha)退出码: 1  ← 期望非 0（旧判据必须红）
+SHA256=5df78b316a96f270e2894bcdaa67e590ec5c5ae96084535b59765efdf93905d5
+DIST_DIR=/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-sha.aC3yN5/dist-old-judgement/purepace-dist/android/0.1.0-1
+error: 同一 commit 重复打包 sha256 变化（旧判据），幂等断言失败
+旧判据红态判定: red
+
+=== 2) 新判据（同一 varysha 场景：sha256 不同必须放行，且新目录内自校验通过）===
+第一次(ok)退出码: 0
+第二次(varysha)退出码: 0  ← 期望 0（新判据必须绿）
+第一次 sha256: 5df78b316a96f270e2894bcdaa67e590ec5c5ae96084535b59765efdf93905d5
+第二次 sha256: dec00461f90fd8a6e4bb9562c25ac67f538d2028acce97516b0bb36a1487e382
+两次 sha256 是否不同: yes
+第二次落点: /private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-sha.aC3yN5/dist-new-judgement/purepace-dist/android/0.1.0-1-b2
+目录清单:
+0.1.0-1
+0.1.0-1-b2
+第二次目录内自校验:
+purepace-0.1.0-1-debug.apk: OK
+自校验退出码: 0
+第二次 manifest sha256 是否等于其 APK 实测: yes
+
+=== 3) 结论 ===
+- 旧「跨构建 sha256 必须相等」判据在 sha 变化时退出 1（红）；
+- 新「目录内自校验」判据同场景退出 0（绿），新目录 checksums.txt 与自身 APK 一致；
+- 因此判据必须只落在同一产物目录内，跨机构建不可复现不得成为阻断条件。
