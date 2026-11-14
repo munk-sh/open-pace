@@ -42,14 +42,30 @@
    ```
    期望结果：终端最后一行 `Success`。装机后的首启核对见第 5 节（Android 同意门）。
 
-本次实测产物（commit `2873ae21ee05c890980be28a63dda1d7da573bcf`，`bash scripts/package-android.sh` 实跑，退出码 0）：
+本次实测产物（`bash scripts/package-android.sh` 实跑，退出码 0）。验收键是 **sha256 + 版本 + APK 字节**，
+不是 `manifest.json` 里的 commit 字样：`commit` 只记录**构建时工作树 commit**。盘上产物与早一轮构建
+字节完全一致，两轮各一行：
+
+| 轮次 | 构建时工作树 commit（manifest.commit） | buildTime | sha256 | 字节 |
+|---|---|---|---|---|
+| 第一轮 | `2873ae21ee05c890980be28a63dda1d7da573bcf` | `2026-11-14T19:59:46Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第二轮字节一致 |
+| 第二轮（盘上现行产物） | `48b3e5c82c7988df8bc1a1e0c5cf949006c45602` | `2026-11-14T20:17:29Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第一轮字节一致 |
+
+两轮构建在 `android/ ios/ shared/ scripts/` 路径上零差异，依据
+`git diff --name-only 2873ae2 707da7f | grep -E '^(android|ios|shared|scripts)/'` 输出为空、退出码 1；
+命令原文与输出见 `docs/evidence/wi_intake_8cf34194e113d153/`。
 
 | 项 | 实测值 |
 |---|---|
 | 产物目录名 | `0.1.0-1` |
 | APK 绝对路径（仓外） | `/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk` |
 | sha256 | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` |
+| commit（构建时工作树） | `48b3e5c82c7988df8bc1a1e0c5cf949006c45602`（第二轮；与 `2873ae2` 代码路径零差异） |
+| buildTime | `2026-11-14T20:17:29Z` |
 | 自校验 | 在产物目录执行 `shasum -a 256 -c checksums.txt`，输出 `purepace-0.1.0-1-debug.apk: OK`，退出码 0 |
+
+目标目录已存在时脚本默认拒绝覆盖（退出 1，并回显既有 manifest 的 commit / buildTime）；
+确需原地重出须显式 `--force`，且同一 commit 下 sha256 变化仍会判红。
 
 复跑校验：
 
@@ -63,7 +79,8 @@ shasum -a 256 purepace-0.1.0-1-debug.apk   # 期望与上表 sha256 逐字一致
 版本号仍由根 `VERSION` 与 `android/app/build.gradle.kts` 单点派生；上表只是本次产物的实测抄录，
 不是写进构建配置的字面值。装机仍需人执行，本说明不含任何发布或获取口径。
 证据与命令日志：`docs/evidence/wi_intake_9dc4d2c5af703568/README.md` 与同目录 `android-package.log`、
-`android-manifest.json`、`android-checksums-verify.log`。
+`android-manifest.json`（第一轮快照）、`android-manifest-ondisk-48b3e5c.json`（盘上第二轮快照）、
+`android-checksums-verify.log`；覆盖守卫与零差异命令的实跑日志见 `docs/evidence/wi_intake_8cf34194e113d153/`。
 
 ### 1.2 iOS（TestFlight 内部测试路径）
 

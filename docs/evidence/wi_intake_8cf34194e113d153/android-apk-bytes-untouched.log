@@ -1,0 +1,23 @@
+# 盘上 Android 产物字节对照（wi_intake_8cf34194e113d153）
+# 本项不执行真实出包（package-android.sh 未被调用，仅有沙箱 stub 反例）
+
+## 1) 交付证据 wi_intake_9dc4d2c5af703568 记录的 sha256
+$ cat docs/evidence/wi_intake_9dc4d2c5af703568/android-checksums.txt
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  purepace-0.1.0-1-debug.apk
+
+## 2) 本轮实现完成后盘上实测（目录 /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1）
+$ ls -l /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1
+total 22992
+-rw-r--r--@ 1 zhutao  staff        93 Nov 15 04:17 checksums.txt
+-rw-r--r--@ 1 zhutao  staff       294 Nov 15 04:17 manifest.json
+-rw-r--r--@ 1 zhutao  staff  11760611 Nov 15 04:17 purepace-0.1.0-1-debug.apk
+
+$ shasum -a 256 /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+
+$ cd /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1 && shasum -a 256 -c checksums.txt
+purepace-0.1.0-1-debug.apk: OK
+自校验退出码: 0
+
+## 3) 结论
+文件名、目录名、sha256 与交付证据一致；未改名、未删除、未搬迁、未重出包。

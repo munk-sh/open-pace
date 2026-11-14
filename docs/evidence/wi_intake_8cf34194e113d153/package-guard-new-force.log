@@ -1,0 +1,7 @@
+info: JDK 21 (openjdk version "21.0.1" 2024-01-15)
+info: ANDROID_HOME=/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-wi8cf-guard.nzsQoB/pkg/fake-sdk
+info: gradle assembleDebug（有界重试：网络类失败最多重试 3 次）
+info: gradle assembleDebug 第 1/4 次尝试
+APK=/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-guard.nzsQoB/dist-new/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+SHA256=5df78b316a96f270e2894bcdaa67e590ec5c5ae96084535b59765efdf93905d5
+DIST_DIR=/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-wi8cf-guard.nzsQoB/dist-new/purepace-dist/android/0.1.0-1

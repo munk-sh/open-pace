@@ -21,7 +21,8 @@ ${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>/
 ```
 
 stdout 末尾的 `APK=` 与 `SHA256=` 行可直接对照；`PUREPACE_DIST_ROOT` 可覆盖分发根，
-解析结果落在仓库内会被拒绝。`manifest.json` 记录 applicationId、version、versionCode、
+解析结果落在仓库内会被拒绝。目标目录 `<versionName>-<versionCode>` 已存在时默认拒绝覆盖
+（退出 1），确需原地重出须显式 `--force`。`manifest.json` 记录 applicationId、version、versionCode、
 commit、sha256、minSdk、targetSdk 与 buildTime。
 
 ## 2. 校验

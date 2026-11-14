@@ -1,0 +1,14 @@
+# 手册零发布口径自检（docs/distribution/manual-test-guide.md）
+# 命令: grep -nE "已发布|已分发|可下载|已上架|真机已验证" docs/distribution/manual-test-guide.md
+# 期望: 零命中，退出码 1
+---
+grep_exit=1
+---
+命中行数: 0
+人耳三条 pending 行:
+120:- 音乐不被打断：每公里播报期间，Apple Music 正在播放的歌曲继续播放，没有停播。状态：`pending: 待人现场`
+121:- 不切歌：播报前后仍是同一首歌，没有跳到下一首或其它曲目。状态：`pending: 待人现场`
+122:- 播完音量恢复：播报结束后，音乐音量回到播报前的水平，没有被长期压低。状态：`pending: 待人现场`
+216:| 音乐不被打断 | 人耳判断，需 Apple Music 正在播放 | pending: 待人现场 |
+217:| 不切歌 | 人耳判断，需 Apple Music 正在播放 | pending: 待人现场 |
+218:| 播完音量恢复 | 人耳判断，需 Apple Music 正在播放 | pending: 待人现场 |

@@ -1,0 +1,10 @@
+{
+  "applicationId": "sh.munk.purepace",
+  "version": "0.1.0",
+  "versionCode": 1,
+  "commit": "48b3e5c82c7988df8bc1a1e0c5cf949006c45602",
+  "sha256": "8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0",
+  "minSdk": 26,
+  "targetSdk": 36,
+  "buildTime": "2026-11-14T20:17:29Z"
+}
