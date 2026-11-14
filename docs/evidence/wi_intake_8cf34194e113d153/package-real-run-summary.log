@@ -1,0 +1,36 @@
+# 真实出包门零参数运行（wi_intake_8cf34194e113d153，macOS darwin-arm64，JDK 21 + Android SDK 36）
+# 命令: bash scripts/package-android.sh（不带任何参数）
+# 说明: 盘上已有 0.1.0-1（前序交付产物），脚本按新语义自动改用兄弟目录，绝不改动既有目录
+
+## 全文日志
+- package-real-run-1.log → DIST_DIR=/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b3（历史现场，该副本已按 sha-scope 日志第 5 节去重删除）
+- package-real-run-2.log → DIST_DIR=/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b4（同上）
+- 本项首跑 → 0.1.0-1-b2（同上）
+- 提交前末次真实零参数运行 → 0.1.0-1-b2（去重后序号回到 2；exit=0）
+# 每次运行都 exit=0，兄弟序号单调 +1，既有目录字节零变化；不只贴结论，逐次全文见上列日志。
+
+## 盘上目录清单
+0.1.0-1
+0.1.0-1-b2
+
+## 基名目录 0.1.0-1（出包现场，必须逐字不变：mtime 04:17 / sha256 8b80c8e2…）
+total 22992
+-rw-r--r--@ 1 zhutao  staff        93 Nov 15 04:17 checksums.txt
+-rw-r--r--@ 1 zhutao  staff       294 Nov 15 04:17 manifest.json
+-rw-r--r--@ 1 zhutao  staff  11760611 Nov 15 04:17 purepace-0.1.0-1-debug.apk
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+purepace-0.1.0-1-debug.apk: OK
+自校验退出码: 0
+
+## 仓外持久目录（收货用，不随 TMPDIR 清理）/Users/zhutao/purepace-dist/android/0.1.0-1
+total 22992
+-rw-r--r--@ 1 zhutao  staff        93 Nov 15 04:17 checksums.txt
+-rw-r--r--@ 1 zhutao  staff       294 Nov 15 04:17 manifest.json
+-rw-r--r--@ 1 zhutao  staff  11760611 Nov 15 04:17 purepace-0.1.0-1-debug.apk
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /Users/zhutao/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk
+字节数: 11760611
+purepace-0.1.0-1-debug.apk: OK
+自校验退出码: 0
+
+## 兄弟目录 0.1.0-1-b<N>（与基名目录字节一致；每跑一次门禁都会新增一个）
+8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0  /var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T//purepace-dist/android/0.1.0-1-b2/purepace-0.1.0-1-debug.apk

@@ -21,8 +21,13 @@ ${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>/
 ```
 
 stdout 末尾的 `APK=` 与 `SHA256=` 行可直接对照；`PUREPACE_DIST_ROOT` 可覆盖分发根，
-解析结果落在仓库内会被拒绝。`manifest.json` 记录 applicationId、version、versionCode、
+解析结果落在仓库内会被拒绝。版本目录 `<versionName>-<versionCode>` 已存在时脚本不覆盖/不删除它，
+本次自动改用兄弟目录 `<versionName>-<versionCode>-b<N>`（N = 已存在最大序号 + 1），
+实际落点以 stdout 的 `DIST_DIR=` 为准。`manifest.json` 记录 applicationId、version、versionCode、
 commit、sha256、minSdk、targetSdk 与 buildTime。
+
+`$TMPDIR` 会被系统清理，交付副本另存仓外持久目录 `${HOME}/purepace-dist/android/<versionName>-<versionCode>/`
+（三件同目录：APK、`manifest.json`、`checksums.txt`）；收货以持久目录为准，出包现场只作复原对照。
 
 ## 2. 校验
 
@@ -34,7 +39,9 @@ shasum -a 256 -c checksums.txt
 sha256sum -c checksums.txt
 ```
 
-`checksums.txt` 中的 sha256 必须与 `APK=` 对应文件实测一致。
+`checksums.txt` 中的 sha256 必须与同目录 `APK=` 对应文件实测一致——这是唯一需要的验收判据。
+Android APK 构建跨环境不可复现（同一源码在 CI 与本地已实测出不同 sha256），所以不要拿自己重跑的产物
+去比别的目录/别的机器记下的 sha256；重跑产物请记录它自己的 sha256 并以目录名区分。
 
 ## 3. 安装
 

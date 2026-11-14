@@ -35,35 +35,65 @@
    sha256sum -c checksums.txt
    ```
    期望结果：每个文件一行 `OK`；任一 `FAILED` 即停止，不要安装。
-3. 安装（覆盖同签名旧包）：
+3. 安装（覆盖同签名旧包）：交付文件放在仓外持久目录 `${HOME}/purepace-dist/android/<versionName>-<versionCode>/`
+   （不随 `$TMPDIR` 清理，实测为 `/Users/zhutao/purepace-dist/android/0.1.0-1/`）：
    ```bash
-   DIST="${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>"
+   DIST="${HOME}/purepace-dist/android/<versionName>-<versionCode>"
    adb install -r "$DIST/purepace-<versionName>-<versionCode>-debug.apk"
    ```
    期望结果：终端最后一行 `Success`。装机后的首启核对见第 5 节（Android 同意门）。
 
-本次实测产物（commit `2873ae21ee05c890980be28a63dda1d7da573bcf`，`bash scripts/package-android.sh` 实跑，退出码 0）：
+本次实测产物（`bash scripts/package-android.sh` 实跑，退出码 0）。验收键是 **sha256 + 版本 + APK 字节**，
+不是 `manifest.json` 里的 commit 字样：`commit` 只记录**构建时工作树 commit**（盘上 `48b3e5c`，与
+`2873ae2` 在 `android/ ios/ shared/ scripts/` 路径上零差异）。下表两行是两次本地构建的实测抄录，
+两次恰为同一字节；**这不构成「重跑必得同一 sha」的规则**——跨机构建实测就是不同 sha256：
+
+| 轮次 | 构建时工作树 commit（manifest.commit） | buildTime | sha256 | 字节 |
+|---|---|---|---|---|
+| 第一轮 | `2873ae21ee05c890980be28a63dda1d7da573bcf` | `2026-11-14T19:59:46Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第二轮字节一致 |
+| 第二轮（盘上现行产物） | `48b3e5c82c7988df8bc1a1e0c5cf949006c45602` | `2026-11-14T20:17:29Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第一轮字节一致 |
+
+两轮构建在 `android/ ios/ shared/ scripts/` 路径上零差异，依据
+`git diff --name-only 2873ae2 707da7f | grep -E '^(android|ios|shared|scripts)/'` 输出为空、退出码 1；
+命令原文与输出见 `docs/evidence/wi_intake_8cf34194e113d153/`。
 
 | 项 | 实测值 |
 |---|---|
 | 产物目录名 | `0.1.0-1` |
-| APK 绝对路径（仓外） | `/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk` |
-| sha256 | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` |
-| 自校验 | 在产物目录执行 `shasum -a 256 -c checksums.txt`，输出 `purepace-0.1.0-1-debug.apk: OK`，退出码 0 |
+| 交付文件绝对路径（仓外持久目录，收货用这个） | `/Users/zhutao/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk` |
+| 同目录另两件 | `/Users/zhutao/purepace-dist/android/0.1.0-1/manifest.json`（`9153dd0c…bedc`）、`checksums.txt`（`d93413e2…f7b1`） |
+| 出包现场（TMPDIR，会被系统清理，只作复原对照） | `/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk` |
+| sha256（只对应本次交付的这一个 APK 文件） | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` |
+| 字节数 | `11760611` |
+| commit（构建时工作树） | `48b3e5c82c7988df8bc1a1e0c5cf949006c45602`（第二轮；与 `2873ae2` 代码路径零差异） |
+| buildTime | `2026-11-14T20:17:29Z` |
+| 自校验（唯一需要的验收动作） | 在产物目录执行 `shasum -a 256 -c checksums.txt`，输出 `purepace-0.1.0-1-debug.apk: OK`，退出码 0 |
 
-复跑校验：
+目标目录已存在时脚本绝不覆盖/删除/改名它，而是自动改用带构建序号的兄弟目录
+`<versionName>-<versionCode>-b<N>`（N = 已存在最大序号 + 1，从 2 起），零参数即可运行；
+stdout 的 `DIST_DIR=` 与「本次实际输出目录」行给出本次真实落点，请按该行取路径安装。
 
-```bash
-DIST="${TMPDIR:-/tmp}/purepace-dist/android/0.1.0-1"
-cd "$DIST"
-shasum -a 256 -c checksums.txt
-shasum -a 256 purepace-0.1.0-1-debug.apk   # 期望与上表 sha256 逐字一致
-```
+验收分两件事，不要混：
+
+1. **对本次交付文件**：在上面的产物目录里执行目录内自校验即可通过。
+   ```bash
+   DIST="${HOME}/purepace-dist/android/0.1.0-1"
+   cd "$DIST"
+   shasum -a 256 -c checksums.txt   # 期望输出：purepace-0.1.0-1-debug.apk: OK
+   ```
+   上表 sha256 只对应本次交付的这一个 APK 字节；`checksums.txt` 是同一目录内写下的，所以这里的比对是
+   「目录内自校验」，而不是跟别处的构建结果比。
+2. **自己重跑出包**：得到的是**新产物**，不是对本次交付文件的校验。Android APK 构建**跨环境不可复现**
+   （CI 已实测两次不同 sha256：`11f3adce…` 与 `66576b94…`；本机重复构建则恰好一致）。
+   因此：不得拿重跑结果与上表比对，也不得覆盖 / 替换已交付的三件文件；重跑后应重新记录它自己的
+   sha256，并以目录名区分（脚本会在同名版本目录已存在时自动改用 `<versionName>-<versionCode>-b<N>` 兄弟目录，
+   实际落点以 stdout 的 `DIST_DIR=` 为准）。
 
 版本号仍由根 `VERSION` 与 `android/app/build.gradle.kts` 单点派生；上表只是本次产物的实测抄录，
 不是写进构建配置的字面值。装机仍需人执行，本说明不含任何发布或获取口径。
 证据与命令日志：`docs/evidence/wi_intake_9dc4d2c5af703568/README.md` 与同目录 `android-package.log`、
-`android-manifest.json`、`android-checksums-verify.log`。
+`android-manifest.json`（第一轮快照）、`android-manifest-ondisk-48b3e5c.json`（盘上第二轮快照）、
+`android-checksums-verify.log`；覆盖守卫与零差异命令的实跑日志见 `docs/evidence/wi_intake_8cf34194e113d153/`。
 
 ### 1.2 iOS（TestFlight 内部测试路径）
 
@@ -106,6 +136,14 @@ Android 端当前只有独立同意门与占位主界面，没有定位、语音
 
 以上三条在本说明中一律记 `pending: 待人现场`。人现场需放 `com.apple.Music` 才算成立：测试前先用 Apple Music
 播放一首歌并确认正在出声，再开始跑步；未播放任何外部音源时，本项不成立、不要判为通过。
+
+开跑前的机器前置（只是做法与判据，不是「已验证」结论，三条人耳结论仍全部 `pending: 待人现场`）：
+
+1. 在真机上用 Apple Music 播放一首歌，先取得机器读数 `isOtherAudioPlaying=true`，并确认该音源可归因到
+   `com.apple.Music` 正在播放；读数不是 `true` 或无法归因时不要开始判定。
+2. 若该曲目在 iCloud 尚未下载（播放不出去或只显示云图标），先完成下载，把「下载完成」这一状态写进本条证据，
+   再开始。
+3. 三条人耳判定必须用**同一构建**（同一 APK 文件 / 同一 sha256）在同一次装机上完成，不要中途换包。
 
 人现场的判定口径：模拟器无外部音源时读数只作环境事实，不能据此判音乐不打断。
 

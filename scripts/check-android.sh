@@ -32,10 +32,14 @@ usage() {
   - ac-policy-bundled-no-network
                                 Manifest 权限集合与改动前一致（无 uses-permission），政策渲染无网络调用
   - ac-package-path-and-layout / ac-package-manifest-fields / ac-package-checksums-match /
-    ac-package-idempotent-same-commit / ac-package-no-hardcoded-credentials /
-    ac-package-red-proofs
+    ac-package-sha-self-check-scoped / ac-package-no-hardcoded-credentials /
+    ac-package-existing-dir-sibling / ac-package-existing-dir-monotonic /
+    ac-package-existing-dir-red-proof / ac-package-cli-contract-preserved / ac-package-red-proofs
                                 沙箱 stub gradle 打包：仓外目录布局、manifest 字段集合、checksums
-                                对照、同 commit 幂等、零明文凭据，并逐条构造反例取红
+                                对照、目录内自校验（跨构建 sha256 差异不比对）、零明文凭据；
+                                干净环境用固定名目录，既有版本目录存在时改用递增兄弟目录
+                                （-b2、-b3）且既有文件 sha256 逐字不变、去守卫副本必然覆盖既有
+                                目录、跨构建 sha 相等那版判据必然取红、--help / 未知参数契约
   - ac-check-android-gates-integrity
                                 .munk/code-gates.json 可解析、id 唯一、无空转/串接命令，
                                 Android 四个门（build/test/lint/package）各自指向对应脚本命令，
@@ -1084,8 +1088,11 @@ pkg_commit="$(git -C "${pkg_root}" rev-parse HEAD)"
 pkg_version="$(tr -d '\r\n' < VERSION)"
 pkg_counter="${pkg_root}/attempts.txt"
 
-run_package_case() {
-  local mode="$1" dist_root="$2" log_name="$3"
+# 在沙箱 pkg_root 内按给定脚本路径与参数运行（脚本参数透传给被测脚本；
+# 沙箱脚本仍以自身 BASH_SOURCE 推导仓库根，因此副本须放在 pkg_root/scripts/ 下）。
+run_package_script() {
+  local script_path="$1" mode="$2" dist_root="$3" log_name="$4" rc=0
+  shift 4
   (
     cd "${pkg_root}" || exit 1
     PUREPACE_DIST_ROOT="${dist_root}" \
@@ -1094,22 +1101,54 @@ run_package_case() {
       JAVA_HOME="${pkg_root}/fake-jdk" \
       ANDROID_HOME="${pkg_root}/fake-sdk" \
       PATH="${pkg_root}/fake-jdk/bin:${PATH}" \
-      bash scripts/package-android.sh
-  ) > "${pkg_root}/${log_name}.log" 2>&1
-  return $?
+      bash "${script_path}" "$@"
+  ) > "${pkg_root}/${log_name}.log" 2>&1 || rc=$?
+  return "${rc}"
 }
+
+run_package_case() {
+  local mode="$1" dist_root="$2" log_name="$3"
+  shift 3
+  run_package_script scripts/package-android.sh "${mode}" "${dist_root}" "${log_name}" "$@"
+}
+
+# 预置「既有版本目录」现场：哨兵文件 + 旧 checksums.txt + 旧 manifest.json。
+# 旧 manifest 用陌生 commit（全 0）与占位 sha256，保证这里只判「既有目录是否被改动 /
+# 是否改用兄弟目录」，不掺入任何跨构建 sha256 比对。
+seed_existing_target() {
+  local dist_root="$1"
+  local target="${dist_root}/purepace-dist/android/${pkg_version}-1"
+  mkdir -p "${target}"
+  printf 'sentinel-keep-me\n' > "${target}/sentinel.txt"
+  printf 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  stale.apk\n' > "${target}/checksums.txt"
+  cat > "${target}/manifest.json" <<'SEEDMANIFEST'
+{
+  "applicationId": "sh.munk.purepace",
+  "version": "seed",
+  "versionCode": 1,
+  "commit": "0000000000000000000000000000000000000000",
+  "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "minSdk": 26,
+  "targetSdk": 36,
+  "buildTime": "1970-01-01T00:00:00Z"
+}
+SEEDMANIFEST
+  printf '%s' "${target}"
+}
+seed_manifest_commit="0000000000000000000000000000000000000000"
+seed_manifest_build_time="1970-01-01T00:00:00Z"
 
 layout_problems=""
 manifest_problems=""
 checksums_problems=""
-idempotent_problems=""
+sha_scope_problems=""
 credential_problems=""
 red_proofs_problems=""
 red_empty=0
 red_checksum=0
 red_inside=0
 red_credential=0
-red_idempotent=0
+red_sha_gated=0
 
 rm -f "${pkg_counter}"
 ok_dist="${sandbox}/dist-ok"
@@ -1171,21 +1210,186 @@ else
   mv "${ok_target}/checksums.bak" "${ok_target}/checksums.txt"
 
   if run_package_case ok "${ok_dist}" "ok-second"; then second_rc=0; else second_rc=$?; fi
-  second_sha="$(grep -m1 '^SHA256=' "${pkg_root}/ok-second.log" | sed 's/^SHA256=//' || true)"
+  second_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/ok-second.log" | sed 's/^DIST_DIR=//' || true)"
   dir_count="$(find "${ok_dist}/purepace-dist/android" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  [ "${second_rc}" -eq 0 ] || idempotent_problems="${idempotent_problems} 第二次打包退出 ${second_rc};"
-  [ "${second_sha}" = "${actual_sha}" ] || idempotent_problems="${idempotent_problems} 同 commit 第二次 sha256 变化;"
-  [ "${dir_count}" -eq 1 ] || idempotent_problems="${idempotent_problems} 第二次打包新增了目录（${dir_count}）;"
-
-  if run_package_case varysha "${ok_dist}" "varysha"; then vary_rc=0; else vary_rc=$?; fi
-  if [ "${vary_rc}" -eq 0 ]; then
-    idempotent_problems="${idempotent_problems} 第二次产物 sha 变化未被判红;"
-  elif grep -Fq -- '幂等' "${pkg_root}/varysha.log"; then
-    red_idempotent=1
+  [ "${second_rc}" -eq 0 ] || sha_scope_problems="${sha_scope_problems} 第二次打包退出 ${second_rc};"
+  [ "${dir_count}" -eq 2 ] || sha_scope_problems="${sha_scope_problems} 第二次打包后目录数 ${dir_count}（期望 2：基名 + -b2）;"
+  [ "${second_stdout_dist}" = "$(cd "${ok_target}-b2" 2>/dev/null && pwd -P)" ] || sha_scope_problems="${sha_scope_problems} 第二次 STD_DIR= 不是 -b2 兄弟目录;"
+  [ "$(sha256_file_check "${ok_target}/${ok_apk_name}")" = "${actual_sha}" ] || sha_scope_problems="${sha_scope_problems} 第二次打包改写了既有基名目录的 APK;"
+  # 判据只在本目录内：新目录的 checksums.txt 必须与它自己的 APK 字节一致（不跨构建比 sha）
+  if checksums_out="$(verify_package_checksums "${ok_target}-b2" "${ok_apk_name}" 2>&1)"; then
+    :
   else
-    idempotent_problems="${idempotent_problems} sha 变化反例未命中幂等断言;"
+    sha_scope_problems="${sha_scope_problems} 第二次产物目录内自校验未通过: $(printf '%s' "${checksums_out}" | tr '\n' ' ');"
+  fi
+
+  # 跨构建 sha256 不同不得成为阻断：varysha 必须退出 0 并落到 -b3，且新目录自校验通过
+  if run_package_case varysha "${ok_dist}" "varysha"; then vary_rc=0; else vary_rc=$?; fi
+  vary_sha="$(grep -m1 '^SHA256=' "${pkg_root}/varysha.log" | sed 's/^SHA256=//' || true)"
+  vary_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/varysha.log" | sed 's/^DIST_DIR=//' || true)"
+  if [ "${vary_rc}" -ne 0 ]; then
+    sha_scope_problems="${sha_scope_problems} 跨构建 sha256 不同却退出 ${vary_rc}（判据越界到跨构建）;"
+  elif [ "${vary_stdout_dist}" != "$(cd "${ok_target}-b3" 2>/dev/null && pwd -P)" ]; then
+    sha_scope_problems="${sha_scope_problems} varysha 未落到 -b3 兄弟目录;"
+  elif [ "${vary_sha}" = "${actual_sha}" ]; then
+    sha_scope_problems="${sha_scope_problems} varysha 未真正改变 sha256（反例失效）;"
+  elif ! checksums_out="$(verify_package_checksums "${ok_target}-b3" "${ok_apk_name}" 2>&1)"; then
+    sha_scope_problems="${sha_scope_problems} varysha 产物目录内自校验未通过: $(printf '%s' "${checksums_out}" | tr '\n' ' ');"
+  fi
+
+  # 红态反例：把「跨构建 sha256 必须相等」那版判据装回副本，同场景必须非零退出
+  sha_gated_script="${pkg_root}/scripts/package-android-sha-gated.sh"
+  if python3 - "${package_script}" "${sha_gated_script}" <<'PYGATE'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+anchor = 'echo "info: 本次实际输出目录'
+if anchor not in text:
+    sys.exit(3)
+gate = r"""# old-judgement copy: cross-build sha256 equality (must go red in red-proof case)
+__prev_dir=""
+for __cand in "${version_dir}" "${version_dir}-b"*; do
+  [ -f "${__cand}/manifest.json" ] && __prev_dir="${__cand}"
+done
+if [ -n "${__prev_dir}" ]; then
+  __prev_sha="$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' "${__prev_dir}/manifest.json" | head -n 1)"
+  if [ -n "${__prev_sha}" ] && [ "${__prev_sha}" != "${sha}" ]; then
+    echo "error: 同一 commit 重复打包 sha256 变化（旧判据），幂等断言失败" >&2
+    exit 1
   fi
 fi
+"""
+text = text.replace(anchor, gate + anchor, 1)
+open(dst, "w", encoding="utf-8").write(text)
+PYGATE
+  then
+    redsha_dist="${sandbox}/dist-redsha"
+    if run_package_script "${sha_gated_script}" ok "${redsha_dist}" "redsha-seed"; then
+      if run_package_script "${sha_gated_script}" varysha "${redsha_dist}" "redsha-gated"; then
+        sha_scope_problems="${sha_scope_problems} 旧「跨构建 sha 相等」判据副本未取红;"
+      else
+        red_sha_gated=1
+      fi
+    else
+      sha_scope_problems="${sha_scope_problems} 旧判据副本种子构建失败;"
+    fi
+  else
+    sha_scope_problems="${sha_scope_problems} 旧判据副本构建失败（插入锚点缺失）;"
+  fi
+fi
+
+# ------------- 既有 <versionName>-<versionCode> 目录：不动它，改用递增兄弟目录
+existing_problems=""
+monotonic_problems=""
+existing_red_proof_problems=""
+cli_problems=""
+red_existing=0
+
+existing_dist="${sandbox}/dist-existing"
+existing_base="$(seed_existing_target "${existing_dist}")"
+base_sentinel_sha="$(sha256_file_check "${existing_base}/sentinel.txt")"
+base_checksums_sha="$(sha256_file_check "${existing_base}/checksums.txt")"
+base_manifest_sha="$(sha256_file_check "${existing_base}/manifest.json")"
+if run_package_case ok "${existing_dist}" "existing-sibling"; then existing_rc=0; else existing_rc=$?; fi
+sibling_dir="${existing_base}-b2"
+sibling_apk="${sibling_dir}/purepace-${pkg_version}-1-debug.apk"
+sibling_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/existing-sibling.log" | sed 's/^DIST_DIR=//' || true)"
+sibling_stdout_sha="$(grep -m1 '^SHA256=' "${pkg_root}/existing-sibling.log" | sed 's/^SHA256=//' || true)"
+if [ "${existing_rc}" -ne 0 ]; then
+  existing_problems="${existing_problems} 既有基名目录存在时打包退出 ${existing_rc};"
+elif [ ! -d "${sibling_dir}" ]; then
+  existing_problems="${existing_problems} 未改用 -b2 兄弟目录 ${sibling_dir};"
+elif [ "${sibling_stdout_dist}" != "$(cd "${sibling_dir}" && pwd -P)" ]; then
+  existing_problems="${existing_problems} stdout DIST_DIR= 不是本次实际输出目录;"
+elif [ ! -s "${sibling_apk}" ]; then
+  existing_problems="${existing_problems} 兄弟目录 APK 缺失或为空;"
+elif [ ! -f "${sibling_dir}/manifest.json" ] || [ ! -s "${sibling_dir}/checksums.txt" ]; then
+  existing_problems="${existing_problems} 兄弟目录缺少 manifest.json / checksums.txt;"
+elif [ -z "${sibling_stdout_sha}" ] || [ "${sibling_stdout_sha}" != "$(sha256_file_check "${sibling_apk}")" ]; then
+  existing_problems="${existing_problems} 兄弟目录 stdout SHA256= 与 APK 实测不一致;"
+elif ! grep -Fq -- "${sibling_stdout_sha}" "${sibling_dir}/checksums.txt"; then
+  existing_problems="${existing_problems} 兄弟目录 checksums.txt 未指向新产物 sha256;"
+elif [ "$(sha256_file_check "${existing_base}/sentinel.txt")" != "${base_sentinel_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录哨兵文件字节被改写;"
+elif [ "$(sha256_file_check "${existing_base}/checksums.txt")" != "${base_checksums_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录 checksums.txt 字节被改写;"
+elif [ "$(sha256_file_check "${existing_base}/manifest.json")" != "${base_manifest_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录 manifest.json 字节被改写;"
+elif [ -e "${existing_base}/${ok_apk_name}" ]; then
+  existing_problems="${existing_problems} 既有目录被写入本次 APK（应为独立兄弟目录）;"
+fi
+
+# 序号单调：再跑一次必须落到 -b3，且 -b2 与基名目录字节不变
+if run_package_case ok "${existing_dist}" "existing-sibling-second"; then existing2_rc=0; else existing2_rc=$?; fi
+second_sibling_dir="${existing_base}-b3"
+first_sibling_apk_sha="$(sha256_file_check "${sibling_apk}" 2>/dev/null || true)"
+second_sibling_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/existing-sibling-second.log" | sed 's/^DIST_DIR=//' || true)"
+if [ "${existing2_rc}" -ne 0 ]; then
+  monotonic_problems="${monotonic_problems} 第二次既有目录打包退出 ${existing2_rc};"
+elif [ ! -d "${second_sibling_dir}" ]; then
+  monotonic_problems="${monotonic_problems} 未按「已存在最大序号 + 1」改用 -b3;"
+elif [ "${second_sibling_stdout_dist}" != "$(cd "${second_sibling_dir}" && pwd -P)" ]; then
+  monotonic_problems="${monotonic_problems} 第二次 stdout DIST_DIR= 与 -b3 不一致;"
+elif [ ! -s "${second_sibling_dir}/purepace-${pkg_version}-1-debug.apk" ]; then
+  monotonic_problems="${monotonic_problems} -b3 兄弟目录 APK 缺失或为空;"
+elif [ "$(sha256_file_check "${sibling_apk}")" != "${first_sibling_apk_sha}" ]; then
+  monotonic_problems="${monotonic_problems} -b2 兄弟目录 APK 被第二次运行改写;"
+elif [ "$(sha256_file_check "${existing_base}/manifest.json")" != "${base_manifest_sha}" ]; then
+  monotonic_problems="${monotonic_problems} 基名目录 manifest.json 被第二次运行改写;"
+fi
+
+# 去守卫反例：删掉守卫块后同一现场会覆盖基名目录 → 既有字节必然变化（红由守卫触发）
+guard_copy="${pkg_root}/scripts/package-android-noguard.sh"
+if [ "$(grep -c -- 'guard-begin: preserve-existing-dist' "${package_script}" || true)" -lt 1 ] || \
+   [ "$(grep -c -- 'guard-end: preserve-existing-dist' "${package_script}" || true)" -lt 1 ]; then
+  existing_red_proof_problems="${existing_red_proof_problems} 生产脚本缺少 guard-begin/guard-end 标记，无法做去守卫自检;"
+else
+  sed '/# guard-begin: preserve-existing-dist/,/# guard-end: preserve-existing-dist/d' \
+    "${pkg_root}/scripts/package-android.sh" > "${guard_copy}"
+  if [ "$(grep -c -- 'preserve-existing-dist' "${guard_copy}" || true)" -ne 0 ]; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本仍含守卫标记（删除未生效）;"
+  elif ! bash -n "${guard_copy}" >/dev/null 2>&1; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本 bash -n 失败（删除破坏了语法，反例不可信）;"
+  fi
+  noguard_dist="${sandbox}/dist-noguard"
+  noguard_base="$(seed_existing_target "${noguard_dist}")"
+  noguard_checksums_sha="$(sha256_file_check "${noguard_base}/checksums.txt")"
+  noguard_manifest_sha="$(sha256_file_check "${noguard_base}/manifest.json")"
+  if run_package_script scripts/package-android-noguard.sh ok "${noguard_dist}" "noguard-existing"; then
+    noguard_rc=0
+  else
+    noguard_rc=$?
+  fi
+  if [ "${noguard_rc}" -ne 0 ]; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本未变绿（退出 ${noguard_rc}，红因存疑）;"
+  elif [ "$(sha256_file_check "${noguard_base}/checksums.txt")" = "${noguard_checksums_sha}" ] && \
+       [ "$(sha256_file_check "${noguard_base}/manifest.json")" = "${noguard_manifest_sha}" ]; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本没有覆盖既有基名目录（反例不成立）;"
+  else
+    red_existing=1
+  fi
+fi
+
+help_out="$(cd "${pkg_root}" && bash scripts/package-android.sh --help 2>&1)" && help_rc=0 || help_rc=$?
+if [ "${help_rc}" -ne 0 ]; then
+  cli_problems="${cli_problems} --help 退出 ${help_rc};"
+elif ! grep -Fq -- '兄弟目录' <<< "${help_out}"; then
+  cli_problems="${cli_problems} --help 文本未说明兄弟目录语义;"
+elif ! grep -Fq -- '-b<N>' <<< "${help_out}"; then
+  cli_problems="${cli_problems} --help 文本缺少 -b<N> 序号命名;"
+fi
+(cd "${pkg_root}" && bash scripts/package-android.sh --bogus >/dev/null 2>&1) && bogus_rc=0 || bogus_rc=$?
+[ "${bogus_rc}" -eq 2 ] || cli_problems="${cli_problems} 未知参数退出 ${bogus_rc}（期望 2）;"
+if grep -Fq -- '--force' "${package_script}"; then
+  cli_problems="${cli_problems} 生产脚本仍要求 --force（零参数必须可过门）;"
+fi
+if run_package_case ok "${pkg_root}/cli-inside-dist" "cli-inside-path"; then cli_inside_rc=0; else cli_inside_rc=$?; fi
+if [ "${cli_inside_rc}" -eq 0 ]; then
+  cli_problems="${cli_problems} PUREPACE_DIST_ROOT 指向仓库内未被拒绝;"
+elif ! grep -Fq -- '仓库外' "${pkg_root}/cli-inside-path.log"; then
+  cli_problems="${cli_problems} 仓内路径反例未命中仓库外断言;"
+fi
+grep -Fq -- '仓库外' "${package_script}" || cli_problems="${cli_problems} 仓内分发路径断言缺失;"
 
 empty_dist="${sandbox}/dist-empty"
 if run_package_case emptyapk "${empty_dist}" "empty-apk"; then empty_rc=0; else empty_rc=$?; fi
@@ -1221,7 +1425,7 @@ fi
 [ "${red_checksum}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 篡改 checksums 反例未取红（ac-package-checksums-match）;"
 [ "${red_inside}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 仓内分发路径反例未取红（ac-package-path-and-layout）;"
 [ "${red_credential}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 明文口令反例未取红（ac-package-no-hardcoded-credentials）;"
-[ "${red_idempotent}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 第二次 sha 变化反例未取红（ac-package-idempotent-same-commit）;"
+[ "${red_sha_gated}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 旧跨构建 sha 相等判据未取红（ac-package-sha-self-check-scoped）;"
 
 if [ -z "${layout_problems}" ]; then
   pass "ac-package-path-and-layout"
@@ -1238,10 +1442,10 @@ if [ -z "${checksums_problems}" ]; then
 else
   fail "ac-package-checksums-match" "${checksums_problems}"
 fi
-if [ -z "${idempotent_problems}" ]; then
-  pass "ac-package-idempotent-same-commit"
+if [ -z "${sha_scope_problems}" ]; then
+  pass "ac-package-sha-self-check-scoped"
 else
-  fail "ac-package-idempotent-same-commit" "${idempotent_problems}"
+  fail "ac-package-sha-self-check-scoped" "${sha_scope_problems}"
 fi
 if [ -z "${credential_problems}" ]; then
   pass "ac-package-no-hardcoded-credentials"
@@ -1252,6 +1456,26 @@ if [ -z "${red_proofs_problems}" ]; then
   pass "ac-package-red-proofs"
 else
   fail "ac-package-red-proofs" "${red_proofs_problems}"
+fi
+if [ -z "${existing_problems}" ]; then
+  pass "ac-package-existing-dir-sibling"
+else
+  fail "ac-package-existing-dir-sibling" "${existing_problems}"
+fi
+if [ -z "${monotonic_problems}" ]; then
+  pass "ac-package-existing-dir-monotonic"
+else
+  fail "ac-package-existing-dir-monotonic" "${monotonic_problems}"
+fi
+if [ -z "${existing_red_proof_problems}" ] && [ "${red_existing}" -eq 1 ]; then
+  pass "ac-package-existing-dir-red-proof"
+else
+  fail "ac-package-existing-dir-red-proof" "${existing_red_proof_problems} 去守卫反例未取红;"
+fi
+if [ -z "${cli_problems}" ]; then
+  pass "ac-package-cli-contract-preserved"
+else
+  fail "ac-package-cli-contract-preserved" "${cli_problems}"
 fi
 
 printf '\n%d 项断言，%d 项失败\n' "$CHECKS" "$FAILURES"

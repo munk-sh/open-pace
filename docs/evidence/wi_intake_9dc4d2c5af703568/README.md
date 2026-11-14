@@ -1,6 +1,10 @@
 # 交付候选产物与音频机器层读数（wi_intake_9dc4d2c5af703568）
 
-- 绑定 commit：`2873ae21ee05c890980be28a63dda1d7da573bcf`（main，含 manual-test-guide `21158ffd` 与布局断言去抖 `2873ae2`）
+- 本项交付范围绑定 commit：`2873ae21ee05c890980be28a63dda1d7da573bcf`（main，含 manual-test-guide `21158ffd` 与布局断言去抖 `2873ae2`）
+- Android 产物验收键：**sha256 + 版本 + APK 字节**（`manifest.json` 里的 commit 字样只是构建时标记，不是验收键）
+- `manifest.json` 的 `commit` 语义 = **构建时工作树 commit**：第一轮 `2873ae21ee05c890980be28a63dda1d7da573bcf`，
+  盘上第二轮 `48b3e5c82c7988df8bc1a1e0c5cf949006c45602`；两次构建在 `android/ ios/ shared/ scripts/` 路径上零差异
+  （依据见第 1.1 节），因此两轮 APK 字节一致（同一 sha256）
 - 采集主机：macOS darwin-arm64，Xcode 26.3，JDK 21（Zulu 21.0.1），Android SDK（compileSdk 36）
 - 本目录每个数字都能在下表「证据文件」内找到对应行。
 - **iOS .ipa 未产出（凭据未就位）**：人闸 `assist:32aa20a9` 未判定，本项不生成裸包冒充 iOS 产物；
@@ -17,14 +21,33 @@
 | versionName | `0.1.0`（等于根 `VERSION`，`VERSION` 未修改） | `android-manifest.json` `version` |
 | versionCode | `1`（构建产物实测值，`android/app/build.gradle.kts` 单点定义，本项只读） | `android-manifest.json` `versionCode` |
 | applicationId | `sh.munk.purepace` | `android-manifest.json` `applicationId` |
-| commit | `2873ae21ee05c890980be28a63dda1d7da573bcf` | `android-manifest.json` `commit` |
+| commit（构建时工作树，第一轮） | `2873ae21ee05c890980be28a63dda1d7da573bcf` | `android-manifest.json` `commit` |
 | minSdk / targetSdk | `26` / `36` | `android-manifest.json` |
-| buildTime | `2026-11-14T19:59:46Z` | `android-manifest.json` |
+| buildTime（第一轮） | `2026-11-14T19:59:46Z` | `android-manifest.json` |
 | 自校验 | 在产物目录执行 `shasum -a 256 -c checksums.txt` → `purepace-0.1.0-1-debug.apk: OK`，退出码 0 | `android-checksums-verify.log` |
 | 产物保留 | 未改名、未删除、未搬迁；脚本按既有契约写 `<versionName>-<versionCode>` 目录 | `android-package.log` |
 
 三类产物齐备：`purepace-0.1.0-1-debug.apk`（非空）、`manifest.json`、`checksums.txt`；
 分发根在仓库外（脚本内置「产物路径落在仓内即拒绝」断言，本次通过）。
+
+### 1.1 两轮构建：同一 sha256、两个构建时 commit
+
+| 轮次 | 构建时工作树 commit（manifest.commit） | buildTime | sha256 | 字节 |
+|---|---|---|---|---|
+| 第一轮 | `2873ae21ee05c890980be28a63dda1d7da573bcf` | `2026-11-14T19:59:46Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第二轮字节一致 |
+| 第二轮（盘上现行产物） | `48b3e5c82c7988df8bc1a1e0c5cf949006c45602` | `2026-11-14T20:17:29Z` | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` | 与第一轮字节一致 |
+
+两轮 manifest 快照都在本目录：第一轮 `android-manifest.json`，第二轮 `android-manifest-ondisk-48b3e5c.json`。
+
+「代码路径零差异」的可核验依据（命令原样、输出为空即无代码路径变化）：
+
+```bash
+git diff --name-only 2873ae2 707da7f | grep -E '^(android|ios|shared|scripts)/'
+# 输出为空，退出码 1
+```
+
+同命令未过滤的完整输出（只含 `docs/` 与 `.munk/` 路径，无 `android/ ios/ shared/ scripts/` 前缀）与
+本项实跑日志：`docs/evidence/wi_intake_8cf34194e113d153/android-two-build-zero-diff.log`。
 
 ## 2. duck 三字段（iOS 单测腿，同 commit）
 

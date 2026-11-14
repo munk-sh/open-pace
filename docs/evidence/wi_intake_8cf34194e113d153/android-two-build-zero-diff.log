@@ -1,0 +1,23 @@
+# 两轮构建「代码路径零差异」依据（wi_intake_8cf34194e113d153）
+# 第一轮构建时工作树 2873ae2 / 2026-11-14T19:59:46Z；盘上第二轮 48b3e5c / 2026-11-14T20:17:29Z
+# 对比基准提交: 707da7f（wi_intake_9dc4d2c5af703568 交付合并提交）
+
+$ git diff --name-only 2873ae2 707da7f
+.munk/baseline/domains/distribution-manual-guide/product.md
+.munk/changes/wi_intake_9dc4d2c5af703568/prd.md
+docs/distribution/manual-test-guide.md
+docs/evidence/wi_intake_9dc4d2c5af703568/README.md
+docs/evidence/wi_intake_9dc4d2c5af703568/android-checksums-verify.log
+docs/evidence/wi_intake_9dc4d2c5af703568/android-checksums.txt
+docs/evidence/wi_intake_9dc4d2c5af703568/android-manifest.json
+docs/evidence/wi_intake_9dc4d2c5af703568/android-package.log
+docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log
+docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-runcore.log
+docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-readings-xcodebuild.log
+docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-readings.log
+docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-telemetry.json
+docs/evidence/wi_intake_9dc4d2c5af703568/gates.log
+docs/evidence/wi_intake_9dc4d2c5af703568/guide-zero-release-claims.log
+
+$ git diff --name-only 2873ae2 707da7f | grep -E '^(android|ios|shared|scripts)/'
+(输出为空；grep 退出码 1 = 零命中，无任何代码路径差异)
