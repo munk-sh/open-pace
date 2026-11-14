@@ -1,0 +1,29 @@
+== 新形态喂真缺 token 的 block（删掉 static let durationState）==
+- 新形态单跑（缺 token）→ 非 0（1）
+  cmd: bash <tmp>/new_bare_miss.sh <tmp>/block-miss.txt
+  exit: 1（期望 1）
+- 新形态两行（缺 token）→ 打印缺项判定
+  cmd: bash <tmp>/new_pair_miss.sh <tmp>/block-miss.txt
+  exit: 0（期望 0）
+  output:
+    problems=[ Token 缺少 Motion.durationState;]
+  缺项判定文案：problems=[ Token 缺少 Motion.durationState;]
+== sed 切片一：identifier_has_readable_label（scripts/check-ios-shell.sh:527-543 逐字抽取）==
+- 正例：±4 行内有 L10n 可读 label → 0
+  cmd: identifier_has_readable_label <tmp>/root-pos run.probe
+  exit: 0（期望 0）
+- 反例：同窗口无 L10n 键 → 1（断言未写空）
+  cmd: identifier_has_readable_label <tmp>/root-neg run.probe
+  exit: 1（期望 1）
+== sed 切片二：onMapCameraChange 回写检查（scripts/check-ios-shell.sh:2111-2114 逐字抽取）==
+块内 sed 窗口：camera_window="$(sed -n '/onMapCameraChange/,/^        }/p' "$map_shell" 2>/dev/null || true)"
+- 反例：真实 TrackMapView.swift → 无回写（problems 空）
+  cmd: bash <tmp>/cam_probe.sh /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_27d00c5366cf423a/ios/PurePace/Track/TrackMapView.swift
+  exit: 0（期望 0）
+  output:
+    problems=[]
+- 正例：注入 cameraPosition = 的副本 → 有回写（problems 非空）
+  cmd: bash <tmp>/cam_probe.sh <tmp>/TrackMapView.injected.swift
+  exit: 0（期望 0）
+  output:
+    problems=[ onMapCameraChange 内回写了 cameraPosition;]

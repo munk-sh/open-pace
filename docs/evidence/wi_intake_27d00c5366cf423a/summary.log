@@ -1,0 +1,8 @@
+guard: current=0 baseline=10
+old-form: pipe_exit=141 pair_exit=0 pair_out=problems=[ Token 缺少 Motion.durationState;]
+new-form: pipe_exit=0 pair_out=problems=[]
+negative-token: bare_exit=1 pair_out=problems=[ Token 缺少 Motion.durationState;]
+negative-label: pos=0 neg=1
+negative-camera: real=problems=[] injected=problems=[ onMapCameraChange 内回写了 cameraPosition;]
+check-ios-shell.sh: exit=0 [PASS]=32 [FAIL]=0 断言=32 0
+check-ios-shell.sh --self-test: exit=0 断言=102 0 末行=self-test OK

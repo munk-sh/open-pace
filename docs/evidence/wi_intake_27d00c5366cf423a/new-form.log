@@ -1,0 +1,17 @@
+== 新形态（scripts/check-ios-shell.sh 当前 :671）==
+新形态两行（逐字来源）：
+      grep -Fq "static let $member" <<< "$group_block" \
+        || problems="$problems Token 缺少 $group.$member;"
+here-string 形态自检：
+  [ok] grep -Fq "static let $member" <<< "$group_block"
+  [ok] grep -Fq 'supportsDarkMode = true' <<< "$appearance_block"
+  [ok] Token 缺少 $group.$member;
+  [ok] Appearance.supportsDarkMode 必须为 true;
+- 新形态单跑（here-string，无 SIGPIPE 面）
+  cmd: bash <tmp>/new_bare.sh <tmp>/block-hit.txt
+  exit: 0（期望 0）
+- 新形态两行（同一 block）→ 无缺项（绿）
+  cmd: bash <tmp>/new_pair.sh <tmp>/block-hit.txt
+  exit: 0（期望 0）
+  output:
+    problems=[]
