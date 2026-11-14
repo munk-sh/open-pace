@@ -6,45 +6,49 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-用法: scripts/package-android.sh [--help]
+用法: scripts/package-android.sh [--force] [--help]
 
 打包可安装的 Android debug APK 并输出仓外分发目录：
   - 校验 JDK 21 与 Android SDK（复用 build-android.sh 的前置口径），经同一有界重试
     函数执行 gradle -p android assembleDebug；
   - 产物目录为 ${PUREPACE_DIST_ROOT:-${TMPDIR:-/tmp}}/purepace-dist/android/<versionName>-<versionCode>/，
     内含 debug APK、manifest.json、checksums.txt；解析结果落在仓库内一律拒绝；
+  - 目标目录已存在时默认拒绝覆盖（exit 1，并在错误里回显既有 manifest 的 commit 与
+    buildTime），只有显式 --force 才原地覆盖；
   - manifest.json 字段固定为 applicationId / version / versionCode / commit / sha256 /
     minSdk / targetSdk / buildTime；
-  - 同一 commit 连续执行两次，APK sha256 与目录保持不变；sha256 变化即非零退出；
+  - 同一 commit 连续执行两次，APK sha256 与目录保持不变；sha256 变化即非零退出
+    （--force 不豁免该幂等断言）；
   - stdout 末尾输出 APK=<绝对路径> 与 SHA256=<sha256> 供脚本对照。
 
 选项:
   -h, --help   显示本帮助并退出 0
+  --force      允许覆盖已存在的 <versionName>-<versionCode> 目录（默认拒绝覆盖）
 
 退出码:
   0  打包成功且产物校验通过
-  1  环境缺失、构建失败、产物非法、路径在仓内或幂等校验失败
+  1  环境缺失、构建失败、产物非法、路径在仓内、目标目录已存在（未加 --force）或幂等校验失败
   2  参数非法
 EOF
 }
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "package-android: 未知参数 '${1}'（使用 --help 查看用法）" >&2
-    exit 2
-    ;;
-esac
-
-if [ "$#" -gt 1 ]; then
-  echo "package-android: 只接受一个参数（使用 --help 查看用法）" >&2
-  exit 2
-fi
+force_overwrite=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --force)
+      force_overwrite=1
+      ;;
+    *)
+      echo "package-android: 未知参数 '${1}'（使用 --help 查看用法）" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
@@ -273,6 +277,20 @@ mkdir -p "${dist_abs}"
 dist_root="$(cd "${dist_abs}" && pwd -P)"
 
 target_dir="${dist_root}/purepace-dist/android/${version}-${version_code}"
+
+# guard-begin: refuse-existing-dist
+if [ -d "${target_dir}" ] && [ "${force_overwrite}" -ne 1 ]; then
+  echo "error: 分发目录已存在，默认拒绝覆盖: ${target_dir}" >&2
+  if [ -f "${target_dir}/manifest.json" ]; then
+    existing_commit="$(sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${target_dir}/manifest.json" | head -n 1)"
+    existing_build_time="$(sed -n 's/.*"buildTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${target_dir}/manifest.json" | head -n 1)"
+    echo "info: 既有 manifest.json commit=${existing_commit:-<未记录>} buildTime=${existing_build_time:-<未记录>}" >&2
+  fi
+  echo "hint: 目标目录已存在时默认不改动既有产物；可改 PUREPACE_DIST_ROOT 指向新根目录，或显式加 --force 覆盖（同一 commit 下 sha256 变化仍会判红）" >&2
+  exit 1
+fi
+# guard-end: refuse-existing-dist
+
 previous_sha=""
 previous_commit=""
 if [ -f "${target_dir}/manifest.json" ]; then
