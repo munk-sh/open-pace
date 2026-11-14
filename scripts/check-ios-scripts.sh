@@ -22,7 +22,7 @@ usage() {
     本机-only 套件须写入 scripts/ios-ui-local-only-suites.txt 且带非空理由（含正负反例自检）
   - verify-ios-sim-runtime.sh 仍以 1 Hz simctl location set 真实驱动 CoreLocation，脚本契约仍在
   - verify-ios-ui-e2e.sh 默认只写 .build/，--refresh-evidence 才覆盖仓库证据目录
-  - .munk/code-gates.json 保持 22 门：本地只留快而确定腿（重 UI 门不作本地阻断），
+  - .munk/code-gates.json 保持 23 门：本地只留快而确定腿（重 UI 门不作本地阻断），
     test-ios 本地门固定为 --unit-only，全量单测+UI 权威落点为 .github/workflows/ios.yml
   - 分支判定基于 ios/PurePace.xcodeproj 存在性；工程缺失时由 ios/project.yml + xcodegen 生成，
     仍不可用才走降级分支输出 blocked: 且不输出伪造成功行
@@ -636,8 +636,8 @@ problems=""
 gate_count="$(python3 -c 'import json; print(len(json.load(open(".munk/code-gates.json"))["gates"]))' 2>/dev/null || true)"
 if [ -z "$gate_count" ]; then
   problems="$problems 无法解析 .munk/code-gates.json gates;"
-elif [ "$gate_count" -ne 22 ]; then
-  problems="$problems code-gates 门数 ${gate_count}（期望 22）;"
+elif [ "$gate_count" -ne 23 ]; then
+  problems="$problems code-gates 门数 ${gate_count}（期望 23）;"
 fi
 if [ -z "$problems" ]; then
   pass "ac-code-gates-count"
@@ -655,7 +655,7 @@ need = [
     "lint", "lint-ios-core", "lint-ios-scripts", "lint-ios-release", "lint-ios-shell",
     "lint-ios-workflow", "lint-ios-run-core", "lint-android", "lint-android-workflow",
     "build-ios-core", "build-ios-run-core", "test-ios-core", "test-ios-run-core",
-    "test-ios", "build-android", "test-android", "test", "check-shared",
+    "test-ios", "build-android", "test-android", "package-android", "test", "check-shared",
     "check-gpx-export", "check-shell-expansion",
 ]
 heavy = ["verify-ios-sim-runtime", "verify-ios-ui-e2e"]
