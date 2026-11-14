@@ -24,11 +24,11 @@
 | 1 | ASC App 记录（bundle id `sh.munk.purepace` / platform ios / sku `purepace-ios` / 主语言 `zh-Hans` / 暂用名 `PurePace`） | `pending: 人` | `docs/evidence/stage4-prereqs/asc-selfcheck.json`（`readOnlySelfCheck` 与 `appRecordReadback`） | 人（ASC App Manager / Admin 角色）：A. 换用有建记录权限的 API Key 重跑一次授权操作；或 B. 在 ASC 网页手工创建该 App 记录后回填 `id` |
 | 2 | Apple Distribution 证书与 App Store profile | `pending: 人` | `docs/evidence/stage4-prereqs/asc-selfcheck.json`（`readOnlySelfCheck` 中 `GET /v1/certificates` 与 `GET /v1/profiles`） | 人（Apple Developer Program 账号持有者）：证书侧已有 `IOS_DISTRIBUTION`（`id` `D5W5M4JLRK`，到期 2027-03-12）可复用；但 `GET /v1/profiles` 3 条里没有 `sh.munk.purepace` 的 `IOS_APP_STORE` 描述文件，需人用 Xcode 自动签名或 ASC 网页创建 |
 | 3 | PLA 接受（Program License Agreement） | `pending: 人` | `docs/evidence/stage4-prereqs/asc-selfcheck.json`（`authorisedWriteAttempt.steps[][]` 的 403 原文） | 人（ASC 账号持有人 / Account Holder）：协议只能在 App Store Connect 网页由人接受；本次响应未出现 `FORBIDDEN_ERROR.PLA_NOT_ACCEPTED`，接受状态未由本项确认 |
-| 4 | 隐私政策 URL `https://munk.sh/privacy`（munk.sh 官网承载、不在本仓自建） | `pending: 人` | `docs/evidence/stage4-prereqs/asc-selfcheck.json`（`appRecordReadback.count = 0`：无 App 记录可承载该字段） | 人（公司负责人 + ASC 执行者）：隐私政策页由 munk.sh 官网承载；App 信息/版本本地化字段需在 App 记录存在后由人在 ASC 填写，本项未写入 |
+| 4 | 隐私政策 URL `https://munk.sh/privacy`（munk.sh 官网承载、不在本仓自建） | `ready` | `https://munk.sh/privacy` 已上线并含 PurePace 专项小节（实取 `200`，跳转 `https://www.munk.sh/privacy`）；政策真源 `docs/privacy/privacy-policy-zh-Hans.md` 行内写同一链接 | 人无需操作：ASC App 信息直接填该 URL |
 | 5 | Android upload keystore | `pending: 人` | 仓内无 keystore（`git status --porcelain` 不含 `.jks` / `.keystore` / `.env`）；本机仓外既有 `~/.munk-release/android-signing.env` 与 `~/.munk-release/munk-mobile-host-release.keystore` 属其它产品，未登记给 PurePace | 人（Android 发布负责人）：本项不生成；需决定是否为 `com.chaxiu.purepace` 另建 upload keystore 并登记到 Android 发布域 |
 | 6 | 公开名核重（暂用 `PurePace`） | `pending: 人` | `docs/evidence/stage4-prereqs/asc-selfcheck.json`（`readOnlySelfCheck` 中 `GET /v1/apps` 仅 1 条既有记录 `Munk AI`，团队内无 `PurePace` 名称占用） | 人（公司负责人）：App Store 名称唯一性需在 ASC 网页核重后定稿；定稿前一律用暂用名 `PurePace`，改动涉品牌与商店文案 |
 
-状态取值只有三种：`ready`（已就绪，无需人）、`pending: 人`（等人执行或等人确认）、`blocked: PLA`（被 Program License Agreement 挡住，只能人接受后重试）。本次没有 `ready` 项与 `blocked: PLA` 项。
+状态取值只有三种：`ready`（已就绪，无需人）、`pending: 人`（等人执行或等人确认）、`blocked: PLA`（被 Program License Agreement 挡住，只能人接受后重试）。本次只有第 4 行（隐私政策 URL）为 `ready` 项，其余五项为 `pending: 人`；没有 `blocked: PLA` 项。
 
 ## 一次性授权边界（本项做了什么 / 没做什么）
 
