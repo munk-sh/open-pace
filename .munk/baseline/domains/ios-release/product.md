@@ -1,18 +1,22 @@
 # Domain: ios-release
 
-PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱敏预演」的归档/导出脚本、静态门、人执行 Runbook、「分发前置清单 + 只读 ASC 取证」，以及「Release 候选包出包 + 候选记录」的一次性人工出包口径。App Store Connect 写操作一律收口：默认零写，唯一许可是公司负责人显式授权的一次性「创建 App 记录」，且一旦被拒立即停手（见 `docs/release/stage4-prereqs.md`）。不把 fastlane 等第三方分发工具变成仓库依赖（本机一次性 CLI 不入仓、不进 CI），不改签名主干、`ios/project.yml` 与 `.github/workflows/*`。
+PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱敏预演」的归档/导出脚本、静态门、人执行 Runbook、「分发前置清单 + 只读 ASC 取证」，以及「Release 候选包出包 + 候选记录」的一次性人工出包口径。App Store Connect 写操作一律收口：默认零写，唯一许可是公司负责人显式授权的一次性「创建 App 记录」，且一旦被拒立即停手（见 `docs/release/stage4-prereqs.md`）。不把 fastlane 等第三方分发工具变成仓库依赖（本机一次性 CLI 不入仓、不进 CI），不改签名主干与 `.github/workflows/*`；`ios/project.yml` 只允许加分发必需的 `info.properties` 声明（如 `ITSAppUsesNonExemptEncryption: false`），生成后的 `ios/PurePace/Info.plist` 一并入库。
 
 ## 范围
 
 - `scripts/archive-ios.sh`：`xcodegen generate --spec project.yml`（cwd=`ios/`）→ `xcodebuild archive -destination 'generic/platform=iOS'` → `xcodebuild -exportArchive -exportOptionsPlist`；`ExportOptions.plist` 由脚本生成到 `OUT_DIR`（仓外），含 `method=app-store-connect`、`teamID=3X4J53U6RY`、`signingStyle=automatic`、`uploadSymbols=false`。
 - 凭据只从环境变量 `ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID` 读取，映射为 `-authenticationKeyPath` / `-authenticationKeyID` / `-authenticationKeyIssuerID` 并带 `-allowProvisioningUpdates`；缺任一变量立即非零退出且只打印变量名，已设置变量的值不得出现在输出。
+- `scripts/upload-ios.sh`（上传）：默认取 `scripts/archive-ios.sh` 产出的 `${TMPDIR:-/tmp}/purepace-dist/<version>-<build>/export` 下唯一 `*.ipa`（`OUT_DIR` 可覆盖、`--ipa` 覆盖），流程 = 只读 `xcrun altool --list-apps`（只打印命中条数）→ `altool --upload-app -f <ipa> -t ios` → 打印 ipa 路径、版本与 build、上传结果；缺 `ASC_*` 即失败且不触网，`DRY_RUN=1` 只回显占位符。
+- `scripts/testflight-tester.sh`（内部测试者）：ASC REST + 内存 ES256 JWT；先只读解析 App、`isInternalGroup=true` 的 betaGroup 与测试者存在性，按需 `POST /v1/betaTesters` 后写内部组关系；只允许内部组，不触发 Beta App Review、不外邀，任一非 2xx 即停手并原文报状态码与 `errors[].code|title`。
+- 分发加密豁免：`ios/project.yml` 的 PurePace target `info.properties` 声明 `ITSAppUsesNonExemptEncryption: false`（布尔），xcodegen 生成后的 `ios/PurePace/Info.plist` 一并入库；`scripts/check-ios-shell.sh` 的 `INFO_PLIST_SHA256` 与之同步。
 - `DRY_RUN=1`：不要求凭据、不执行 `xcodegen` / `xcodebuild`、不触网，仍创建 `OUT_DIR` 与非敏感 `ExportOptions.plist`，以字面量 `$ASC_KEY_PATH` / `$ASC_KEY_ID` / `$ASC_ISSUER_ID` 回显命令并退出 0。
 - 版本与 build 号复用既有入口：`MARKETING_VERSION` 取 `bash scripts/version.sh`（可先 `scripts/sync-ios-version.sh`），`CURRENT_PROJECT_VERSION` 取 `BUILD_NUMBER`（缺省 `1`），两者均以 xcodebuild 命令行覆盖，不改 `ios/project.yml`。
 - 产物全部落在仓外：默认 `${TMPDIR:-/tmp}/purepace-dist/<version>-<build>`，`OUT_DIR` 可覆盖；归档后复制 `PurePace.app` 与 `PurePace.app.dSYM`，用 `ditto -c -k --keepParent` 打 zip，计算 sha256（`shasum -a 256`，缺失回退 `sha256sum`）并打印 zip/app/dSYM 路径与 sha256、写入 `OUT_DIR/checksums.txt`。
-- `scripts/check-ios-release.sh` 静态门：结构沿用 `check-ios-scripts.sh`（`CHECKS`/`FAILURES`、`--help`、退出码 0/1/2、以 `BASH_SOURCE` 推导仓库根），用 `mktemp -d` 跑 `DRY_RUN=1` 与缺 env 负向用例，断言归档脚本契约、`ExportOptions` 真实内容、脱敏、门禁接入、Runbook 必填段落。
-- `.munk/code-gates.json` 接入单一 argv 门 `lint-ios-release`（`command` 恰为 `bash scripts/check-ios-release.sh`）；`scripts/check-ios-scripts.sh` 的门数断言与帮助文案同步，既有门 id/command 语义不变（本地拓扑当前 22 门，见 `ios-ci-stability`）。
-- `docs/release/testflight-runbook.md`：前置（ASC App 记录只读检查、三件凭据的环境变量与仓外 `.p8` 绝对路径、人在场要求）、执行步骤、证据归档清单、反范围。
-- `README.md`「构建与测试入口」表新增 `archive-ios.sh` 与 `check-ios-release.sh` 两行，不写根 `VERSION` 字面值。
+- `scripts/check-ios-release.sh` 静态门：结构沿用 `check-ios-scripts.sh`（`CHECKS`/`FAILURES`、`--help`、退出码 0/1/2、以 `BASH_SOURCE` 推导仓库根），用 `mktemp -d` 跑 `DRY_RUN=1` 与缺 env 负向用例，断言归档脚本契约、`ExportOptions` 真实内容、脱敏、门禁接入与 Runbook 段落，并扩展覆盖 upload / tester 契约（`--list-apps` 先于 `--upload-app`、只读先行、内部组限定、失败停手、加密豁免、凭据不落盘、README 入口、范围冻结），每条新断言配「构造错误输入 → 必须红」反例自检。
+- `.munk/code-gates.json` 接入单一 argv 门 `lint-ios-release`（`command` 恰为 `bash scripts/check-ios-release.sh`）；`scripts/check-ios-scripts.sh` 的门数断言与帮助文案同步（`targets` / `strict_targets` 枚举含 `upload-ios.sh` 与 `testflight-tester.sh`，帮助文案写「八个脚本」），既有门 id/command 语义不变（本地拓扑当前 22 门，见 `ios-ci-stability`）。
+- `docs/release/testflight-runbook.md`：主路径「archive → upload → tester」，人的动作只剩一次性录入凭据（指向 `docs/human-gate-distribution.md`），Organizer / Transporter 降为 fallback；保留前置 / 执行步骤 / 证据归档清单 / 反范围四段。
+- `docs/human-gate-distribution.md`：一次性凭据录入说明（三个 `ASC_*` 变量 + `TESTFLIGHT_TESTER_EMAIL`、`.p8` 必须在仓库外），明确凭据不得进仓库 / 日志 / CI，全篇只用占位符。
+- `README.md`「构建与测试入口」表既有 `archive-ios.sh` / `check-ios-release.sh` 行保留，新增 `bash scripts/upload-ios.sh` 与 `bash scripts/testflight-tester.sh` 两行，不写根 `VERSION` 字面值。
 - `docs/release/stage4-prereqs.md`：阶段 4 前置清单，6 项（ASC App 记录 / Apple Distribution 证书与 App Store profile / PLA 接受 / 隐私政策 URL / Android upload keystore / 公开名核重）逐条给出「状态（只允许 `ready` / `pending: 人` / `blocked: PLA`）+ 证据路径 + 责任人」三列，并附一次性授权边界与只读复核命令（凭据一律占位符）。
 - `docs/evidence/stage4-prereqs/`：只读自检证据 `asc-selfcheck.json`（+ 仅建记录成功时才有的 `asc-app-record.json`），只记 endpoint、HTTP 状态码、ASC `errors[].code|title|detail` 原文与非敏感资源字段，并含 `writeRequestsBeforeProduce` 与 `produceInvoked` 计数。ASC 自检顺序固定：先只读 `GET /v1/bundleIds?filter[identifier]=sh.munk.purepace` 与 `GET /v1/certificates`，写请求计数必须为 0 才决定是否建记录，建记录后立即只读回读 `GET /v1/apps?filter[bundleId]=sh.munk.purepace` 校验。
 - 一次性 Release 候选出包（真机终验前置，本轮实例 `dac291a`）：从默认分支 tip 的**已提交且干净** worktree 起飞，先核切点（`git rev-parse HEAD` / `git rev-parse main` / `git ls-remote --heads origin main` 三者一致）→ `scripts/sync-ios-version.sh`（幂等）→ `ios/` 内 `xcodegen generate --spec project.yml` → `xcodebuild -project ios/PurePace.xcodeproj -scheme PurePace -configuration Release -destination 'generic/platform=iOS' -derivedDataPath <仓内忽略目录>`（`CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=3X4J53U6RY -allowProvisioningUpdates` 只在命令行）→ `ditto -c -k --keepParent` 打成根级 `PurePace.app/` 布局的 zip。
@@ -30,7 +34,7 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ac-artifacts-outside-repo-and-checksums: 默认输出目录为 `${TMPDIR}/purepace-dist/<version>-<build>` 且支持 `OUT_DIR` 覆盖，归档/导出不向仓库内写产物；结束逻辑含 `.app` 与 `.app.dSYM` 复制、zip 打包、`shasum -a 256`（缺失回退 `sha256sum`）以及 zip/app/dSYM 路径与 sha256 打印。
 - ac-release-gate-wired: `.munk/code-gates.json` 含 `lint-ios-release` 门且 `command` 为 `bash scripts/check-ios-release.sh`；`scripts/check-ios-scripts.sh` 与 `check-ios-release.sh` 的门数断言与当前本地拓扑（22 门）一致且该门通过。
 - ac-release-gate-self-tests: `scripts/check-ios-release.sh` 含负向自检（缺 env 时归档脚本非零退出且无值泄露、`DRY_RUN=1` 输出脱敏），失败非零退出、全通过退出 0。
-- ac-runbook-complete: Runbook 含前置（ASC App 记录存在性检查命令、三件凭据的绝对路径与环境变量说明、人在场要求）、执行步骤、证据归档清单（zip/app/dSYM 的 sha256、`xcodebuild -version`、commit）、反范围（不 push tag、不建 Release、不在仓内写 `.p8` / `.env`），命令示例一律使用 `$ASC_KEY_PATH` 等占位符。
+- ac-runbook-complete: Runbook 含前置（ASC App 记录存在性检查命令、三件凭据的绝对路径与环境变量说明、一次性凭据录入入口 `docs/human-gate-distribution.md`）、执行步骤、证据归档清单（zip/app/dSYM 的 sha256、`xcodebuild -version`、commit）、反范围（不 push tag、不建 Release、不在仓内写 `.p8` / `.env`），命令示例一律使用 `$ASC_KEY_PATH` 等占位符。
 - ac-runbook-current-bundle-id: `docs/release/testflight-runbook.md` 声明的当前 bundle id 为 `sh.munk.purepace`（指向 `ios/project.yml` 的 `PUREPACE_BUNDLE_ID` 单点），并注明换 id 后需人侧在 App Store Connect 新建/更新对应 App 记录；历史构建记录里的旧 bundle id 保持原样不改写。
 - ac-no-network-or-workflow-changes: 不执行任何 App Store Connect 上传/记录创建；`.github/workflows/*` 触发条件与内容不变；不引入 fastlane 依赖。
 - ac-checklist-file: `docs/release/stage4-prereqs.md` 存在且非空；6 项必备条目（ASC App 记录 / Apple Distribution 证书与 App Store profile / PLA 接受 / 隐私政策 URL / Android upload keystore / 公开名核重）逐条命中；每条含状态、证据路径、责任人三要素；状态取值只允许 `ready` / `pending: 人` / `blocked: PLA`；文件内 `TBD`、`PLACEHOLDER`、`<占位>` 零命中。
@@ -66,10 +70,27 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ac-new-script-contract: 若新增 `scripts/*.sh`，则 `bash -n` 退出 0、shebang 为 `#!/usr/bin/env bash`、含 `set -euo pipefail`、`--help` 退出 0 且输出含「用法」、未知参数退出 2；且不含 `… | grep -q` 形态（用 `grep -q <<<"$var"` 或显式捕获 `$?`），文件内无凭据字面量。
 - ac-runbook-consistent: `bash scripts/check-ios-release.sh` 退出 0（Runbook 段落/占位符断言仍满足）；Runbook 与清单中 `fastlane` 只作为「本机一次性 CLI」表述，仓库内无 `fastlane/Fastfile`、`Gemfile`、`fastlane/Appfile`；反范围明确「不上传构建、不提交审核、不邀请测试者」。
 - ac-gates-green: `.munk/code-gates.json` 全部本地门真实执行退出 0，不得 skip、不得 `continue-on-error`、不得临时改门；出包轮只跑出包必需命令（`sync-ios-version` / `xcodegen generate` / `xcodebuild` / `ditto` / `shasum` / `stat` / `plutil` / `codesign`），并在记录 `note` 注明未重跑全量门。
+- ac-upload-script-contract: `scripts/upload-ios.sh` 存在，`bash -n` 通过，shebang `#!/usr/bin/env bash`，含 `set -euo pipefail` 与 `BASH_SOURCE`；`--help` 退出 0 且输出含「用法」，未知参数退出 2，参数错误退出 2。
+- ac-upload-default-ipa-and-override: 未传 `--ipa` 时默认解析 `${TMPDIR:-/tmp}/purepace-dist/<version>-<build>/export` 下唯一 `*.ipa`（版本取 `scripts/version.sh`、build 取 `BUILD_NUMBER` 缺省 1，`OUT_DIR` 可覆盖）；该目录无 ipa 时非零退出并提示 `--ipa` 兜底；`--ipa <路径>` 覆盖默认解析并校验文件存在。
+- ac-upload-lists-then-uploads: 非 `DRY_RUN` 成功路径先 `xcrun altool --list-apps`（带 `--apiKey` / `--apiIssuer`，只打印命中条数），再 `altool --upload-app -f <ipa> -t ios`；结束打印 ipa 路径、版本与 build、上传结果并退出 0。
+- ac-upload-missing-credentials-fails-closed: 缺少任一 `ASC_*` 时非零退出，输出只含缺失变量名，已设置变量的值不出现，桩 `xcrun` 未被调用（未触网）。
+- ac-upload-dry-run-redacted: 三凭据未设置且 `DRY_RUN=1` 时退出 0，回显含 `--list-apps` / `--upload-app` 与字面量 `$ASC_KEY_PATH` / `$ASC_KEY_ID` / `$ASC_ISSUER_ID`；设置伪凭据时输出不含其值，且桩 `xcrun` 未被调用。
+- ac-upload-no-credential-persistence: 两个新脚本不含 `set -x`、不含用户目录绝对路径与私钥/JWT 字面量，不向仓库写 `.p8` / `.env` / 凭据文件（运行后 `git status --porcelain` 无凭据类新增）。
+- ac-encryption-exemption-declared: `ios/project.yml` 的 PurePace target `info.properties` 含 `ITSAppUsesNonExemptEncryption: false`（布尔），`ios/PurePace/Info.plist` 含该 `<key>` 且紧随 `<false/>`；静态门对「删除该键」的样本必须判红（反例自检）。
+- ac-tester-script-contract: `scripts/testflight-tester.sh` 满足与 upload 相同的脚本契约；凭据缺失或 `TESTFLIGHT_TESTER_EMAIL` 缺失/非法时非零退出且不触网；`DRY_RUN=1` 回显脱敏步骤计划、不联网、退出 0。
+- ac-tester-readonly-first-internal-group: 成功路径先只读 `GET /v1/betaGroups`（按 App 过滤并选 `isInternalGroup=true`），再按需 `POST /v1/betaTesters`，最后 `POST /v1/betaGroups/{id}/relationships/betaTesters`；只读或权限失败（非 2xx）立即停手，原文输出 HTTP 状态码与 `errors[].code` / `title`，不重试、不换端点、不执行写请求。
+- ac-tester-no-external-invite-or-review: 脚本不引用 `betaAppReviewSubmissions` / `appStoreVersions` / `reviewSubmission`，不向外部组写关系，不触发 Beta App Review，不打印 JWT / Issuer / Key ID / 私钥内容。
+- ac-gate-covers-distribution-scripts: `scripts/check-ios-release.sh` 覆盖 upload（无硬编码凭据、无 `set -x`、`DRY_RUN` 不联网、缺凭据即失败、`--list-apps` 先于 `--upload-app`）与 tester（只读先行、内部组限定、失败停手）契约，并保留 `ExportOptions` 的 `app-store-connect` + `automatic` + `uploadSymbols=false`；新断言各配反例自检并计入总数。
+- ac-gate-wiring-consistent: 不新增 `code_gates` 条目（门数保持 22，`lint-ios-release` 的 `command` 仍为 `bash scripts/check-ios-release.sh`）；`scripts/check-ios-scripts.sh` 的 `targets` / `strict_targets` 含 `upload-ios.sh` 与 `testflight-tester.sh`，帮助文案按实际脚本数更新。
+- ac-runbook-script-first: `docs/release/testflight-runbook.md` 主路径为 `archive-ios.sh` → `upload-ios.sh` → `testflight-tester.sh`，人的动作只剩一次性录入凭据并指向 `docs/human-gate-distribution.md`；删除「必须由人在场执行 xcodebuild」的主路径表述；保留 `前置` / `执行步骤` / `证据` / `反范围` 四段与 `$ASC_*` 占位符、`altool --list-apps`、`xcodebuild -version`、`sha256`、`commit`、`.env` 要素。
+- ac-runbook-transporter-fallback: 同文件明确把 Xcode Organizer / Transporter 标为 fallback（非主路径），不出现「上传/邀请测试者由人手工完成」的主路径措辞。
+- ac-human-gate-doc: `docs/human-gate-distribution.md` 存在且非空，说明一次性凭据录入（三个 `ASC_*` 变量、`.p8` 必须在仓库外、`TESTFLIGHT_TESTER_EMAIL`），明确凭据不得进仓库 / 日志 / CI，文件内无真实凭据值、无用户目录绝对路径。
+- ac-no-real-upload-and-scope-frozen: 本项不执行真实上传或真实测试者写入；不 push tag、不建 GitHub Release、不改 `VERSION` / bundle id / Team / 签名主干与 `archive-ios.sh` 既有导出逻辑；`.github/workflows/ios.yml` 的腿与触发条件零改动；不引入 fastlane 或第三方运行时依赖；回执写「真实上传未执行（待凭据）」，不得写已分发。
+- ac-readme-distribution-entries: `README.md`「构建与测试入口」表补 `bash scripts/upload-ios.sh` 与 `bash scripts/testflight-tester.sh` 两行，不写根 `VERSION` 字面值，既有 `archive-ios.sh` / `check-ios-release.sh` 行保留。
 
 ## 非目标
 
-- 默认不执行任何 App Store Connect 写操作；唯一例外是公司负责人显式授权的一次性「建 App 记录」，该授权已被 ASC 403 拒绝并即刻停手（2026-11 事实见 `docs/release/stage4-prereqs.md`），重跑需人换权限后重新授权。不上传构建、不提交审核、不发送 TestFlight 邀请。
+- 默认不执行任何 App Store Connect 写操作；唯一例外是公司负责人显式授权的一次性「建 App 记录」，该授权已被 ASC 403 拒绝并即刻停手（2026-11 事实见 `docs/release/stage4-prereqs.md`），重跑需人换权限后重新授权。上传（`upload-ios.sh`）与内部测试者分配（`testflight-tester.sh`）已有脚本与静态门，但仓库不代执行：真实上传 / 测试者写入仍由持凭据的人在分发轮显式运行；不提交审核、不向外部组邀请。
 - 不把 fastlane 变成仓库依赖：不新增 `Fastfile` / `Gemfile` / `Appfile`，不进 CI、不新增 gate；一次性的本机 CLI 调用不算依赖。
 - 不创建或修改 Apple Distribution 证书、App Store provisioning profile（只做只读盘点）。
 - 不接受 PLA、不代签协议、不提升 ASC 用户权限、不绕过钥匙串/权限弹窗。
@@ -96,10 +117,12 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - 失败即停：xcodegen / xcodebuild / 打包 / 校验任一步失败即停手，在候选记录或回执写失败步骤、退出码与错误原文片段，不降级、不换签名、不重试绕过。
 - 凭据纪律（阶段 4 前置）：`source ~/.munk-release/secrets.env` 只在本人 shell 会话内，禁 `set -x`、禁 `echo`/`printf` 变量值；一次性 API Key JSON 与 JWT 只落仓外 `mktemp -d` 临时目录（`chmod 600`）并在退出前删除；仓内一律用占位符。
 - 门禁与文档互锁：`scripts/check-ios-release.sh` 硬断言门数与脱敏口径（禁 `set -x`、禁用户主目录绝对路径、禁真实凭据）；改写 Runbook / 清单时不得触发这些断言，也不得为绕断言改门数或改门拓扑。
+- 分发脚本口径：`altool` 调用除 `--apiKey <id> --apiIssuer <issuer>` 外追加 `--apiPrivateKey "$ASC_KEY_PATH"`，不依赖 `~/.appstoreconnect/private_keys` 固定落点；退出码沿用 0/1/2（成功/失败/参数非法）；JWT 只在内存签发，不落盘不打印。
+- 反例自检口径：新断言用 `mktemp -d` 沙箱构造错误输入（删凭据、注入 `set -x`、删 `--list-apps`、把内部组 `isInternalGroup` 改 false、删 `ITSAppUsesNonExemptEncryption`），桩 `xcrun` / `curl` 用 marker 文件证明未触网；`check-ios-release.sh` 的 `network_problems` 仍只约束归档脚本，upload / tester 的联网规则单独成函数。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_13c114074a297bc6 / at: 2026-11-11T04:58:00+08:00 / status: pass
-- 交付：在切点 `dac291a22044ed7c69d659361112cee69ec98c6b`（`HEAD` = `main` = `origin/main`，开工与收尾各核一次）上出 Release 候选：`scripts/sync-ios-version.sh` 幂等 → `ios/` 内 `xcodegen generate` → `xcodebuild -configuration Release -destination 'generic/platform=iOS' -derivedDataPath .build/release-candidate-dac291a`（签名仅命令行，`project.yml` 零改动）→ `ditto` 打包。产物只两份，落仓外候选目录：`Release-candidate-dac291a.zip`（535634B，sha256 `15b9043c…3415`，顶层唯一条目 `PurePace.app/`）与 `Release-candidate-dac291a.txt`。
-- 实测：exec `7b0a5b72…3165` / 2127088B；二次独立解包一致；独立派生数据路径重跑得 `2f598419…004e7` / 2127424B → 判定「不可复现」，差异源于内嵌派生数据路径字符串（57 处）与随机 `LC_UUID`，两次读数均已保留。plist 本体读回 `CFBundleIdentifier=sh.munk.purepace`、`0.1.0` / build `1`、`MinimumOSVersion=17.0`、`UIBackgroundModes=["location","audio"]`；`codesign` Authority `Apple Development: Tao Zhu (H47755VBGF)` / Team `3X4J53U6RY`，`--verify --deep --strict` 通过，`PurePace.debug.dylib` 计数 0。
-- 边界：未用 `scripts/archive-ios.sh`（其 ASC `-exportArchive` 口径与本项不一致，原因已入记录）；未打 tag / 未 push / 未触发 Release / 未上传 ASC / 未装真机；相对切点仅 `.munk/changes/wi_intake_13c114074a297bc6/**` 有改动，`git status --porcelain` 无 `.zip`；真机三项保持 `pending: 待人现场`。code_gates 22 门通过（attempt 001）。
+- workItemId: wi_intake_e631d78784cc29ed / at: 2026-11-15T02:20:00+08:00 / status: pass
+- 交付：分发脚本化——新增 `scripts/upload-ios.sh`（默认取归档导出 ipa，`--ipa` / `OUT_DIR` 可覆盖；只读 `altool --list-apps` 计数 → `--upload-app`）与 `scripts/testflight-tester.sh`（ASC REST + 内存 ES256 JWT；只读解析 App、内部组与测试者存在性，按需建 betaTester 再写内部组关系）；`ios/project.yml` 加 `ITSAppUsesNonExemptEncryption: false` 并提交生成后的 `Info.plist`；Runbook 改脚本主路径（Organizer/Transporter 仅 fallback）；新增 `docs/human-gate-distribution.md` 与 README 两行入口。
+- 实测：`scripts/check-ios-release.sh` 49 项断言 0 失败（含 upload/tester 契约、桩 `xcrun`/`curl` 未触网、加密豁免反例、Runbook/凭据文档/README/范围冻结与元断言自检）；`check-ios-scripts.sh` 枚举扩到八个脚本、门数仍 22；`check-ios-shell.sh` 的 `INFO_PLIST_SHA256` 随加密豁免同步（`3cb6d057…`）；code_gates 22 门通过（attempt 003）。
+- 边界：真实上传与真实测试者写入均未执行（待凭据），未 push tag / 未建 Release / 未提交审核；`.github/workflows/ios.yml` 腿与触发条件零改动，未引入 fastlane 或第三方依赖；`archive-ios.sh` 既有导出逻辑与签名主干未改，真机项仍 `pending: 待人现场`。
