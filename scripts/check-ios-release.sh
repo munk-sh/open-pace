@@ -19,8 +19,8 @@ usage() {
   - scripts/upload-ios.sh：默认 ipa 解析/--ipa 覆盖、先 --list-apps 后 --upload-app、缺凭据失败闭合、DRY_RUN 脱敏
   - scripts/testflight-tester.sh：只读先行、只写 isInternalGroup=true 内部组、失败停手、不触发审核/外邀
   - ios/project.yml 与 ios/PurePace/Info.plist 的 ITSAppUsesNonExemptEncryption=false 布尔声明
-  - .munk/code-gates.json 含 lint-ios-release 门且总门数为 22
-  - scripts/check-ios-scripts.sh 门数断言同步为 22
+  - .munk/code-gates.json 含 lint-ios-release 门且总门数为 23
+  - scripts/check-ios-scripts.sh 门数断言同步为 23
   - docs/release/testflight-runbook.md 前置/执行/证据/反范围齐全且只用占位符，主路径脚本化
   - docs/human-gate-distribution.md 一次性凭据录入说明
 
@@ -350,7 +350,7 @@ else
   fail "ac-missing-env-fails-closed" "值泄露样本未被识别"
 fi
 
-# ---------------------------------------- 门禁接入 + 门数 22 + 断言同步
+# ---------------------------------------- 门禁接入 + 门数 23 + 断言同步
 problems=""
 if ! command -v python3 >/dev/null 2>&1; then
   problems="$problems 缺少 python3，无法解析 .munk/code-gates.json;"
@@ -361,8 +361,8 @@ else
 import json
 cfg = json.load(open(".munk/code-gates.json", encoding="utf-8"))
 gates = cfg.get("gates", [])
-if len(gates) != 22:
-    raise SystemExit("code-gates 门数 %d（期望 22）" % len(gates))
+if len(gates) != 23:
+    raise SystemExit("code-gates 门数 %d（期望 23）" % len(gates))
 matches = [g for g in gates if g.get("id") == "lint-ios-release"]
 if len(matches) != 1:
     raise SystemExit("缺少唯一的 lint-ios-release 门")
@@ -374,10 +374,10 @@ PY
     problems="$problems $(printf '%s' "$gate_error" | tr '\n' ' ');"
   fi
 fi
-grep -Fq -- '保持 22 门' scripts/check-ios-scripts.sh \
-  || problems="$problems scripts/check-ios-scripts.sh 未同步「保持 22 门」;"
-grep -Fq -- '-ne 22' scripts/check-ios-scripts.sh \
-  || problems="$problems scripts/check-ios-scripts.sh 未同步 -ne 22 断言;"
+grep -Fq -- '保持 23 门' scripts/check-ios-scripts.sh \
+  || problems="$problems scripts/check-ios-scripts.sh 未同步「保持 23 门」;"
+grep -Fq -- '-ne 23' scripts/check-ios-scripts.sh \
+  || problems="$problems scripts/check-ios-scripts.sh 未同步 -ne 23 断言;"
 if [ -z "$problems" ]; then
   pass "ac-release-gate-wired"
 else

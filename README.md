@@ -54,7 +54,8 @@ bash scripts/version.sh --tools
 | iOS 测试 | `bash scripts/test-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift test` |
 | Android 构建 | `bash scripts/build-android.sh` | 已就绪；真实执行 `assembleDebug` 并校验非空 APK 产物 |
 | Android 测试 | `bash scripts/test-android.sh` | 已就绪；真实执行 `testDebugUnitTest`，区分纯 JVM 与 Robolectric/Compose 两类用例各 ≥1 |
-| Android 脚本与结构断言 | `bash scripts/check-android.sh` | 已就绪；含 applicationId 单点、SDK/JDK、版本派生、wrapper 与门禁完整性断言 |
+| Android 脚本与结构断言 | `bash scripts/check-android.sh` | 已就绪；含 applicationId 单点、SDK/JDK、版本派生、wrapper、同意门契约/文案单源、政策单源同步与门禁完整性断言 |
+| Android 打包（仓外可安装产物） | `bash scripts/package-android.sh` | 已就绪；产物落 `${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>/`（APK + `manifest.json` + `checksums.txt`），stdout 打印路径与 sha256；安装、sha256 校验与同意门手测顺序见 [`docs/distribution/android.md`](./docs/distribution/android.md) |
 
 ## 跑步链路验收自动化
 
@@ -65,6 +66,7 @@ bash scripts/version.sh --tools
 | 本机定向跑新用例 | `xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,name=iPhone 16,OS=18.6" -only-testing:PurePaceUITests/RunFlowUITests/testStartFinishExportGPXArtifact CODE_SIGNING_ALLOWED=NO` |
 | 干净容器 + 容器级断言（本地可手动跑，非本地阻断门） | `bash scripts/verify-ios-ui-e2e.sh` |
 | 真机手测 | 真机验收已改为交付后由人按 `docs/device-manual-acceptance.md` 手测，agent 不再执行 |
+| 随包人工测试说明 | 拿包后独立跑一轮并按格式回报，状态口径见 [`docs/distribution/manual-test-guide.md`](./docs/distribution/manual-test-guide.md) |
 
 证据默认写 `.build/verify-ios-ui-e2e/export-evidence.json`，字段含 `recordId` / `gpxFile` / `sha256` / `trkptCount` / `sampleCount` / `timeSpanSeconds` / `ok`；显式 `--refresh-evidence` 时另复制到 `docs/evidence/stage3-e2e/export-evidence.json`。断言口径：GPX 为 1.1 且可解析、`trkpt` 数 == `samples` 数、时间跨度差与首末时间差均 ≤1s，结论只写「模拟器 + 代码层」。
 

@@ -11,7 +11,7 @@ val appId = providers.gradleProperty("PUREPACE_APPLICATION_ID").get()
 val repoVersion = rootProject.file("../VERSION").readText().trim()
 
 android {
-    namespace = appId
+    namespace = "dev.purepace"
     compileSdk = 36
 
     defaultConfig {

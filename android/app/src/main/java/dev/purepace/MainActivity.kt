@@ -23,13 +23,14 @@ import androidx.compose.ui.unit.dp
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val consentStore = SharedPreferencesConsentStore(applicationContext)
         setContent {
-            PurePacePlaceholder()
+            PurePaceApp(store = consentStore)
         }
     }
 }
 
-// TODO(V1.1): 接入真实导航与跑步/历史/记录/设置页面；本阶段只保留空壳占位。
+// TODO(V1.1): replace with real navigation and run/history/log/settings screens.
 @Composable
 fun PurePacePlaceholder(modifier: Modifier = Modifier) {
     MaterialTheme {

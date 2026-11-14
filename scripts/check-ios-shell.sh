@@ -992,14 +992,16 @@ EOF
     actual_count="$(printf '%s\n' $actual_ids | wc -l | tr -d ' ')"
   fi
 
+  local id_list
+  id_list="$(printf '%s\n' $actual_ids)"
   local id
   for id in $frozen_ids; do
-    if ! printf '%s\n' $actual_ids | grep -Fxq "$id"; then
+    if ! grep -Fxq -- "$id" <<<"$id_list"; then
       problems="$problems 冻结 identifier 缺失或改名（不得删除 / 改名）: ${id};"
     fi
   done
   for id in $required_new_ids; do
-    if ! printf '%s\n' $actual_ids | grep -Fxq "$id"; then
+    if ! grep -Fxq -- "$id" <<<"$id_list"; then
       problems="$problems 缺少必需新增主操作 identifier: ${id};"
     fi
   done

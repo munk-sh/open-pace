@@ -16,11 +16,11 @@ usage() {
   - 仅一个 job，runs-on 为 ubuntu-latest，permissions.contents 为 read
   - install 阶段显式装 JDK 21（setup-java + temurin）与 Android SDK，安装
     platforms;android-36 / build-tools;36.0.0，并显式校验 java 主版本 21 与 ANDROID_HOME 目录
-  - steps 中 install、lint、test、build 按序出现且每步 run 非空
+  - steps 中 install、lint、test、build、package 按序出现且每步 run 非空
   - lint 独立调用 scripts/check-baseline.sh、scripts/check-android.sh
-  - test/build 复用 scripts/test-android.sh、scripts/build-android.sh，且对 blocked: 输出显式 exit 1
+  - test/build/package 复用 scripts/test-android.sh、scripts/build-android.sh、scripts/package-android.sh，且对 blocked: 输出显式 exit 1
   - workflow 内无 gradlew 直连调用、无根 VERSION 字面值、无不实措辞
-  - 自测：改错 runs-on / 删除 test 步骤 / 去掉 push 触发 / 去掉 blocked 失败口径时脚本非零退出
+  - 自测：改错 runs-on / 删除 test 步骤 / 删除 package 步骤 / 去掉 push 触发 / 去掉 blocked 失败口径时脚本非零退出
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -162,7 +162,7 @@ report(jobCount === 1 && runsOnValue === 'ubuntu-latest' && contents === 'read',
 
 const steps = isObj(job) && Array.isArray(job.steps) ? job.steps : [];
 const stepName = (step) => (isObj(step) ? String(step.name ?? '') : '');
-const expected = ['install', 'lint', 'test', 'build'];
+const expected = ['install', 'lint', 'test', 'build', 'package'];
 const ordered = steps.map(stepName).filter((name) => expected.includes(name));
 const runs = {};
 for (const name of expected) {
@@ -200,16 +200,28 @@ report(lintMissing.length === 0 && !lintJoined, 'ac-lint-step-reuses-local-gates
 
 const testRun = runs.test;
 const buildRun = runs.build;
+const packageRun = runs.package;
 const reuseOk = testRun.includes('bash scripts/test-android.sh') &&
-  buildRun.includes('bash scripts/build-android.sh');
+  buildRun.includes('bash scripts/build-android.sh') &&
+  packageRun.includes('bash scripts/package-android.sh');
 const secondGradle = /gradlew/.test(raw);
 report(reuseOk && !secondGradle, 'ac-test-build-reuse-scripts',
-  'test/build 未复用 scripts 或 workflow 内出现 gradlew 直连调用');
+  'test/build/package 未复用 scripts 或 workflow 内出现 gradlew 直连调用');
+
+const buildIndex = ordered.indexOf('build');
+const packageIndex = ordered.indexOf('package');
+const packageStepOk = packageRun.trim() !== '' &&
+  packageIndex === buildIndex + 1 &&
+  packageRun.includes('bash scripts/package-android.sh') &&
+  !/gradlew/.test(packageRun);
+report(packageStepOk, 'ac-android-workflow-package-step',
+  `package 步骤位置 ${packageIndex}（build ${buildIndex}），run 未复用 scripts/package-android.sh 或直连 gradlew`);
 
 const blockedOk = testRun.includes('blocked:') && /exit\s+1/.test(testRun) &&
-  buildRun.includes('blocked:') && /exit\s+1/.test(buildRun);
+  buildRun.includes('blocked:') && /exit\s+1/.test(buildRun) &&
+  packageRun.includes('blocked:') && /exit\s+1/.test(packageRun);
 report(blockedOk, 'ac-ci-fails-on-blocked-degradation',
-  'test/build 未对 blocked: 输出显式 exit 1');
+  'test/build/package 未对 blocked: 输出显式 exit 1');
 
 const version = fs.existsSync('VERSION') ? fs.readFileSync('VERSION', 'utf8').trim() : '';
 report(version === '' || !raw.includes(version), 'ac-no-version-literal',
@@ -277,6 +289,13 @@ assert_rejected "去掉 push 触发" "$tmp_dir/no-push.yml" "ac-workflow-push-tr
 
 sed 's/blocked:/blocked-removed:/g' "$WORKFLOW" > "$tmp_dir/no-blocked.yml"
 assert_rejected "去掉 blocked 失败口径" "$tmp_dir/no-blocked.yml" "ac-ci-fails-on-blocked-degradation"
+
+awk '
+  /^      - name: package$/ { skip = 1 }
+  skip && /^      - name: [a-z]/ && !/^      - name: package$/ { skip = 0 }
+  !skip { print }
+' "$WORKFLOW" > "$tmp_dir/missing-package.yml"
+assert_rejected "删除 package 步骤" "$tmp_dir/missing-package.yml" "ac-android-workflow-package-step"
 
 if [ "$self_test_failures" -ne 0 ]; then
   echo "check-android-workflow: 负向自测失败 $self_test_failures 项" >&2
