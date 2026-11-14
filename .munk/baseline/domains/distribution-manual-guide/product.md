@@ -8,6 +8,7 @@
 - 顺带口径：`docs/release/stage4-prereqs.md` 六项前置表第 4 行（隐私政策 URL）为 `ready`，与文末结论句同口径；`README.md`「跑步链路验收自动化」段「用途 / 入口」表新增一行指向本说明，不新开 `##` 段。
 - 纯文档域：不改产品代码、脚本、CI workflow 与 `docs/verification-matrix.md`（本项不新增验证接缝）；真机与音频项永远 `pending: 待人现场`。
 - 定稿口径：手册里「机器已验」行与 Android 获取节必须写实测值（产物目录名 / sha256 / 音频三字段读数）+ 证据相对路径，取证落 `docs/evidence/<workItemId>/`；实测值只抄产物与日志，不由人推断。
+- 验收键口径：Android 产物的验收键是 **sha256 + 版本 + APK 字节**（目录内 `shasum -a 256 -c checksums.txt` 自校验），`manifest.json.commit` 只是**构建时工作树 commit**，不与手册引用 commit 判等；收货位置为仓外持久目录 `${HOME}/purepace-dist/android/<versionName>-<versionCode>/`，`$TMPDIR` 现场只作复原对照。
 
 ## 验收
 
@@ -26,7 +27,10 @@
 - ac-stage4-row4：`docs/release/stage4-prereqs.md` 第 4 行为 `ready`：`https://munk.sh/privacy` 已上线并含 PurePace 专项小节、ASC App 信息直接填该 URL、人无需操作；文末结论句与表格同口径（仅第 4 行 `ready`，其余五项 `pending: 人`，无 `blocked: PLA`），同文档无自相矛盾。
 - ac-readme-index-row：`README.md`「用途 / 入口」表新增一行指向本说明（相对链接可点），`grep -c '^## ' README.md` 前后不变，README 内不出现版本字面值。
 - ac-guide-measured-rows-with-evidence：第 3 节机器层事实表与第 7 节汇总表的既有「机器已验」行均写出实测值，并附 `docs/evidence/<workItemId>/<file>` 形态的证据相对路径；状态列仍只允许「机器已验：<真实测试名>」与 `pending: 待人现场`。
-- ac-guide-android-measured-artifact：1.1 节写明本次真实产物目录名（`<versionName>-<versionCode>` 实值）、APK 仓外绝对路径、sha256 实值，以及 `shasum -a 256 -c checksums.txt` 的自校验命令与 `OK` 输出；同段注明该表只是实测抄录，版本仍由根 `VERSION` 与 `android/app/build.gradle.kts` 单点派生。
+- ac-guide-android-measured-artifact：1.1 节写明本次真实产物目录名（`<versionName>-<versionCode>` 实值）、APK 仓外绝对路径（持久交付目录优先）、sha256 实值、字节数，以及 `shasum -a 256 -c checksums.txt` 的自校验命令与 `OK` 输出；同段注明该表只是实测抄录，版本仍由根 `VERSION` 与 `android/app/build.gradle.kts` 单点派生。
+- ac-guide-manifest-commit-semantics：手册与 `docs/evidence/**` 不得把 `manifest.commit` 与手册引用 commit 判等，也不得断言「manifest 里是 <某 commit>」；须写明验收键 = sha256 + 版本 + APK 字节、`manifest.commit` = 构建时工作树 commit；同一 sha256 对应两个构建 commit 时两行并列且各注明「字节一致」，并给出「代码路径零差异」的可核验命令与输出（`git diff --name-only A B | grep -E '^(android|ios|shared|scripts)/'` 为空、退出码 1）。
+- ac-guide-sha-scope-honest：手册须区分「对本次交付文件的目录内自校验」与「自己重跑出包得到的新产物」，明示 Android APK 构建跨环境不可复现，不得拿重跑结果与交付 sha256 互比、不得覆盖已交付三件文件；重跑以脚本 stdout 的 `DIST_DIR=` 为真实落点（同名目录已存在时自动改用 `<versionName>-<versionCode>-b<N>` 兄弟目录）。
+- ac-guide-audio-preconditions：第 3 节给出开跑前机器前置且只作「做法与判据」——先用 Apple Music 取到 `isOtherAudioPlaying=true` 并可归因 `com.apple.Music`，iCloud 未下载须先下载并写入证据，三条人耳判定必须在同一构建同一次装机完成；三条人耳结论仍逐条 `pending: 待人现场`。
 - ac-guide-audio-measured-readings：音频节机器层行补实测读数——播报期真实 `AVAudioSession` 读回 `categoryOptions` 含 `duckOthers`、播报结束 `sessionDeactivated=true` / `duckRevoked=true`、激活未带 `duckOthers` 时 `sessionDeactivated=true` 且 `duckRevoked=false`（两字段非别名）、`isOtherAudioPlaying=false` / `secondaryAudioShouldBeSilencedHint=false`；同段保留「模拟器无外部音源时读数只作环境事实」免责句。
 - ac-evidence-pack-traceable：每次定稿在 `docs/evidence/<workItemId>/` 留 `README.md` + 打包日志 / 产物清单与校验、音频两腿日志、环境读数、手册零发布口径自检、门禁日志；每个数字都能在同目录文件找到对应行，绑定 commit 全 sha，目录内不含 `.ipa` 与任何上传 / 分发 / 上架口径。
 - ac-static-gates-green：`bash scripts/check-baseline.sh`、`bash scripts/check-ios-release.sh`、`bash scripts/check-privacy-policy.sh` 均退出 0；不接受删断言、放宽断言或 `|| true` 绕过。
@@ -49,13 +53,14 @@
 - 机器已验名单来自权威腿实际执行项：`testRunPauseResumeFinishAndHistory`、`testRunProducesTelemetryAcrossKilometerBoundary`、`testStartFinishExportGPXArtifact`、`testLockRunningContinuesWithMonotonicSamples`、`testEachKilometerAnnouncedExactlyOnceInOrder`、`testEndAnnouncementRevokesDuckWhenActivationDucked`、`testDefaultStrategyAndBundleDeclarations`、`testRunnerPlaysAndNoneIsSilent`、`testTrajectoryConsentGateThreeStates`、`firstLaunchShowsConsentGateAsRoot`、`unattendedStartAttemptStaysBlockedWithReason`、`agreeGrantsAndEnablesStart`、`declineStaysUnattended`、`withdrawReturnsUnattended`。
 - 音频节写法：机器读数只落「音源与环境声明 / 播报调度去重 / duck 撤销配置 / 播放探针」四类环境事实，并紧邻免责句；三条人耳结论固定 `pending: 待人现场`。
 - 隐私链接事实：`https://munk.sh/privacy` 实取 200（跳转 `https://www.munk.sh/privacy`），含 PurePace 专项小节。
-- 证据绑定口径：读数绑定对象写「commit 全 sha + 测试宿主产物」，不写分发渠道；`manifest.json.commit` 必须等于手册引用 commit；目录内每个数字配「测试名 / 命令 / commit / 日志路径」四元定位，禁止手写转写未在日志出现的数值。
+- 证据绑定口径：读数绑定对象写「构建时工作树 commit + 测试宿主产物」，不写分发渠道；`manifest.commit` 只作构建时树标记，**不再要求等于手册引用 commit**；目录内每个数字配「测试名 / 命令 / commit / 日志路径」四元定位，禁止手写转写未在日志出现的数值；同一 sha256 对应多个构建 commit 时并列且注明「字节一致」。
+- 交付位置口径：手册收货路径写仓外持久目录 `${HOME}/purepace-dist/android/<versionName>-<versionCode>/`（三件同目录），`$TMPDIR` 现场只作对照；重跑出包只许新增 `<versionName>-<versionCode>-b<N>` 兄弟目录，不得覆盖/删除/改名既有目录。
 - 定稿只读不写：`scripts/package-android.sh`、`android/app/build.gradle.kts`、`.munk/code-gates.json` 与音频测试源码均只读取与实跑，不修改门定义、不新增验证基建脚本。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_9dc4d2c5af703568 / at: 2026-11-15T04:20:00+08:00 / status: pass
-- 交付：手册按实测定稿——1.1 节写入本次真实产物目录名 `0.1.0-1`、APK 仓外绝对路径、sha256 `8b80c8e2…` 与 `shasum -a 256 -c checksums.txt` 自校验 `OK`；第 3 节机器层事实表由 4 行扩到 8 行（补真实 `AVAudioSession` 读回 `duckOthers`、`duckRevoked=true`、两字段分离、RunCore 默认配置/停用选项、`isOtherAudioPlaying=false`/`secondaryAudioShouldBeSilencedHint=false`）；第 7 节汇总表对应行同步补读数与证据路径；三条人耳结论仍 `pending: 待人现场`。
-- 证据：`docs/evidence/wi_intake_9dc4d2c5af703568/` 十件套（README + android-package/checksums/manifest/verify + audio-duck-adapter/runcore + audio-env-readings/telemetry + guide-zero-release-claims + gates），绑定 commit `2873ae21ee05c890980be28a63dda1d7da573bcf`；手册零发布口径 grep 零命中。
-- 验证：`code_gates` 23 门全绿（attempt 001，含 build/test/package-android、check-shared、check-baseline）。
-- 偏离与未做：iOS `.ipa` 未产出（凭据未就位，人闸未判定），未上传 TestFlight、未推 tag、未建 Release；未改产品代码 / `VERSION` / UI / design tokens / `.github/workflows/` / `.munk/code-gates.json`；装机与真机听感仍待人现场。
+- workItemId: wi_intake_8cf34194e113d153 / at: 2026-11-15T06:00:00+08:00 / status: pass
+- 交付：手册 1.1 节验收键改为 sha256 + 版本 + APK 字节——两轮构建（`2873ae2` / `2026-11-14T19:59:46Z` 与 `48b3e5c` / `2026-11-14T20:17:29Z`）两行并列、每行注明「字节一致」，并写清 `manifest.commit` = 构建时工作树 commit；收货路径改为仓外持久目录 `${HOME}/purepace-dist/android/<versionName>-<versionCode>/`，`$TMPDIR` 现场降为复原对照；新增「不得拿重跑结果与交付 sha256 互比」与「重跑落 `-b<N>` 兄弟目录」口径；第 3 节音频新增开跑前机器前置（三条人耳结论仍 `pending: 待人现场`）；`docs/distribution/android.md` 补兄弟目录、仓外持久目录与目录内自校验三段。
+- 证据：`docs/evidence/wi_intake_8cf34194e113d153/`（README + 目录守卫红绿两态 + 零差异命令输出 + 跨构建 sha 归属 + 两轮构建对照 + 盘上 APK 字节前后对照 + 手册禁词/人耳 grep + 四条门禁日志）；证据零发布口径 grep 零命中。
+- 验证：`check-baseline.sh` / `check-android.sh`（34 项）/ `check-ios-release.sh`（49 项）/ `check-privacy-policy.sh` 均 exit 0；`code_gates` 23 门全绿（attempt 002）。
+- 偏离与未做：未重出交付包、未改 APK 字节、未改名/删除/搬迁产物目录；未改产品代码 / `VERSION` / `.github/workflows/` / `.munk/code-gates.json` / `docs/verification-matrix.md` 行数口径；装机与真机听感仍待人现场。

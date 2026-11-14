@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Android debug APK 打包入口：assembleDebug 后把 APK、manifest.json 与 checksums.txt
 # 复制到仓外分发目录（${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>/），
-# 并打印机器可解析的 APK= 与 SHA256= 行；同一 commit 重复执行必须得到相同 sha256。
+# 并打印机器可解析的 APK= 与 SHA256= 行。构建跨环境不可复现，因此不做跨构建 sha256 比对，
+# 只在本次产物目录内自校验（checksums.txt 必须与本次写入的 APK 字节一致）。
+# 该版本目录已存在时绝不改动它，本次改用兄弟目录 <versionName>-<versionCode>-b<N>。
 set -euo pipefail
 
 usage() {
@@ -13,9 +15,13 @@ usage() {
     函数执行 gradle -p android assembleDebug；
   - 产物目录为 ${PUREPACE_DIST_ROOT:-${TMPDIR:-/tmp}}/purepace-dist/android/<versionName>-<versionCode>/，
     内含 debug APK、manifest.json、checksums.txt；解析结果落在仓库内一律拒绝；
+  - 该版本目录已存在时绝不覆盖/删除/改名它，本次自动改用带构建序号的兄弟目录
+    <versionName>-<versionCode>-b<N>（N = 已存在最大序号 + 1，基名算 1，兄弟从 2 起），
+    并在 stdout 打印「本次实际输出目录」与 DIST_DIR=<实际目录>；
   - manifest.json 字段固定为 applicationId / version / versionCode / commit / sha256 /
     minSdk / targetSdk / buildTime；
-  - 同一 commit 连续执行两次，APK sha256 与目录保持不变；sha256 变化即非零退出；
+  - 判据只作用于本次产物目录内：写完 checksums.txt 后立即自校验，与 APK 字节不一致即非零退出；
+    跨构建/跨环境的 sha256 差异不比对（Android APK 构建不可复现，CI 已实测不同 sha256）；
   - stdout 末尾输出 APK=<绝对路径> 与 SHA256=<sha256> 供脚本对照。
 
 选项:
@@ -23,28 +29,24 @@ usage() {
 
 退出码:
   0  打包成功且产物校验通过
-  1  环境缺失、构建失败、产物非法、路径在仓内或幂等校验失败
+  1  环境缺失、构建失败、产物非法、路径在仓内、序号竞争或目录内自校验失败
   2  参数非法
 EOF
 }
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "package-android: 未知参数 '${1}'（使用 --help 查看用法）" >&2
-    exit 2
-    ;;
-esac
-
-if [ "$#" -gt 1 ]; then
-  echo "package-android: 只接受一个参数（使用 --help 查看用法）" >&2
-  exit 2
-fi
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "package-android: 未知参数 '${1}'（使用 --help 查看用法）" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
@@ -272,21 +274,40 @@ esac
 mkdir -p "${dist_abs}"
 dist_root="$(cd "${dist_abs}" && pwd -P)"
 
-target_dir="${dist_root}/purepace-dist/android/${version}-${version_code}"
-previous_sha=""
-previous_commit=""
-if [ -f "${target_dir}/manifest.json" ]; then
-  previous_sha="$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' "${target_dir}/manifest.json" | head -n 1)"
-  previous_commit="$(sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' "${target_dir}/manifest.json" | head -n 1)"
-fi
+version_dir="${dist_root}/purepace-dist/android/${version}-${version_code}"
+target_dir="${version_dir}"
 
+# guard-begin: preserve-existing-dist
+# 既有 <versionName>-<versionCode> 目录一律不改动（不覆盖 / 不删除 / 不改名）：
+# 它已存在时，本次产物写到带构建序号的兄弟目录 <versionName>-<versionCode>-b<N>，
+# N = 已存在最大序号 + 1（基名算 1，兄弟从 2 起），保证目录名确定性且单调。
+if [ -d "${version_dir}" ]; then
+  highest_index=1
+  for candidate in "${version_dir}-b"*; do
+    [ -d "${candidate}" ] || continue
+    suffix="${candidate##*-b}"
+    case "${suffix}" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    if [ "${suffix}" -gt "${highest_index}" ]; then
+      highest_index="${suffix}"
+    fi
+  done
+  target_dir="${version_dir}-b$((highest_index + 1))"
+  echo "info: 既有产物目录保持不动（不覆盖/不删除/不改名）: ${version_dir}"
+  echo "info: 本次改用兄弟目录: ${target_dir}（已存在最大序号 ${highest_index} + 1）"
+  if [ -e "${target_dir}" ]; then
+    echo "error: 选中目录已存在，拒绝覆盖（并发或序号竞争）: ${target_dir}" >&2
+    exit 1
+  fi
+fi
+# guard-end: preserve-existing-dist
+
+# 构建跨环境不可复现（同一源码在 CI 与本地已实测出不同 sha256），因此这里不比对任何
+# 历史 sha256；判据只落在本次产物目录内：checksums.txt 必须与本次写入的 APK 字节一致。
 sha="$(sha256_file "${apk_source}")"
-if [ -n "${previous_sha}" ] && [ "${previous_commit}" = "${commit}" ] && [ "${previous_sha}" != "${sha}" ]; then
-  echo "error: 同一 commit 重复打包 sha256 变化（上次 ${previous_sha}，本次 ${sha}），幂等断言失败" >&2
-  exit 1
-fi
 
-rm -rf "${target_dir}"
+echo "info: 本次实际输出目录: ${target_dir}"
 mkdir -p "${target_dir}"
 
 apk_name="purepace-${version}-${version_code}-debug.apk"
@@ -295,6 +316,19 @@ if command -v shasum >/dev/null 2>&1; then
   ( cd "${target_dir}" && shasum -a 256 "${apk_name}" > checksums.txt )
 else
   ( cd "${target_dir}" && sha256sum "${apk_name}" > checksums.txt )
+fi
+
+# 目录内自校验（唯一判据）：checksums.txt 必须与本次落盘的 APK 字节一致。
+if command -v shasum >/dev/null 2>&1; then
+  checksums_ok=0
+  ( cd "${target_dir}" && shasum -a 256 -c checksums.txt >/dev/null 2>&1 ) || checksums_ok=$?
+else
+  checksums_ok=0
+  ( cd "${target_dir}" && sha256sum -c checksums.txt >/dev/null 2>&1 ) || checksums_ok=$?
+fi
+if [ "${checksums_ok}" -ne 0 ]; then
+  echo "error: 本次产物目录自校验失败：checksums.txt 与 ${apk_name} 字节不一致（${target_dir}）" >&2
+  exit 1
 fi
 
 build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

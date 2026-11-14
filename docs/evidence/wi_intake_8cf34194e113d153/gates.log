@@ -1,0 +1,38 @@
+# 四条门禁实测（改动后）
+# 生成时间: 2026-11-14T21:05:14Z
+# 生成时工作树 HEAD: fe272cc417f0b81990d61c5df7e60fe9bddacf14
+
+===== bash scripts/check-baseline.sh =====
+[PASS] ac-policy-covers-required-items
+[PASS] ac-policy-single-source
+[PASS] ac-policy-keyword-red-proof
+
+29 项断言，0 项失败
+baseline OK (VERSION=0.1.0)
+----- exit=0 -----
+
+===== bash scripts/check-android.sh =====
+[PASS] ac-package-existing-dir-monotonic
+[PASS] ac-package-existing-dir-red-proof
+[PASS] ac-package-cli-contract-preserved
+
+34 项断言，0 项失败
+android scripts OK
+----- exit=0 -----
+
+===== bash scripts/check-ios-release.sh =====
+[PASS] ac-no-real-upload-and-scope-frozen (self-test)
+[PASS] ac-gate-covers-distribution-scripts
+[PASS] ac-gate-covers-distribution-scripts (self-test)
+
+49 项断言，0 项失败
+ios release OK
+----- exit=0 -----
+
+===== bash scripts/check-privacy-policy.sh =====
+[PASS] ac-policy-covers-required-items
+[PASS] ac-policy-single-source
+[PASS] ac-policy-keyword-red-proof
+privacy policy OK（sha256=9cf8c34e5548ca0222f028dd8062660b16c56592bf155cbf7328483ddca71198）
+----- exit=0 -----
+

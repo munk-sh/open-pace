@@ -1,0 +1,132 @@
+# 四条门禁改动前基线对照（wi_intake_8cf34194e113d153）
+# 采集时机: 修改 scripts/package-android.sh 与 scripts/check-android.sh 之前
+# 四条命令改动前实跑退出码均为 0（由逐条运行循环捕获；本文件保存各命令原始输出）
+
+===== $ bash scripts/check-baseline.sh =====
+[PASS] ac-version-file-single-source (VERSION=0.1.0)
+[PASS] ac-version-script-reads-file
+[PASS] ac-no-hardcoded-version
+[PASS] ac-version-source-only-version-file
+[PASS] ac-readme-status-tag-pushed-not-distributed
+[PASS] ac-readme-status-red-selftest
+[PASS] ac-version-tri-source-consistency
+[PASS] ac-version-tri-source-status-red-selftest
+[PASS] ac-changelog-status-tag-pushed-not-distributed
+[PASS] ac-changelog-status-parity-with-readme
+[PASS] ac-changelog-status-red-selftest
+[PASS] ac-release-notes-tag-pushed-not-distributed
+[PASS] ac-release-wording-red-selftest
+[PASS] ac-release-workflow-exists-parses
+[PASS] ac-release-workflow-dispatch-only
+[PASS] ac-release-workflow-tag-derived
+[PASS] ac-release-workflow-no-branch-push
+[PASS] ac-release-workflow-structure-red-selftest
+[PASS] ac-agents-four-sections
+[PASS] ac-test-pyramid-doc
+[PASS] ac-agents-test-stability
+[PASS] ac-skill-routing-matches-disk
+[PASS] ac-skills-ios-android
+[PASS] ac-skills-not-global
+[PASS] readme-entry-points
+[PASS] ac-code-gates-test-real
+[PASS] ac-policy-covers-required-items
+[PASS] ac-policy-single-source
+[PASS] ac-policy-keyword-red-proof
+
+29 项断言，0 项失败
+baseline OK (VERSION=0.1.0)
+
+===== $ bash scripts/check-android.sh =====
+[PASS] ac-script-help-and-strict (present)
+[PASS] ac-script-help-and-strict (bash -n)
+[PASS] ac-script-help-and-strict (shebang/set/BASH_SOURCE)
+[PASS] ac-script-help-and-strict (help/strict args)
+[PASS] ac-android-gradle-bounded-retry (static)
+[PASS] ac-android-gradle-bounded-retry (self-test)
+[PASS] ac-android-test-rerun (self-test)
+[PASS] ac-check-android-application-id
+[PASS] ac-check-android-sdk-jdk
+[PASS] ac-check-android-version
+[PASS] ac-check-android-wrapper
+[PASS] ac-check-android-no-business
+[PASS] ac-check-android-sdk-jdk (local.properties 未入库)
+[PASS] ac-check-android-gates-integrity
+[PASS] ac-check-android-negative-path
+[PASS] ac-check-android-retry-cases
+[PASS] ac-consent-gate-contract
+[PASS] ac-consent-copy-from-strings
+[PASS] ac-consent-copy-from-strings (self-test)
+[PASS] ac-policy-single-source-sync
+[PASS] ac-policy-single-source-sync (self-test)
+[PASS] ac-policy-bundled-no-network
+[PASS] ac-gates-package-wired
+[PASS] ac-package-script-contract
+[PASS] ac-package-path-and-layout
+[PASS] ac-package-manifest-fields
+[PASS] ac-package-checksums-match
+[PASS] ac-package-idempotent-same-commit
+[PASS] ac-package-no-hardcoded-credentials
+[PASS] ac-package-red-proofs
+
+30 项断言，0 项失败
+android scripts OK
+
+===== $ bash scripts/check-ios-release.sh =====
+[PASS] ac-archive-script-contract (present)
+[PASS] ac-archive-script-contract (bash -n/shebang/help)
+[PASS] ac-no-secret-literals-or-xtrace
+[PASS] ac-no-secret-literals-or-xtrace (self-test)
+[PASS] ac-version-and-build-wiring
+[PASS] ac-artifacts-outside-repo-and-checksums
+[PASS] ac-dry-run-runs-without-credentials
+[PASS] ac-export-options-content
+[PASS] ac-dry-run-output-redacted
+[PASS] ac-dry-run-output-redacted (self-test)
+[PASS] ac-missing-env-fails-closed
+[PASS] ac-missing-env-fails-closed (self-test)
+[PASS] ac-release-gate-wired
+[PASS] ac-runbook-complete
+[PASS] ac-runbook-complete (self-test)
+[PASS] readme-release-entry
+[PASS] ac-no-network-or-workflow-changes
+[PASS] ac-upload-script-contract
+[PASS] ac-tester-script-contract
+[PASS] ac-upload-script-contract (self-test)
+[PASS] ac-upload-static-contract
+[PASS] ac-upload-static-contract (self-test)
+[PASS] ac-upload-default-ipa-and-override
+[PASS] ac-upload-lists-then-uploads
+[PASS] ac-upload-missing-credentials-fails-closed
+[PASS] ac-upload-dry-run-redacted
+[PASS] ac-tester-static-contract
+[PASS] ac-tester-static-contract (self-test)
+[PASS] ac-tester-no-external-invite-or-review
+[PASS] ac-tester-no-external-invite-or-review (self-test)
+[PASS] ac-tester-readonly-first-internal-group
+[PASS] ac-tester-readonly-first-internal-group (self-test)
+[PASS] ac-tester-failure-stops
+[PASS] ac-tester-fails-closed-and-dry-run
+[PASS] ac-encryption-exemption-declared
+[PASS] ac-encryption-exemption-declared (self-test)
+[PASS] ac-no-credential-persistence
+[PASS] ac-runbook-script-first
+[PASS] ac-runbook-script-first (self-test)
+[PASS] ac-runbook-transporter-fallback
+[PASS] ac-runbook-transporter-fallback (self-test)
+[PASS] ac-human-gate-doc
+[PASS] ac-human-gate-doc (self-test)
+[PASS] ac-readme-distribution-entries
+[PASS] ac-readme-distribution-entries (self-test)
+[PASS] ac-no-real-upload-and-scope-frozen
+[PASS] ac-no-real-upload-and-scope-frozen (self-test)
+[PASS] ac-gate-covers-distribution-scripts
+[PASS] ac-gate-covers-distribution-scripts (self-test)
+
+49 项断言，0 项失败
+ios release OK
+
+===== $ bash scripts/check-privacy-policy.sh =====
+[PASS] ac-policy-covers-required-items
+[PASS] ac-policy-single-source
+[PASS] ac-policy-keyword-red-proof
+privacy policy OK（sha256=9cf8c34e5548ca0222f028dd8062660b16c56592bf155cbf7328483ddca71198）
