@@ -2478,8 +2478,9 @@ fi
 
 
 # ------------------------------------------------ Release 确定性源（launch-arg 门控，默认关）
-# 基础 Info.plist 只承载 UIBackgroundModes = [location, audio]，改动须同步本基线。
-INFO_PLIST_SHA256="2b92134b1ab0dfd91b82bda01027df147a2233036b13ed21194fb39eda2642f6"
+# 基础 Info.plist 承载 UIBackgroundModes = [location, audio] 与分发加密豁免声明
+# （ITSAppUsesNonExemptEncryption=false，由 project.yml 生成），改动须同步本基线。
+INFO_PLIST_SHA256="3cb6d057daba45fe956998f3ec852e2c589054ad8a3a2fdbcb6ce5b80789c20d"
 
 release_deterministic_problems() {
   local root="$1" out="" usage_keys="" expected_usage="" modes="" plist_sha=""
@@ -2606,7 +2607,7 @@ release_deterministic_problems() {
   else
     plist_sha="$(shasum -a 256 "$plist" | awk '{print $1}')"
     if [ "$plist_sha" != "$INFO_PLIST_SHA256" ]; then
-      out="$out ios/PurePace/Info.plist 已改动（权限/后台声明须零 diff）;"
+      out="$out ios/PurePace/Info.plist 已改动（权限/后台/加密声明须与基线一致）;"
     fi
   fi
 

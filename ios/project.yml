@@ -52,6 +52,8 @@ targets:
         UIBackgroundModes:
           - location
           - audio
+        # 只使用系统框架与 Apple 加密豁免范围，按 App Store Connect 要求声明布尔 false。
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_NAME: PurePace
