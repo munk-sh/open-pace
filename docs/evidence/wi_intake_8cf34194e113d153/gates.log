@@ -1,6 +1,6 @@
 # 四条门禁实测（改动后）
-# 生成时间: 2026-11-14T21:02:13Z
-# 生成时工作树 HEAD（本条提交前）: 2d563f52cb1b7af5c06d56cf03203fa1ceedcb8b
+# 生成时间: 2026-11-14T21:05:14Z
+# 生成时工作树 HEAD: fe272cc417f0b81990d61c5df7e60fe9bddacf14
 
 ===== bash scripts/check-baseline.sh =====
 [PASS] ac-policy-covers-required-items
