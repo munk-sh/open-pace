@@ -11,6 +11,10 @@ enum RunLaunchArguments {
     static let screenshotOpenRunDetailFlag = "-screenshotOpenRunDetail"
     /// 仅截图取证：配合 `-autoStartRecording`，记录若干秒后自动结束到「待保存总结」态（不落盘）。
     static let screenshotRunFinishedFlag = "-screenshotRunFinished"
+    /// 仅 DEBUG UI 用例：预置「已同意轨迹数据授权」（与持久化键同口径）。
+    static let uiTestConsentGrantedFlag = "-uiTestConsentGranted"
+    /// 仅 DEBUG UI 用例：清空同意记录，回到未同意态（优先于 `-uiTestConsentGranted`）。
+    static let uiTestResetConsentFlag = "-uiTestResetConsent"
 
     /// 紧跟在 flag 之后的取值（小写化）；缺失、后跟其它 flag 或越界时返回 `nil`。
     static func value(after flag: String, arguments: [String]) -> String? {

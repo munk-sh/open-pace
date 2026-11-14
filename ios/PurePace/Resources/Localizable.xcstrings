@@ -690,6 +690,126 @@
           }
         }
       }
+    },
+    "consent.gate.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轨迹与位置数据授权"
+          }
+        }
+      }
+    },
+    "consent.gate.body" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轨迹与位置数据属于敏感个人信息。PurePace 只在你同意后才开始记录，采集的数据只存在本机。你可以拒绝授权，拒绝后仍可使用应用，但无法开始记录跑步；也可以随时撤回同意。"
+          }
+        }
+      }
+    },
+    "consent.gate.agree" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同意并继续"
+          }
+        }
+      }
+    },
+    "consent.gate.decline" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不同意"
+          }
+        }
+      }
+    },
+    "settings.section.about" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于"
+          }
+        }
+      }
+    },
+    "settings.privacyPolicy.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "settings.privacyPolicy.body" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 PurePace 隐私政策全文"
+          }
+        }
+      }
+    },
+    "settings.consent.status" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前已同意轨迹与位置数据采集"
+          }
+        }
+      }
+    },
+    "settings.consent.revoke" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤回轨迹数据同意"
+          }
+        }
+      }
+    },
+    "privacyPolicy.navigation.title" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "privacyPolicy.unavailable" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "政策正文暂不可用"
+          }
+        }
+      }
+    },
+    "run.consent.required" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未同意轨迹与位置数据授权，暂不能开始记录。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

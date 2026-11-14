@@ -96,6 +96,7 @@ struct RunInteractionPlan: Equatable {
     enum Notice: String, Equatable, Sendable {
         case recordingError
         case decisionFailed
+        case consentRequired
         case locationDenied
         case locationUnavailable
         case waitingAuthorization
@@ -121,6 +122,8 @@ struct RunInteractionPlan: Equatable {
     }
 
     let items: [Item]
+    /// 记录入口是否可用：未同意轨迹数据授权时开始按钮必须禁用（仍保留 identifier / 文案）。
+    let startEnabled: Bool
     /// 仅 `finished && !didSave` 时非空；破坏性确认控件只存在于这里。
     let discardConfirmation: DiscardConfirmation?
     /// hero 主值唯一着色真源：记录中 / 暂停取 accent（不切 warning），已保存取 success，
@@ -143,13 +146,15 @@ struct RunInteractionPlan: Equatable {
         readiness: RunLocationReadiness = .ready,
         hasBackgroundDegradation: Bool = false,
         metrics: Metrics,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        consentGranted: Bool = true
     ) {
         self.items = Self.items(
             state: state,
             isCountingDown: isCountingDown,
             didSave: didSave
         )
+        self.startEnabled = consentGranted
         self.discardConfirmation = Self.discardConfirmation(
             state: state,
             didSave: didSave
@@ -164,7 +169,8 @@ struct RunInteractionPlan: Equatable {
             hasError: hasError,
             hasDecisionError: hasDecisionError,
             readiness: readiness,
-            hasBackgroundDegradation: hasBackgroundDegradation
+            hasBackgroundDegradation: hasBackgroundDegradation,
+            consentGranted: consentGranted
         )
         self.recovery = Self.recovery(
             state: state,
@@ -181,7 +187,7 @@ struct RunInteractionPlan: Equatable {
 
     /// 从 ViewModel 公开面取值；视图侧唯一便捷入口。
     @MainActor
-    init(viewModel: RunSessionViewModel, reduceMotion: Bool) {
+    init(viewModel: RunSessionViewModel, reduceMotion: Bool, consentGranted: Bool = true) {
         self.init(
             state: viewModel.state,
             isCountingDown: viewModel.isCountingDown,
@@ -198,7 +204,8 @@ struct RunInteractionPlan: Equatable {
                 averagePace: RunFormatting.paceValueText(viewModel.metrics.averagePace),
                 splitCount: viewModel.splitCountText
             ),
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            consentGranted: consentGranted
         )
     }
 
@@ -264,7 +271,8 @@ struct RunInteractionPlan: Equatable {
         hasError: Bool,
         hasDecisionError: Bool,
         readiness: RunLocationReadiness,
-        hasBackgroundDegradation: Bool
+        hasBackgroundDegradation: Bool,
+        consentGranted: Bool
     ) -> Notice? {
         if hasError {
             return .recordingError
@@ -273,6 +281,9 @@ struct RunInteractionPlan: Equatable {
             return .decisionFailed
         }
         if state == .ready, !isCountingDown, !didSave {
+            if !consentGranted {
+                return .consentRequired
+            }
             switch readiness {
             case .permissionDenied:
                 return .locationDenied

@@ -1098,6 +1098,17 @@ else
   fi
 fi
 
+# ------------------------------------------- 隐私政策正文真源 + 反例
+if [ ! -f scripts/check-privacy-policy.sh ]; then
+  fail "ac-policy-covers-required-items" "缺少 scripts/check-privacy-policy.sh"
+elif privacy_out="$(bash scripts/check-privacy-policy.sh 2>&1)"; then
+  pass "ac-policy-covers-required-items"
+  pass "ac-policy-single-source"
+  pass "ac-policy-keyword-red-proof"
+else
+  fail "ac-policy-covers-required-items" "$(printf '%s' "$privacy_out" | tr '\n' ' ')"
+fi
+
 printf '\n%d 项断言，%d 项失败\n' "$CHECKS" "$FAILURES"
 if [ "$FAILURES" -ne 0 ]; then
   exit 1

@@ -392,6 +392,10 @@ validate_localization() {
     for value in '"跑步"' '"历史"' '"设置"'; do
       grep -Fq "$value" "$catalog" || problems="$problems String Catalog 缺少文案 $value;"
     done
+    # 同意屏 / 政策页必需语义文案（引号内为长句，按裸短语匹配）。
+    for value in 轨迹与位置数据授权 敏感个人信息 只存在本机 可以拒绝 随时撤回 同意并继续 不同意; do
+      grep -Fq "$value" "$catalog" || problems="$problems String Catalog 缺少文案 $value;"
+    done
   fi
 
   if [ ! -f "$spec" ]; then
@@ -404,7 +408,8 @@ validate_localization() {
 
   local view hits
   for view in ContentView.swift Run/RunView.swift History/HistoryView.swift \
-    History/RunDetailView.swift Track/TrackMapView.swift Settings/SettingsView.swift; do
+    History/RunDetailView.swift Track/TrackMapView.swift Settings/SettingsView.swift \
+    Privacy/PrivacyConsentGateView.swift Privacy/PrivacyPolicyView.swift; do
     if [ ! -f "$root/ios/PurePace/$view" ]; then
       problems="$problems 缺少 ios/PurePace/$view;"
       continue
@@ -413,6 +418,14 @@ validate_localization() {
     hits="$(grep -nE '(Text|Label|Button|navigationTitle|accessibilityLabel)\("[A-Za-z]' \
       "$root/ios/PurePace/$view" || true)"
     [ -z "$hits" ] || problems="$problems ios/PurePace/$view 残留裸英文文案: $(printf '%s' "$hits" | tr '\n' ' ');"
+  done
+
+  # 本项新增视图零裸中文字面量：用户可见文案必须经 L10n 键落 String Catalog。
+  for view in Privacy/PrivacyConsentGateView.swift Privacy/PrivacyPolicyView.swift; do
+    [ -f "$root/ios/PurePace/$view" ] || continue
+    hits="$(perl -ne 'print "$.:$_" if /(Text|Label|Button|navigationTitle|accessibilityLabel)\(\s*"[^"]*[\x{4e00}-\x{9fff}]/' \
+      "$root/ios/PurePace/$view" 2>/dev/null || true)"
+    [ -z "$hits" ] || problems="$problems ios/PurePace/$view 残留裸中文文案: $(printf '%s' "$hits" | tr '\n' ' ');"
   done
 
   printf '%s' "$problems"
@@ -814,7 +827,7 @@ EOF
   local managed_files managed_file design_file
   managed_files="$( {
     find "$root/ios/PurePace/Run" "$root/ios/PurePace/History" "$root/ios/PurePace/Settings" \
-      "$root/ios/PurePace/Track" -type f -name '*.swift' 2>/dev/null || true
+      "$root/ios/PurePace/Track" "$root/ios/PurePace/Privacy" -type f -name '*.swift' 2>/dev/null || true
     find "$root/ios/PurePace/Design" -maxdepth 1 -type f -name '*.swift' 2>/dev/null || true
     printf '%s\n' "$content_view"
   } | LC_ALL=C sort)"
@@ -964,7 +977,7 @@ EOF
 
   # 新增项以「必需新增 + 计数下限」表达，禁止下次退回「完全等值」。
   local required_new_ids required_new_count min_identifier_count
-  required_new_ids="run.cancelCountdown run.discard run.save"
+  required_new_ids="run.cancelCountdown run.discard run.save run.consentRequired settings.consentGate settings.consentAgree settings.consentDecline settings.privacyPolicy settings.consentRevoke settings.privacyPolicyBody"
   required_new_count="$(printf '%s\n' $required_new_ids | wc -l | tr -d ' ')"
   min_identifier_count=$(( frozen_count + required_new_count ))
 
@@ -1368,7 +1381,7 @@ run_self_test() {
   local loc_good="$tmp_dir/localization-good"
   mkdir -p "$loc_good/ios/PurePace/Resources" "$loc_good/ios/PurePace/Run" \
     "$loc_good/ios/PurePace/History" "$loc_good/ios/PurePace/Settings" \
-    "$loc_good/ios/PurePace/Track"
+    "$loc_good/ios/PurePace/Track" "$loc_good/ios/PurePace/Privacy"
   cp ios/PurePace/Resources/Localizable.xcstrings "$loc_good/ios/PurePace/Resources/"
   cp ios/project.yml "$loc_good/ios/project.yml"
   cp ios/PurePace/ContentView.swift "$loc_good/ios/PurePace/"
@@ -1377,6 +1390,8 @@ run_self_test() {
   cp ios/PurePace/History/RunDetailView.swift "$loc_good/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$loc_good/ios/PurePace/Settings/"
   cp ios/PurePace/Track/TrackMapView.swift "$loc_good/ios/PurePace/Track/"
+  cp ios/PurePace/Privacy/PrivacyConsentGateView.swift "$loc_good/ios/PurePace/Privacy/"
+  cp ios/PurePace/Privacy/PrivacyPolicyView.swift "$loc_good/ios/PurePace/Privacy/"
   check_ok "本地化单一来源正例" "$(validate_localization "$loc_good")"
 
   local loc_bad="$tmp_dir/localization-bad"
@@ -1394,7 +1409,7 @@ run_self_test() {
   local design_root="$tmp_dir/design-good"
   mkdir -p "$design_root/ios/PurePace/Design" "$design_root/ios/PurePace/Run" \
     "$design_root/ios/PurePace/History" "$design_root/ios/PurePace/Settings" \
-    "$design_root/ios/PurePace/Track"
+    "$design_root/ios/PurePace/Track" "$design_root/ios/PurePace/Privacy"
   cp ios/PurePace/Design/DesignTokens.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunLayoutBalancePolicy.swift "$design_root/ios/PurePace/Design/"
   cp ios/PurePace/Design/RunFinishedSummaryLayoutPolicy.swift "$design_root/ios/PurePace/Design/"
@@ -1405,9 +1420,12 @@ run_self_test() {
   cp ios/PurePace/History/RunDetailContent.swift "$design_root/ios/PurePace/History/"
   cp ios/PurePace/Settings/SettingsView.swift "$design_root/ios/PurePace/Settings/"
   cp ios/PurePace/Track/TrackMapView.swift "$design_root/ios/PurePace/Track/"
+  cp ios/PurePace/Privacy/TrajectoryConsentStore.swift "$design_root/ios/PurePace/Privacy/"
+  cp ios/PurePace/Privacy/PrivacyConsentGateView.swift "$design_root/ios/PurePace/Privacy/"
+  cp ios/PurePace/Privacy/PrivacyPolicyView.swift "$design_root/ios/PurePace/Privacy/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 42 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 49 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_b1_bad="$tmp_dir/design-b1-regression"
@@ -1527,7 +1545,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 43 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 50 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"
@@ -2207,9 +2225,9 @@ PY
       || out="$out RunFlowUITests 缺少全链路导出用例 testStartFinishExportGPXArtifact;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    # 5 条既有用例 + 1 条 canonical 内容（0 分段 / 400m）保存态用例 = 6；
-    # 新增用例属于本项范围（结束态内容确定性），计数同步后 drop_ui_case 自检仍判红。
-    [ "$test_count" -eq 6 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 6）;"
+    # 5 条既有用例 + 1 条 canonical 内容（0 分段 / 400m）保存态用例 + 1 条同意门三态 = 7；
+    # 新增用例属于本项范围（轨迹数据单独同意门），计数同步后 drop_ui_case 自检仍判红。
+    [ "$test_count" -eq 7 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 7）;"
     [ "$assert_count" -ge 112 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥112）;"
   fi
   if [ ! -f "$run_source" ]; then
