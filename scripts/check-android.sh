@@ -32,14 +32,13 @@ usage() {
   - ac-policy-bundled-no-network
                                 Manifest 权限集合与改动前一致（无 uses-permission），政策渲染无网络调用
   - ac-package-path-and-layout / ac-package-manifest-fields / ac-package-checksums-match /
-    ac-package-idempotent-same-commit / ac-package-idempotent-under-force /
-    ac-package-no-hardcoded-credentials / ac-package-refuse-existing-default /
-    ac-package-force-explicit-overwrite / ac-package-guard-red-proof /
-    ac-package-cli-contract-preserved / ac-package-red-proofs
+    ac-package-idempotent-same-commit / ac-package-no-hardcoded-credentials /
+    ac-package-existing-dir-sibling / ac-package-existing-dir-monotonic /
+    ac-package-existing-dir-red-proof / ac-package-cli-contract-preserved / ac-package-red-proofs
                                 沙箱 stub gradle 打包：仓外目录布局、manifest 字段集合、checksums
-                                对照、同 commit（--force 下）幂等、零明文凭据；目标目录已存在时
-                                默认拒绝覆盖且既有字节不变、--force 才覆盖、删守卫副本必须变绿、
-                                --help / 未知参数契约，并逐条构造反例取红
+                                对照、同 commit 幂等、零明文凭据；干净环境用固定名目录，既有版本
+                                目录存在时改用递增兄弟目录（-b2、-b3）且既有文件 sha256 逐字不变、
+                                去守卫副本必然覆盖既有目录、--help / 未知参数契约，并逐条取红
   - ac-check-android-gates-integrity
                                 .munk/code-gates.json 可解析、id 唯一、无空转/串接命令，
                                 Android 四个门（build/test/lint/package）各自指向对应脚本命令，
@@ -1112,10 +1111,9 @@ run_package_case() {
   run_package_script scripts/package-android.sh "${mode}" "${dist_root}" "${log_name}" "$@"
 }
 
-# 预置「目标目录已存在」现场：哨兵文件 + 旧 checksums.txt + 旧 manifest.json。
-# 旧 manifest 写的是一个「陌生」commit（全 0）与占位的 sha256，因此：
-#   - 守卫拒绝时能回显既有 commit / buildTime（可断言）；
-#   - 守卫被删掉时同 commit 幂等断言不会误触发（commit 不同），绿只可能来自「没拦住」。
+# 预置「既有版本目录」现场：哨兵文件 + 旧 checksums.txt + 旧 manifest.json。
+# 旧 manifest 写的是一个「陌生」commit（全 0）与占位 sha256，因此同 commit 幂等断言
+# 不会被误触发：这里的断言只可能来自「既有目录是否被改动 / 是否改用兄弟目录」。
 seed_existing_target() {
   local dist_root="$1"
   local target="${dist_root}/purepace-dist/android/${pkg_version}-1"
@@ -1210,16 +1208,19 @@ else
   fi
   mv "${ok_target}/checksums.bak" "${ok_target}/checksums.txt"
 
-  if run_package_case ok "${ok_dist}" "ok-second" --force; then second_rc=0; else second_rc=$?; fi
+  if run_package_case ok "${ok_dist}" "ok-second"; then second_rc=0; else second_rc=$?; fi
   second_sha="$(grep -m1 '^SHA256=' "${pkg_root}/ok-second.log" | sed 's/^SHA256=//' || true)"
+  second_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/ok-second.log" | sed 's/^DIST_DIR=//' || true)"
   dir_count="$(find "${ok_dist}/purepace-dist/android" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
   [ "${second_rc}" -eq 0 ] || idempotent_problems="${idempotent_problems} 第二次打包退出 ${second_rc};"
   [ "${second_sha}" = "${actual_sha}" ] || idempotent_problems="${idempotent_problems} 同 commit 第二次 sha256 变化;"
-  [ "${dir_count}" -eq 1 ] || idempotent_problems="${idempotent_problems} 第二次打包新增了目录（${dir_count}）;"
+  [ "${dir_count}" -eq 2 ] || idempotent_problems="${idempotent_problems} 第二次打包后目录数 ${dir_count}（期望 2：基名 + -b2）;"
+  [ "${second_stdout_dist}" = "$(cd "${ok_target}-b2" 2>/dev/null && pwd -P)" ] || idempotent_problems="${idempotent_problems} 第二次 STD_DIR= 不是 -b2 兄弟目录;"
+  [ "$(sha256_file_check "${ok_target}/${ok_apk_name}")" = "${actual_sha}" ] || idempotent_problems="${idempotent_problems} 第二次打包改写了既有基名目录的 APK;"
 
-  if run_package_case varysha "${ok_dist}" "varysha" --force; then vary_rc=0; else vary_rc=$?; fi
+  if run_package_case varysha "${ok_dist}" "varysha"; then vary_rc=0; else vary_rc=$?; fi
   if [ "${vary_rc}" -eq 0 ]; then
-    idempotent_problems="${idempotent_problems} 第二次产物 sha 变化未被判红;"
+    idempotent_problems="${idempotent_problems} 第二轮产物 sha 变化未被判红;"
   elif grep -Fq -- '幂等' "${pkg_root}/varysha.log"; then
     red_idempotent=1
   else
@@ -1227,91 +1228,111 @@ else
   fi
 fi
 
-# ------------------- 目标目录已存在：默认拒绝覆盖 / --force / 删守卫必绿 / CLI 契约
-refuse_problems=""
-force_problems=""
-guard_proof_problems=""
+# ------------- 既有 <versionName>-<versionCode> 目录：不动它，改用递增兄弟目录
+existing_problems=""
+monotonic_problems=""
+existing_red_proof_problems=""
 cli_problems=""
+red_existing=0
 
-refuse_dist="${sandbox}/dist-refuse"
-refuse_target="$(seed_existing_target "${refuse_dist}")"
-refuse_sentinel_sha="$(sha256_file_check "${refuse_target}/sentinel.txt")"
-refuse_checksums_sha="$(sha256_file_check "${refuse_target}/checksums.txt")"
-refuse_manifest_sha="$(sha256_file_check "${refuse_target}/manifest.json")"
-if run_package_case ok "${refuse_dist}" "refuse-existing"; then refuse_rc=0; else refuse_rc=$?; fi
-if [ "${refuse_rc}" -eq 0 ]; then
-  refuse_problems="${refuse_problems} 目标目录已存在时未拒绝覆盖（退出 0）;"
-elif ! grep -Fq -- '已存在' "${pkg_root}/refuse-existing.log"; then
-  refuse_problems="${refuse_problems} 拒绝覆盖的错误文本缺少「已存在」;"
-elif ! grep -Fq -- '--force' "${pkg_root}/refuse-existing.log"; then
-  refuse_problems="${refuse_problems} 拒绝覆盖的错误文本未提示 --force;"
-elif ! grep -Fq -- "${seed_manifest_commit}" "${pkg_root}/refuse-existing.log"; then
-  refuse_problems="${refuse_problems} 未回显既有 manifest 的 commit;"
-elif ! grep -Fq -- "${seed_manifest_build_time}" "${pkg_root}/refuse-existing.log"; then
-  refuse_problems="${refuse_problems} 未回显既有 manifest 的 buildTime;"
-elif [ ! -f "${refuse_target}/sentinel.txt" ]; then
-  refuse_problems="${refuse_problems} 预置哨兵文件被删除（既有产物被动过）;"
-elif [ "$(sha256_file_check "${refuse_target}/sentinel.txt")" != "${refuse_sentinel_sha}" ]; then
-  refuse_problems="${refuse_problems} 预置哨兵文件字节被改写;"
-elif [ ! -f "${refuse_target}/checksums.txt" ] || [ "$(sha256_file_check "${refuse_target}/checksums.txt")" != "${refuse_checksums_sha}" ]; then
-  refuse_problems="${refuse_problems} 预置旧 checksums.txt 字节被改写;"
-elif [ ! -f "${refuse_target}/manifest.json" ] || [ "$(sha256_file_check "${refuse_target}/manifest.json")" != "${refuse_manifest_sha}" ]; then
-  refuse_problems="${refuse_problems} 预置旧 manifest.json 字节被改写;"
+existing_dist="${sandbox}/dist-existing"
+existing_base="$(seed_existing_target "${existing_dist}")"
+base_sentinel_sha="$(sha256_file_check "${existing_base}/sentinel.txt")"
+base_checksums_sha="$(sha256_file_check "${existing_base}/checksums.txt")"
+base_manifest_sha="$(sha256_file_check "${existing_base}/manifest.json")"
+if run_package_case ok "${existing_dist}" "existing-sibling"; then existing_rc=0; else existing_rc=$?; fi
+sibling_dir="${existing_base}-b2"
+sibling_apk="${sibling_dir}/purepace-${pkg_version}-1-debug.apk"
+sibling_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/existing-sibling.log" | sed 's/^DIST_DIR=//' || true)"
+sibling_stdout_sha="$(grep -m1 '^SHA256=' "${pkg_root}/existing-sibling.log" | sed 's/^SHA256=//' || true)"
+if [ "${existing_rc}" -ne 0 ]; then
+  existing_problems="${existing_problems} 既有基名目录存在时打包退出 ${existing_rc};"
+elif [ ! -d "${sibling_dir}" ]; then
+  existing_problems="${existing_problems} 未改用 -b2 兄弟目录 ${sibling_dir};"
+elif [ "${sibling_stdout_dist}" != "$(cd "${sibling_dir}" && pwd -P)" ]; then
+  existing_problems="${existing_problems} stdout DIST_DIR= 不是本次实际输出目录;"
+elif [ ! -s "${sibling_apk}" ]; then
+  existing_problems="${existing_problems} 兄弟目录 APK 缺失或为空;"
+elif [ ! -f "${sibling_dir}/manifest.json" ] || [ ! -s "${sibling_dir}/checksums.txt" ]; then
+  existing_problems="${existing_problems} 兄弟目录缺少 manifest.json / checksums.txt;"
+elif [ -z "${sibling_stdout_sha}" ] || [ "${sibling_stdout_sha}" != "$(sha256_file_check "${sibling_apk}")" ]; then
+  existing_problems="${existing_problems} 兄弟目录 stdout SHA256= 与 APK 实测不一致;"
+elif ! grep -Fq -- "${sibling_stdout_sha}" "${sibling_dir}/checksums.txt"; then
+  existing_problems="${existing_problems} 兄弟目录 checksums.txt 未指向新产物 sha256;"
+elif [ "$(sha256_file_check "${existing_base}/sentinel.txt")" != "${base_sentinel_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录哨兵文件字节被改写;"
+elif [ "$(sha256_file_check "${existing_base}/checksums.txt")" != "${base_checksums_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录 checksums.txt 字节被改写;"
+elif [ "$(sha256_file_check "${existing_base}/manifest.json")" != "${base_manifest_sha}" ]; then
+  existing_problems="${existing_problems} 既有目录 manifest.json 字节被改写;"
+elif [ -e "${existing_base}/${ok_apk_name}" ]; then
+  existing_problems="${existing_problems} 既有目录被写入本次 APK（应为独立兄弟目录）;"
 fi
 
-if run_package_case ok "${refuse_dist}" "force-overwrite" --force; then force_rc=0; else force_rc=$?; fi
-force_stdout_sha="$(grep -m1 '^SHA256=' "${pkg_root}/force-overwrite.log" | sed 's/^SHA256=//' || true)"
-force_apk="${refuse_target}/purepace-${pkg_version}-1-debug.apk"
-if [ "${force_rc}" -ne 0 ]; then
-  force_problems="${force_problems} --force 覆盖退出 ${force_rc};"
-elif [ ! -s "${force_apk}" ]; then
-  force_problems="${force_problems} --force 覆盖后 APK 缺失或为空;"
-elif [ ! -f "${refuse_target}/manifest.json" ] || [ ! -s "${refuse_target}/checksums.txt" ]; then
-  force_problems="${force_problems} --force 覆盖后 manifest.json / checksums.txt 缺失;"
-elif [ -e "${refuse_target}/sentinel.txt" ]; then
-  force_problems="${force_problems} --force 覆盖后哨兵文件仍在（旧内容未被替换）;"
-elif [ -z "${force_stdout_sha}" ] || [ "${force_stdout_sha}" != "$(sha256_file_check "${force_apk}")" ]; then
-  force_problems="${force_problems} --force 覆盖后 stdout SHA256= 与 APK 实测不一致;"
-elif ! grep -Fq -- "${force_stdout_sha}" "${refuse_target}/checksums.txt"; then
-  force_problems="${force_problems} --force 覆盖后 checksums.txt 未指向新产物 sha256;"
-elif grep -Fq -- 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' "${refuse_target}/checksums.txt"; then
-  force_problems="${force_problems} --force 覆盖后 checksums.txt 仍是预置旧内容;"
+# 序号单调：再跑一次必须落到 -b3，且 -b2 与基名目录字节不变
+if run_package_case ok "${existing_dist}" "existing-sibling-second"; then existing2_rc=0; else existing2_rc=$?; fi
+second_sibling_dir="${existing_base}-b3"
+first_sibling_apk_sha="$(sha256_file_check "${sibling_apk}" 2>/dev/null || true)"
+second_sibling_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/existing-sibling-second.log" | sed 's/^DIST_DIR=//' || true)"
+if [ "${existing2_rc}" -ne 0 ]; then
+  monotonic_problems="${monotonic_problems} 第二次既有目录打包退出 ${existing2_rc};"
+elif [ ! -d "${second_sibling_dir}" ]; then
+  monotonic_problems="${monotonic_problems} 未按「已存在最大序号 + 1」改用 -b3;"
+elif [ "${second_sibling_stdout_dist}" != "$(cd "${second_sibling_dir}" && pwd -P)" ]; then
+  monotonic_problems="${monotonic_problems} 第二次 stdout DIST_DIR= 与 -b3 不一致;"
+elif [ ! -s "${second_sibling_dir}/purepace-${pkg_version}-1-debug.apk" ]; then
+  monotonic_problems="${monotonic_problems} -b3 兄弟目录 APK 缺失或为空;"
+elif [ "$(sha256_file_check "${sibling_apk}")" != "${first_sibling_apk_sha}" ]; then
+  monotonic_problems="${monotonic_problems} -b2 兄弟目录 APK 被第二次运行改写;"
+elif [ "$(sha256_file_check "${existing_base}/manifest.json")" != "${base_manifest_sha}" ]; then
+  monotonic_problems="${monotonic_problems} 基名目录 manifest.json 被第二次运行改写;"
 fi
 
+# 去守卫反例：删掉守卫块后同一现场会覆盖基名目录 → 既有字节必然变化（红由守卫触发）
 guard_copy="${pkg_root}/scripts/package-android-noguard.sh"
-if [ "$(grep -c -- 'guard-begin: refuse-existing-dist' "${package_script}" || true)" -lt 1 ] || \
-   [ "$(grep -c -- 'guard-end: refuse-existing-dist' "${package_script}" || true)" -lt 1 ]; then
-  guard_proof_problems="${guard_proof_problems} 生产脚本缺少 guard-begin/guard-end 标记，无法做去守卫自检;"
+if [ "$(grep -c -- 'guard-begin: preserve-existing-dist' "${package_script}" || true)" -lt 1 ] || \
+   [ "$(grep -c -- 'guard-end: preserve-existing-dist' "${package_script}" || true)" -lt 1 ]; then
+  existing_red_proof_problems="${existing_red_proof_problems} 生产脚本缺少 guard-begin/guard-end 标记，无法做去守卫自检;"
 else
-  sed '/# guard-begin: refuse-existing-dist/,/# guard-end: refuse-existing-dist/d' \
+  sed '/# guard-begin: preserve-existing-dist/,/# guard-end: preserve-existing-dist/d' \
     "${pkg_root}/scripts/package-android.sh" > "${guard_copy}"
-  if [ "$(grep -c -- 'refuse-existing-dist' "${guard_copy}" || true)" -ne 0 ]; then
-    guard_proof_problems="${guard_proof_problems} 去守卫副本仍含守卫标记（删除未生效）;"
+  if [ "$(grep -c -- 'preserve-existing-dist' "${guard_copy}" || true)" -ne 0 ]; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本仍含守卫标记（删除未生效）;"
   elif ! bash -n "${guard_copy}" >/dev/null 2>&1; then
-    guard_proof_problems="${guard_proof_problems} 去守卫副本 bash -n 失败（删除破坏了语法，反例不可信）;"
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本 bash -n 失败（删除破坏了语法，反例不可信）;"
   fi
   noguard_dist="${sandbox}/dist-noguard"
-  seed_existing_target "${noguard_dist}" >/dev/null
+  noguard_base="$(seed_existing_target "${noguard_dist}")"
+  noguard_checksums_sha="$(sha256_file_check "${noguard_base}/checksums.txt")"
+  noguard_manifest_sha="$(sha256_file_check "${noguard_base}/manifest.json")"
   if run_package_script scripts/package-android-noguard.sh ok "${noguard_dist}" "noguard-existing"; then
     noguard_rc=0
   else
     noguard_rc=$?
   fi
   if [ "${noguard_rc}" -ne 0 ]; then
-    guard_proof_problems="${guard_proof_problems} 删掉守卫块后同一场景仍退出 ${noguard_rc}（未变绿，红因存疑）;"
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本未变绿（退出 ${noguard_rc}，红因存疑）;"
+  elif [ "$(sha256_file_check "${noguard_base}/checksums.txt")" = "${noguard_checksums_sha}" ] && \
+       [ "$(sha256_file_check "${noguard_base}/manifest.json")" = "${noguard_manifest_sha}" ]; then
+    existing_red_proof_problems="${existing_red_proof_problems} 去守卫副本没有覆盖既有基名目录（反例不成立）;"
+  else
+    red_existing=1
   fi
 fi
 
 help_out="$(cd "${pkg_root}" && bash scripts/package-android.sh --help 2>&1)" && help_rc=0 || help_rc=$?
 if [ "${help_rc}" -ne 0 ]; then
   cli_problems="${cli_problems} --help 退出 ${help_rc};"
-elif ! grep -Fq -- '--force' <<< "${help_out}"; then
-  cli_problems="${cli_problems} --help 文本缺少 --force;"
-elif ! grep -Fq -- '拒绝覆盖' <<< "${help_out}"; then
-  cli_problems="${cli_problems} --help 文本缺少「拒绝覆盖」语义;"
+elif ! grep -Fq -- '兄弟目录' <<< "${help_out}"; then
+  cli_problems="${cli_problems} --help 文本未说明兄弟目录语义;"
+elif ! grep -Fq -- '-b<N>' <<< "${help_out}"; then
+  cli_problems="${cli_problems} --help 文本缺少 -b<N> 序号命名;"
 fi
 (cd "${pkg_root}" && bash scripts/package-android.sh --bogus >/dev/null 2>&1) && bogus_rc=0 || bogus_rc=$?
 [ "${bogus_rc}" -eq 2 ] || cli_problems="${cli_problems} 未知参数退出 ${bogus_rc}（期望 2）;"
+if grep -Fq -- '--force' "${package_script}"; then
+  cli_problems="${cli_problems} 生产脚本仍要求 --force（零参数必须可过门）;"
+fi
 if run_package_case ok "${pkg_root}/cli-inside-dist" "cli-inside-path"; then cli_inside_rc=0; else cli_inside_rc=$?; fi
 if [ "${cli_inside_rc}" -eq 0 ]; then
   cli_problems="${cli_problems} PUREPACE_DIST_ROOT 指向仓库内未被拒绝;"
@@ -1319,7 +1340,6 @@ elif ! grep -Fq -- '仓库外' "${pkg_root}/cli-inside-path.log"; then
   cli_problems="${cli_problems} 仓内路径反例未命中仓库外断言;"
 fi
 grep -Fq -- '仓库外' "${package_script}" || cli_problems="${cli_problems} 仓内分发路径断言缺失;"
-grep -Fq -- 'force_overwrite' "${package_script}" || cli_problems="${cli_problems} 缺少 --force 开关实现;"
 
 empty_dist="${sandbox}/dist-empty"
 if run_package_case emptyapk "${empty_dist}" "empty-apk"; then empty_rc=0; else empty_rc=$?; fi
@@ -1387,25 +1407,20 @@ if [ -z "${red_proofs_problems}" ]; then
 else
   fail "ac-package-red-proofs" "${red_proofs_problems}"
 fi
-if [ -z "${idempotent_problems}" ] && [ "${red_idempotent}" -eq 1 ]; then
-  pass "ac-package-idempotent-under-force"
+if [ -z "${existing_problems}" ]; then
+  pass "ac-package-existing-dir-sibling"
 else
-  fail "ac-package-idempotent-under-force" "${idempotent_problems} 同 commit（--force）幂等或 sha 变化反例未成立;"
+  fail "ac-package-existing-dir-sibling" "${existing_problems}"
 fi
-if [ -z "${refuse_problems}" ]; then
-  pass "ac-package-refuse-existing-default"
+if [ -z "${monotonic_problems}" ]; then
+  pass "ac-package-existing-dir-monotonic"
 else
-  fail "ac-package-refuse-existing-default" "${refuse_problems}"
+  fail "ac-package-existing-dir-monotonic" "${monotonic_problems}"
 fi
-if [ -z "${force_problems}" ]; then
-  pass "ac-package-force-explicit-overwrite"
+if [ -z "${existing_red_proof_problems}" ] && [ "${red_existing}" -eq 1 ]; then
+  pass "ac-package-existing-dir-red-proof"
 else
-  fail "ac-package-force-explicit-overwrite" "${force_problems}"
-fi
-if [ -z "${guard_proof_problems}" ]; then
-  pass "ac-package-guard-red-proof"
-else
-  fail "ac-package-guard-red-proof" "${guard_proof_problems}"
+  fail "ac-package-existing-dir-red-proof" "${existing_red_proof_problems} 去守卫反例未取红;"
 fi
 if [ -z "${cli_problems}" ]; then
   pass "ac-package-cli-contract-preserved"
