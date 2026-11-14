@@ -174,7 +174,7 @@ gradle_retry_static_problems() {
     grep -Fq -- 'gradle_with_retry assembleDebug' "$file" || out="$out 未经 gradle_with_retry 调用 assembleDebug;"
   else
     # 单测任务必须 --rerun：结果目录先被清理，任务若判 UP-TO-DATE 就不会产出结果。
-    grep -Fq -- "gradle_with_retry $task --rerun" "$file" || out="$out 未经 gradle_with_retry 以 --rerun 调用 $task（UP-TO-DATE 时不产出结果目录）;"
+    grep -Fq -- "gradle_with_retry $task --rerun" "$file" || out="$out 未经 gradle_with_retry 以 --rerun 调用 ${task}（UP-TO-DATE 时不产出结果目录）;"
     grep -Fq -- 'bash android/gradlew -p android "$task" "$@"' "$file" || out="$out gradlew 调用未透传额外参数（\"\$@\"）;"
   fi
 
