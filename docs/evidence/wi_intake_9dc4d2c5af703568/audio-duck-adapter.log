@@ -1,0 +1,29 @@
+# 说明：原始 xcodebuild 日志 2.0MB，已裁剪为测试执行 + 结论行；完整原始日志仅本机可得。
+# 命令: xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' -only-testing:PurePaceTests/AudioSessionAdapterTests
+
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,name=iPhone 16,OS=18.6" "-only-testing:PurePaceTests/AudioSessionAdapterTests"
+SwiftCompile normal arm64 Compiling\ AnnouncementSettingsStoreTests.swift,\ AnnouncementSpeakerTests.swift,\ AudioSessionAdapterTests.swift /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_9dc4d2c5af703568/ios/PurePaceTests/AnnouncementSettingsStoreTests.swift /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_9dc4d2c5af703568/ios/PurePaceTests/AnnouncementSpeakerTests.swift /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_9dc4d2c5af703568/ios/PurePaceTests/AudioSessionAdapterTests.swift (in target 'PurePaceTests' from project 'PurePace')
+SwiftCompile normal arm64 /Users/zhutao/Library/Application\ Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_9dc4d2c5af703568/ios/PurePaceTests/AudioSessionAdapterTests.swift (in target 'PurePaceTests' from project 'PurePace')
+SwiftDriverJobDiscovery normal arm64 Compiling AnnouncementSettingsStoreTests.swift, AnnouncementSpeakerTests.swift, AudioSessionAdapterTests.swift (in target 'PurePaceTests' from project 'PurePace')
+Test Suite 'AudioSessionAdapterTests' started at 2026-11-15 04:02:18.041.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testApplyingDefaultConfigurationReadsBackFromRealSession]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testApplyingDefaultConfigurationReadsBackFromRealSession]' passed (0.059 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementDeactivatesWithNotifyOthersExactlyOnce]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementDeactivatesWithNotifyOthersExactlyOnce]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementRevokesDuckWhenActivationDucked]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementRevokesDuckWhenActivationDucked]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementSeparatesDeactivationFromDuckRevocation]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testEndAnnouncementSeparatesDeactivationFromDuckRevocation]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testInterruptionBeganThenResumeReappliesDefaultConfiguration]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testInterruptionBeganThenResumeReappliesDefaultConfiguration]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testInterruptionEndedWithoutResumeReturnsToInactiveWithoutActivation]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testInterruptionEndedWithoutResumeReturnsToInactiveWithoutActivation]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testObservedInterruptionNotificationIsMappedByNotificationCenter]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testObservedInterruptionNotificationIsMappedByNotificationCenter]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testRepeatedBeginAnnouncementActivatesOnce]' started.
+Test Case '-[PurePaceTests.AudioSessionAdapterTests testRepeatedBeginAnnouncementActivatesOnce]' passed (0.001 seconds).
+Test Suite 'AudioSessionAdapterTests' passed at 2026-11-15 04:02:18.109.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.065 (0.067) seconds
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.065 (0.067) seconds
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.065 (0.069) seconds
+** TEST SUCCEEDED **

@@ -1,0 +1,25 @@
+{
+  "allowsBackgroundLocationUpdates": false,
+  "announcements": [
+    {
+      "cancelled": false,
+      "category": "playback",
+      "categoryOptions": [
+        "duckOthers",
+        "mixWithOthers"
+      ],
+      "duckRevoked": false,
+      "isOtherAudioPlaying": false,
+      "mode": "spokenAudio",
+      "secondaryAudioShouldBeSilencedHint": false,
+      "sessionActivated": true,
+      "sessionDeactivated": false,
+      "splitIndex": 1
+    }
+  ],
+  "authorizationStatus": {
+    "name": "authorizedAlways",
+    "rawValue": 3
+  },
+  "source": "Documents/Runs/20261114T200810Z-5407D84D-1540-4A53-8425-FC4EFCD52A1F.json @ iPhone 16 iOS 18.6 模拟器 App 容器"
+}
