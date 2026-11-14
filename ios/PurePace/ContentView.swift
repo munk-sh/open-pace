@@ -11,7 +11,10 @@ struct ContentView: View {
 
     @StateObject private var runModel: RunSessionViewModel
     @StateObject private var settings: AnnouncementSettingsStore
+    @StateObject private var consent: TrajectoryConsentStore
     @State private var selection: Tab
+    /// 同意屏独立呈现：首次启动未同意时覆盖全屏；点「不同意」后本进程内关闭但记录仍禁用。
+    @State private var showsConsentGate: Bool
 
     private let archiveStore: RunArchiveStore
     private let exporter: RunGPXExporter
@@ -23,9 +26,16 @@ struct ContentView: View {
     init() {
         let stores = RunStorage.makeStores()
         let settings = AnnouncementSettingsStore()
+#if DEBUG
+        // 仅 DEBUG UI 用例：预置已同意 / 清空同意记录，避免同意门打断既有 UI 腿。
+        TrajectoryConsentStore.applyUITestArguments(CommandLine.arguments)
+#endif
+        let consent = TrajectoryConsentStore()
         archiveStore = stores.archive
         exporter = stores.exporter
         _settings = StateObject(wrappedValue: settings)
+        _consent = StateObject(wrappedValue: consent)
+        _showsConsentGate = State(initialValue: !consent.hasConsented)
         var initialTab = Tab.run
         var demoRecords: [RunRecord]?
         var autoOpenDetail = false
@@ -98,7 +108,11 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            RunView(viewModel: runModel, onShowHistory: { selection = .history })
+            RunView(
+                viewModel: runModel,
+                onShowHistory: { selection = .history },
+                hasRecordingConsent: consent.hasConsented
+            )
                 .tabItem {
                     Label(L10n.tabRun, systemImage: "figure.run")
                         .accessibilityIdentifier("tab.run")
@@ -119,7 +133,7 @@ struct ContentView: View {
             }
             .tag(Tab.history)
 
-            SettingsView(store: settings)
+            SettingsView(store: settings, consent: consent)
                 .tabItem {
                     Label(L10n.tabSettings, systemImage: "gearshape")
                         .accessibilityIdentifier("tab.settings")
@@ -129,6 +143,17 @@ struct ContentView: View {
         .tint(DesignTokens.Colors.primary)
         .onChange(of: settings.isEnabled) { _, enabled in
             runModel.setAnnouncementsEnabled(enabled)
+        }
+        .fullScreenCover(isPresented: $showsConsentGate) {
+            PrivacyConsentGateView(
+                onAgree: {
+                    consent.grant()
+                    showsConsentGate = false
+                },
+                onDecline: {
+                    showsConsentGate = false
+                }
+            )
         }
     }
 }

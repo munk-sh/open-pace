@@ -28,7 +28,8 @@ final class RunInteractionPlanTests: XCTestCase {
         readiness: RunLocationReadiness = .ready,
         hasBackgroundDegradation: Bool = false,
         metrics: RunInteractionPlan.Metrics? = nil,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        consentGranted: Bool = true
     ) -> RunInteractionPlan {
         RunInteractionPlan(
             state: state,
@@ -40,7 +41,8 @@ final class RunInteractionPlanTests: XCTestCase {
             readiness: readiness,
             hasBackgroundDegradation: hasBackgroundDegradation,
             metrics: metrics ?? sampleMetrics,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            consentGranted: consentGranted
         )
     }
 
@@ -382,5 +384,46 @@ final class RunInteractionPlanTests: XCTestCase {
         let reduced = makePlan(state: .ready, reduceMotion: true)
         XCTAssertEqual(reduced.transitionDuration, DesignTokens.Motion.reducedMotionDuration)
         XCTAssertEqual(reduced.transitionDuration, 0)
+    }
+
+    // MARK: - ac-consent-gate (未同意 → 同意 → 撤回 三态)
+
+    /// 未同意 → 开始按钮 disabled 且给原因文案。
+    func testNotConsentedDisablesStartAndShowsReason() {
+        let blocked = makePlan(state: .ready, consentGranted: false)
+        XCTAssertFalse(blocked.startEnabled, "未同意时开始入口必须禁用")
+        XCTAssertEqual(blocked.notice, .consentRequired, "未同意时必须给记录被禁用的原因")
+        XCTAssertEqual(blocked.items.map(\.action), [.start], "开始按钮 identifier / 文案保持不变")
+
+        // 反例：把门拆掉（忽略同意态）时 startEnabled 必为 true，本断言即判红。
+        XCTAssertNotEqual(blocked.startEnabled, makePlan(state: .ready, consentGranted: true).startEnabled)
+    }
+
+    /// 同意后 → 进入 ready 且可开始。
+    func testConsentedAllowsStart() {
+        let allowed = makePlan(state: .ready, consentGranted: true)
+        XCTAssertTrue(allowed.startEnabled)
+        XCTAssertNil(allowed.notice, "已同意且就绪时不应出现同意提示")
+    }
+
+    /// 撤回后 → 回到未同意态且不可开始。
+    func testRevokedDisablesStartAgain() {
+        let consented = makePlan(state: .ready, consentGranted: true)
+        let revoked = makePlan(state: .ready, consentGranted: false)
+        XCTAssertTrue(consented.startEnabled)
+        XCTAssertFalse(revoked.startEnabled, "撤回后开始入口必须再次禁用")
+        XCTAssertEqual(revoked.notice, .consentRequired)
+    }
+
+    /// 同意提示只在未开始态出现；记录中 / 已结束不因同意态变化而阻断（避免撤回空操作漏判）。
+    func testConsentNoticeOnlyAppliesToIdleReady() {
+        XCTAssertNil(makePlan(state: .running, consentGranted: false).notice)
+        XCTAssertNil(makePlan(state: .paused, consentGranted: false).notice)
+        XCTAssertNil(makePlan(state: .finished, consentGranted: false).notice)
+        XCTAssertEqual(
+            makePlan(state: .ready, isCountingDown: true, consentGranted: false).notice,
+            nil,
+            "倒计时中不再叠加同意提示"
+        )
     }
 }
