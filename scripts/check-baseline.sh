@@ -473,6 +473,7 @@ workflow_parse_problems() { # $1 = root
   fi
   local out
   out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
@@ -508,6 +509,7 @@ workflow_trigger_problems() { # $1 = root
   fi
   local out
   out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
@@ -567,6 +569,7 @@ workflow_push_problems() { # $1 = root
   [ -z "$forbidden_hits" ] || problems="${problems} 出现凭据或分发调用: ${forbidden_hits};"
   local perm_out
   perm_out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
