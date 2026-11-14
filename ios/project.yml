@@ -74,6 +74,8 @@ targets:
     platform: iOS
     sources:
       - path: PurePaceTests
+      # 采样确定性判定与 ios/Core 的 L1 单测共用同一实现（只依赖 Foundation）。
+      - path: Core/Sources/PurePaceCore/RunLayoutSamplingPolicy.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(PUREPACE_BUNDLE_ID).tests
@@ -97,6 +99,8 @@ targets:
       - path: PurePace/Design/RunLayoutBalancePolicy.swift
       - path: PurePace/Design/RunFinishedSummaryLayoutPolicy.swift
       - path: PurePace/Design/TabBarVisibilityPolicy.swift
+      # 采样稳定判定与胶囊去重同源于 ios/Core（UI 用例不复制判定逻辑）。
+      - path: Core/Sources/PurePaceCore/RunLayoutSamplingPolicy.swift
       # UI 像素样式断言从 token 派生期望值，避免测试里另写颜色字面量。
       - path: PurePace/Design/DesignTokens.swift
     # 测试侧后台音频声明：真机 audio 阶段的音源由 UITests runner 自播（无人操作），

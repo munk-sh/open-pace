@@ -13,6 +13,9 @@ iOS UI 腿（`scripts/test-ios.sh` 的 UI 段）的**确定性与覆盖率契约
 - `docs/verification-matrix.md` 与 `DocsVerificationMatrixTests`：接缝现为 **23** 条——在「iOS UI 腿确定性（重启导航状态判据 + 600s 单腿预算）」行之后追加「UI 权威腿覆盖率守卫（新增 *UITests 必须入枚举 + ScreenshotEvidenceUITests 进 CI）」行（含接缝 × 现状 × 断言名 × 反例 × 证据路径 × 归属），结构守护测试期望 22 → 23，该行必须含「本项实测」与归属 `wi_intake_6bb510b0c105d362`。
 - `ios/PurePaceUITests/AXSnapshotBatch.swift`：批采 helper。`AXSnapshotBatch.collect` 一次 `app.snapshot()` 把整棵可及树（跳过 application 根，与 `descendants(matching: .any)` 口径一致）展开为本地值数组 `AXElementSnapshot`（`identifier` / `label` / `frame` / `elementType`），后续过滤与断言只消费该值类型、不再触碰 `XCUIElement`；单轮等待上限 3s 并复用各套件既有 `waitUntil` 0.2s 轮询语义，快照失配**整批重采**、轮数上限 3 写死并注释，不引入无限重试、固定 `sleep` 或放大的 timeout；达上限 `XCTFail` 信息含 `elements=<实测 count>` 与目标描述（`target`），用于区分「元素数漂移」与「目标真缺失」。
 - `ios/PurePaceUITests/` 三套件：`RunFlowUITests` / `ScreenshotEvidenceUITests` / `EvidenceCaptureUITests` 各持一行 `axSnapshots(_:target:)` 适配器（按 target 归属，不做跨文件共享以免 target 归属问题）；6 处 `allElementsBoundByIndex` 调用点（两处 `assertVisibleCopyZhHans`、`assertRunMetricsBalanced`、`assertFinishedContentBudget`、`assertFitsAndNoOverlap`、`contentElements`）全部改走批采，`contentElements` 返回类型随之改为 `[AXElementSnapshot]`；批采后仍需要元素属性的地方（如 `isHittable`）改按 identifier 定向 `firstMatch` 查询，不按下标回读。`staticTexts` 口径以 `elementType == .staticText` 在批采结果上过滤表达。
+- `ios/Core/Sources/PurePaceCore/RunLayoutSamplingPolicy.swift`（新增，仅 `import Foundation`）：纯值类型 `RunLayoutFrame` / `RunLayoutSample` + `RunLayoutSamplingPolicy`——`SettleTracker` 承载「连续 3 轮逐位一致 / 最多 12 轮 / 单态 ≤6s」稳定判定（比较前按几何键排序消解纯顺序抖动，坐标零容差），`dedupeFramesInsideHint` 按「帧中心点落入胶囊内缩 0.5pt 矩形」去重并保留胶囊自身帧。单测：`ios/Core/Tests/PurePaceCoreTests/RunLayoutSamplingPolicyTests.swift` + `ios/PurePaceTests/RunLayoutSamplingCounterexampleTests.swift`（1.42pt 内层帧去重 / 胶囊下移 6pt 必红 / 恒真 settle 必红）。
+- `ios/PurePaceUITests/RunFlowUITests.swift`：`assertRunMetricsBalanced` 拆为 `runMetricsSample`（采一轮）+ 稳定 tracker 循环，逐轮打印 `round=/frames=/LARGEST=`，未稳定另打 `ac-run-metrics-balanced-unstable` 后用原断言判红；`dedupeFramesInsideHint` / `evaluateRunMetrics` 只做 `CGRect` ↔ `RunLayoutFrame` 换算，判定逻辑零复制，5 个调用点与断言强度不变。
+- `ios/project.yml`：`PurePaceTests.sources` 与 `PurePaceUITests.sources` 各新增 `Core/Sources/PurePaceCore/RunLayoutSamplingPolicy.swift`（沿用「Core 文件编入测试 bundle」模式，一份实现两处编译）。
 - 与 `domains/ios-ci-budget` 的边界：预算/看门狗记账语义仍以该域为准；本域只承接「UI 腿为何分段、分段如何不削弱断言」与 UI 用例的等待判据。与 `domains/ios-ci-stability` 的边界：该域仍是测试链路总契约（预热/锁/确定性定位源），冲突时以两域各自的 AC 域内为准，分段事实以本域为准。
 
 ## 验收
@@ -52,6 +55,16 @@ iOS UI 腿（`scripts/test-ios.sh` 的 UI 段）的**确定性与覆盖率契约
 - ac-frame-sampling-semantics-preserved: `assertRunMetricsBalanced` / `assertFinishedContentBudget` / `assertFitsAndNoOverlap` / `contentElements` 改批采后，内容类型集合、frame 过滤条件、窗口/主操作/地图/胶囊采样口径与既有断言阈值全部保持原值。
 - ac-no-gate-weakening: 未删除/跳过任何用例，未加 `continue-on-error`，未改任何阈值或 identifier 集合，未改 `scripts/check-ios-scripts.sh` 的枚举与守卫，未重出 `docs/screenshots`。
 - ac-ci-same-commit-green: 合入后同 commit 的 `ios.yml` 全绿（覆盖全部 `*UITests` 套件，6 个 RunFlow 用例全 passed）；结论由 Owner 取 run 结果，禁止重跑到绿；未取得 run 结论前只写「未闭合」。
+- ac-settle-three-consecutive-stable: `assertRunMetricsBalanced` 仅在连续 3 轮样本（`navigationBarBottom` / `primaryActionTop` / 内容帧集合，含 `run.mapPreview` 与 `run.backgroundDegraded` 帧）逐位一致后才把该稳定集合交给 `RunLayoutBalancePolicy.evaluate`；单测喂「前两轮漂移、第 3 轮起一致」序列时必须返回第 3 轮之后的稳定集合，而非首轮采样。
+- ac-settle-bounded-and-diagnostic: 稳定前最多 12 轮、单态总等待 ≤6s；未稳定时先逐轮打印 `round=<n> frames=<...>` 与 `LARGEST=<value>`，再用既有 `XCTAssertTrue(evaluation.passes, ...)` 判红（不跳过、不转绿）；不新增 `sleep` / `Thread.sleep`，不改 `IOS_XCODEBUILD_TIMEOUT=600` 与 UI 分段数。
+- ac-dedupe-center-in-hint: 内层文本帧中心点落入胶囊矩形（四边内缩 0.5pt）即判去重；比胶囊高 1.42pt 的内层帧（上下各外扩 0.71pt、严格 `contains` 为假）必须被去掉，中心点落在胶囊外的相邻内容块必须保留、不误删。
+- ac-dedupe-largest-neutral: 同一组「运行中」帧，去重后的 `largestGap` 与「只保留胶囊帧、不含内层文本帧」的计算值相等（差值为 0）；内层文本帧的存在不得使最大空洞变大或变小。
+- ac-counterexample-downshift-6-red: 以运行中绿样本（`largestGap` 距 80 上限 <1pt）为基准，把胶囊帧整体下移 6pt 后喂同一 `RunLayoutBalancePolicy.evaluate` 必须 `largestGap > 80` 且 `passes == false`；持续漂移序列必须判未稳定，把 settle 判据改成恒真（首轮即 stable）时该单测必须判红（反例不依赖回退产品代码）。
+- ac-one-policy-two-compilations: 去重与稳定判定只有一份实现（`RunLayoutSamplingPolicy`），UI 用例不复制逻辑；该文件只 `import Foundation`、无平台/业务符号与版本字面值，`ios/project.yml` 两处 sources 均编入该文件。
+- ac-thresholds-and-assertion-strength-unchanged: 80/80/80/16 与 44/24/691/360 等阈值逐字不变，UI 权威腿四段枚举（runflow / evidence / screenshot-light / screenshot-dark）与既有断言条数不减少，无 XCTest 重试参数、无 `continue-on-error`、无删断言。
+- ac-matrix-row-updated-no-new-row: `docs/verification-matrix.md` 仍为表头 + 分隔行 + 25 行接缝、6 列、无 `pending`，只更新第 23 行（「详情导出固定底部 / 指标区居中 / 暂停态 Tab 栏 / 结束态地图 hero（B1）」）的现状/证据/反例文本，仍含「本项实测」与 `wi_intake_1127fd3553df6ea7` 归属（`DocsVerificationMatrixTests` 守护）。
+- ac-local-gates-green: `swift build` / `swift test --package-path ios/Core`（含 `RunLayoutSamplingPolicyTests`）、`bash scripts/check-ios-core.sh`、`bash scripts/check-ios-shell.sh --self-test` 与全量 `check-ios-shell.sh` 全绿。
+- ac-authoritative-green-same-commit: UI 权威绿只认同 commit 的 `.github/workflows/ios.yml` run；本地连跑该用例 ≥3 次仅作旁证，回执必须写清轮次与结果并区分「机器已验 / 未验」，不得声称真机已验证。
 
 ## 非目标
 
@@ -69,14 +82,16 @@ iOS UI 腿（`scripts/test-ios.sh` 的 UI 段）的**确定性与覆盖率契约
 - 分段纪律：四段调用共用同一组预算参数模板与 `-only-testing` 集合派生逻辑，各自过 `run_with_watchdog` 且预算取 `min(600, attempt 剩余)`；段超时仍走 `ios_timeout_classification_message`（段日志有 failed 用例 → 产品用例失败；无 failed 才归口承载层）。外观切换只由 `screenshot-light` / `screenshot-dark` 两段持有，dark 退出走无条件恢复。
 - 静态门可观测：顺序锚点 install < privacy < 单测 < UI（`ui_call "runflow"` 行）；`ui_call` 恰 4 次且行号递增；`xcodebuild-ui-2.log` / `-3` / `-4` 必须出现在脚本中；`ui_call` 引号目标必须覆盖 allowlist 之外的全部 `PurePaceUITests` 套件；macOS bash 3.2 变量展开一律带 `${}`。
 - 批采纪律：需要枚举整棵可及树的断言一律经 `AXSnapshotBatch.collect` 一次取本地值，禁止 `allElementsBoundByIndex` + 下标回读；目标明确时用 identifier / `NSPredicate` + `firstMatch`。重采与等待上限写死并注释，失败信息必须带 `elements=<count>` 与 target，保证能区分「元素数漂移」与「目标真缺失」，不得用重试掩盖产品缺元素。
+- 采样纪律：`assertRunMetricsBalanced` 的轮询复用既有 `waitUntil`（0.2s）+ `AXSnapshotBatch` 批采，不新增固定 sleep；「连续一致 3 轮 / 最多 12 轮 / 单态 ≤6s」写死在 `RunLayoutSamplingPolicy`，最坏情况 5 个调用点合计 ≤30s，不逼近 runflow 段 600s 预算；未稳定时仍走原 `RunLayoutBalancePolicy.evaluate` 断言判红，不改错误语义。
+- 判据纪律：胶囊去重选**中心点法**而非严格 `contains`——稳定布局下内层文本帧比胶囊高 1.42pt（上下各外扩 0.71pt）使严格包含为假，但两帧同心、中心点仍在胶囊内，故中心点判据覆盖该情形；边界内缩 0.5pt 作容差，注释写清推导。平台类型换算（`CGRect` ↔ `RunLayoutFrame`）只留在用例侧适配函数，Core 内不做图形换算。
 - 证据口径：本地复跑与墙钟数据落 `.munk/logs/**`（`ci-run-43142574712.log`、`test-ios-split-local.log`、`test-ios-4legs.log`、`relaunch/load-*.log`、`.build/logs/test-ios-timing.log`），矩阵行只引用真实文件，禁编造。
 
 ## 最近交付证明
 
-- workItemId: wi_intake_8e456f4a177cf37f（2026-11-13）
-- 红证据（原文照引）：CI run 43257709590（head `7411eaa`，iOS 18.6 iPhone 16）唯一失败 `RunFlowUITests.testZhHansCopyDatesAndBottomAnchoredPrimaryAction`，错误 `<unknown>:0: error: ... Failed to get matching snapshot: No matches found for Element at index 39`，重试 2 次、52.9s，6 条 UI 用例 1 红 5 绿；同类历史 run 43183052585 出现 `index 37`，即 AX 元素数 37↔39 漂移。
-- 归因：居中修复已实质成功（暂停 79.42/79.33/79.5、未开始 72.5/72.33/72.67、保存 48.17 全 ≤80，日志「指标区垂直居中」零命中），权威腿红因是脚手架按序号惰性回读快照，不是产品回归。
-- 交付：新增 `ios/PurePaceUITests/AXSnapshotBatch.swift`（`AXElementSnapshot` 本地值 + `AXSnapshotBatch.collect`：一次 `app.snapshot()` 整树批采、失配整批重采、单轮 ≤3s、轮数上限 3、失败信息含 `elements=<count>` 与 target）；`RunFlowUITests` / `ScreenshotEvidenceUITests` / `EvidenceCaptureUITests` 各加 `axSnapshots(_:target:)` 适配器，6 处 `allElementsBoundByIndex` 全部替换（`contentElements` 返回 `[AXElementSnapshot]`，`isHittable` 改 identifier + `firstMatch` 定向查询），过滤语义与阈值零改动。
-- 门禁：`.munk/code-gates.json` 仍 22 门，attempt 002 全绿（含 `test-ios` / `build-ios` / `lint-ios-scripts` / `test`）。
-- 零改动：`ios/PurePace/**` 产品代码、`scripts/**`、`android/**`、`shared/**`、`docs/screenshots` 均未改；未改任何 threshold/identifier/`ui_call` 枚举。
-- 未闭合：`ac-ci-same-commit-green` 待合入后新 commit 触发的权威 `ios.yml` run 由 Owner 取结论（禁止重跑到绿）。
+- workItemId: wi_intake_786635b6e1011a2c（2026-11-15）
+- 归因：`testZhHansCopyDatesAndBottomAnchoredPrimaryAction` 的布局断言抖动来自两处**测量**非确定性——单轮采样未等布局稳定即判定；严格 `hint.contains(frame)` 去重漏掉比胶囊高 1.42pt 的内层文本帧（同一可见块被双计并改动 `largestGap`）。产品布局与阈值均无回归。
+- 交付：新增 `ios/Core/Sources/PurePaceCore/RunLayoutSamplingPolicy.swift`（`RunLayoutFrame` / `RunLayoutSample` / `SettleTracker` / `dedupeFramesInsideHint`，仅 `import Foundation`）；`RunFlowUITests.assertRunMetricsBalanced` 改为「采一轮 + 连续 3 轮逐位一致才算稳定」的有界循环（最多 12 轮 / 单态 ≤6s），逐轮打印 `round=/frames=/LARGEST=`，未稳定另打 `ac-run-metrics-balanced-unstable` 后仍用原 `evaluate` 断言判红；`dedupeFramesInsideHint` 改中心点判据（内缩 0.5pt 容差），用例侧只做 `CGRect` ↔ `RunLayoutFrame` 换算。
+- 反例：`RunLayoutSamplingPolicyTests`（前两轮漂移 → 第 3 轮才稳定；持续漂移必判未稳定；1.42pt 内层帧去重后 largest 与「仅胶囊」相等）+ `RunLayoutSamplingCounterexampleTests`（胶囊下移 6pt → `largestGap > 80` 且 `passes == false`）。
+- 门禁：`.munk/code-gates.json` 仍 22 门，attempt 001 全绿（含 `test-ios-core` / `test-ios` / `build-ios` / `lint-ios-shell` / `test`）；`ios/project.yml` 两处 sources 编入同一 Core 文件，一份实现两处编译。
+- 零改动：`ios/PurePace/**` 产品视觉/布局、80/80/80/16 与 44/24/691/360 阈值、identifier、`scripts/test-ios.sh` 四段枚举、`IOS_XCODEBUILD_TIMEOUT=600` 均未改；`docs/verification-matrix.md` 只更新既有第 23 行、未新增行。
+- 未闭合：`ac-authoritative-green-same-commit` 待合入后新 commit 的权威 `ios.yml` run 由 Owner 取结论（禁止重跑到绿）；真机项仍 `pending: 待人现场`。

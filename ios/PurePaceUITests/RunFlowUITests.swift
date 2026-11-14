@@ -845,6 +845,10 @@ final class RunFlowUITests: XCTestCase {
     /// 这里收全部 staticTexts（而非 identifier 白名单），把面板内 caption 也算作可见内容，
     /// 避免把「块内说明文案」误算成块间空洞。地图卡是可见内容块而非空白：96pt 地图
     /// 若不采样，会被误计成「最大单一垂直空洞」（保存态实测 112pt → 必红）。
+    ///
+    /// 测量确定性：同一状态连续采样，帧集合**连续 3 轮逐位一致**才交给判定（判据本身
+    /// 由 `RunLayoutSamplingPolicy` 承载、与 L1 单测共用）；有界为最多 12 轮 / 单态 ≤6s，
+    /// 轮询沿用既有 `waitUntil` 的 0.2s 语义，不引入固定等待。
     private func assertRunMetricsBalanced(
         _ app: XCUIApplication,
         primaryAction: XCUIElement,
@@ -852,6 +856,47 @@ final class RunFlowUITests: XCTestCase {
     ) {
         let navigationBar = app.navigationBars.firstMatch
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 10), "缺少导航栏")
+        var tracker = RunLayoutSamplingPolicy.SettleTracker()
+        var latest: (sample: RunLayoutSample, evaluation: RunLayoutBalancePolicy.Evaluation)?
+        _ = waitUntil(timeout: RunLayoutSamplingPolicy.settleTimeout) {
+            guard tracker.canRecordMore else { return false }
+            let sample = runMetricsSample(app, navigationBar: navigationBar, primaryAction: primaryAction)
+            let evaluation = evaluateRunMetrics(sample)
+            latest = (sample, evaluation)
+            print(
+                "ac-run-metrics-balanced-round \(state): round=\(tracker.rounds + 1) "
+                    + "frames=\(sample.contentFrames) LARGEST=\(evaluation.largestGap)"
+            )
+            return tracker.record(sample)
+        }
+        guard let latest else {
+            XCTFail("\(state) 未采集到任何布局样本")
+            return
+        }
+        if !tracker.isStable {
+            print(
+                "ac-run-metrics-balanced-unstable \(state): rounds=\(tracker.rounds) "
+                    + "frames=\(latest.sample.contentFrames) LARGEST=\(latest.evaluation.largestGap)"
+            )
+        }
+        print(
+            "ac-run-metrics-balanced \(state): top=\(latest.evaluation.topGap) "
+                + "bottom=\(latest.evaluation.bottomGap) largest=\(latest.evaluation.largestGap) "
+                + "imbalance=\(latest.evaluation.imbalance) contentFrames=\(latest.sample.contentFrames)"
+        )
+        XCTAssertTrue(
+            latest.evaluation.passes,
+            "\(state) 指标区未垂直居中（顶部留白 \(latest.evaluation.topGap)pt，底部留白 \(latest.evaluation.bottomGap)pt，"
+                + "最大空洞 \(latest.evaluation.largestGap)pt）：\(latest.evaluation.problems)"
+        )
+    }
+
+    /// 采集一轮运行指标区样本：导航栏下沿、主操作顶边与可见内容帧（与判定同一采样口径）。
+    private func runMetricsSample(
+        _ app: XCUIApplication,
+        navigationBar: XCUIElement,
+        primaryAction: XCUIElement
+    ) -> RunLayoutSample {
         let navigationBarBottom = navigationBar.frame.maxY
         let primaryActionTop = primaryAction.frame.minY
         var frames = axSnapshots(app, target: "staticTexts（排除 run.telemetry）")
@@ -879,28 +924,54 @@ final class RunFlowUITests: XCTestCase {
                 && frame.maxY <= primaryActionTop
         }
         frames = dedupeFramesInsideHint(frames, hint: hintFrame)
-        let evaluation = RunLayoutBalancePolicy.evaluate(
-            contentFrames: frames,
-            navigationBarBottom: navigationBarBottom,
-            primaryActionTop: primaryActionTop
-        )
-        print(
-            "ac-run-metrics-balanced \(state): top=\(evaluation.topGap) bottom=\(evaluation.bottomGap) "
-                + "largest=\(evaluation.largestGap) imbalance=\(evaluation.imbalance) "
-                + "contentFrames=\(frames)"
-        )
-        XCTAssertTrue(
-            evaluation.passes,
-            "\(state) 指标区未垂直居中（顶部留白 \(evaluation.topGap)pt，底部留白 \(evaluation.bottomGap)pt，"
-                + "最大空洞 \(evaluation.largestGap)pt）：\(evaluation.problems)"
+        return RunLayoutSample(
+            navigationBarBottom: Double(navigationBarBottom),
+            primaryActionTop: Double(primaryActionTop),
+            contentFrames: frames.map { layoutFrame($0) }
         )
     }
 
-    /// 合并可及元素的内层文本仍会出现在 `staticTexts` 里：采样时把落在胶囊内的帧去重，
-    /// 避免同一可见内容块被当成「胶囊 + 块内文字」双计（改前胶囊本身即 staticText）。
+    /// 合并可及元素的内层文本仍会出现在 `staticTexts` 里：采样时把中心点落在胶囊内的帧去重，
+    /// 避免同一可见内容块被当成「胶囊 + 块内文字」双计。判据在 `RunLayoutSamplingPolicy`
+    /// （与 L1 单测共用），这里只做平台类型换算。
     private func dedupeFramesInsideHint(_ frames: [CGRect], hint: CGRect?) -> [CGRect] {
-        guard let hint else { return frames }
-        return frames.filter { $0.equalTo(hint) || !hint.contains($0) }
+        RunLayoutSamplingPolicy.dedupeFramesInsideHint(
+            frames.map { layoutFrame($0) },
+            hint: hint.map { layoutFrame($0) }
+        ).map { frame in
+            CGRect(
+                x: CGFloat(frame.x),
+                y: CGFloat(frame.y),
+                width: CGFloat(frame.width),
+                height: CGFloat(frame.height)
+            )
+        }
+    }
+
+    /// 采样帧 → 与单测相同的分布判定（Core 只依赖 Foundation，平台类型换算留在用例侧）。
+    private func evaluateRunMetrics(_ sample: RunLayoutSample) -> RunLayoutBalancePolicy.Evaluation {
+        RunLayoutBalancePolicy.evaluate(
+            contentFrames: sample.contentFrames.map { frame in
+                CGRect(
+                    x: CGFloat(frame.x),
+                    y: CGFloat(frame.y),
+                    width: CGFloat(frame.width),
+                    height: CGFloat(frame.height)
+                )
+            },
+            navigationBarBottom: CGFloat(sample.navigationBarBottom),
+            primaryActionTop: CGFloat(sample.primaryActionTop)
+        )
+    }
+
+    /// 真实 frame → Core 采样帧：纯几何换算，不做取整或容差。
+    private func layoutFrame(_ rect: CGRect) -> RunLayoutFrame {
+        RunLayoutFrame(
+            x: Double(rect.minX),
+            y: Double(rect.minY),
+            width: Double(rect.width),
+            height: Double(rect.height)
+        )
     }
 
     /// `run.backgroundDegraded` 胶囊（图标 + 短文案合并元素）的真实 frame；越界帧返回 nil。
