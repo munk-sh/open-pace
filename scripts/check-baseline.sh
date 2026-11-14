@@ -11,8 +11,9 @@ usage() {
   - 根 VERSION 单一真源（单行、无 BOM、x.y.z）
   - scripts/version.sh 真实读取 VERSION（含沙箱内改值后输出随之改变）
   - README.md / scripts/*.sh 无版本字面值（README 版本表数据行是唯一受控豁免，表格外写入仍判红）
-  - README 版本表首行 / CHANGELOG 首条 / VERSION 三源一致（版本与日期），并含沙箱判红自检
-  - docs/release/ 下 release notes 英文四节 + zh-CN 折叠段、未发布口径、三条已知限制、构建不可复现事实保留
+  - README「当前状态」段与版本表首行同时写「已推 tag」与「未分发」（含 tag sha / 日期 / 两次 CI run），并含三类反例判红自检
+  - README 版本表首行 / CHANGELOG 首条 / VERSION 三源一致（版本与日期），表首行状态反例在沙箱判红
+  - docs/release/ 下 release notes 英文四节 + zh-CN 折叠段、已推 tag + 未分发口径、禁词零命中、三条已知限制、构建不可复现事实保留，并含三类反例判红自检
   - .github/workflows/release.yml 仅 workflow_dispatch、tag 由 VERSION 派生、无版本字面值、只 push tag、最小权限，并含三类反例判红自检
   - AGENTS.md 四节齐全且正文非空、测试金字塔落点与命令齐全
   - AGENTS.md skill 路由表与 .agents/skills/ 磁盘内容双向一致
@@ -164,6 +165,66 @@ readme_version_literal_hits() {
   readme_body_without_version_table "$1" | grep -Fn -- "$version_value" 2>/dev/null || true
 }
 
+# README「当前状态」段：已推 tag（sha / 日期 / 两次 CI run）与未分发两事实必须同现
+readme_status_problems() { # $1 = root；通过时静默返回 0，失败时打印问题并返回 1
+  local root="$1"
+  local problems=""
+  local line
+  if [ ! -f "$root/README.md" ]; then
+    printf '%s' "缺少 README.md"
+    return 1
+  fi
+  line="$(grep -E '^当前状态：' "$root/README.md" | head -n 1 || true)"
+  if [ -z "$line" ]; then
+    printf '%s' "README 缺少「当前状态：」段"
+    return 1
+  fi
+  printf '%s' "$line" | tr -d '[:space:]' | grep -Fq '已推tag' || problems="${problems} 当前状态段缺已推 tag;"
+  printf '%s' "$line" | tr -d '[:space:]' | grep -Fq '未分发' || problems="${problems} 当前状态段缺未分发;"
+  printf '%s' "$line" | grep -Fq '501ba9e' || problems="${problems} 当前状态段缺 tag 指向 sha 501ba9e;"
+  printf '%s' "$line" | grep -Fq '2026-11-14' || problems="${problems} 当前状态段缺 tag 日期 2026-11-14;"
+  printf '%s' "$line" | grep -Fq '43599497314' || problems="${problems} 当前状态段缺 ios CI run 43599497314;"
+  printf '%s' "$line" | grep -Fq '43599497253' || problems="${problems} 当前状态段缺 android CI run 43599497253;"
+  printf '%s' "$line" | grep -Eq '已发布|已分发|可下载|已上架' && problems="${problems} 当前状态段出现肯定式发布口径;"
+
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# README 当前状态段判红自检：删去已推 tag / 删去未分发 / 注入已分发都必须非零退出
+readme_status_red_selftest_problems() { # $1 = root
+  local root="$1"
+  local problems=""
+  local ts case_tmp
+  ts="$(mktemp -d "${TMPDIR:-/tmp}/purepace-readme-status.XXXXXX")"
+  if ! cp "$root/README.md" "$ts/README.md" 2>/dev/null; then
+    rm -rf "$ts"
+    printf '%s' "无法复制 README.md 到沙箱"
+    return 1
+  fi
+  case_tmp="$ts/README.case"
+  readme_status_problems "$ts" >/dev/null || problems="${problems} 未改动副本未判绿;"
+
+  sed -E 's/已推 tag//' "$root/README.md" > "$case_tmp" && mv "$case_tmp" "$ts/README.md"
+  readme_status_problems "$ts" >/dev/null && problems="${problems} 删去已推 tag 后未判红;"
+
+  sed -E 's/尚未分发//' "$root/README.md" > "$case_tmp" && mv "$case_tmp" "$ts/README.md"
+  readme_status_problems "$ts" >/dev/null && problems="${problems} 删去未分发后未判红;"
+
+  sed -E 's/但尚未分发/已分发/' "$root/README.md" > "$case_tmp" && mv "$case_tmp" "$ts/README.md"
+  readme_status_problems "$ts" >/dev/null && problems="${problems} 注入已分发后未判红;"
+
+  rm -rf "$ts"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
 # 三源一致：README 表首行 / CHANGELOG 首条 / VERSION（版本与日期都比对）
 version_tri_source_problems() { # $1 = root；通过时静默返回 0，失败时打印问题并返回 1
   local root="$1"
@@ -195,7 +256,10 @@ version_tri_source_problems() { # $1 = root；通过时静默返回 0，失败�
     row_status="$(printf '%s' "$row_status" | tr -d ' ')"
     row_link="$(printf '%s' "$row_link" | tr -d ' ')"
     [ "$row_version" = "$version" ] || problems="${problems} README 表首行版本 '$row_version' 与 VERSION '$version' 不一致;"
-    printf '%s' "$row_status" | grep -Fq '未发布' || problems="${problems} README 表首行状态未标注未发布;"
+    # 状态列：已推 tag 与未分发两事实必须同现（空格归一后判定），且不得出现肯定式发布口径。
+    printf '%s' "$row_status" | tr -d '[:space:]' | grep -Fq '已推tag' || problems="${problems} README 表首行状态缺已推 tag;"
+    printf '%s' "$row_status" | tr -d '[:space:]' | grep -Fq '未分发' || problems="${problems} README 表首行状态缺未分发;"
+    printf '%s' "$row_status" | grep -Eq '已发布|已分发|可下载|已上架' && problems="${problems} README 表首行状态出现肯定式发布口径;"
     [ "$row_link" = '[CHANGELOG](./CHANGELOG.md)' ] || problems="${problems} README 表首行 CHANGELOG 列不是 './CHANGELOG.md' 相对链接;"
   fi
 
@@ -251,6 +315,10 @@ version_tri_source_red_selftest_problems() { # $1 = root
   version_tri_source_problems "$ts" >/dev/null && problems="${problems} README 表首行版本漂移未判红;"
 
   cp "$root/README.md" "$ts/README.md"
+  sed -E 's/\| *已推 tag、未分发 *\|/| 已推 tag |/' "$root/README.md" > "$ts/README.tmp" && mv "$ts/README.tmp" "$ts/README.md"
+  version_tri_source_problems "$ts" >/dev/null && problems="${problems} README 表首行状态删去未分发未判红;"
+  cp "$root/README.md" "$ts/README.md"
+
   awk -v v="9.9.9" 'BEGIN { done = 0 } /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - / && !done { sub(/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/, "## [" v "]"); done = 1 } { print }' \
     "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
   version_tri_source_problems "$ts" >/dev/null && problems="${problems} CHANGELOG 首条版本漂移未判红;"
@@ -290,13 +358,33 @@ release_notes_problems() { # $1 = root
   done
   grep -Fq '<summary>简体中文</summary>' "$notes" || problems="${problems} 缺少 zh-CN 折叠段 <summary>简体中文</summary>;"
 
-  # 未发布口径：先剔除否定式，再要求肯定式零命中。
-  local stripped
-  stripped="$(sed -E 's/(Not|not) (yet )?(released|shipped|distributable)/NEG/g; s/尚未发布//g; s/未发布//g; s/未分发//g; s/不可分发//g' "$notes")"
-  if printf '%s' "$stripped" | grep -Eqi 'released|shipped|distributable|已发布|已分发|可分发'; then
-    problems="${problems} 出现肯定式已发布 / 已分发 / 可分发口径;"
+  # 英文 Status 段：已推 tag（sha / 日期 / 两次 CI run）与未分发两事实必须同现。
+  local status_line
+  status_line="$(grep -E '^> Status:' "$notes" | head -n 1 || true)"
+  if [ -z "$status_line" ]; then
+    problems="${problems} 缺少英文 '> Status:' 段;"
+  else
+    status_line="$(printf '%s' "$status_line" | tr -d '`')"
+    printf '%s' "$status_line" | grep -Fqi "tag v${version}" || problems="${problems} Status 段缺 tag v${version};"
+    printf '%s' "$status_line" | grep -Fq '501ba9e' || problems="${problems} Status 段缺 tag sha 501ba9e;"
+    printf '%s' "$status_line" | grep -Fq '2026-11-14' || problems="${problems} Status 段缺 tag 日期 2026-11-14;"
+    printf '%s' "$status_line" | grep -Fq '43599497314' || problems="${problems} Status 段缺 ios CI run 43599497314;"
+    printf '%s' "$status_line" | grep -Fq '43599497253' || problems="${problems} Status 段缺 android CI run 43599497253;"
+    printf '%s' "$status_line" | grep -Fqi 'not distributed' || problems="${problems} Status 段缺 not distributed;"
+    printf '%s' "$status_line" | grep -Fqi 'no testflight' || problems="${problems} Status 段缺 no TestFlight;"
+    printf '%s' "$status_line" | grep -Fqi 'no install package' || problems="${problems} Status 段缺 no install package;"
+    printf '%s' "$status_line" | grep -Fqi 'no github release' || problems="${problems} Status 段缺 no GitHub Release;"
   fi
-  grep -Fqi 'not released' "$notes" || problems="${problems} 缺少否定式 'Not released yet' 表述;"
+
+  # 禁词零命中：先剔除否定式，再要求肯定式零命中。
+  local stripped
+  stripped="$(sed -E \
+    -e 's/[Nn]ot (yet )?(released|shipped|distributed|distributable)/NEG/g' \
+    -e 's/尚未发布//g; s/未发布//g; s/尚未分发//g; s/未分发//g; s/不可分发//g; s/未上传//g; s/未提供安装包//g; s/未建 [Gg]it[Hh]ub [Rr]elease//g' \
+    -e 's/未上架//g' "$notes")"
+  if printf '%s' "$stripped" | grep -Eqi 'released|shipped|distributed|distributable|available for download|live on store|已发布|已分发|可下载|已上架|可分发'; then
+    problems="${problems} 出现肯定式已发布 / 已分发 / 可下载 / 已上架口径;"
+  fi
 
   limitations="$(release_notes_section "$notes" '## Known limitations')"
   count="$(printf '%s\n' "$limitations" | grep -Ec '^[0-9]+\. ' || true)"
@@ -312,7 +400,15 @@ release_notes_problems() { # $1 = root
   printf '%s' "$covered" | grep -Fq 'LC_UUID' || problems="${problems} Build reproducibility 段缺 LC_UUID 随机事实;"
 
   zh="$(sed -n '/<summary>简体中文<\/summary>/,$p' "$notes")"
-  printf '%s' "$zh" | grep -Fq '未发布' || problems="${problems} zh-CN 段缺未发布表述;"
+  printf '%s' "$zh" | grep -Fq '已推 tag' || problems="${problems} zh-CN 段缺已推 tag 表述;"
+  printf '%s' "$zh" | grep -Fq '尚未分发' || problems="${problems} zh-CN 段缺尚未分发表述;"
+  printf '%s' "$zh" | grep -Fq '501ba9e' || problems="${problems} zh-CN 段缺 tag sha 501ba9e;"
+  printf '%s' "$zh" | grep -Fq '2026-11-14' || problems="${problems} zh-CN 段缺 tag 日期 2026-11-14;"
+  printf '%s' "$zh" | grep -Fq '43599497314' || problems="${problems} zh-CN 段缺 ios CI run 43599497314;"
+  printf '%s' "$zh" | grep -Fq '43599497253' || problems="${problems} zh-CN 段缺 android CI run 43599497253;"
+  printf '%s' "$zh" | grep -Fq '未上传 TestFlight' || problems="${problems} zh-CN 段缺未上传 TestFlight;"
+  printf '%s' "$zh" | grep -Fq '未提供安装包' || problems="${problems} zh-CN 段缺未提供安装包;"
+  printf '%s' "$zh" | grep -Fq '未建 GitHub Release' || problems="${problems} zh-CN 段缺未建 GitHub Release;"
   printf '%s' "$zh" | grep -Fq '隐私' || problems="${problems} zh-CN 段缺隐私节;"
   printf '%s' "$zh" | grep -Fq '已知限制' || problems="${problems} zh-CN 段缺已知限制节;"
   zh_count="$(printf '%s\n' "$zh" | grep -Ec '^[0-9]+\. ' || true)"
@@ -325,10 +421,11 @@ release_notes_problems() { # $1 = root
   return 1
 }
 
-# release notes 未发布口径判红自检：注入肯定式「已发布」必须非零退出
+# release notes 口径判红自检：未改动副本必须判绿；注入肯定式 shipped / Released、
+# 删去未分发事实三类反例必须非零退出
 release_notes_wording_red_selftest_problems() { # $1 = root
   local root="$1"
-  local version notes ts problems=""
+  local version notes ts target case_tmp problems=""
   version="$(tr -d '\r\n' < "$root/VERSION" 2>/dev/null || true)"
   notes="$root/docs/release/release-notes-${version}.md"
   if [ ! -f "$notes" ]; then
@@ -337,10 +434,24 @@ release_notes_wording_red_selftest_problems() { # $1 = root
   fi
   ts="$(mktemp -d "${TMPDIR:-/tmp}/purepace-notes.XXXXXX")"
   mkdir -p "$ts/docs/release"
-  cp "$notes" "$ts/docs/release/release-notes-${version}.md"
+  target="$ts/docs/release/release-notes-${version}.md"
+  case_tmp="$ts/notes.case"
   cp "$root/VERSION" "$ts/VERSION"
-  printf '\nThis build was shipped.\n' >> "$ts/docs/release/release-notes-${version}.md"
+
+  cp "$notes" "$target"
+  release_notes_problems "$ts" >/dev/null || problems="${problems} 未改动副本未判绿;"
+
+  cp "$notes" "$target"
+  printf '\nThis build was shipped.\n' >> "$target"
   release_notes_problems "$ts" >/dev/null && problems="${problems} 注入肯定式 shipped 后未判红;"
+
+  cp "$notes" "$target"
+  printf '\nReleased to TestFlight.\n' >> "$target"
+  release_notes_problems "$ts" >/dev/null && problems="${problems} 注入 Released to TestFlight 后未判红;"
+
+  sed -E -e 's/\*\*Not distributed\*\*:.*$//' -e 's/；\*\*尚未分发\*\*：.*$//' "$notes" > "$case_tmp" && mv "$case_tmp" "$target"
+  release_notes_problems "$ts" >/dev/null && problems="${problems} 删去未分发事实后未判红;"
+
   rm -rf "$ts"
   if [ -z "$problems" ]; then
     return 0
@@ -362,6 +473,7 @@ workflow_parse_problems() { # $1 = root
   fi
   local out
   out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
@@ -397,6 +509,7 @@ workflow_trigger_problems() { # $1 = root
   fi
   local out
   out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
@@ -456,6 +569,7 @@ workflow_push_problems() { # $1 = root
   [ -z "$forbidden_hits" ] || problems="${problems} 出现凭据或分发调用: ${forbidden_hits};"
   local perm_out
   perm_out="$(ruby -ryaml - "$wf" <<'RUBY'
+# encoding: utf-8
 require 'yaml'
 raw = File.read(ARGV[0], encoding: 'UTF-8')
 doc = begin
@@ -549,6 +663,19 @@ else
   fail "ac-version-source-only-version-file" "缺少 scripts/version.sh"
 fi
 
+# -------------------------------------------------- README 当前状态段口径
+if readme_status_out="$(readme_status_problems "$repo_root")"; then
+  pass "ac-readme-status-tag-pushed-not-distributed"
+else
+  fail "ac-readme-status-tag-pushed-not-distributed" "$readme_status_out"
+fi
+
+if readme_status_red_out="$(readme_status_red_selftest_problems "$repo_root")"; then
+  pass "ac-readme-status-red-selftest"
+else
+  fail "ac-readme-status-red-selftest" "$readme_status_red_out"
+fi
+
 # -------------------------------------------------- 版本三源一致与判红自检
 if tri_out="$(version_tri_source_problems "$repo_root")"; then
   pass "ac-version-tri-source-consistency"
@@ -557,22 +684,22 @@ else
 fi
 
 if tri_red_out="$(version_tri_source_red_selftest_problems "$repo_root")"; then
-  pass "ac-version-drift-red-selftest"
+  pass "ac-version-tri-source-status-red-selftest"
 else
-  fail "ac-version-drift-red-selftest" "$tri_red_out"
+  fail "ac-version-tri-source-status-red-selftest" "$tri_red_out"
 fi
 
-# ------------------------------------------------------- release notes 改写
+# ------------------------------------------------------- release notes 口径
 if notes_out="$(release_notes_problems "$repo_root")"; then
-  pass "ac-release-notes-structure-rewritten"
+  pass "ac-release-notes-tag-pushed-not-distributed"
 else
-  fail "ac-release-notes-structure-rewritten" "$notes_out"
+  fail "ac-release-notes-tag-pushed-not-distributed" "$notes_out"
 fi
 
 if notes_red_out="$(release_notes_wording_red_selftest_problems "$repo_root")"; then
-  pass "ac-release-notes-not-released-wording"
+  pass "ac-release-wording-red-selftest"
 else
-  fail "ac-release-notes-not-released-wording" "$notes_red_out"
+  fail "ac-release-wording-red-selftest" "$notes_red_out"
 fi
 
 # --------------------------------------------- .github/workflows/release.yml
