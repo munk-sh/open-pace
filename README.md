@@ -54,7 +54,8 @@ bash scripts/version.sh --tools
 | iOS 测试 | `bash scripts/test-ios.sh` | 已就绪；无 `ios/PurePace.xcodeproj` 时输出 `blocked:` 并降级 `swift test` |
 | Android 构建 | `bash scripts/build-android.sh` | 已就绪；真实执行 `assembleDebug` 并校验非空 APK 产物 |
 | Android 测试 | `bash scripts/test-android.sh` | 已就绪；真实执行 `testDebugUnitTest`，区分纯 JVM 与 Robolectric/Compose 两类用例各 ≥1 |
-| Android 脚本与结构断言 | `bash scripts/check-android.sh` | 已就绪；含 applicationId 单点、SDK/JDK、版本派生、wrapper 与门禁完整性断言 |
+| Android 脚本与结构断言 | `bash scripts/check-android.sh` | 已就绪；含 applicationId 单点、SDK/JDK、版本派生、wrapper、同意门契约/文案单源、政策单源同步与门禁完整性断言 |
+| Android 打包（仓外可安装产物） | `bash scripts/package-android.sh` | 已就绪；产物落 `${TMPDIR:-/tmp}/purepace-dist/android/<versionName>-<versionCode>/`（APK + `manifest.json` + `checksums.txt`），stdout 打印路径与 sha256；安装、sha256 校验与同意门手测顺序见 [`docs/distribution/android.md`](./docs/distribution/android.md) |
 
 ## 跑步链路验收自动化
 

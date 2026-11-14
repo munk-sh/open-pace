@@ -1,8 +1,8 @@
 package dev.purepace
 
 /**
- * 首屏空壳文案与 Tab 占位结构的单一来源。
- * 本阶段不承载任何业务数据或样例记录。
+ * Single source for the placeholder first-screen copy and tab structure.
+ * No business data or sample records live here at this stage.
  */
 object PlaceholderCopy {
     const val APP_NAME: String = "PurePace"
