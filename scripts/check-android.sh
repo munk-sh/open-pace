@@ -32,13 +32,14 @@ usage() {
   - ac-policy-bundled-no-network
                                 Manifest 权限集合与改动前一致（无 uses-permission），政策渲染无网络调用
   - ac-package-path-and-layout / ac-package-manifest-fields / ac-package-checksums-match /
-    ac-package-idempotent-same-commit / ac-package-no-hardcoded-credentials /
+    ac-package-sha-self-check-scoped / ac-package-no-hardcoded-credentials /
     ac-package-existing-dir-sibling / ac-package-existing-dir-monotonic /
     ac-package-existing-dir-red-proof / ac-package-cli-contract-preserved / ac-package-red-proofs
                                 沙箱 stub gradle 打包：仓外目录布局、manifest 字段集合、checksums
-                                对照、同 commit 幂等、零明文凭据；干净环境用固定名目录，既有版本
-                                目录存在时改用递增兄弟目录（-b2、-b3）且既有文件 sha256 逐字不变、
-                                去守卫副本必然覆盖既有目录、--help / 未知参数契约，并逐条取红
+                                对照、目录内自校验（跨构建 sha256 差异不比对）、零明文凭据；
+                                干净环境用固定名目录，既有版本目录存在时改用递增兄弟目录
+                                （-b2、-b3）且既有文件 sha256 逐字不变、去守卫副本必然覆盖既有
+                                目录、跨构建 sha 相等那版判据必然取红、--help / 未知参数契约
   - ac-check-android-gates-integrity
                                 .munk/code-gates.json 可解析、id 唯一、无空转/串接命令，
                                 Android 四个门（build/test/lint/package）各自指向对应脚本命令，
@@ -1112,8 +1113,8 @@ run_package_case() {
 }
 
 # 预置「既有版本目录」现场：哨兵文件 + 旧 checksums.txt + 旧 manifest.json。
-# 旧 manifest 写的是一个「陌生」commit（全 0）与占位 sha256，因此同 commit 幂等断言
-# 不会被误触发：这里的断言只可能来自「既有目录是否被改动 / 是否改用兄弟目录」。
+# 旧 manifest 用陌生 commit（全 0）与占位 sha256，保证这里只判「既有目录是否被改动 /
+# 是否改用兄弟目录」，不掺入任何跨构建 sha256 比对。
 seed_existing_target() {
   local dist_root="$1"
   local target="${dist_root}/purepace-dist/android/${pkg_version}-1"
@@ -1140,14 +1141,14 @@ seed_manifest_build_time="1970-01-01T00:00:00Z"
 layout_problems=""
 manifest_problems=""
 checksums_problems=""
-idempotent_problems=""
+sha_scope_problems=""
 credential_problems=""
 red_proofs_problems=""
 red_empty=0
 red_checksum=0
 red_inside=0
 red_credential=0
-red_idempotent=0
+red_sha_gated=0
 
 rm -f "${pkg_counter}"
 ok_dist="${sandbox}/dist-ok"
@@ -1209,22 +1210,71 @@ else
   mv "${ok_target}/checksums.bak" "${ok_target}/checksums.txt"
 
   if run_package_case ok "${ok_dist}" "ok-second"; then second_rc=0; else second_rc=$?; fi
-  second_sha="$(grep -m1 '^SHA256=' "${pkg_root}/ok-second.log" | sed 's/^SHA256=//' || true)"
   second_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/ok-second.log" | sed 's/^DIST_DIR=//' || true)"
   dir_count="$(find "${ok_dist}/purepace-dist/android" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  [ "${second_rc}" -eq 0 ] || idempotent_problems="${idempotent_problems} 第二次打包退出 ${second_rc};"
-  [ "${second_sha}" = "${actual_sha}" ] || idempotent_problems="${idempotent_problems} 同 commit 第二次 sha256 变化;"
-  [ "${dir_count}" -eq 2 ] || idempotent_problems="${idempotent_problems} 第二次打包后目录数 ${dir_count}（期望 2：基名 + -b2）;"
-  [ "${second_stdout_dist}" = "$(cd "${ok_target}-b2" 2>/dev/null && pwd -P)" ] || idempotent_problems="${idempotent_problems} 第二次 STD_DIR= 不是 -b2 兄弟目录;"
-  [ "$(sha256_file_check "${ok_target}/${ok_apk_name}")" = "${actual_sha}" ] || idempotent_problems="${idempotent_problems} 第二次打包改写了既有基名目录的 APK;"
-
-  if run_package_case varysha "${ok_dist}" "varysha"; then vary_rc=0; else vary_rc=$?; fi
-  if [ "${vary_rc}" -eq 0 ]; then
-    idempotent_problems="${idempotent_problems} 第二轮产物 sha 变化未被判红;"
-  elif grep -Fq -- '幂等' "${pkg_root}/varysha.log"; then
-    red_idempotent=1
+  [ "${second_rc}" -eq 0 ] || sha_scope_problems="${sha_scope_problems} 第二次打包退出 ${second_rc};"
+  [ "${dir_count}" -eq 2 ] || sha_scope_problems="${sha_scope_problems} 第二次打包后目录数 ${dir_count}（期望 2：基名 + -b2）;"
+  [ "${second_stdout_dist}" = "$(cd "${ok_target}-b2" 2>/dev/null && pwd -P)" ] || sha_scope_problems="${sha_scope_problems} 第二次 STD_DIR= 不是 -b2 兄弟目录;"
+  [ "$(sha256_file_check "${ok_target}/${ok_apk_name}")" = "${actual_sha}" ] || sha_scope_problems="${sha_scope_problems} 第二次打包改写了既有基名目录的 APK;"
+  # 判据只在本目录内：新目录的 checksums.txt 必须与它自己的 APK 字节一致（不跨构建比 sha）
+  if checksums_out="$(verify_package_checksums "${ok_target}-b2" "${ok_apk_name}" 2>&1)"; then
+    :
   else
-    idempotent_problems="${idempotent_problems} sha 变化反例未命中幂等断言;"
+    sha_scope_problems="${sha_scope_problems} 第二次产物目录内自校验未通过: $(printf '%s' "${checksums_out}" | tr '\n' ' ');"
+  fi
+
+  # 跨构建 sha256 不同不得成为阻断：varysha 必须退出 0 并落到 -b3，且新目录自校验通过
+  if run_package_case varysha "${ok_dist}" "varysha"; then vary_rc=0; else vary_rc=$?; fi
+  vary_sha="$(grep -m1 '^SHA256=' "${pkg_root}/varysha.log" | sed 's/^SHA256=//' || true)"
+  vary_stdout_dist="$(grep -m1 '^DIST_DIR=' "${pkg_root}/varysha.log" | sed 's/^DIST_DIR=//' || true)"
+  if [ "${vary_rc}" -ne 0 ]; then
+    sha_scope_problems="${sha_scope_problems} 跨构建 sha256 不同却退出 ${vary_rc}（判据越界到跨构建）;"
+  elif [ "${vary_stdout_dist}" != "$(cd "${ok_target}-b3" 2>/dev/null && pwd -P)" ]; then
+    sha_scope_problems="${sha_scope_problems} varysha 未落到 -b3 兄弟目录;"
+  elif [ "${vary_sha}" = "${actual_sha}" ]; then
+    sha_scope_problems="${sha_scope_problems} varysha 未真正改变 sha256（反例失效）;"
+  elif ! checksums_out="$(verify_package_checksums "${ok_target}-b3" "${ok_apk_name}" 2>&1)"; then
+    sha_scope_problems="${sha_scope_problems} varysha 产物目录内自校验未通过: $(printf '%s' "${checksums_out}" | tr '\n' ' ');"
+  fi
+
+  # 红态反例：把「跨构建 sha256 必须相等」那版判据装回副本，同场景必须非零退出
+  sha_gated_script="${pkg_root}/scripts/package-android-sha-gated.sh"
+  if python3 - "${package_script}" "${sha_gated_script}" <<'PYGATE'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+anchor = 'echo "info: 本次实际输出目录'
+if anchor not in text:
+    sys.exit(3)
+gate = r"""# old-judgement copy: cross-build sha256 equality (must go red in red-proof case)
+__prev_dir=""
+for __cand in "${version_dir}" "${version_dir}-b"*; do
+  [ -f "${__cand}/manifest.json" ] && __prev_dir="${__cand}"
+done
+if [ -n "${__prev_dir}" ]; then
+  __prev_sha="$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' "${__prev_dir}/manifest.json" | head -n 1)"
+  if [ -n "${__prev_sha}" ] && [ "${__prev_sha}" != "${sha}" ]; then
+    echo "error: 同一 commit 重复打包 sha256 变化（旧判据），幂等断言失败" >&2
+    exit 1
+  fi
+fi
+"""
+text = text.replace(anchor, gate + anchor, 1)
+open(dst, "w", encoding="utf-8").write(text)
+PYGATE
+  then
+    redsha_dist="${sandbox}/dist-redsha"
+    if run_package_script "${sha_gated_script}" ok "${redsha_dist}" "redsha-seed"; then
+      if run_package_script "${sha_gated_script}" varysha "${redsha_dist}" "redsha-gated"; then
+        sha_scope_problems="${sha_scope_problems} 旧「跨构建 sha 相等」判据副本未取红;"
+      else
+        red_sha_gated=1
+      fi
+    else
+      sha_scope_problems="${sha_scope_problems} 旧判据副本种子构建失败;"
+    fi
+  else
+    sha_scope_problems="${sha_scope_problems} 旧判据副本构建失败（插入锚点缺失）;"
   fi
 fi
 
@@ -1375,7 +1425,7 @@ fi
 [ "${red_checksum}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 篡改 checksums 反例未取红（ac-package-checksums-match）;"
 [ "${red_inside}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 仓内分发路径反例未取红（ac-package-path-and-layout）;"
 [ "${red_credential}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 明文口令反例未取红（ac-package-no-hardcoded-credentials）;"
-[ "${red_idempotent}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 第二次 sha 变化反例未取红（ac-package-idempotent-same-commit）;"
+[ "${red_sha_gated}" -eq 1 ] || red_proofs_problems="${red_proofs_problems} 旧跨构建 sha 相等判据未取红（ac-package-sha-self-check-scoped）;"
 
 if [ -z "${layout_problems}" ]; then
   pass "ac-package-path-and-layout"
@@ -1392,10 +1442,10 @@ if [ -z "${checksums_problems}" ]; then
 else
   fail "ac-package-checksums-match" "${checksums_problems}"
 fi
-if [ -z "${idempotent_problems}" ]; then
-  pass "ac-package-idempotent-same-commit"
+if [ -z "${sha_scope_problems}" ]; then
+  pass "ac-package-sha-self-check-scoped"
 else
-  fail "ac-package-idempotent-same-commit" "${idempotent_problems}"
+  fail "ac-package-sha-self-check-scoped" "${sha_scope_problems}"
 fi
 if [ -z "${credential_problems}" ]; then
   pass "ac-package-no-hardcoded-credentials"
