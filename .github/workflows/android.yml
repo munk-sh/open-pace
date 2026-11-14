@@ -102,3 +102,20 @@ jobs:
               ;;
           esac
           exit "$step_rc"
+
+      - name: package
+        run: |
+          set -euo pipefail
+          if output="$(bash scripts/package-android.sh 2>&1)"; then
+            step_rc=0
+          else
+            step_rc=$?
+          fi
+          printf '%s\n' "$output"
+          case "$output" in
+            *blocked:*)
+              echo "package: scripts/package-android.sh 走了 blocked: 降级分支，CI 判失败" >&2
+              exit 1
+              ;;
+          esac
+          exit "$step_rc"
