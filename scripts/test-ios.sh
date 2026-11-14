@@ -42,6 +42,9 @@ usage() {
     降级真实执行 swift test --package-path ios/Core，并保留真实 Executed 用例数与失败数。
   - 两个分支都会追加执行 swift test --package-path ios/RunCore（跑步域纯逻辑包）；
     ios/RunCore 缺失时打印 blocked: 并继续，RunCore 测试失败时脚本非零退出。
+  - 正常分支（工程存在 / xcodegen 生成）还会并列执行 swift test --package-path ios/Core
+    （不依赖模拟器的纯逻辑包），与 RunCore 同口径：失败即脚本非零退出，不吞错。
+    降级分支本来就直接执行 ios/Core 的 swift test，语义不变。
 
 选项:
   --unit-only  只跑 PurePaceTests 单测，跳过 PurePaceUITests（本地门快腿专用；
@@ -137,6 +140,7 @@ phase_build_seconds=0
 phase_unit_seconds=0
 phase_ui_seconds=0
 phase_runcore_seconds=0
+phase_core_seconds=0
 boot_timeout_seconds="${PUREPACE_IOS_BOOT_TIMEOUT_SECONDS:-1200}"
 # 复用标记：1 表示目标设备在持锁且 quiescent 后已是 Booted，直接复用给单测与 UI 两腿。
 sim_reused_booted=0
@@ -699,6 +703,27 @@ test_with_run_core() {
   fi
 }
 
+# ios/Core 是不依赖模拟器的纯逻辑 SwiftPM 包；正常分支与 RunCore 并列真实执行，
+# 包缺失显式非零（不得静默成功），测试失败保留原始退出码。
+test_with_core() {
+  if [ ! -d ios/Core ]; then
+    echo "test-ios: 缺 ios/Core，无法执行 swift test --package-path ios/Core" >&2
+    return 1
+  fi
+  local core_started
+  core_started="$(date +%s)"
+  echo "info: 执行 swift test --package-path ios/Core"
+  if swift test --package-path ios/Core; then
+    phase_core_seconds=$(( $(date +%s) - core_started ))
+    echo "info: Core SwiftPM 测试完成"
+  else
+    status=$?
+    phase_core_seconds=$(( $(date +%s) - core_started ))
+    echo "test-ios: Core 的 swift test 失败（退出码 ${status}）" >&2
+    return "$status"
+  fi
+}
+
 # 分段计时只落一行并追加到 .build/logs/test-ios-timing.log；EXIT trap 与降级分支都经此输出，
 # 用 timing_emitted 保证每次运行只写一行。
 timing_emitted=0
@@ -709,7 +734,7 @@ emit_timing() {
   timing_emitted=1
   local total
   total=$(( $(date +%s) - timing_started_at ))
-  local line="[timing] boot=${phase_boot_seconds}s prep=${phase_prep_seconds}s build=${phase_build_seconds}s unit=${phase_unit_seconds}s ui=${phase_ui_seconds}s runcore=${phase_runcore_seconds}s total=${total}s"
+  local line="[timing] boot=${phase_boot_seconds}s prep=${phase_prep_seconds}s build=${phase_build_seconds}s unit=${phase_unit_seconds}s ui=${phase_ui_seconds}s runcore=${phase_runcore_seconds}s core=${phase_core_seconds}s total=${total}s"
   echo "$line"
   mkdir -p "$log_dir"
   printf '%s\n' "$line" >> "$timing_log"
@@ -719,6 +744,7 @@ emit_timing() {
 if [ -d "$project_path" ]; then
   test_with_xcodebuild
   test_with_run_core
+  test_with_core
   exit 0
 fi
 
@@ -727,6 +753,7 @@ if [ -f "$spec_path" ] && command -v xcodegen >/dev/null 2>&1; then
   xcodegen generate --spec "$spec_path" --project "$ios_dir"
   test_with_xcodebuild
   test_with_run_core
+  test_with_core
   exit 0
 fi
 

@@ -183,6 +183,107 @@ else
   fail "ac-test-ios-xcodebuild-path" "$problems"
 fi
 
+# --------- test-ios.sh 正常分支必须真实执行 ios/Core：降级分支不得顶替正常分支要求
+# 正常分支 = 工程存在（xcodeproj）与 xcodegen 从 spec 生成两条路径；各自取锚点到其后首个
+# `exit 0` 的区域。区域内必须直接出现 `swift test --package-path ios/Core`，或调用
+# `test_with_core` 且该函数体含同一字面量。降级分支（`blocked:` 之后）不在这些区域内，
+# 因此「全文件 grep 到一次」不能通过本断言。
+test_ios_core_normal_branch_problems() {
+  local file="$1" out="" anchors="" anchor="" region="" anchor_count=0
+  if [ ! -f "$file" ]; then
+    printf '缺少 %s;' "$file"
+    return 0
+  fi
+  anchors="$(grep -nE -- '^if \[ -d "\$project_path" \]|^if \[ -f "\$spec_path" \] && command -v xcodegen' "$file" | cut -d: -f1 || true)"
+  if [ -z "$anchors" ]; then
+    printf '未找到正常分支锚点（工程存在 / xcodegen 生成）;'
+    return 0
+  fi
+  while IFS= read -r anchor; do
+    [ -n "$anchor" ] || continue
+    anchor_count=$((anchor_count + 1))
+    region="$(awk -v start="$anchor" 'NR>=start { print; if ($0 ~ /^[[:space:]]*exit 0[[:space:]]*$/) exit }' "$file")"
+    if printf '%s\n' "$region" | grep -Fq -- 'swift test --package-path ios/Core'; then
+      continue
+    fi
+    if printf '%s\n' "$region" | grep -Fq -- 'test_with_core'; then
+      if awk '/^test_with_core\(\)[[:space:]]*\{/{f=1} f{print} f&&/^\}/{exit}' "$file" \
+        | grep -Fq -- 'swift test --package-path ios/Core'; then
+        continue
+      fi
+      out="$out 正常分支（第 ${anchor} 行）调用 test_with_core，但该函数体缺少 'swift test --package-path ios/Core';"
+      continue
+    fi
+    out="$out 正常分支（第 ${anchor} 行起至首个 exit 0）缺少 'swift test --package-path ios/Core'（降级分支不计入）;"
+  done <<< "$anchors"
+  if [ "$anchor_count" -lt 2 ]; then
+    out="$out 正常分支锚点仅 ${anchor_count} 处（工程存在 / xcodegen 生成各需 1 处）;"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(test_ios_core_normal_branch_problems scripts/test-ios.sh)"
+if [ -z "$problems" ]; then
+  pass "ac-test-ios-core-normal-branch"
+else
+  fail "ac-test-ios-core-normal-branch" "$problems"
+fi
+
+# 反例自检：未改的正常分支副本必须判绿（断言非恒真、可区分修好/未修）。
+core_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-core.XXXXXX")"
+cp scripts/test-ios.sh "$core_sandbox/test-ios.sh"
+if [ -z "$(test_ios_core_normal_branch_problems "$core_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-core-normal-branch (untouched sandbox green)"
+else
+  fail "ac-test-ios-core-normal-branch" "未修改的正常分支样本被判红"
+fi
+
+# 反例 1：删掉正常分支里的 Core 调用行（保留降级分支的 swift test 入口）→ 必须判红。
+python3 - "$core_sandbox/test-ios.sh" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+out = []
+in_normal = False
+for line in src.splitlines(keepends=True):
+    if re.match(r'^if \[ -d "\$project_path" \]', line) or \
+       re.match(r'^if \[ -f "\$spec_path" \] && command -v xcodegen', line):
+        in_normal = True
+    if in_normal and re.match(r'^[ \t]*test_with_core[ \t]*$', line):
+        continue
+    out.append(line)
+    if in_normal and re.match(r'^[ \t]*exit 0[ \t]*$', line):
+        in_normal = False
+open(path, "w", encoding="utf-8").write("".join(out))
+PY
+if [ -n "$(test_ios_core_normal_branch_problems "$core_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-core-normal-branch (self-test)"
+else
+  fail "ac-test-ios-core-normal-branch" "删掉正常分支 Core 调用行的违规样本未被识别"
+fi
+
+# 反例 2：保留正常分支的 test_with_core 调用，但把函数体里的 swift test 换成 true → 必须判红。
+python3 - "$core_sandbox/test-ios.sh" <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+literal = "  if swift test --package-path ios/Core; then\n"
+start = src.index("test_with_core() {")
+end = src.index("\n}\n", start)
+body = src[start:end].replace(literal, "  if true; then\n")
+open(path, "w", encoding="utf-8").write(src[:start] + body + src[end:])
+PY
+if [ -n "$(test_ios_core_normal_branch_problems "$core_sandbox/test-ios.sh")" ]; then
+  pass "ac-test-ios-core-wrapper-body (self-test)"
+else
+  fail "ac-test-ios-core-wrapper-body" "封装函数体缺少 Core swift test 的违规样本未被识别"
+fi
+rm -rf "$core_sandbox"
+
+
 # ------------- test-ios.sh 模拟器前置状态契约：bootstatus → 安装 → 授权 → 单测/UI 拆分执行 + 硬超时
 test_ios_preparation_problems() {
   local file="$1" out="" install_line="" privacy_line="" unit_line="" ui_line=""
