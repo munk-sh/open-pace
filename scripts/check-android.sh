@@ -173,7 +173,9 @@ gradle_retry_static_problems() {
   if [ "$task" = "assembleDebug" ]; then
     grep -Fq -- 'gradle_with_retry assembleDebug' "$file" || out="$out 未经 gradle_with_retry 调用 assembleDebug;"
   else
-    grep -Fq -- "gradle_with_retry $task" "$file" || out="$out 未经 gradle_with_retry 调用 $task;"
+    # 单测任务必须 --rerun：结果目录先被清理，任务若判 UP-TO-DATE 就不会产出结果。
+    grep -Fq -- "gradle_with_retry $task --rerun" "$file" || out="$out 未经 gradle_with_retry 以 --rerun 调用 $task（UP-TO-DATE 时不产出结果目录）;"
+    grep -Fq -- 'bash android/gradlew -p android "$task" "$@"' "$file" || out="$out gradlew 调用未透传额外参数（\"\$@\"）;"
   fi
 
   printf '%s' "$out"
@@ -203,6 +205,15 @@ if [ -n "$(gradle_retry_static_problems "$static_sandbox/bad.sh" assembleDebug)"
   pass "ac-android-gradle-bounded-retry (self-test)"
 else
   fail "ac-android-gradle-bounded-retry" "删除重试函数的违规样本未被静态断言识别"
+fi
+# 反例自检：去掉 testDebugUnitTest 的 --rerun / 停止透传额外参数，必须被同一静态断言识别。
+sed 's/gradle_with_retry testDebugUnitTest --rerun/gradle_with_retry testDebugUnitTest/' scripts/test-android.sh > "$static_sandbox/no-rerun.sh"
+sed 's|bash android/gradlew -p android "$task" "$@"|bash android/gradlew -p android "$task"|' scripts/test-android.sh > "$static_sandbox/no-args.sh"
+if [ -n "$(gradle_retry_static_problems "$static_sandbox/no-rerun.sh" testDebugUnitTest)" ] \
+  && [ -n "$(gradle_retry_static_problems "$static_sandbox/no-args.sh" testDebugUnitTest)" ]; then
+  pass "ac-android-test-rerun (self-test)"
+else
+  fail "ac-android-test-rerun" "去掉 --rerun 或停止透传额外参数的违规样本未被静态断言识别"
 fi
 rm -rf "$static_sandbox"
 
@@ -504,7 +515,9 @@ mode="${PUREPACE_STUB_MODE:-network}"
 counter="${PUREPACE_STUB_COUNTER:?counter required}"
 task=""
 for arg in "$@"; do
-  task="$arg"
+  case "$arg" in
+    assembleDebug|testDebugUnitTest) task="$arg" ;;
+  esac
 done
 attempt=0
 if [ -f "$counter" ]; then

@@ -108,6 +108,7 @@ ensure_android_sdk() {
 # 非网络失败立即返回；输出经 tee 实时打印，最终失败原样透传 gradle 退出码。
 gradle_with_retry() {
   local task="$1"
+  shift
   local attempt=1
   local max_attempts=4
   local log_file status=0
@@ -115,7 +116,7 @@ gradle_with_retry() {
   while :; do
     echo "info: gradle ${task} 第 ${attempt}/${max_attempts} 次尝试" >&2
     status=0
-    bash android/gradlew -p android "$task" 2>&1 | tee "$log_file" || status=${PIPESTATUS[0]}
+    bash android/gradlew -p android "$task" "$@" 2>&1 | tee "$log_file" || status=${PIPESTATUS[0]}
     if [ "$status" -eq 0 ]; then
       rm -f "$log_file"
       return 0
@@ -148,9 +149,9 @@ results_dir="android/app/build/test-results/testDebugUnitTest"
 # 只以本次运行结果为准：旧 result XML（含预置的伪造结果）在运行前整体移除。
 rm -rf "$results_dir"
 
-echo "info: gradle testDebugUnitTest（有界重试：网络类失败最多重试 3 次）"
+echo "info: gradle testDebugUnitTest（有界重试：网络类失败最多重试 3 次；--rerun 保证单测任务真实执行）"
 gradle_status=0
-gradle_with_retry testDebugUnitTest || gradle_status=$?
+gradle_with_retry testDebugUnitTest --rerun || gradle_status=$?
 
 if [ "$gradle_status" -ne 0 ]; then
   echo "error: testDebugUnitTest 失败（退出码 ${gradle_status}）" >&2
