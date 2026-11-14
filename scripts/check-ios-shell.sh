@@ -162,7 +162,7 @@ validate_location_config() {
   local problems=""
 
   local usage_line
-  usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  usage_line="$(grep -m1 -E '^[[:space:]]*INFOPLIST_KEY_NSLocationWhenInUseUsageDescription:' "$spec_file" 2>/dev/null || true)"
   if [ -z "$usage_line" ]; then
     problems="$problems project.yml 缺少 INFOPLIST_KEY_NSLocationWhenInUseUsageDescription;"
   else
@@ -174,7 +174,7 @@ validate_location_config() {
   fi
 
   local always_usage_line
-  always_usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  always_usage_line="$(grep -m1 -E '^[[:space:]]*INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription:' "$spec_file" 2>/dev/null || true)"
   if [ -z "$always_usage_line" ]; then
     problems="$problems project.yml 缺少 INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription;"
   else
@@ -241,7 +241,7 @@ validate_orientation_config() {
   fi
 
   local orientation_line
-  orientation_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UISupportedInterfaceOrientations:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  orientation_line="$(grep -m1 -E '^[[:space:]]*INFOPLIST_KEY_UISupportedInterfaceOrientations:' "$spec_file" 2>/dev/null || true)"
   if [ -z "$orientation_line" ]; then
     problems="$problems project.yml 缺少 INFOPLIST_KEY_UISupportedInterfaceOrientations;"
   else
@@ -452,9 +452,10 @@ token_array_block() {
 
 # 分组块内某个数值常量的字面量（CGFloat / TimeInterval 等，找不到输出空）。
 token_number_value() { # block-text, name
-  printf '%s\n' "$1" \
-    | sed -nE "s/^[[:space:]]*static let $2: [A-Za-z]+ = (-?[0-9]+(\.[0-9]+)?).*$/\\1/p" \
-    | head -n 1
+  local first
+  first="$(printf '%s\n' "$1" \
+    | sed -nE "s/^[[:space:]]*static let $2: [A-Za-z]+ = (-?[0-9]+(\.[0-9]+)?).*$/\\1/p" || true)"
+  printf '%s' "${first%%$'\n'*}"
 }
 
 # 数组常量的元素串（支持元素自身换行或与常量声明同行）。
@@ -526,13 +527,13 @@ count_identifiers() { # root
 identifier_has_readable_label() { # root, identifier
   local escaped="$2"
   escaped="${escaped//./\\.}"
-  local file line start end
+  local file line start end window
   while IFS=: read -r file line _; do
     [ -n "$file" ] || continue
     start=$(( line > 4 ? line - 4 : 1 ))
     end=$(( line + 4 ))
-    if sed -n "${start},${end}p" "$file" 2>/dev/null \
-      | grep -Eq 'accessibilityLabel\(Text\(L10n\.[A-Za-z0-9]+\)\)|label: L10n\.[A-Za-z0-9]+'; then
+    window="$(sed -n "${start},${end}p" "$file" 2>/dev/null || true)"
+    if grep -Eq 'accessibilityLabel\(Text\(L10n\.[A-Za-z0-9]+\)\)|label: L10n\.[A-Za-z0-9]+' <<< "$window"; then
       return 0
     fi
   done < <(grep -rnoE --include='*.swift' \
@@ -667,10 +668,10 @@ validate_design_tokens() {
       Icon) group_block="$icon_block" ;;
       Motion) group_block="$motion_block" ;;
     esac
-    printf '%s\n' "$group_block" | grep -Fq "static let $member" \
+    grep -Fq "static let $member" <<< "$group_block" \
       || problems="$problems Token 缺少 $group.$member;"
   done
-  printf '%s\n' "$appearance_block" | grep -Fq 'supportsDarkMode = true' \
+  grep -Fq 'supportsDarkMode = true' <<< "$appearance_block" \
     || problems="$problems Appearance.supportsDarkMode 必须为 true;"
 
   # 调色板：18 键、键集冻结、无重复；每键恰有一条 light/dark 成对且两侧不相等的 hex 色对。
@@ -1931,10 +1932,10 @@ while IFS= read -r candidate; do
   git check-ignore -q "$candidate" 2>/dev/null && continue
   stray_pbxproj="$stray_pbxproj $candidate"
 done <<EOF
-$(find . -name project.pbxproj -not -path './ios/.build/*' -print 2>/dev/null | head -20)
+$(find . -name project.pbxproj -not -path './ios/.build/*' -print 2>/dev/null | sed -n '1,20p')
 EOF
 [ -z "$stray_pbxproj" ] || problems="$problems 存在额外 project.pbxproj:$stray_pbxproj;"
-stray_projects="$(find . -name '*.xcodeproj' -not -path "./$xcodeproj" -not -path './ios/.build/*' -print 2>/dev/null | head -20 || true)"
+stray_projects="$(find . -name '*.xcodeproj' -not -path "./$xcodeproj" -not -path './ios/.build/*' -print 2>/dev/null | sed -n '1,20p' || true)"
 [ -z "$stray_projects" ] || problems="$problems 存在额外 .xcodeproj: $(printf '%s' "$stray_projects" | tr '\n' ' ');"
 if [ -z "$problems" ]; then
   pass "ac-no-handwritten-pbxproj"
@@ -2107,7 +2108,8 @@ if [ -z "$problems" ]; then
   grep -Fq 'DesignTokens.Stroke.track' "$map_shell" || problems="$problems 轨迹描边未走 Stroke.track;"
   grep -Fq 'TrackGeometry.cameraBox' "$map_shell" || problems="$problems 相机未经 TrackGeometry.cameraBox;"
   grep -Fq 'cameraPaddingRatio: Double = 0.10' "$map_shell" || problems="$problems 相机 padding 非固定 10%;"
-  if sed -n '/onMapCameraChange/,/^        }/p' "$map_shell" | grep -Eq 'cameraPosition[[:space:]]*='; then
+  camera_window="$(sed -n '/onMapCameraChange/,/^        }/p' "$map_shell" 2>/dev/null || true)"
+  if grep -Eq 'cameraPosition[[:space:]]*=' <<< "$camera_window"; then
     problems="$problems onMapCameraChange 内回写了 cameraPosition;"
   fi
   grep -Fq 'viewModel.state == .finished' ios/PurePace/Run/RunView.swift || problems="$problems 跑步页未按 finished 门控地图;"
