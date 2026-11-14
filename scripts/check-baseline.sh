@@ -13,6 +13,7 @@ usage() {
   - README.md / scripts/*.sh 无版本字面值（README 版本表数据行是唯一受控豁免，表格外写入仍判红）
   - README「当前状态」段与版本表首行同时写「已推 tag」与「未分发」（含 tag sha / 日期 / 两次 CI run），并含三类反例判红自检
   - README 版本表首行 / CHANGELOG 首条 / VERSION 三源一致（版本与日期），表首行状态反例在沙箱判红
+  - CHANGELOG 首条状态行同时写「已推 tag」「tag sha」「日期」「未分发」并保留非发布声明；与 README 版本表首行状态列及当前状态段交叉比对，含三类反例判红自检
   - docs/release/ 下 release notes 英文四节 + zh-CN 折叠段、已推 tag + 未分发口径、禁词零命中、三条已知限制、构建不可复现事实保留，并含三类反例判红自检
   - .github/workflows/release.yml 仅 workflow_dispatch、tag 由 VERSION 派生、无版本字面值、只 push tag、最小权限，并含三类反例判红自检
   - AGENTS.md 四节齐全且正文非空、测试金字塔落点与命令齐全
@@ -283,7 +284,7 @@ version_tri_source_problems() { # $1 = root；通过时静默返回 0，失败�
         inside && /^## / { exit }
         inside { print }
       ' "$root/CHANGELOG.md")"
-      printf '%s' "$entry" | grep -Fq '未发布' || problems="${problems} CHANGELOG 首条未标注未发布;"
+      printf '%s' "$entry" | grep -Fq '未分发' || problems="${problems} CHANGELOG 首条未标注未分发;"
       if printf '%s' "$entry" | grep -Eq '已发布|已分发|可分发'; then
         problems="${problems} CHANGELOG 首条出现肯定式已发布口径;"
       fi
@@ -327,6 +328,152 @@ version_tri_source_red_selftest_problems() { # $1 = root
   awk 'BEGIN { done = 0 } /^## \[[0-9]+\.[0-9]+\.[0-9]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$/ && !done { sub(/- [0-9]{4}-[0-9]{2}-[0-9]{2}$/, "- 1999-01-01"); done = 1 } { print }' \
     "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
   version_tri_source_problems "$ts" >/dev/null && problems="${problems} CHANGELOG 首条日期漂移未判红;"
+
+  rm -rf "$ts"
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# CHANGELOG 首条状态行事实：已推 tag + tag sha + 日期 + 未分发 + 声明保留，全文禁词零命中
+changelog_status_facts_problems() { # $1 = root；通过时静默返回 0，失败时打印问题并返回 1
+  local root="$1"
+  local problems=""
+  local heading entry status_line cl_date tag_sha
+  if [ ! -f "$root/CHANGELOG.md" ]; then
+    printf '%s' "缺少 CHANGELOG.md"
+    return 1
+  fi
+  heading="$(changelog_version_heading "$root")"
+  if [ -z "$heading" ]; then
+    printf '%s' "CHANGELOG 缺少 '## [x.y.z] - YYYY-MM-DD' 首条版本标题"
+    return 1
+  fi
+  cl_date="$(sed -E 's/^## \[[0-9.]+\] - (.*)$/\1/' <<< "$heading")"
+  entry="$(awk -v start="$heading" '
+    $0 == start { inside = 1; print; next }
+    inside && /^## / { exit }
+    inside { print }
+  ' "$root/CHANGELOG.md")"
+  status_line="$(printf '%s\n' "$entry" | grep -F '状态：' | head -n 1 || true)"
+  if [ -z "$status_line" ]; then
+    printf '%s' "CHANGELOG 首条缺少状态行"
+    return 1
+  fi
+  printf '%s' "$status_line" | tr -d ' ' | grep -Fq '已推tag' || problems="${problems} CHANGELOG 首条状态行缺已推 tag;"
+  printf '%s' "$status_line" | tr -d ' ' | grep -Fq '未分发' || problems="${problems} CHANGELOG 首条状态行缺未分发;"
+  printf '%s' "$status_line" | grep -Fq "$cl_date" || problems="${problems} CHANGELOG 首条状态行缺标题日期 ${cl_date};"
+  tag_sha="$(printf '%s' "$status_line" | grep -Eo '[0-9a-f]{7,40}' | head -n 1 || true)"
+  [ -n "$tag_sha" ] || problems="${problems} CHANGELOG 首条状态行缺 tag sha;"
+  printf '%s' "$status_line" | grep -Fq '本条目只陈述已交付事实' || problems="${problems} CHANGELOG 首条状态行缺「只陈述已交付事实」声明;"
+  printf '%s' "$status_line" | grep -Fq '不构成任何发布声明' || problems="${problems} CHANGELOG 首条状态行缺「不构成任何发布声明」声明;"
+  if grep -Eiq '已发布|已分发|可分发|已上传 ?TestFlight|shipped|released to testflight' "$root/CHANGELOG.md"; then
+    problems="${problems} CHANGELOG 全文出现肯定式发布禁词;"
+  fi
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# README 版本表首行与 CHANGELOG 首条状态行同口径：两侧独立取证后交叉比对 tag sha 与日期
+changelog_status_parity_problems() { # $1 = root；通过时静默返回 0，失败时打印问题并返回 1
+  local root="$1"
+  local problems=""
+  local heading entry status_line cl_date cl_sha
+  local row row_version row_date row_status row_link readme_status_line readme_date readme_status readme_sha
+  local _unused
+  if [ ! -f "$root/README.md" ] || [ ! -f "$root/CHANGELOG.md" ]; then
+    printf '%s' "缺少 README.md 或 CHANGELOG.md"
+    return 1
+  fi
+  heading="$(changelog_version_heading "$root")"
+  if [ -z "$heading" ]; then
+    printf '%s' "CHANGELOG 缺少 '## [x.y.z] - YYYY-MM-DD' 首条版本标题"
+    return 1
+  fi
+  cl_date="$(sed -E 's/^## \[[0-9.]+\] - (.*)$/\1/' <<< "$heading")"
+  entry="$(awk -v start="$heading" '
+    $0 == start { inside = 1; print; next }
+    inside && /^## / { exit }
+    inside { print }
+  ' "$root/CHANGELOG.md")"
+  status_line="$(printf '%s\n' "$entry" | grep -F '状态：' | head -n 1 || true)"
+  if [ -z "$status_line" ]; then
+    printf '%s' "CHANGELOG 首条缺少状态行"
+    return 1
+  fi
+  cl_sha="$(printf '%s' "$status_line" | grep -Eo '[0-9a-f]{7,40}' | head -n 1 || true)"
+
+  row="$(readme_version_row "$root")"
+  if [ -z "$row" ]; then
+    printf '%s' "README 缺少版本表首行"
+    return 1
+  fi
+  IFS='|' read -r _unused row_version row_date row_status row_link _unused <<< "$row"
+  readme_date="$(printf '%s' "$row_date" | tr -d ' ')"
+  readme_status="$(printf '%s' "$row_status" | tr -d ' ')"
+  readme_status_line="$(grep -E '^当前状态：' "$root/README.md" | head -n 1 || true)"
+  readme_sha="$(printf '%s' "$readme_status_line" | grep -Eo '[0-9a-f]{7,40}' | head -n 1 || true)"
+
+  # CHANGELOG 侧事实
+  printf '%s' "$status_line" | tr -d ' ' | grep -Fq '已推tag' || problems="${problems} CHANGELOG 状态行缺已推 tag;"
+  printf '%s' "$status_line" | tr -d ' ' | grep -Fq '未分发' || problems="${problems} CHANGELOG 状态行缺未分发;"
+  printf '%s' "$status_line" | grep -Fq "$cl_date" || problems="${problems} CHANGELOG 状态行缺标题日期 ${cl_date};"
+  [ -n "$cl_sha" ] || problems="${problems} CHANGELOG 状态行缺 tag sha;"
+  printf '%s' "$status_line" | grep -Eiq '已发布|已分发|可分发|已上传 ?TestFlight|shipped|released to testflight' && problems="${problems} CHANGELOG 状态行出现肯定式发布禁词;"
+
+  # README 侧事实（独立取值，不复用 CHANGELOG 结果）
+  printf '%s' "$readme_status" | grep -Fq '已推tag' || problems="${problems} README 表首行状态列缺已推 tag;"
+  printf '%s' "$readme_status" | grep -Fq '未分发' || problems="${problems} README 表首行状态列缺未分发;"
+  [ -n "$readme_sha" ] || problems="${problems} README 当前状态段缺 tag sha;"
+
+  # 交叉比对
+  [ "$readme_date" = "$cl_date" ] || problems="${problems} README 表首行日期 '${readme_date}' 与 CHANGELOG 标题日期 '${cl_date}' 不一致;"
+  if [ -n "$cl_sha" ] && [ -n "$readme_sha" ] && [ "$cl_sha" != "$readme_sha" ]; then
+    problems="${problems} CHANGELOG tag sha '${cl_sha}' 与 README '${readme_sha}' 不一致;"
+  fi
+
+  if [ -z "$problems" ]; then
+    return 0
+  fi
+  printf '%s' "$problems"
+  return 1
+}
+
+# 同口径判红自检：未改动副本必须判绿；三项反例必须判红
+changelog_status_parity_red_selftest_problems() { # $1 = root
+  local root="$1"
+  local problems=""
+  local ts readme_sha
+  ts="$(mktemp -d "${TMPDIR:-/tmp}/purepace-changelog-parity.XXXXXX")"
+  if ! cp "$root/README.md" "$root/CHANGELOG.md" "$ts/" 2>/dev/null; then
+    rm -rf "$ts"
+    printf '%s' "无法复制 README.md / CHANGELOG.md 到沙箱"
+    return 1
+  fi
+  changelog_status_parity_problems "$ts" >/dev/null || problems="${problems} 未改动副本未判绿;"
+
+  awk 'BEGIN { done = 0 } !done && index($0, "状态：") == 1 { print "状态：**未发布（候选）**。本条目只陈述已交付事实，不构成任何发布声明。"; done = 1; next } { print }' \
+    "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
+  changelog_status_parity_problems "$ts" >/dev/null && problems="${problems} 状态行改回未发布（候选）未判红;"
+
+  cp "$root/CHANGELOG.md" "$ts/CHANGELOG.md"
+  awk 'BEGIN { done = 0 } !done && index($0, "状态：") == 1 { sub(/状态：/, "状态：已分发 "); done = 1 } { print }' \
+    "$ts/CHANGELOG.md" > "$ts/CHANGELOG.tmp" && mv "$ts/CHANGELOG.tmp" "$ts/CHANGELOG.md"
+  changelog_status_parity_problems "$ts" >/dev/null && problems="${problems} 状态行注入已分发未判红;"
+
+  cp "$root/CHANGELOG.md" "$ts/CHANGELOG.md"
+  readme_sha="$(grep -E '^当前状态：' "$ts/README.md" | head -n 1 | grep -Eo '[0-9a-f]{7,40}' | head -n 1 || true)"
+  if [ -z "$readme_sha" ]; then
+    problems="${problems} README 未找到 tag sha，无法构造删 sha 反例;"
+  else
+    awk -v s="$readme_sha" '{ gsub(s, "", $0); print }' "$ts/README.md" > "$ts/README.tmp" && mv "$ts/README.tmp" "$ts/README.md"
+    changelog_status_parity_problems "$ts" >/dev/null && problems="${problems} README 删去 tag sha 未判红;"
+  fi
 
   rm -rf "$ts"
   if [ -z "$problems" ]; then
@@ -687,6 +834,25 @@ if tri_red_out="$(version_tri_source_red_selftest_problems "$repo_root")"; then
   pass "ac-version-tri-source-status-red-selftest"
 else
   fail "ac-version-tri-source-status-red-selftest" "$tri_red_out"
+fi
+
+# ------------------------------------------------ CHANGELOG 首条状态行与 README 同口径
+if changelog_status_out="$(changelog_status_facts_problems "$repo_root")"; then
+  pass "ac-changelog-status-tag-pushed-not-distributed"
+else
+  fail "ac-changelog-status-tag-pushed-not-distributed" "$changelog_status_out"
+fi
+
+if changelog_parity_out="$(changelog_status_parity_problems "$repo_root")"; then
+  pass "ac-changelog-status-parity-with-readme"
+else
+  fail "ac-changelog-status-parity-with-readme" "$changelog_parity_out"
+fi
+
+if changelog_parity_red_out="$(changelog_status_parity_red_selftest_problems "$repo_root")"; then
+  pass "ac-changelog-status-red-selftest"
+else
+  fail "ac-changelog-status-red-selftest" "$changelog_parity_red_out"
 fi
 
 # ------------------------------------------------------- release notes 口径
