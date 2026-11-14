@@ -1,0 +1,53 @@
+# 音频环境读数实测（仅作环境事实）
+
+- commit: 2873ae21ee05c890980be28a63dda1d7da573bcf
+- 运行环境: iPhone 16 / iOS 18.6 模拟器（B3F00298-E08A-41E0-876E-6E8A75C730FD），Xcode 26.3
+- 采集时间: 2026-11-14T20:08:10Z（设备日志文件名 20261114T200810Z-*.json）
+- 读数来源探针: 生产路径 `ios/PurePace/Audio/AudioSessionAdapter.swift` 的 `AVAudioSessionController`
+  （`session.isOtherAudioPlaying` / `session.secondaryAudioShouldBeSilencedHint`），
+  由 `announcementContext` 在 `beginAnnouncement()` 之后、`synthesizer.speak` 之前实时读取，
+  经 `recordStarted` 落盘到 `telemetry.announcements[]`。
+- 测试宿主: `PurePaceUITests/RunFlowUITests/testRunProducesTelemetryAcrossKilometerBoundary`
+  （App 进程内真实 `AVAudioSession`；定位源为 DEBUG 门控 `-uiTestLocation -uiTestLocationFast`）。
+- 零改动采集: 未新增探针代码/脚本，直接读取测试跑完后 App 沙盒内的跑次遥测 JSON。
+
+## 命令
+
+```bash
+xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace \
+  -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
+  -only-testing:PurePaceUITests/RunFlowUITests/testRunProducesTelemetryAcrossKilometerBoundary
+# 全程后台按 scripts/test-ios.sh 同口径重申 simctl privacy grant location-always（否则该系统授权断言红）
+```
+
+- 原始日志: `docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-readings-xcodebuild.log`
+  - `Test Case '-[PurePaceUITests.RunFlowUITests testRunProducesTelemetryAcrossKilometerBoundary]' passed (21.332 seconds)`（第 154 行）
+  - `** TEST SUCCEEDED **`（第 168 行）
+- 遥测摘录: `docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-telemetry.json`
+
+## 实测读数（第 1 公里播报，`splitIndex=1`）
+
+| 字段 | 实测值 |
+|---|---|
+| `isOtherAudioPlaying` | `false` |
+| `secondaryAudioShouldBeSilencedHint` | `false` |
+| `category` | `playback` |
+| `mode` | `spokenAudio` |
+| `categoryOptions` | `["duckOthers","mixWithOthers"]` |
+| `sessionActivated` | `true` |
+| `sessionDeactivated` | `false` |
+| `duckRevoked` | `false` |
+| `cancelled` | `false` |
+| `authorizationStatus`（旁证） | `authorizedAlways`（rawValue 3） |
+
+## 口径声明（不得外推）
+
+- 模拟器无外部音源：`isOtherAudioPlaying=false` / `secondaryAudioShouldBeSilencedHint=false`
+  只是**这一次模拟器运行的环境事实**，说明该时刻系统里没有他路音频在播；
+  它既不能证明真机上 Apple Music 播放时读数会变成 `true`，也不能证明 duck 听感好坏。
+- 本文件任何读数都不构成对音乐连续播放的人耳结论；
+  对应三条人耳结论在 `docs/distribution/manual-test-guide.md` 中固定为 `pending: 待人现场`。
+- `sessionDeactivated=false` / `duckRevoked=false` 出现于本条播报「仍在进行中」的快照
+  （跑次在该公里播报尚未结束时保存）；播报结束后的 duck 撤销读数见
+  `audio-duck-adapter.log` 的 `testEndAnnouncementRevokesDuckWhenActivationDucked`
+  与 `testEndAnnouncementSeparatesDeactivationFromDuckRevocation`。

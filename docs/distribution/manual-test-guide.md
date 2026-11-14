@@ -42,6 +42,29 @@
    ```
    期望结果：终端最后一行 `Success`。装机后的首启核对见第 5 节（Android 同意门）。
 
+本次实测产物（commit `2873ae21ee05c890980be28a63dda1d7da573bcf`，`bash scripts/package-android.sh` 实跑，退出码 0）：
+
+| 项 | 实测值 |
+|---|---|
+| 产物目录名 | `0.1.0-1` |
+| APK 绝对路径（仓外） | `/private/var/folders/hn/rqf4yrcj4yn53l0vghdcgjcr0000gn/T/purepace-dist/android/0.1.0-1/purepace-0.1.0-1-debug.apk` |
+| sha256 | `8b80c8e2252fbbd20ccacadfad67bf2b49410b7976926ae507282d9b242990e0` |
+| 自校验 | 在产物目录执行 `shasum -a 256 -c checksums.txt`，输出 `purepace-0.1.0-1-debug.apk: OK`，退出码 0 |
+
+复跑校验：
+
+```bash
+DIST="${TMPDIR:-/tmp}/purepace-dist/android/0.1.0-1"
+cd "$DIST"
+shasum -a 256 -c checksums.txt
+shasum -a 256 purepace-0.1.0-1-debug.apk   # 期望与上表 sha256 逐字一致
+```
+
+版本号仍由根 `VERSION` 与 `android/app/build.gradle.kts` 单点派生；上表只是本次产物的实测抄录，
+不是写进构建配置的字面值。装机仍需人执行，本说明不含任何发布或获取口径。
+证据与命令日志：`docs/evidence/wi_intake_9dc4d2c5af703568/README.md` 与同目录 `android-package.log`、
+`android-manifest.json`、`android-checksums-verify.log`。
+
 ### 1.2 iOS（TestFlight 内部测试路径）
 
 分发链路、凭据边界与证据归档见 [`docs/release/testflight-runbook.md`](../release/testflight-runbook.md)。
@@ -88,12 +111,16 @@ Android 端当前只有独立同意门与占位主界面，没有定位、语音
 
 机器层读数只覆盖环境事实，不覆盖上面三条人耳结论：
 
-| 机器层事实 | 说明 | 状态 |
+| 机器层事实 | 实测值 / 说明 | 状态 |
 |---|---|---|
-| 播报调度去重与顺序 | 纯逻辑调度器：每公里恰好播报一次且按公里序 | 机器已验：testEachKilometerAnnouncedExactlyOnceInOrder |
-| duck 会话撤销配置 | 播报结束后撤销 ducking 的会话动作 | 机器已验：testEndAnnouncementRevokesDuckWhenActivationDucked |
-| 音源与环境声明 | 模拟器上明确 `simulatorNotApplicable`，只作为环境事实 | 机器已验：testDefaultStrategyAndBundleDeclarations |
-| 播报期间外部音源播放探针 | 模拟器上仅验证播放动作，不构成音乐不被打断的证据 | 机器已验：testRunnerPlaysAndNoneIsSilent |
+| 播报调度去重与顺序 | 纯逻辑调度器：每公里恰好播报一次且按公里序；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testEachKilometerAnnouncedExactlyOnceInOrder |
+| 播报期会话配置读回 | 真实 `AVAudioSession` 读回 `category=playback`、`mode=spokenAudio`、`categoryOptions` 实测含 `duckOthers` 与 `mixWithOthers`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testApplyingDefaultConfigurationReadsBackFromRealSession |
+| duck 会话撤销配置 | 默认设置播报结束实测 `sessionDeactivated=true`、`duckRevoked=true`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testEndAnnouncementRevokesDuckWhenActivationDucked |
+| 去激活与 duck 撤销分离 | 激活未带 `duckOthers` 时实测 `sessionDeactivated=true` 且 `duckRevoked=false`，两字段不互为别名；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testEndAnnouncementSeparatesDeactivationFromDuckRevocation |
+| 默认会话配置与停用选项 | `playback` / `spokenAudio` / `[duckOthers, mixWithOthers]`，停用选项 `[notifyOthersOnDeactivation]`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-runcore.log` | 机器已验：testDefaultAnnouncementSettingsValues |
+| 音源与环境声明 | 模拟器上明确 `simulatorNotApplicable`，只作为环境事实；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testDefaultStrategyAndBundleDeclarations |
+| 播报期间外部音源播放探针 | 模拟器上仅验证播放动作，不构成下面三条人耳结论的证据；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testRunnerPlaysAndNoneIsSilent |
+| 播报期环境读数 | 模拟器实测 `isOtherAudioPlaying=false`、`secondaryAudioShouldBeSilencedHint=false`（无外部音源时只作环境事实）；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-readings.log` | 机器已验：testRunProducesTelemetryAcrossKilometerBoundary |
 
 ## 4. 同意门（iOS）
 
@@ -149,16 +176,18 @@ Android 端当前只有独立同意门与占位主界面，没有定位、语音
 
 | 项 | 说明 | 状态 |
 |---|---|---|
-| Android 出包、sha256 校验与安装 | 产物目录与 `checksums.txt` 见 `docs/distribution/android.md`；实际装机由人执行 | pending: 待人现场 |
+| Android 出包、sha256 校验与安装 | 本次实测产物目录名 `0.1.0-1`、sha256 与校验命令见第 1.1 节，证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md`；实际装机由人执行 | pending: 待人现场 |
 | iOS TestFlight 内部安装 | 凭据就位后由分发任务执行，人安装以 TestFlight 实际可见为准 | pending: 待人现场 |
 | 开跑 / 暂停 / 继续 / 结束保存 / 历史 / 详情分段行数（iOS 模拟器） | 跑步链路 UI 腿 | 机器已验：testRunPauseResumeFinishAndHistory |
-| 跨 1 公里遥测与「第 1 公里」播报文案（iOS 模拟器） | 遥测含 `duckOthers=true` | 机器已验：testRunProducesTelemetryAcrossKilometerBoundary |
+| 跨 1 公里遥测与「第 1 公里」播报文案（iOS 模拟器） | 实测 `duckOthers=true`、`otherAudioPlaying=false`、`secondaryAudioSilenced=false`（`docs/evidence/wi_intake_9dc4d2c5af703568/audio-env-readings.log`） | 机器已验：testRunProducesTelemetryAcrossKilometerBoundary |
 | 详情 → 导出 GPX → 系统分享面板 → 回详情（iOS 模拟器） | 导出产物由 `scripts/verify-ios-ui-e2e.sh` 断言 | 机器已验：testStartFinishExportGPXArtifact |
 | 续记采样单调（进程内 protected-data + fake 采样源） | 非真实锁屏 | 机器已验：testLockRunningContinuesWithMonotonicSamples |
-| 每公里播报调度去重与顺序 | 纯逻辑 | 机器已验：testEachKilometerAnnouncedExactlyOnceInOrder |
-| 播报结束撤销 duck 会话 | 会话动作层 | 机器已验：testEndAnnouncementRevokesDuckWhenActivationDucked |
-| 音源与环境声明 | 模拟器 `simulatorNotApplicable`，只作环境事实 | 机器已验：testDefaultStrategyAndBundleDeclarations |
-| 播报期间外部音源播放探针 | 模拟器环境事实，不构成音乐不打断证据 | 机器已验：testRunnerPlaysAndNoneIsSilent |
+| 每公里播报调度去重与顺序 | 纯逻辑；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testEachKilometerAnnouncedExactlyOnceInOrder |
+| 播报期会话配置含 duckOthers（真实 AVAudioSession 读回） | 实测 `category=playback`、`mode=spokenAudio`、含 `duckOthers` 与 `mixWithOthers`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testApplyingDefaultConfigurationReadsBackFromRealSession |
+| 播报结束撤销 duck 会话 | 实测 `sessionDeactivated=true`、`duckRevoked=true`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testEndAnnouncementRevokesDuckWhenActivationDucked |
+| 去激活与 duck 撤销分离 | 实测激活未带 `duckOthers` 时 `sessionDeactivated=true`、`duckRevoked=false`；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/audio-duck-adapter.log` | 机器已验：testEndAnnouncementSeparatesDeactivationFromDuckRevocation |
+| 音源与环境声明 | 模拟器 `simulatorNotApplicable`，只作环境事实；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testDefaultStrategyAndBundleDeclarations |
+| 播报期间外部音源播放探针 | 模拟器环境事实，不构成人耳结论证据；证据 `docs/evidence/wi_intake_9dc4d2c5af703568/README.md` | 机器已验：testRunnerPlaysAndNoneIsSilent |
 | iOS 同意门（未同意拦截 + 原因 / 同意 / 关于页政策全文 / 撤回 / 冷启动持久化） | 模拟器 UI 腿 | 机器已验：testTrajectoryConsentGateThreeStates |
 | Android 首启同意屏为根视图 | 本地 JVM 腿 | 机器已验：firstLaunchShowsConsentGateAsRoot |
 | Android 未同意点击开跑被拦并给原因 | 本地 JVM 腿 | 机器已验：unattendedStartAttemptStaysBlockedWithReason |

@@ -1,0 +1,35 @@
+[0/1] Planning build
+Building for debugging...
+[0/4] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.16s)
+Test Suite 'Selected tests' started at 2026-11-15 04:08:40.475.
+Test Suite 'PurePaceRunCorePackageTests.xctest' started at 2026-11-15 04:08:40.476.
+Test Suite 'AudioSessionCoordinatorTests' started at 2026-11-15 04:08:40.476.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testActivationIsIdempotent]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testActivationIsIdempotent]' passed (0.001 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testCommitDeactivationOnlyAppliesFromActive]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testCommitDeactivationOnlyAppliesFromActive]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDeactivateCarriesNotifyOthersOption]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDeactivateCarriesNotifyOthersOption]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDeactivateDerivesActionWithoutCommittingState]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDeactivateDerivesActionWithoutCommittingState]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDefaultAnnouncementSettingsValues]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testDefaultAnnouncementSettingsValues]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionBeganThenResumeReactivatesWithDefaultSettings]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionBeganThenResumeReactivatesWithDefaultSettings]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionEndedOutsideInterruptionIsNoop]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionEndedOutsideInterruptionIsNoop]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionEndedWithoutResumeStaysInactive]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testInterruptionEndedWithoutResumeStaysInactive]' passed (0.000 seconds).
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testRepeatedInterruptionBeganIsIdempotent]' started.
+Test Case '-[PurePaceRunCoreTests.AudioSessionCoordinatorTests testRepeatedInterruptionBeganIsIdempotent]' passed (0.000 seconds).
+Test Suite 'AudioSessionCoordinatorTests' passed at 2026-11-15 04:08:40.478.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'PurePaceRunCorePackageTests.xctest' passed at 2026-11-15 04:08:40.478.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'Selected tests' passed at 2026-11-15 04:08:40.478.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.002 (0.004) seconds
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
