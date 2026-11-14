@@ -1,6 +1,6 @@
 # PurePace Release Notes (0.1.0)
 
-> Status: V1 close-out candidate. **Not released yet.** This document is a draft for delivery review; it authorizes no tag, no store submission, and no distribution.
+> Status: tag `v0.1.0` @ `501ba9e` pushed 2026-11-14; CI runs ios `43599497314` and android `43599497253` both success. **Not distributed**: no TestFlight / App Store / Play upload, no install package, no GitHub Release. This document authorizes no further store submission.
 
 ## What's in this release
 
@@ -40,7 +40,7 @@ No account, no ads, no social features; all run data and exported files stay on 
 
 ### 本版是什么
 
-PurePace 的 V1 收口候选：核心跑步闭环已实现并跑通代码层门与模拟器门。**尚未发布**，本文档是交付评审草稿，不授权任何 tag、商店提交或分发动作。
+PurePace 的 V1 收口：核心跑步闭环已实现并跑通代码层门与模拟器门。已推 tag `v0.1.0`（指向 `501ba9e`，2026-11-14；CI ios `43599497314` / android `43599497253` 双绿）；**尚未分发**：未上传 TestFlight / 商店、未提供安装包、未建 GitHub Release。
 
 ### 闭环能力
 

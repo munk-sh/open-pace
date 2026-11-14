@@ -2,7 +2,7 @@
 
 没人打扰你的跑步计时器与热量记录本：无账号、无广告、无社交，数据只留在本机。
 
-当前状态：V1 闭环已实现（一键开跑 → 后台记录 → 每公里语音播报不打断音乐 → 结束保存 → 历史 → GPX 导出/分享）；已过代码层门（[`.munk/code-gates.json`](./.munk/code-gates.json)）与模拟器门（[`.github/workflows/ios.yml`](./.github/workflows/ios.yml)）；真机终验由人按 [`docs/device-manual-acceptance.md`](./docs/device-manual-acceptance.md) 执行，当前尚未发布，版本以根 [`VERSION`](./VERSION) 为唯一真源。交付与候选记录见 [`docs/release/`](./docs/release/)（含双语 release notes 草稿与历史候选记录）。
+当前状态：V1 闭环已实现（一键开跑 → 后台记录 → 每公里语音播报不打断音乐 → 结束保存 → 历史 → GPX 导出/分享）；已过代码层门（[`.munk/code-gates.json`](./.munk/code-gates.json)）与模拟器门（[`.github/workflows/ios.yml`](./.github/workflows/ios.yml)）；真机终验由人按 [`docs/device-manual-acceptance.md`](./docs/device-manual-acceptance.md) 执行；已推 tag（指向 `501ba9e`，2026-11-14；CI ios `43599497314` / android `43599497253` 双绿），但尚未分发（未上传 TestFlight / 商店、未提供安装包、未建 GitHub Release），版本以根 [`VERSION`](./VERSION) 为唯一真源。交付与候选记录见 [`docs/release/`](./docs/release/)（含双语 release notes 草稿与历史候选记录）。
 
 ## 冻结技术栈
 
@@ -32,7 +32,7 @@ bash scripts/version.sh --tools
 
 | 版本 | 日期 | 状态 | CHANGELOG |
 |---|---|---|---|
-| 0.1.0 | 2026-11-14 | 未发布（候选） | [CHANGELOG](./CHANGELOG.md) |
+| 0.1.0 | 2026-11-14 | 已推 tag、未分发 | [CHANGELOG](./CHANGELOG.md) |
 
 版本表首行、[`CHANGELOG.md`](./CHANGELOG.md) 首条与根 `VERSION` 必须三源一致（版本与日期都比对），由 `scripts/check-baseline.sh` 的 `ac-version-tri-source-consistency` 断言；不一致即判红。
 
