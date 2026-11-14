@@ -70,6 +70,8 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 - ac-scripts-gate-consistent: `bash scripts/check-ios-scripts.sh` 退出 0；`build-ios.sh` / `test-ios.sh` 的分支判定与 `--help` 文案一致（工程缺失且有 xcodegen 时由 spec 生成，仍不可用才 `blocked:` + SwiftPM 降级），脚本字面量与顺序锚点断言（含 `xcodegen generate`）保持或加强，未删除、未放宽。
 - ac-code-gates-22-green: `.munk/code-gates.json` 仍为 22 门（不新增门腿），本地先 `xcodegen generate` 并刷新 `.build/ios` 后 22 门全绿；`ac-built-plist-readback` 不得因陈旧产物伪红，也不得以改产品代码掩盖。
 - ac-existing-gates-green: `check-ios-shell.sh`、`check-ios-scripts.sh`、`check-ios-run-core.sh`、`check-shared.sh`、`check-gpx-export.sh`、`check-shell-expansion.sh`、`check-baseline.sh` 全部退出 0；本项不改 `ios/RunCore/**` 与 `ios/PurePace/Harness/**` 契约字段。
+- ac-shell-no-early-exit-consumer-pipe: `scripts/check-ios-shell.sh`（剔除注释行）不得存在「上游写者 → 提前退出消费者（`head` / `grep -q` / `grep -m`）」形态的管道——`grep -nE '(^|[^|])\|[[:space:]]*(head|grep[[:space:]]+-[^|]*[qm])'` 必须 0 命中，同一命令对历史基线 `5925310` 命中 10 行（守卫非空转）。该形态在 `set -euo pipefail` 下会让写者收 SIGPIPE(141)、`pipefail` 判整条管道失败，从而把「存在」误写成缺项伪红。等价替换口径：存在性判定改 here-string（`grep -Fq … <<< "$var"`），首条命中改 `grep -m1`，前 N 行改 `sed -n '1,20p'`，sed 窗口先落变量再 `grep -Eq … <<<`；断言语义、失败文案、阈值与 `pass`/`fail` 计数一律不变。
+- ac-shell-self-test-explicit: `--self-test` 不在门矩阵内（`lint-ios-shell` 只跑默认模式），脚本形态改动必须显式单跑 `bash scripts/check-ios-shell.sh` 与 `bash scripts/check-ios-shell.sh --self-test`，两者退出 0 且断言数不下降（当前 32 / 102 项，0 失败，末行 `self-test OK`），原始输出留证据目录。
 
 ## 非目标
 
@@ -98,6 +100,6 @@ PurePace iOS 工程与运行期契约域：以 XcodeGen 规格 `ios/project.yml`
 
 ## 最近交付证明
 
-- workItemId: wi_intake_1aa34f98b6e5f9a3（2026-11-10，pass）
-- 交付：`ac-legacy-bundle-id-grep-exempt` 的豁免清单删去已移除的 device 取证脚本与 `docs/device-assertion-matrix.md`，只保留历史证据 `docs/evidence/**`、`artifacts/**`；bundle id 技术结论与其余断言不变，`scripts/**`、`ios/**` 零改动。
-- 实测：`code_gates` 22 门全绿（`lint-ios-shell` 27 项断言 0 失败）；`bash scripts/test-ios.sh` 全量腿退出 0，单测 125 例 + UI 6 例 0 失败。真机与 TestFlight 仍为 `pending: 待人现场`。
+- workItemId: wi_intake_27d00c5366cf423a（2026-11-15，pass）
+- 交付：清除 `scripts/check-ios-shell.sh` 在 `set -euo pipefail` 下的 SIGPIPE 伪红——基线 10 处「写者 → 提前退出消费者」管道全部改为等价形态（`printf | grep -Fq` → here-string；`sed | grep -Eq` → 先落变量再 here-string；`grep | head -n 1` → `grep -m1`；`find | head -20` → `sed -n '1,20p'`；`printf | sed | head -n 1` → 取变量首行），断言语义/文案/阈值/计数零变化；`ios/**`、`VERSION`、`.github/**`、`docs/verification-matrix.md`、`.munk/code-gates.json` 零改动。
+- 实测：`code_gates` 23 门全绿（attempt 001；本域 `lint-ios-shell` 32–33 项断言 0 失败，差异仅为 `ac-built-plist-readback` 在 `.build/ios` 产物存在时由 SKIP 转 PASS）；显式单跑 `check-ios-shell.sh` 退出 0（含 `[PASS] ac-design-tokens`、`ios shell OK`）与 `--self-test` 退出 0（102 项断言，末行 `self-test OK`）；形态守卫现行 0 命中 / 基线 `5925310` 10 命中。真机与 CI 远端 run 仍为 `pending: 待人现场`。

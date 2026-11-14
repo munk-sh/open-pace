@@ -50,6 +50,12 @@
 - ac-gates-green: `.munk/code-gates.json` 仍 22 项且 id 列表零变更、全部退出 0；其中 `test-ios-core` / `test-ios-run-core` / `test-ios --unit-only` / `lint-ios-workflow` / `check-gpx-export` 必须真实执行到新增断言。
 - ac-pending-device-audio: 音频实听、真机 duck 撤销、锁屏定位等真机项保持 `pending: 待人现场`；不得出现「真机已验证」。
 
+### E. 伪红反例（SIGPIPE 类假红）
+
+- ac-pipefail-pseudo-red-proof: 对 `scripts/check-ios-shell.sh` 一类 `set -euo pipefail` 脚本，任何「缺少 X」的判定都必须先证明其**不是**管道假红——证据脚本喂「首行即命中 + 后续 >64 KiB」block 时，旧形态 `printf … | grep -Fq` 单跑退出 `141`(SIGPIPE)、两行形态退出 0 却写出并不存在的缺项；同一输入经新形态（here-string）单跑退出 0、`problems` 为空。原始退出码与输入尺寸落 `docs/evidence/{workItemId}/`，不得只写结论。
+- ac-pipefail-negative-still-red: 替换后仍须判红——真缺 token 的 block 单跑退出非 0 并打印缺项文案；sed 切片两条（可读 label 窗口、`onMapCameraChange` 回写）各给一正一反（真实文件 → 无问题；注入 `cameraPosition =` 副本 → 报回写）。证明等价替换未把断言写空。
+- ac-pipefail-guard-nonvacuous: 形态守卫（禁止 `head` / `grep -q` / `grep -m` 作管道末段）必须两向计数：对基线 commit 命中非 0 行（本类基线 `5925310` 为 10 行），对现行文件 0 行；守卫恒真即无效。
+
 ## 非目标
 
 - 不改 duck/中断语义方向：不新增盲重试、失败不回滚 `.active`、不改 `.notifyOthersOnDeactivation` 既有选型。
@@ -70,7 +76,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_f1272798d9a999ef（2026-11-11，pass；只取代码层与模拟器单测腿证据）
-- 交付：`AudioSessionAdapter` 新增 `AnnouncementEndResult` 与 `activationDuckedOthers` 平台读回事实，`endAnnouncement()` 返回两独立布尔（`duckRevoked = activationDuckedOthers && options.contains(.notifyOthersOnDeactivation)`）；`AnnouncementSpeaker.onFinish` 分字段取值，别名赋值 `duckRevoked: sessionDeactivated` 已删除；`AnnouncementText.sentence` 句尾追加「，配速 \(RunFormatting.paceText(pace))」；`AnnouncementSchedulerTests` 公里边界改喂累计 `newly`；`ios.yml` 的 `lint` 腿新增 `bash scripts/check-gpx-export.sh` 独立一行；`check-gpx-export.sh` 增反例自证两条（`red-proof-missing-ele` / `red-proof-namespace`）与阈值注释；`GPXCodecTests` 增内联 4 点夹具 + 缺 `<ele>` / GPX 1.0 两个反例。
-- 验证：`code_gates` 22 门全绿（attempt 002）——`test-ios` 0 失败（`AnnouncementSpeakerTests` 14 例、`AudioSessionAdapterTests` 8 例）、`test-ios-run-core` 0 失败（`Executed 128 tests`，`GPXCodecTests` 13 例）、`check-gpx-export` 8 条断言全 PASS（含两条反例自证）、`lint-ios-workflow` PASS。
-- 偏离 / 有意未做：变更包内未落 `digest.md`，PRD 要求的「接缝 → 断言名 → 文件:行 → 反例是否判红」表格与 ac-duck-alias-breaker 判红失败原文未随交付落盘（改写实现回别名再跑红的临时实验未记录）；CI run 结果未观测，按 `pending: 待人现场`；真机 duck 撤销/音频实听/锁屏定位仍 `pending: 待人现场`。
+- workItemId: wi_intake_27d00c5366cf423a（2026-11-15，pass；证据目录 `docs/evidence/wi_intake_27d00c5366cf423a/`）
+- 交付：为 `scripts/check-ios-shell.sh` 建立 SIGPIPE 伪红的两向判据并落盘——旧形态（基线 `5925310` 逐字抽取）喂「首行即命中 + 1,180,100 字节尾巴」单跑退出 `141`，两行形态写出假缺项 `Token 缺少 Motion.durationState;`；新形态（here-string）同输入 `problems=[]`。反例仍红：真缺 token → 非 0 + 缺项文案，可读 label 窗口正 0 / 反 1，真实 `TrackMapView.swift` 无回写 / 注入 `cameraPosition =` 报回写。守卫两向：现行 0 命中、基线 10 命中（`guard-hits.log`）。
+- 验证：`bash docs/evidence/wi_intake_27d00c5366cf423a/verify-sigpipe-redgreen.sh` 可重跑（只读仓、产物只写自身目录、`<tmp>` 清理）；`code_gates` 23 门全绿（attempt 001），`check-ios-shell.sh` 32–33 断言 0 失败（`ac-built-plist-readback` 视 `.build/ios` 产物有无 SKIP/PASS）、`--self-test` 102 断言 0 失败。
+- 偏离 / 有意未做：`.munk/code-gates.json` 实际为 23 门（PRD 文案写 22 门），本项零改动该文件、按 23 门口径记录；`ios/**`、`VERSION`、`docs/verification-matrix.md`、Android/`shared/` 按非目标未动；真机与 CI 远端 run 仍 `pending: 待人现场`。

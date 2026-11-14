@@ -1,0 +1,8 @@
+[PASS] ac-bg-source-background-enable (self-test)
+[PASS] ac-bg-source-background-reset (self-test)
+[PASS] ac-bg-source-always-upgrade (self-test)
+[PASS] ac-bg-source-degraded-hint (self-test)
+[PASS] self-test (包/import/定位配置/Harness 清单/Settings 开关/设计 token/本地化 正负反例)
+
+102 项断言，0 项失败
+self-test OK

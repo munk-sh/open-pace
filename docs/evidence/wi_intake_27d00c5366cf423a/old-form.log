@@ -1,0 +1,17 @@
+== 旧形态（commit 5925310:scripts/check-ios-shell.sh）==
+block: 1180100 字节，首行即命中，尾巴 >64 KiB
+旧形态首行（逐字来源）：
+      printf '%s\n' "$group_block" | grep -Fq "static let $member" \
+旧形态两行（逐字来源）：
+      printf '%s\n' "$group_block" | grep -Fq "static let $member" \
+        || problems="$problems Token 缺少 $group.$member;"
+(单跑管道时仅去掉行尾续行符 `\`，其余字形逐字不变)
+- 旧形态单跑管道（pipefail 下 printf 收 SIGPIPE）
+  cmd: bash <tmp>/old_bare.sh <tmp>/block-hit.txt
+  exit: 141（期望 141）
+- 旧形态两行（|| problems=）→ token 明明存在却写缺项（假红）
+  cmd: bash <tmp>/old_pair.sh <tmp>/block-hit.txt
+  exit: 0（期望 0）
+  output:
+    problems=[ Token 缺少 Motion.durationState;]
+  假红判定文案：problems=[ Token 缺少 Motion.durationState;]

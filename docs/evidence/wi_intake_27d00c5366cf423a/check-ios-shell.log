@@ -1,0 +1,36 @@
+[PASS] ac-xcodegen-single-source (xcodegen Version: 2.46.0)
+[PASS] ac-no-handwritten-pbxproj
+[PASS] ac-build-settings (iOS 17.0 / Swift 6.2 / MARKETING_VERSION 来自 VERSION)
+[PASS] ac-app-targets-and-frameworks (3 targets / import 允许表含 Harness + Location 作用域)
+[PASS] ac-corelocation-config-declared (用途说明非空 + 后台模式 location + audio、无重复 setting)
+[PASS] ac-portrait-orientation-lock (UIInterfaceOrientationPortrait + TARGETED_DEVICE_FAMILY 1)
+[PASS] ac-background-location-source (Always 升级 + 跑步态后台开关 + 降级提示)
+[PASS] ac-harness-manifest (Harness 文件清单 + 无夹具数据)
+[PASS] ac-live-run-ui (Run/History/Settings + 真实定位数据源 + 无障碍标识)
+[PASS] ac-design-tokens (单一 token 真源 + 三屏引用 + 可读标签；identifier: 49（冻结 33 + 新增 16）；demo/示例入口: 0)
+[PASS] ac-visible-copy-zh-hans (String Catalog 单一来源 + 三屏零裸英文)
+[PASS] ac-tests-present (XCTest + XCUITest 真实流程)
+[PASS] ac-ui-test-location-source (launch-arg + DEBUG 门控)
+[PASS] ac-ui-test-location-source (self-test)
+[PASS] ac-ui-test-location-arg (self-test)
+[PASS] ac-ui-test-source-debug-only (self-test)
+[PASS] ac-ui-assertions-intact (self-test)
+[PASS] ac-ui-test-count-intact (self-test)
+[PASS] ac-ui-export-case-intact (self-test)
+[PASS] ac-screenshot-evidence-counters
+[PASS] ac-screenshot-evidence-case-count-intact (self-test)
+[PASS] ac-screenshot-evidence-assertions-intact (self-test)
+[PASS] ac-uitests-background-audio-only (self-test)
+[PASS] ac-audio-asset-committed (self-test)
+[PASS] ac-no-legacy-music-id (self-test)
+[PASS] ac-music-id-constant (self-test)
+[PASS] ac-built-plist-readback (self-test)
+[PASS] ac-uitests-music-source (UITests [audio] + 合成音资产 ≤200KB + 无旧 id + 常量 com.apple.Music)
+[SKIP] ac-built-plist-readback: 无 .build/ios 模拟器构建产物（构建后复跑本门生效）
+[PASS] ac-release-deterministic-source (launch-arg 门控 + 默认关 + 权限零新增)
+[PASS] ac-release-deterministic-release-available (self-test)
+[PASS] ac-release-deterministic-default-real (self-test)
+[PASS] ac-scripts-and-gates (真实构建/测试脚本 + code-gates)
+
+32 项断言，0 项失败
+ios shell OK

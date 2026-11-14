@@ -1,0 +1,16 @@
+== ac-no-early-exit-consumer-pipe ==
+pattern: (^|[^|])\|[[:space:]]*(head|grep[[:space:]]+-[^|]*[qm])
+旧形态真源: commit 5925310:scripts/check-ios-shell.sh
+当前 scripts/check-ios-shell.sh 命中数（剔除注释行）: 0（期望 0）
+基线命中数（剔除注释行）: 10（期望 10）
+基线命中行（文件:行 → 现形态）：
+  165:  usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  177:  always_usage_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  244:  orientation_line="$(grep -E '^[[:space:]]*INFOPLIST_KEY_UISupportedInterfaceOrientations:' "$spec_file" 2>/dev/null | head -n 1 || true)"
+  457:    | head -n 1
+  535:      | grep -Eq 'accessibilityLabel\(Text\(L10n\.[A-Za-z0-9]+\)\)|label: L10n\.[A-Za-z0-9]+'; then
+  670:    printf '%s\n' "$group_block" | grep -Fq "static let $member" \
+  673:  printf '%s\n' "$appearance_block" | grep -Fq 'supportsDarkMode = true' \
+  1934:$(find . -name project.pbxproj -not -path './ios/.build/*' -print 2>/dev/null | head -20)
+  1937:stray_projects="$(find . -name '*.xcodeproj' -not -path "./$xcodeproj" -not -path './ios/.build/*' -print 2>/dev/null | head -20 || true)"
+  2110:  if sed -n '/onMapCameraChange/,/^        }/p' "$map_shell" | grep -Eq 'cameraPosition[[:space:]]*='; then
