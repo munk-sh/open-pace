@@ -1184,6 +1184,27 @@ fi
 rm -rf "$fallback_sandbox"
 
 # ----------------------------------------- 一次性凭据录入文档（无真实凭据值）
+# 凭据单一口径：唯一落点是 ~/.purepace-asc/asc.env，旧口径（~/keys/ 与临时 export）必须消失。
+asc_env_problems() {
+  local file="$1" out=""
+  if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+    printf '缺少或为空 %s;' "$file"
+    return 0
+  fi
+  for needle in 'asc.env' 'chmod 600' 'purepace-asc' '~/.purepace-asc/asc.env'; do
+    grep -Fq -- "$needle" "$file" || out="$out 缺少 '$needle';"
+  done
+  for legacy in '~/keys/' 'export ASC_KEY_PATH='; do
+    if grep -Fq -- "$legacy" "$file"; then
+      out="$out 仍保留旧口径 '${legacy}';"
+    fi
+  done
+  if grep -Eq -- '(echo|printf).*\$ASC_' "$file"; then
+    out="$out 自检段打印了变量值;"
+  fi
+  printf '%s' "$out"
+}
+
 human_gate_problems() {
   local file="$1" out=""
   if [ ! -f "$file" ] || [ ! -s "$file" ]; then
@@ -1193,6 +1214,7 @@ human_gate_problems() {
   for needle in 'ASC_KEY_PATH' 'ASC_KEY_ID' 'ASC_ISSUER_ID' 'TESTFLIGHT_TESTER_EMAIL' '.p8' '仓库之外' '仓库' '日志' 'CI'; do
     grep -Fq -- "$needle" "$file" || out="$out 缺少 '$needle';"
   done
+  out="$out$(asc_env_problems "$file")"
   if grep -Eq -- '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' "$file"; then
     out="$out 含疑似真实 Issuer UUID;"
   fi
@@ -1201,6 +1223,10 @@ human_gate_problems() {
 }
 
 problems="$(human_gate_problems "$human_gate")"
+runbook_asc_env="$(asc_env_problems "$runbook")"
+if [ -n "$runbook_asc_env" ]; then
+  problems="$problems runbook 凭据口径:$runbook_asc_env"
+fi
 if [ -z "$problems" ]; then
   pass "ac-human-gate-doc"
 else
@@ -1217,6 +1243,17 @@ else
   fail "ac-human-gate-doc" "含真实 UUID 的样本未被识别"
 fi
 rm -rf "$human_gate_sandbox"
+
+# 反例自检：把 asc.env 单一口径换回旧的 ~/keys/ 私钥路径后必须判红。
+human_gate_legacy_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-human-gate-legacy.XXXXXX")"
+sed 's|~/.purepace-asc/asc.env|~/keys/AuthKey.p8|g' "$human_gate" \
+  > "$human_gate_legacy_sandbox/human-gate.md"
+if [ -n "$(human_gate_problems "$human_gate_legacy_sandbox/human-gate.md")" ]; then
+  pass "ac-human-gate-doc (legacy-self-test)"
+else
+  fail "ac-human-gate-doc" "旧口径 ~/keys/ 样本未被识别"
+fi
+rm -rf "$human_gate_legacy_sandbox"
 
 # --------------------------------------------------- README 分发入口两行
 readme_distribution_problems() {
