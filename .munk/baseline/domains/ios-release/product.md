@@ -84,7 +84,7 @@ PurePace iOS 分发基线域：交付「仓外产物、可静态校验、可脱�
 - ac-gate-wiring-consistent: 不新增 `code_gates` 条目（门数保持 22，`lint-ios-release` 的 `command` 仍为 `bash scripts/check-ios-release.sh`）；`scripts/check-ios-scripts.sh` 的 `targets` / `strict_targets` 含 `upload-ios.sh` 与 `testflight-tester.sh`，帮助文案按实际脚本数更新。
 - ac-runbook-script-first: `docs/release/testflight-runbook.md` 主路径为 `archive-ios.sh` → `upload-ios.sh` → `testflight-tester.sh`，人的动作只剩一次性录入凭据并指向 `docs/human-gate-distribution.md`；删除「必须由人在场执行 xcodebuild」的主路径表述；保留 `前置` / `执行步骤` / `证据` / `反范围` 四段与 `$ASC_*` 占位符、`altool --list-apps`、`xcodebuild -version`、`sha256`、`commit`、`.env` 要素。
 - ac-runbook-transporter-fallback: 同文件明确把 Xcode Organizer / Transporter 标为 fallback（非主路径），不出现「上传/邀请测试者由人手工完成」的主路径措辞。
-- ac-human-gate-doc: `docs/human-gate-distribution.md` 存在且非空，说明一次性凭据录入（三个 `ASC_*` 变量、`.p8` 必须在仓库外、`TESTFLIGHT_TESTER_EMAIL`），明确凭据不得进仓库 / 日志 / CI，文件内无真实凭据值、无用户目录绝对路径。
+- ac-human-gate-doc: `docs/human-gate-distribution.md` 存在且非空，说明一次性凭据录入（三个 `ASC_*` 变量、`.p8` 必须在仓库外、`TESTFLIGHT_TESTER_EMAIL`），明确凭据不得进仓库 / 日志 / CI，文件内无真实凭据值、无用户目录绝对路径；`~/.purepace-asc/asc.env` 单一口径细则见 `domains/distribution-credentials/product.md`。
 - ac-no-real-upload-and-scope-frozen: 本项不执行真实上传或真实测试者写入；不 push tag、不建 GitHub Release、不改 `VERSION` / bundle id / Team / 签名主干与 `archive-ios.sh` 既有导出逻辑；`.github/workflows/ios.yml` 的腿与触发条件零改动；不引入 fastlane 或第三方运行时依赖；回执写「真实上传未执行（待凭据）」，不得写已分发。
 - ac-readme-distribution-entries: `README.md`「构建与测试入口」表补 `bash scripts/upload-ios.sh` 与 `bash scripts/testflight-tester.sh` 两行，不写根 `VERSION` 字面值，既有 `archive-ios.sh` / `check-ios-release.sh` 行保留。
 
