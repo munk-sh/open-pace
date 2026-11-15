@@ -24,7 +24,6 @@
 - 不改分发任务 instruction、不重开人闸卡、不执行真实归档 / 上传 / 测试者写入。
 - 不改 `.github/workflows/**`、`VERSION`、bundle id / Team / 签名主干。
 - 不扩 UI、功能面或验证基建。
-- 不写「已发布 / 已分发 / 可下载」。
 
 ## 实现约束
 
@@ -38,4 +37,4 @@
 - workItemId: wi_intake_2b07ee6947cb52ad / at: 2026-11-16T00:10:00+08:00 / status: pass
 - 交付：凭据口径统一到 `~/.purepace-asc/asc.env`——`docs/human-gate-distribution.md` 重写为「唯一落点 / 录入 / 自检 / 加载」四段并补「人的动作只剩三项」，`docs/release/testflight-runbook.md` 前置与第 2 步改为先 `. ~/.purepace-asc/asc.env` 再校验四项；`scripts/check-ios-release.sh` 新增 `asc_env_problems`（新口径 needle + 旧口径判红 + 打印值判红）并把 runbook 纳入检查，另加旧口径反例自检。
 - 验证：`bash scripts/check-ios-release.sh` 与 `bash scripts/check-baseline.sh` 退出 0；反例（`~/.purepace-asc/asc.env` → `~/keys/AuthKey.p8`）判红，UUID 反例仍绿；code_gates 23 门全绿（attempt 001）。
-- 边界与未做：未改三个分发脚本行为，未改 workflow / `VERSION` / bundle id，未执行真实归档 / 上传 / 测试者写入，未写「已发布 / 已分发」。
+- 边界与未做：未改三个分发脚本行为，未改 workflow / `VERSION` / bundle id，未执行真实归档 / 上传 / 测试者写入；证据态为静态门与单测，无发布态声明。
