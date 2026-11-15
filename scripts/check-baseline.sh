@@ -284,7 +284,7 @@ version_tri_source_problems() { # $1 = root；通过时静默返回 0，失败�
         inside && /^## / { exit }
         inside { print }
       ' "$root/CHANGELOG.md")"
-      printf '%s' "$entry" | grep -Fq '未分发' || problems="${problems} CHANGELOG 首条未标注未分发;"
+      grep -Fq '未分发' <<< "$entry" || problems="${problems} CHANGELOG 首条未标注未分发;"
       if printf '%s' "$entry" | grep -Eq '已发布|已分发|可分发'; then
         problems="${problems} CHANGELOG 首条出现肯定式已发布口径;"
       fi

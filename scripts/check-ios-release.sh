@@ -23,6 +23,7 @@ usage() {
   - scripts/check-ios-scripts.sh 门数断言同步为 23
   - docs/release/testflight-runbook.md 前置/执行/证据/反范围齐全且只用占位符，主路径脚本化
   - docs/human-gate-distribution.md 一次性凭据录入说明
+  - docs/release/stage4-prereqs.md 复核段凭据口径（asc.env 单一落点，过时落点判红）
 
 选项:
   -h, --help   显示本帮助并退出 0
@@ -1254,6 +1255,35 @@ else
   fail "ac-human-gate-doc" "旧口径 ~/keys/ 样本未被识别"
 fi
 rm -rf "$human_gate_legacy_sandbox"
+
+# ------------------------ 阶段 4 前置清单：复核段凭据口径（活文档守卫）
+# 复用 asc_env_problems 口径，另判 stage4 曾用过的过时落点 ~/.munk-release/secrets.env。
+stage4_prereqs_problems() {
+  local file="$1" out=""
+  out="$out$(asc_env_problems "$file")"
+  if grep -Fq -- '~/.munk-release/secrets.env' "$file"; then
+    out="$out 仍保留过时落点 '~/.munk-release/secrets.env';"
+  fi
+  printf '%s' "$out"
+}
+
+problems="$(stage4_prereqs_problems docs/release/stage4-prereqs.md)"
+if [ -z "$problems" ]; then
+  pass "ac-stage4-review-asc-env"
+else
+  fail "ac-stage4-review-asc-env" "$problems"
+fi
+
+# 反例自检：把复核段的 asc.env 落点换回过时落点后必须判红（只改沙箱样本）。
+stage4_sandbox="$(mktemp -d "${TMPDIR:-/tmp}/purepace-check-ios-stage4.XXXXXX")"
+sed 's|~/.purepace-asc/asc.env|~/.munk-release/secrets.env|g' docs/release/stage4-prereqs.md \
+  > "$stage4_sandbox/stage4-prereqs.md"
+if [ -n "$(stage4_prereqs_problems "$stage4_sandbox/stage4-prereqs.md")" ]; then
+  pass "ac-stage4-review-asc-env (legacy-self-test)"
+else
+  fail "ac-stage4-review-asc-env" "过时落点 ~/.munk-release/secrets.env 样本未被识别"
+fi
+rm -rf "$stage4_sandbox"
 
 # --------------------------------------------------- README 分发入口两行
 readme_distribution_problems() {
