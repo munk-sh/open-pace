@@ -26,6 +26,7 @@ PurePace 仓库协作基线（薄）。只写事实与约定，教程式长文�
 - `scripts/`：bash 脚本，统一 `set -euo pipefail`、幂等、支持 `--help`、路径以仓库根为基准。
 - `.agents/skills/`：官方 skill 本地安装目录（仓库内，禁止 `-g`）；路由表见下节。
 - `.munk/code-gates.json`：门禁定义，`command` 为单一 argv；根 `VERSION` 与 `README.md` 为版本真源与入口说明。
+- 分发凭据唯一落点是 `~/.purepace-asc/asc.env`（`chmod 600`，仓外）；`docs/**` 活文档必须引用该口径，过时落点由 `scripts/check-ios-release.sh` 判红。
 - 分层红线：平台代码不引用另一平台代码；`shared/` 只承载数据契约/夹具；UI 占位页不得依赖内置样例数据；示例数据只许进 XCTest fixture 与 `shared/fixtures`。
 
 ## 测试金字塔

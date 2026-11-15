@@ -44,9 +44,10 @@
 ## 复核方法（凭据只用占位符）
 
 ```bash
-# 只在当前 shell 会话内加载，不要 set -x，不要打印值
-. ~/.munk-release/secrets.env
-test -f "$ASC_KEY_PATH" && test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID"
+# 只在当前 shell 会话内加载，不要开启 shell 调试，不要打印值
+chmod 600 ~/.purepace-asc/asc.env
+set -a; . ~/.purepace-asc/asc.env; set +a
+test -f "$ASC_KEY_PATH" && test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$TESTFLIGHT_TESTER_EMAIL"
 
 # 只读：确认 App 记录是否存在（换成有 App Manager / Admin 权限的 Key 后再跑）
 xcrun altool --list-apps --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
