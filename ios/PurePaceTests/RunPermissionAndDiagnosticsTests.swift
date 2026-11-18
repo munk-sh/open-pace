@@ -85,7 +85,7 @@ final class RunPermissionAndDiagnosticsTests: XCTestCase {
 
     private func makeViewModel(
         stores: Stores,
-        source: SpyLocationSource,
+        source: RunLocationProviding,
         probe: StubProbe,
         countdownDuration: TimeInterval = 0
     ) -> RunSessionViewModel {
@@ -194,11 +194,18 @@ final class RunPermissionAndDiagnosticsTests: XCTestCase {
         var activityType: CLActivityType = .other
         var pausesLocationUpdatesAutomatically = true
         var allowsBackgroundLocationUpdates = false
+        var locationServicesEnabled = true
+        private(set) var startUpdatingCount = 0
 
         func requestWhenInUseAuthorization() {}
         func requestAlwaysAuthorization() {}
-        func startUpdatingLocation() {}
+        func startUpdatingLocation() { startUpdatingCount += 1 }
         func stopUpdatingLocation() {}
+
+        /// 等价于系统 `didFailWithError`：只经 handler 上报 `CLError` 原始码。
+        func fail(_ code: CLError.Code) {
+            handler?.locationManagerDidFail(code: code.rawValue)
+        }
     }
 
     private final class SampleRecorder: RunLocationSourceDelegate {
@@ -241,6 +248,104 @@ final class RunPermissionAndDiagnosticsTests: XCTestCase {
 
         XCTAssertEqual(recorder.samples.count, 1, "窗口到点后必须按降级口径接受最佳 fix，而不是永久 0")
         XCTAssertEqual(source.lastAcceptedAccuracyMeters, 65, "降级接受的 fix 必须标记真实精度")
+    }
+
+    // MARK: - ac-location-error / ac-services-disabled
+
+    private func makeLocationChain(
+        stores: Stores
+    ) -> (manager: StubManager, source: RunLocationSource, viewModel: RunSessionViewModel) {
+        let manager = StubManager()
+        manager.authorizationStatus = .authorizedAlways
+        let source = RunLocationSource(manager: manager)
+        let viewModel = makeViewModel(
+            stores: stores,
+            source: source,
+            probe: StubProbe(status: .authorizedAlways)
+        )
+        viewModel.start()
+        return (manager, source, viewModel)
+    }
+
+    /// ac-location-error / ac-services-disabled：系统定位失败或服务关闭都必须落到既有
+    /// `.unavailable` 态并给出可见文案，不得静默当成「等待首条样本」。
+    func testLocationFailureAndServicesOffSetUnavailableAndExposeCopy() {
+        let stores = makeStores()
+        defer { try? FileManager.default.removeItem(at: stores.root) }
+        let chain = makeLocationChain(stores: stores)
+        XCTAssertEqual(chain.viewModel.locationReadiness, .ready, "前置：已授权且服务开启时必须就绪")
+
+        // 失败注入（等价系统 didFailWithError，.denied 与 .locationUnknown 都要覆盖）。
+        chain.manager.fail(.denied)
+        chain.manager.fail(.locationUnknown)
+        XCTAssertEqual(
+            chain.source.lastLocationErrorCode,
+            CLError.Code.locationUnknown.rawValue,
+            "最近一次系统定位失败必须被记录，不得静默丢弃"
+        )
+        XCTAssertEqual(chain.viewModel.locationReadiness, .unavailable, "定位失败必须置不可用态")
+
+        let readiness = chain.viewModel.locationReadiness
+        XCTAssertEqual(readiness.messageKey, "run.status.locationUnavailable", "必须复用既有定位不可用文案键")
+        XCTAssertEqual(readiness.message, L10n.locationUnavailable)
+        XCTAssertFalse(readiness.message?.isEmpty ?? true, "不可用态必须有可见文案，不能只有内部状态")
+        XCTAssertEqual(readiness.nextAction, .retry, "不可用态的唯一出口是既有 retry")
+        let plan = RunInteractionPlan(
+            state: .ready,
+            readiness: readiness,
+            metrics: .init(distance: "0", elapsed: "0", currentPace: "-", averagePace: "-", splitCount: "0")
+        )
+        XCTAssertEqual(plan.notice, .locationUnavailable, "不可用态必须在跑步页渲染定位提示行")
+
+        // 反例（不改生产代码）：把同一次失败当作「无错误」——等价断开 didFailWithError 转发——
+        // 同一判据退回 ready，上面的 unavailable 断言必然判红。
+        let withoutErrorForwarding = RunLocationReadiness.resolve(
+            authorization: .authorizedAlways,
+            servicesEnabled: true,
+            lastErrorCode: nil
+        )
+        XCTAssertEqual(withoutErrorForwarding, .ready, "反例：断开错误转发后是 ready，即原断言必红")
+        XCTAssertNotEqual(withoutErrorForwarding, readiness)
+
+        // 服务关闭前置检查：点「开始」不得启动更新，且同样落到既有 unavailable 态。
+        chain.manager.locationServicesEnabled = false
+        let startsBefore = chain.manager.startUpdatingCount
+        chain.source.start()
+        XCTAssertEqual(startsBefore, 1, "前置：授权后开始过恰一次更新（供服务关闭对照）")
+        XCTAssertEqual(
+            chain.manager.startUpdatingCount,
+            startsBefore,
+            "定位服务关闭时不得调用 startUpdatingLocation（去掉前置检查即必红）"
+        )
+        XCTAssertFalse(chain.source.locationServicesEnabled)
+        XCTAssertEqual(chain.viewModel.locationReadiness, .unavailable, "服务关闭必须置不可用态")
+    }
+
+    /// ac-location-error 恢复面：服务恢复且重新 start 后旧错误被清掉，readiness 回到 ready。
+    func testRecoveryAfterLocationFailureReturnsReady() {
+        let stores = makeStores()
+        defer { try? FileManager.default.removeItem(at: stores.root) }
+        let chain = makeLocationChain(stores: stores)
+
+        chain.manager.fail(.locationUnknown)
+        XCTAssertEqual(chain.viewModel.locationReadiness, .unavailable)
+
+        // 反例（不改生产代码）：若 start() 不清旧错误，同一输入会一直停在 unavailable。
+        XCTAssertEqual(
+            RunLocationReadiness.resolve(
+                authorization: .authorizedAlways,
+                servicesEnabled: true,
+                lastErrorCode: CLError.Code.locationUnknown.rawValue
+            ),
+            .unavailable,
+            "反例：残留错误时仍是 unavailable，恢复断言在此必红"
+        )
+
+        chain.viewModel.retryLocation()
+
+        XCTAssertNil(chain.source.lastLocationErrorCode, "恢复成功后必须清掉旧错误，避免残留不可用态")
+        XCTAssertEqual(chain.viewModel.locationReadiness, .ready)
+        XCTAssertNil(chain.viewModel.locationReadiness.message, "恢复就绪后不得再显示不可用文案")
     }
 
     // MARK: - ac-diagnostics
