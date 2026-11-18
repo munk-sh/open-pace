@@ -15,6 +15,7 @@
 - `ios/RunCore/Sources/PurePaceRunCore/RunTimeSource.swift`：`RunTimeSource` 协议（单调 `uptime` 秒）+ 生产实现 `SystemMonotonicTimeSource`；`RunMetricsEngine(clock:)` 与 `RunSessionOrchestrator(timeSource:)` 注入点，`start/resume` 记读数、`pause/finish` 结算、运行态实时读时钟；`ingest(_:)` 只算距离/配速/分段。
 - `ios/RunCore/Sources/PurePaceRunCore/RunRecord.swift` / `RunSessionOrchestrator`：additive `sampleCount` / `hasLocationData`（结束页与详情页唯一口径）+ `tick(at:)` 空跑刷新（只出新快照，不改状态、不写 checkpoint）。
 - `ios/PurePace/Location/RunLocationSource.swift`：`accuracyThresholdMeters = 50`（正常接受）、`accuracyFallbackWindowSeconds = 15`（降级窗口）、`accuracyFallbackCeilingMeters = 200`（降级上限）三常量均「先定后测」注释；`requestWhenInUseAuthorization()` / `requestAlwaysAuthorization()` 各实例恰一次；`rawCallbackCount` / `filteredCallbackCount` / `lastAcceptedAccuracyMeters` 可归因计数。
+- `ios/PurePace/Location/RunLocationSource.swift` 定位失败链路：`RunLocationProviding` / `RunLocationManaging` 各增只读 `locationServicesEnabled`、`lastLocationErrorCode`（协议扩展给默认值，既有 fake 零改动）；`RunLocationManagerHandler.locationManagerDidFail(code:)` 承接 `CLLocationManagerDelegate.didFailWithError`（`CLError` → 原始码，不伪造样本）；`start()` 前置检查系统定位服务关闭时不调 `startUpdatingLocation` 并复位后台标志，正常启动时清空旧错误码；`ios/PurePace/Run/RunLocationReadiness.swift` 的 `resolve(authorization:servicesEnabled:lastErrorCode:)` 把「服务关闭 / 最近失败」并入既有 `.unavailable`（文案键 `run.status.locationUnavailable` + `retry` 出口），`RunSessionViewModel.locationReadiness` 由它派生。
 - `ios/PurePace/Run/RunDiagnostics.swift`（新增）与 `SettingsView` 诊断行：单一 `RunDiagnostics` 快照（版本 / 构建期 sha 前 8 位 / 授权 / `accuracyAuthorization` / 已采样本数 / 最近样本时间 / `allowsBackgroundLocationUpdates` / raw 与过滤丢弃计数）+ 一键复制文本。
 - `ios/PurePace/Run/RunSessionViewModel.swift`：`timeSource` 注入与 `tick()`；「开始」在 `notDetermined` 时触发系统 WhenInUse 请求，跑步进行中升级 Always，denied/restricted 不进记录态并给「去系统设置」；`isWaitingForLocation` / `isAccuracyDegraded` 派生状态。
 - `ios/PurePace/Run/RunView.swift`：运行态 1s ticker 只重读时长；「等待定位」/「降级精度」沿用既有 inline 胶囊；结束页新增采样点数，无定位时距离位写「未获取到定位」而非 0.00。
@@ -68,7 +69,8 @@
 - ac-permission-request-always: 取得 WhenInUse 且跑步进行中调用 `requestAlwaysAuthorization()` 恰 1 次；未拿到 Always 时 UI 写明「仅前台记录」；`UIBackgroundModes` 含 `location` 与 `allowsBackgroundLocationUpdates=true` 二者缺一即判红。
 - ac-permission-denied-blocks-recording: `denied` / `restricted` 不进入记录态，给原因文案 + 「去系统设置」按钮（`UIApplication.openSettingsURLString`），回前台（`scenePhase == .active`）自动复检授权并刷新状态。
 - ac-location-fallback: 自 `startUpdatingLocation` 起 15s 内无 ≤50m fix 时，接受窗口内「最佳可得」且 ≤200m 的 fix 并标记其 accuracy（`lastAcceptedAccuracyMeters`）；超过 200m 或窗口未到一律继续等待——护栏不得放宽到接受任意精度。
-- ac-location-error: 注入 `didFailWithError` 与 `locationServicesEnabled == false` 时状态可展示（不静默），计时不回退。
+- ac-location-error: 系统定位失败（`didFailWithError`，覆盖 `.denied` 与 `.locationUnknown`）必须落进状态而不静默：注入失败后 `RunLocationProviding.lastLocationErrorCode` 等于 `CLError` 原始码、`locationReadiness == .unavailable`（文案键 `run.status.locationUnavailable`、`nextAction == .retry`、跑步页 `notice == .locationUnavailable`），计时不回退；重新 `start()` 成功必须清空旧错误码并回到 `.ready`（`testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady`）；反例 = 把同一次失败当作无错误（等价断开转发），同一判据退回 `.ready` 故原断言必红。
+- ac-services-disabled: `locationServicesEnabled == false` 时 `start()` 不得调用 `startUpdatingLocation`（计数不变），且 `locationReadiness == .unavailable`、呈现 zh-Hans「定位暂不可用」文案与既有 retry 出口（复用 `run.status.locationUnavailable`，不新增文案键）；反例 = 去掉该前置检查后同一计数断言必红。
 - ac-diagnostics: 设置页诊断区只读单一 `RunDiagnostics` 快照：版本 + 构建期写入的 sha 前 8 位（缺失显式写「未注入」）+ `CLAuthorizationStatus` + `accuracyAuthorization` + 已采样本数 + 最近样本时间 + `allowsBackgroundLocationUpdates` + raw 回调数与精度过滤丢弃数；一键复制文本，中文标签与可见文案语义一致。
 - ac-waiting-location-hint: 记录态首条 fix 未到时显示「等待定位」inline 提示（沿用既有胶囊形态、零新令牌），降级精度时另给「精度降级」提示，二者都不阻断计时。
 
@@ -109,6 +111,6 @@
 
 ## 最近交付证明
 
-- 最近一次：`wi_intake_fe5ab0a5c47745ac` — 核心闭环真机零可用修复：计时改注入单调时钟并与定位解耦（`RunTimeSource` / `RunMetricsEngine(clock:)` / `RunSessionOrchestrator(timeSource:)` / ViewModel `tick()`），零采样结束仍结算时长并归档；定位补 15s/200m 有界降级、`didFailWithError` 与 `locationServicesEnabled` 上报、raw/过滤计数器；系统授权两段式真实触发与 denied「去系统设置」出口；设置页单一 `RunDiagnostics` 快照 + 构建期 sha 注入；结束页/详情页空样本诚实文案与 GPX `.emptySamples`；`docs/root-cause-core-loop-device.md` 逐条根因 + 断言名，验证矩阵新增 3 条接缝并归属本 WI。
-- 前置同域交付：`wi_intake_3c33f34dc2d5a6b8` 回填矩阵 TTS/duck/GPX/竖屏/设计 token 5 行并把守护测试改为接缝逐条断言（此后全局行数不再 pin，改按 seams 数组断言）。
+- 最近一次：`wi_intake_695f725dbf554509` — 补齐定位失败链路：`CLLocationManagerDelegate.didFailWithError` → `RunLocationManagerHandler.locationManagerDidFail(code:)` → `lastLocationErrorCode` 真实落地（此前基线宣称已有、代码实际缺失，本项已对齐）；`CLLocationManager.locationServicesEnabled()` 纳入 `start()` 前置检查（关闭时不启动更新），两者经 `RunLocationReadiness.resolve(authorization:servicesEnabled:lastErrorCode:)` 并入既有 `.unavailable`，复用 `run.status.locationUnavailable` 文案与 retry 出口，零新增文案键 / identifier；断言见 `RunPermissionAndDiagnosticsTests` 的 `testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady`（各带不改生产代码的反例）。有意未做（PRD 偏离）：`RunDiagnostics` 未新增「最近定位错误」字段（ac-diagnostics-error 未落），`docs/verification-matrix.md` 的「定位授权链路与诊断」行未回填失败/服务关闭口径。
+- 前置同域交付：`wi_intake_fe5ab0a5c47745ac` 核心闭环真机零可用修复（注入单调时钟与定位解耦、15s/200m 有界降级、两段式系统授权、设置页诊断快照、空样本结束文案与 GPX `.emptySamples`）。
 - 边界：真机定位授权/锁屏/后台采样与室内精度表现仍为 `pending: 待人现场`；Android 只保证同一主链路不回退，未做对等功能面。

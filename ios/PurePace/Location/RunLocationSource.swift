@@ -77,6 +77,10 @@ protocol RunLocationProviding: AnyObject {
     var filteredCallbackCount: Int { get }
     /// 最近一条被接受 fix 的水平精度（米）；nil 表示尚未拿到 fix。
     var lastAcceptedAccuracyMeters: Double? { get }
+    /// 系统定位服务当前是否开启；关闭时数据源不得启动更新。
+    var locationServicesEnabled: Bool { get }
+    /// 最近一次系统定位错误码（`CLError.rawValue`）；nil 表示无错误。
+    var lastLocationErrorCode: Int? { get }
 }
 
 extension RunLocationProviding {
@@ -86,6 +90,8 @@ extension RunLocationProviding {
     var rawCallbackCount: Int { 0 }
     var filteredCallbackCount: Int { 0 }
     var lastAcceptedAccuracyMeters: Double? { nil }
+    var locationServicesEnabled: Bool { true }
+    var lastLocationErrorCode: Int? { nil }
 }
 
 @MainActor
@@ -106,10 +112,17 @@ protocol RunLocationManaging: AnyObject {
     var activityType: CLActivityType { get set }
     var pausesLocationUpdatesAutomatically: Bool { get set }
     var allowsBackgroundLocationUpdates: Bool { get set }
+    /// 系统定位服务开关；`false` 时不启动更新，交由 readiness 呈现「定位不可用」。
+    var locationServicesEnabled: Bool { get }
     func requestWhenInUseAuthorization()
     func requestAlwaysAuthorization()
     func startUpdatingLocation()
     func stopUpdatingLocation()
+}
+
+extension RunLocationManaging {
+    /// 测试桩默认视为系统定位服务开启；生产实现读系统真值。
+    var locationServicesEnabled: Bool { true }
 }
 
 /// `RunLocationManaging` 向数据源回传授权/样本的窄回调。
@@ -117,6 +130,8 @@ protocol RunLocationManaging: AnyObject {
 protocol RunLocationManagerHandler: AnyObject {
     func locationManagerAuthorizationChanged(to status: CLAuthorizationStatus)
     func locationManagerDidUpdate(payloads: [LocationPayload])
+    /// 系统定位失败（`didFailWithError`）：只上报 `CLError` 原始码，不伪造样本。
+    func locationManagerDidFail(code: Int)
 }
 
 /// 真实 CoreLocation 数据源：授权 -> 采集 -> 过滤精度 -> 产出 `RunSample`。
@@ -182,6 +197,10 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     private(set) var filteredCallbackCount = 0
     /// 最近一条被接受 fix 的水平精度（米）；nil 表示尚未拿到任何 fix。
     private(set) var lastAcceptedAccuracyMeters: Double?
+    /// 最近一次探测到的系统定位服务开关（`start()` 时刷新）。
+    private(set) var locationServicesEnabled = true
+    /// 最近一次系统定位错误码（`CLError.rawValue`）；成功后在下一次 `start()` 清空。
+    private(set) var lastLocationErrorCode: Int?
 
     var allowsBackgroundLocationUpdates: Bool {
         manager.allowsBackgroundLocationUpdates
@@ -192,6 +211,14 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     }
 
     func start() {
+        // 前置检查：系统定位服务被关闭时不得启动更新，也不得把「无数据」当正常态。
+        let servicesEnabled = manager.locationServicesEnabled
+        locationServicesEnabled = servicesEnabled
+        guard servicesEnabled else {
+            endUpdating()
+            return
+        }
+        lastLocationErrorCode = nil
         let status = manager.authorizationStatus
         apply(status)
         switch status {
@@ -325,6 +352,11 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     func locationManagerDidUpdate(payloads: [LocationPayload]) {
         deliver(payloads)
     }
+
+    /// 系统定位失败：记录原始错误码供 readiness 呈现，不静默丢弃。
+    func locationManagerDidFail(code: Int) {
+        lastLocationErrorCode = code
+    }
 }
 
 /// 生产环境 seam 实现：把 `CLLocationManager` 包装为可注入协议。
@@ -355,6 +387,11 @@ final class SystemLocationManager: NSObject, RunLocationManaging {
 
     var authorizationStatus: CLAuthorizationStatus {
         manager.authorizationStatus
+    }
+
+    /// 系统级定位服务开关（与单 App 授权解耦：关掉服务时任何授权都不产出样本）。
+    var locationServicesEnabled: Bool {
+        CLLocationManager.locationServicesEnabled()
     }
 
     var desiredAccuracy: CLLocationAccuracy {
@@ -419,6 +456,14 @@ extension SystemLocationManager: CLLocationManagerDelegate {
         }
         Task { @MainActor in
             self.handler?.locationManagerDidUpdate(payloads: payloads)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        guard let clError = error as? CLError else { return }
+        let code = clError.code.rawValue
+        Task { @MainActor in
+            self.handler?.locationManagerDidFail(code: code)
         }
     }
 }

@@ -70,3 +70,17 @@ enum RunLocationReadiness: String, Equatable, Sendable {
         }
     }
 }
+
+extension RunLocationReadiness {
+    /// 叠加定位链路故障后的最终状态：系统定位服务关闭或最近一次系统定位失败
+    /// 一律落到既有 `.unavailable`（文案「定位暂不可用，请重试」+ retry 出口），
+    /// 不静默当成「等待首条样本」。
+    static func resolve(
+        authorization: RunLocationAuthorization,
+        servicesEnabled: Bool,
+        lastErrorCode: Int?
+    ) -> RunLocationReadiness {
+        guard servicesEnabled, lastErrorCode == nil else { return .unavailable }
+        return RunLocationReadiness(authorization: authorization)
+    }
+}

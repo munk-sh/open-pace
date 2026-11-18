@@ -372,9 +372,14 @@ final class RunSessionViewModel: ObservableObject {
 
     // MARK: - 定位可用性
 
-    /// 由授权派生的可恢复定位状态（拒绝 → 去设置；不可用 → 重试）。
+    /// 由授权 + 定位链路可用性派生的可恢复定位状态
+    /// （失败/服务关闭 → 不可用 + 重试；拒绝 → 去设置）。
     var locationReadiness: RunLocationReadiness {
-        RunLocationReadiness(authorization: authorization)
+        RunLocationReadiness.resolve(
+            authorization: authorization,
+            servicesEnabled: locationSource.locationServicesEnabled,
+            lastErrorCode: locationSource.lastLocationErrorCode
+        )
     }
 
     /// 系统设置页深链；「权限被拒」态的唯一恢复出口。
