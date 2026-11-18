@@ -1,0 +1,9 @@
+# 改前（基线作业树 HEAD=9560b69，同一断言 testEvidenceAx5Layout，同一阈值 window±1）
+# 命令：xcrun simctl ui B3F00298… content_size accessibility-extra-extra-extra-large
+#       xcodebuild test-without-building … -only-testing:PurePaceUITests/EvidenceCaptureUITests/testEvidenceAx5Layout
+# 结果：06-settings outOfBounds=2（两个 consent 行 cell 底边 860.67 > 窗口 852，越界 8.67pt）→ 判红
+AX5-FIT screen=06-settings window=(0.0, 0.0, 393.0, 852.0) primary=settings.announcementToggle primaryFrame=(0.0, 218.66666666666666, 393.0, 101.66666666666666) elements=29 outOfBounds=2 overlaps=0
+AX5-FIT-OUT 06-settings 75::(0.0, 816.6666666666666, 393.0, 44.0)
+AX5-FIT-OUT 06-settings 48::(0.0, 816.6666666666666, 393.0, 44.0)
+EvidenceCaptureUITests.swift:313: error: -[PurePaceUITests.EvidenceCaptureUITests testEvidenceAx5Layout] : XCTAssertTrue failed - 06-settings 存在超出屏幕的元素：["75::(0.0, 816.6666666666666, 393.0, 44.0)", "48::(0.0, 816.6666666666666, 393.0, 44.0)"]
+Test Case '-[PurePaceUITests.EvidenceCaptureUITests testEvidenceAx5Layout]' failed (97.086 seconds).

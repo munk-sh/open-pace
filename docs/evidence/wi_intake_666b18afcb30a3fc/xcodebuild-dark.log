@@ -1,0 +1,445 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project ios/PurePace.xcodeproj -scheme PurePace -destination "platform=iOS Simulator,name=iPhone 16,OS=18.6" -derivedDataPath .build/ios "-only-testing:PurePaceUITests/ScreenshotEvidenceUITests/testEvidenceScreensDark" -resultBundlePath /tmp/ev-dark.xcresult CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  PurePaceRunCore: /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_666b18afcb30a3fc/ios/RunCore
+
+Writing result bundle at path:
+	/tmp/ev-dark.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:x86_64, id:B3F00298-E08A-41E0-876E-6E8A75C730FD, OS:18.6, name:iPhone 16 }
+2026-11-19 00:28:01.810663+0800 PurePaceUITests-Runner[84547:252029194] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-19 00:28:03.484.
+Test Suite 'PurePaceUITests.xctest' started at 2026-11-19 00:28:03.485.
+Test Suite 'ScreenshotEvidenceUITests' started at 2026-11-19 00:28:03.485.
+Test Case '-[PurePaceUITests.ScreenshotEvidenceUITests testEvidenceScreensDark]' started.
+    t =     0.00s Start Test at 2026-11-19 00:28:03.486
+    t =     0.02s Set Up
+    t =     0.03s Open sh.munk.purepace
+    t =     0.03s     Launch sh.munk.purepace
+    t =     0.64s         Setting up automation session
+    t =     1.24s         Wait for sh.munk.purepace to idle
+    t =     2.51s Checking existence of `"Allow While Using App" Button`
+    t =     2.53s Checking existence of `"Allow While Using App" Button`
+    t =     2.59s Checking existence of `"Allow While Using App" Button`
+    t =     2.66s Checking existence of `"Allow Once" Button`
+    t =     2.68s Checking existence of `"Allow Once" Button`
+    t =     2.73s Checking existence of `"Allow Once" Button`
+    t =     2.78s Checking existence of `"Allow" Button`
+    t =     2.80s Checking existence of `"Allow" Button`
+    t =     2.84s Checking existence of `"Allow" Button`
+    t =     2.88s Checking existence of `"Always Allow" Button`
+    t =     2.90s Checking existence of `"Always Allow" Button`
+    t =     2.97s Checking existence of `"Always Allow" Button`
+    t =     3.07s Checking existence of `"Change to Always Allow" Button`
+    t =     3.10s Checking existence of `"Change to Always Allow" Button`
+    t =     3.14s Checking existence of `"Change to Always Allow" Button`
+    t =     3.17s Checking existence of `"使用 App 期间允许" Button`
+    t =     3.20s Checking existence of `"使用 App 期间允许" Button`
+    t =     3.25s Checking existence of `"使用 App 期间允许" Button`
+    t =     3.30s Checking existence of `"允许一次" Button`
+    t =     3.32s Checking existence of `"允许一次" Button`
+    t =     3.38s Checking existence of `"允许一次" Button`
+    t =     3.44s Checking existence of `"始终允许" Button`
+    t =     3.46s Checking existence of `"始终允许" Button`
+    t =     3.51s Checking existence of `"始终允许" Button`
+    t =     3.55s Checking existence of `"允许改为始终允许" Button`
+    t =     3.57s Checking existence of `"允许改为始终允许" Button`
+    t =     3.62s Checking existence of `"允许改为始终允许" Button`
+    t =     3.66s Checking existence of `Alert (First Match)`
+    t =     3.70s Checking existence of `Alert (First Match)`
+    t =     3.74s Waiting 30.0s for TabBar (First Match) to exist
+    t =     4.77s     Checking `Expect predicate `existsNoRetry == 1` for object TabBar (First Match)`
+    t =     4.77s         Checking existence of `TabBar (First Match)`
+    t =     4.78s Waiting 30.0s for "run.start" Button to exist
+    t =     5.82s     Checking `Expect predicate `existsNoRetry == 1` for object "run.start" Button`
+    t =     5.83s         Checking existence of `"run.start" Button`
+    t =     5.86s Checking existence of `"run.mapPreview" Any`
+    t =     5.98s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-not-started labels=23 violations=0 offenders=[]
+    t =     6.00s Find the "run.start" Button
+    t =     6.02s Find the "run.start" Button
+evidence-primary screen=run-not-started identifier=run.start label=开始记录跑次
+    t =     6.04s Find the "run.start" Button
+    t =     6.06s Find the "run.start" Button
+    t =     6.15s Added attachment named 'run-not-started-dark'
+evidence-shot screen=run-not-started-dark
+    t =     6.15s Tap "run.start" Button
+    t =     6.15s     Wait for sh.munk.purepace to idle
+    t =     6.15s     Find the "run.start" Button
+    t =     6.17s     Check for interrupting elements affecting "run.start" Button
+    t =     6.20s     Synthesize event
+    t =     6.50s     Wait for sh.munk.purepace to idle
+    t =     6.51s Waiting 20.0s for "run.pause" Button to exist
+    t =     7.55s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     7.55s         Checking existence of `"run.pause" Button`
+    t =     7.57s         Capturing element debug description
+    t =     8.51s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     8.51s         Checking existence of `"run.pause" Button`
+    t =     8.55s         Capturing element debug description
+    t =     9.59s     Checking `Expect predicate `existsNoRetry == 1` for object "run.pause" Button`
+    t =     9.59s         Checking existence of `"run.pause" Button`
+    t =     9.63s Find the "run.elapsed" StaticText
+    t =     9.87s Find the "run.elapsed" StaticText
+    t =    10.11s Find the "run.elapsed" StaticText
+    t =    10.35s Find the "run.elapsed" StaticText
+    t =    10.58s Find the "run.elapsed" StaticText
+    t =    10.82s Find the "run.elapsed" StaticText
+    t =    11.05s Find the "run.elapsed" StaticText
+    t =    11.27s Find the "run.elapsed" StaticText
+    t =    11.51s Find the "run.elapsed" StaticText
+    t =    11.74s Find the "run.elapsed" StaticText
+    t =    11.97s Find the "run.elapsed" StaticText
+    t =    12.20s Find the "run.elapsed" StaticText
+    t =    12.44s Find the "run.elapsed" StaticText
+    t =    12.66s Find the "run.elapsed" StaticText
+    t =    12.89s Find the "run.elapsed" StaticText
+    t =    13.12s Find the "run.elapsed" StaticText
+    t =    13.34s Find the "run.elapsed" StaticText
+    t =    13.57s Find the "run.elapsed" StaticText
+    t =    13.79s Find the "run.elapsed" StaticText
+    t =    14.02s Find the "run.elapsed" StaticText
+    t =    14.26s Find the "run.elapsed" StaticText
+    t =    14.48s Find the "run.elapsed" StaticText
+    t =    14.71s Find the "run.elapsed" StaticText
+    t =    14.95s Find the "run.elapsed" StaticText
+    t =    15.18s Find the "run.elapsed" StaticText
+    t =    15.42s Find the "run.elapsed" StaticText
+    t =    15.66s Find the "run.elapsed" StaticText
+    t =    15.89s Find the "run.elapsed" StaticText
+    t =    16.13s Find the "run.elapsed" StaticText
+    t =    16.38s Find the "run.elapsed" StaticText
+    t =    16.61s Find the "run.elapsed" StaticText
+    t =    16.85s Find the "run.elapsed" StaticText
+    t =    17.10s Find the "run.elapsed" StaticText
+    t =    17.34s Find the "run.elapsed" StaticText
+    t =    17.56s Find the "run.elapsed" StaticText
+    t =    17.79s Find the "run.elapsed" StaticText
+    t =    18.04s Find the "run.elapsed" StaticText
+    t =    18.26s Find the "run.elapsed" StaticText
+    t =    18.49s Find the "run.elapsed" StaticText
+    t =    18.71s Find the "run.elapsed" StaticText
+    t =    18.94s Find the "run.elapsed" StaticText
+    t =    19.17s Find the "run.elapsed" StaticText
+    t =    19.40s Find the "run.elapsed" StaticText
+    t =    19.62s Find the "run.elapsed" StaticText
+    t =    19.85s Find the "run.elapsed" StaticText
+    t =    20.07s Find the "run.elapsed" StaticText
+    t =    20.30s Find the "run.elapsed" StaticText
+    t =    20.53s Find the "run.elapsed" StaticText
+    t =    20.75s Find the "run.elapsed" StaticText
+    t =    20.98s Find the "run.elapsed" StaticText
+    t =    21.21s Find the "run.elapsed" StaticText
+    t =    21.43s Find the "run.elapsed" StaticText
+    t =    21.66s Find the "run.elapsed" StaticText
+    t =    21.89s Find the "run.elapsed" StaticText
+    t =    22.11s Find the "run.elapsed" StaticText
+    t =    22.34s Find the "run.elapsed" StaticText
+    t =    22.57s Find the "run.elapsed" StaticText
+    t =    22.79s Find the "run.elapsed" StaticText
+    t =    23.02s Find the "run.elapsed" StaticText
+    t =    23.24s Find the "run.elapsed" StaticText
+    t =    23.47s Find the "run.elapsed" StaticText
+    t =    23.71s Find the "run.elapsed" StaticText
+    t =    23.93s Find the "run.elapsed" StaticText
+    t =    24.17s Find the "run.elapsed" StaticText
+    t =    24.41s Find the "run.elapsed" StaticText
+    t =    24.67s Find the "run.elapsed" StaticText
+    t =    24.91s Find the "run.elapsed" StaticText
+    t =    25.14s Find the "run.elapsed" StaticText
+    t =    25.39s Find the "run.elapsed" StaticText
+    t =    25.63s Find the "run.elapsed" StaticText
+    t =    25.87s Find the "run.elapsed" StaticText
+    t =    26.10s Find the "run.elapsed" StaticText
+    t =    26.32s Find the "run.elapsed" StaticText
+    t =    26.54s Find the "run.elapsed" StaticText
+    t =    26.84s Find the "run.elapsed" StaticText
+    t =    27.06s Find the "run.elapsed" StaticText
+    t =    27.28s Find the "run.elapsed" StaticText
+    t =    27.51s Find the "run.elapsed" StaticText
+    t =    27.77s Find the "run.elapsed" StaticText
+    t =    28.02s Find the "run.elapsed" StaticText
+    t =    28.27s Find the "run.elapsed" StaticText
+    t =    28.50s Find the "run.elapsed" StaticText
+    t =    28.73s Find the "run.elapsed" StaticText
+    t =    29.00s Find the "run.elapsed" StaticText
+    t =    29.28s Find the "run.elapsed" StaticText
+    t =    29.51s Find the "run.elapsed" StaticText
+    t =    29.53s Find the "run.distance" StaticText
+    t =    29.54s Checking existence of `"run.mapPreview" Any`
+    t =    29.72s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-running labels=20 violations=0 offenders=[]
+    t =    29.74s Find the "run.pause" Button
+    t =    29.76s Find the "run.pause" Button
+evidence-primary screen=run-running identifier=run.pause label=暂停记录跑次
+    t =    29.77s Find the "run.pause" Button
+    t =    29.79s Find the "run.pause" Button
+    t =    29.86s Added attachment named 'run-running-dark'
+evidence-shot screen=run-running-dark
+    t =    29.86s Waiting 10.0s for "run.finish" Button to exist
+    t =    30.90s     Checking `Expect predicate `existsNoRetry == 1` for object "run.finish" Button`
+    t =    30.90s         Checking existence of `"run.finish" Button`
+    t =    30.93s Tap "run.finish" Button
+    t =    30.93s     Wait for sh.munk.purepace to idle
+    t =    30.94s     Find the "run.finish" Button
+    t =    30.96s     Check for interrupting elements affecting "run.finish" Button
+    t =    30.98s     Synthesize event
+    t =    31.27s     Wait for sh.munk.purepace to idle
+    t =    31.28s Waiting 20.0s for "run.save" Button to exist
+    t =    32.31s     Checking `Expect predicate `existsNoRetry == 1` for object "run.save" Button`
+    t =    32.32s         Checking existence of `"run.save" Button`
+    t =    32.34s Waiting 20.0s for "run.mapPreview" Any to exist
+    t =    33.36s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    33.37s         Checking existence of `"run.mapPreview" Any`
+    t =    33.42s Find the Window (First Match)
+    t =    33.43s Checking existence of `"runDetail.export" Button`
+    t =    33.44s Checking existence of `"run.save" Button`
+    t =    33.46s Find the "run.save" Button
+    t =    33.48s Find the "run.save" Button
+    t =    33.50s Find the "run.mapPreview" Any
+    t =    33.54s Find the "run.mapPreview" Other
+evidence-map screen=run-finished identifier=run.mapPreview frame=(15.5, 109.16666666666667, 362.0, 361.0) visible=(0.0, 0.0, 393.0, 762.0)
+    t =    33.60s Checking existence of `"run.mapPreview" Any`
+    t =    33.65s Find the "run.mapPreview" Any
+    t =    33.70s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=run-finished labels=18 violations=0 offenders=[]
+    t =    33.73s Find the "run.save" Button
+    t =    33.75s Find the "run.save" Button
+evidence-primary screen=run-finished identifier=run.save label=保存本次跑步
+    t =    33.76s Find the "run.save" Button
+    t =    33.78s Find the "run.save" Button
+    t =    33.80s Find the "run.mapPreview" Any
+    t =    33.86s Find the Window (First Match)
+evidence-b1-finished mapHeight=361.0 screenHeight=852.0
+    t =    33.87s Checking existence of `"run.distance" StaticText`
+    t =    33.89s Checking existence of `"run.elapsed" StaticText`
+    t =    33.90s Checking existence of `"run.averagePace" StaticText`
+    t =    33.92s Waiting 10.0s for "run.backgroundDegraded" Any to exist
+    t =    34.95s     Checking `Expect predicate `existsNoRetry == 1` for object "run.backgroundDegraded" Any`
+    t =    34.96s         Checking existence of `"run.backgroundDegraded" Any`
+    t =    35.08s Find the Window (First Match)
+    t =    35.09s Find the "run.backgroundDegraded" Any
+evidence-inline-hint hint=(68.33333333333333, 700.9999999999999, 256.66666666666663, 23.66666666666663) maxHeight=32.0 contentWidth=361.0
+    t =    35.15s Find the "run.backgroundDegraded" Other
+    t =    35.22s Find the "run.backgroundDegraded" Other
+    t =    35.43s Added attachment named 'run-finished-dark'
+evidence-shot screen=run-finished-dark
+    t =    35.49s Added attachment named 'b1-finished-dark'
+evidence-shot screen=b1-finished-dark
+    t =    35.49s Waiting 10.0s for "run.discardRequest" Button to exist
+    t =    36.53s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discardRequest" Button`
+    t =    36.53s         Checking existence of `"run.discardRequest" Button`
+    t =    36.55s Tap "run.discardRequest" Button
+    t =    36.55s     Wait for sh.munk.purepace to idle
+    t =    36.56s     Find the "run.discardRequest" Button
+    t =    36.57s     Check for interrupting elements affecting "run.discardRequest" Button
+    t =    36.59s     Synthesize event
+    t =    36.89s     Wait for sh.munk.purepace to idle
+    t =    37.26s Waiting 10.0s for "run.discard" Button to exist
+    t =    38.29s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discard" Button`
+    t =    38.29s         Checking existence of `"run.discard" Button`
+    t =    38.33s Waiting 10.0s for "run.discardCancel" Button to exist
+    t =    39.37s     Checking `Expect predicate `existsNoRetry == 1` for object "run.discardCancel" Button`
+    t =    39.37s         Checking existence of `"run.discardCancel" Button`
+    t =    39.41s Find the "run.discard" Button
+    t =    39.45s Find the "run.discardCancel" Button
+    t =    39.48s Find the "run.discard" Button
+    t =    39.50s Find the "run.discardCancel" Button
+evidence-discard sheet=discardRequest buttons=2 discard=丢弃本次跑步 cancel=取消
+    t =    39.51s Waiting 10.0s for "丢弃这次跑步？" StaticText to exist
+    t =    40.54s     Checking `Expect predicate `existsNoRetry == 1` for object "丢弃这次跑步？" StaticText`
+    t =    40.54s         Checking existence of `"丢弃这次跑步？" StaticText`
+    t =    40.57s Find the "丢弃这次跑步？" StaticText
+    t =    40.59s Find the "丢弃这次跑步？" StaticText
+    t =    40.61s Find the "run.discard" Button
+    t =    40.64s Find the "run.discardCancel" Button
+evidence-c2-discard screenHeight=852.0 sheetTop=682.3333333333334 sheetHeight=169.66666666666663 title=(68.0, 690.3333333333334, 125.0, 24.0) confirm=(16.0, 750.0, 235.66666666666666, 44.0) cancel=(263.66666666666663, 750.0, 113.33333333333331, 44.0)
+    t =    40.66s Find the "run.discard" Button
+    t =    40.69s Find the "run.discard" Button
+    t =    40.73s Find the "run.discardCancel" Button
+    t =    40.84s Added attachment named 'discard-confirmation-dark'
+evidence-shot screen=discard-confirmation-dark
+    t =    40.91s Added attachment named 'c2-discard-dark'
+evidence-shot screen=c2-discard-dark
+    t =    40.91s Tap "run.discardCancel" Button
+    t =    40.91s     Wait for sh.munk.purepace to idle
+    t =    40.91s     Find the "run.discardCancel" Button
+    t =    40.93s     Check for interrupting elements affecting "run.discardCancel" Button
+    t =    40.96s     Synthesize event
+    t =    41.26s     Wait for sh.munk.purepace to idle
+    t =    41.64s Checking existence of `"run.discard" Button`
+    t =    41.66s Tap "run.save" Button
+    t =    41.66s     Wait for sh.munk.purepace to idle
+    t =    41.66s     Find the "run.save" Button
+    t =    41.68s     Check for interrupting elements affecting "run.save" Button
+    t =    41.71s     Synthesize event
+    t =    42.01s     Wait for sh.munk.purepace to idle
+    t =    42.01s Waiting 20.0s for "run.saved" StaticText to exist
+    t =    43.04s     Checking `Expect predicate `existsNoRetry == 1` for object "run.saved" StaticText`
+    t =    43.04s         Checking existence of `"run.saved" StaticText`
+    t =    43.08s Terminate sh.munk.purepace:86152
+    t =    44.15s Open sh.munk.purepace
+    t =    44.15s     Launch sh.munk.purepace
+    t =    44.36s         Setting up automation session
+    t =    45.28s         Wait for sh.munk.purepace to idle
+    t =    46.58s Checking existence of `"Allow While Using App" Button`
+    t =    46.60s Checking existence of `"Allow While Using App" Button`
+    t =    46.66s Checking existence of `"Allow While Using App" Button`
+    t =    46.77s Checking existence of `"Allow Once" Button`
+    t =    46.79s Checking existence of `"Allow Once" Button`
+    t =    46.83s Checking existence of `"Allow Once" Button`
+    t =    46.88s Checking existence of `"Allow" Button`
+    t =    46.90s Checking existence of `"Allow" Button`
+    t =    46.94s Checking existence of `"Allow" Button`
+    t =    46.99s Checking existence of `"Always Allow" Button`
+    t =    47.01s Checking existence of `"Always Allow" Button`
+    t =    47.06s Checking existence of `"Always Allow" Button`
+    t =    47.10s Checking existence of `"Change to Always Allow" Button`
+    t =    47.12s Checking existence of `"Change to Always Allow" Button`
+    t =    47.16s Checking existence of `"Change to Always Allow" Button`
+    t =    47.21s Checking existence of `"使用 App 期间允许" Button`
+    t =    47.23s Checking existence of `"使用 App 期间允许" Button`
+    t =    47.27s Checking existence of `"使用 App 期间允许" Button`
+    t =    47.32s Checking existence of `"允许一次" Button`
+    t =    47.35s Checking existence of `"允许一次" Button`
+    t =    47.39s Checking existence of `"允许一次" Button`
+    t =    47.44s Checking existence of `"始终允许" Button`
+    t =    47.46s Checking existence of `"始终允许" Button`
+    t =    47.51s Checking existence of `"始终允许" Button`
+    t =    47.56s Checking existence of `"允许改为始终允许" Button`
+    t =    47.58s Checking existence of `"允许改为始终允许" Button`
+    t =    47.63s Checking existence of `"允许改为始终允许" Button`
+    t =    47.67s Checking existence of `Alert (First Match)`
+    t =    47.71s Checking existence of `Alert (First Match)`
+    t =    47.75s Get number of matches for: Elements matching predicate '"history.row" IN identifiers'
+    t =    47.78s Checking existence of `"run.mapPreview" Any`
+    t =    47.88s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=history-list labels=20 violations=0 offenders=[]
+    t =    47.92s Find the "history.row" Any
+    t =    48.01s Find the "history.row" Button
+evidence-primary screen=history-list identifier=history.row label=2026年11月19日 00:28，1.20 km，00:21，0:18 /km
+    t =    48.12s Find the "history.row" Button
+    t =    48.24s Find the "history.row" Button
+    t =    48.42s Added attachment named 'history-list-dark'
+evidence-shot screen=history-list-dark
+    t =    48.42s Tap "history.row" Any
+    t =    48.42s     Wait for sh.munk.purepace to idle
+    t =    48.42s     Find the "history.row" Any
+    t =    48.50s     Check for interrupting elements affecting "history.row" Button
+    t =    48.55s     Synthesize event
+    t =    48.86s     Wait for sh.munk.purepace to idle
+    t =    48.88s Waiting 20.0s for "runDetail.startedAt" StaticText to exist
+    t =    49.90s     Checking `Expect predicate `existsNoRetry == 1` for object "runDetail.startedAt" StaticText`
+    t =    49.90s         Checking existence of `"runDetail.startedAt" StaticText`
+    t =    49.94s Waiting 20.0s for "run.mapPreview" Any to exist
+    t =    50.97s     Checking `Expect predicate `existsNoRetry == 1` for object "run.mapPreview" Any`
+    t =    50.97s         Checking existence of `"run.mapPreview" Any`
+    t =    51.19s Find the Window (First Match)
+    t =    51.20s Checking existence of `"runDetail.export" Button`
+    t =    51.23s Checking existence of `"runDetail.export" Button`
+    t =    51.26s Find the "runDetail.export" Button
+    t =    51.31s Find the "runDetail.export" Button
+    t =    51.34s Find the "run.mapPreview" Any
+    t =    51.54s Find the "run.mapPreview" Other
+    t =    51.73s Find the Window (First Match)
+evidence-scroll from=426.0 to=226.0 mapMinY=847.6666666666666
+    t =    51.74s Press Target Application 'sh.munk.purepace'[0.00, 0.00] -> (196.5, 426.0) for 0.1 seconds, then drag to Target Application 'sh.munk.purepace'[0.00, 0.00] -> (196.5, 226.0) with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =    51.74s     Wait for sh.munk.purepace to idle
+    t =    51.74s     Find the Target Application 'sh.munk.purepace'
+    t =    51.76s     Check for interrupting elements affecting "PurePace" Application
+    t =    51.79s     Synthesize event
+    t =    51.79s         Find the Target Application 'sh.munk.purepace'
+    t =    51.81s         Find the Target Application 'sh.munk.purepace'
+    t =    51.83s         Find the Target Application 'sh.munk.purepace'
+    t =    51.85s         Find the Target Application 'sh.munk.purepace'
+    t =    51.87s         Find the Target Application 'sh.munk.purepace'
+    t =    52.65s     Wait for sh.munk.purepace to idle
+    t =    54.27s Find the "run.mapPreview" Other
+    t =    54.42s Find the "run.mapPreview" Other
+evidence-map screen=history-detail identifier=run.mapPreview frame=(0.0, 471.0, 393.0, 232.0) visible=(0.0, 0.0, 393.0, 713.0)
+    t =    54.59s Checking existence of `"run.mapPreview" Any`
+    t =    54.79s Find the "run.mapPreview" Any
+    t =    55.06s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=history-detail labels=29 violations=0 offenders=[]
+    t =    55.12s Find the "runDetail.export" Button
+    t =    55.19s Find the "runDetail.export" Button
+evidence-primary screen=history-detail identifier=runDetail.export label=导出 GPX
+    t =    55.22s Find the "runDetail.export" Button
+    t =    55.26s Find the "runDetail.export" Button
+    t =    55.37s Added attachment named 'history-detail-dark'
+evidence-shot screen=history-detail-dark
+    t =    55.38s Terminate sh.munk.purepace:942
+    t =    56.40s Open sh.munk.purepace
+    t =    56.40s     Launch sh.munk.purepace
+    t =    56.61s         Setting up automation session
+    t =    57.29s         Wait for sh.munk.purepace to idle
+    t =    58.60s Checking existence of `"Allow While Using App" Button`
+    t =    58.62s Checking existence of `"Allow While Using App" Button`
+    t =    58.66s Checking existence of `"Allow While Using App" Button`
+    t =    58.88s Checking existence of `"Allow Once" Button`
+    t =    58.90s Checking existence of `"Allow Once" Button`
+    t =    58.94s Checking existence of `"Allow Once" Button`
+    t =    59.12s Checking existence of `"Allow" Button`
+    t =    59.14s Checking existence of `"Allow" Button`
+    t =    59.18s Checking existence of `"Allow" Button`
+    t =    59.29s Checking existence of `"Always Allow" Button`
+    t =    59.31s Checking existence of `"Always Allow" Button`
+    t =    59.36s Checking existence of `"Always Allow" Button`
+    t =    59.54s Checking existence of `"Change to Always Allow" Button`
+    t =    59.56s Checking existence of `"Change to Always Allow" Button`
+    t =    59.61s Checking existence of `"Change to Always Allow" Button`
+    t =    59.80s Checking existence of `"使用 App 期间允许" Button`
+    t =    59.83s Checking existence of `"使用 App 期间允许" Button`
+    t =    59.88s Checking existence of `"使用 App 期间允许" Button`
+    t =    59.98s Checking existence of `"允许一次" Button`
+    t =    60.01s Checking existence of `"允许一次" Button`
+    t =    60.05s Checking existence of `"允许一次" Button`
+    t =    60.15s Checking existence of `"始终允许" Button`
+    t =    60.17s Checking existence of `"始终允许" Button`
+    t =    60.22s Checking existence of `"始终允许" Button`
+    t =    60.39s Checking existence of `"允许改为始终允许" Button`
+    t =    60.41s Checking existence of `"允许改为始终允许" Button`
+    t =    60.46s Checking existence of `"允许改为始终允许" Button`
+    t =    60.68s Checking existence of `Alert (First Match)`
+    t =    60.72s Checking existence of `Alert (First Match)`
+    t =    60.87s Waiting 30.0s for "settings.announcementToggle" Switch to exist
+    t =    61.90s     Checking `Expect predicate `existsNoRetry == 1` for object "settings.announcementToggle" Switch`
+    t =    61.90s         Checking existence of `"settings.announcementToggle" Switch`
+    t =    61.95s Checking existence of `"run.mapPreview" Any`
+    t =    62.18s Find the Target Application 'sh.munk.purepace'
+ac-visible-copy-zh-hans screen=settings labels=24 violations=0 offenders=[]
+    t =    62.24s Find the "settings.announcementToggle" Switch
+    t =    62.27s Find the "settings.announcementToggle" Switch
+evidence-primary screen=settings identifier=settings.announcementToggle label=每公里语音播报
+    t =    62.30s Find the "settings.announcementToggle" Switch
+    t =    62.33s Find the "settings.announcementToggle" Switch
+    t =    62.42s Added attachment named 'settings-dark'
+evidence-shot screen=settings-dark
+    t =    62.42s Terminate sh.munk.purepace:2214
+    t =    63.49s Tear Down
+Test Case '-[PurePaceUITests.ScreenshotEvidenceUITests testEvidenceScreensDark]' passed (63.556 seconds).
+Test Suite 'ScreenshotEvidenceUITests' passed at 2026-11-19 00:29:07.043.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.556 (63.558) seconds
+Test Suite 'PurePaceUITests.xctest' passed at 2026-11-19 00:29:07.044.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.556 (63.559) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 00:29:07.044.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.556 (63.560) seconds
+2026-11-19 00:29:07.381 xcodebuild[82017:252025233] [MT] IDETestOperationsObserverDebug: 67.223 elapsed -- Testing started completed.
+2026-11-19 00:29:07.381 xcodebuild[82017:252025233] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 00:29:07.381 xcodebuild[82017:252025233] [MT] IDETestOperationsObserverDebug: 67.223 sec, +67.223 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/ev-dark.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
