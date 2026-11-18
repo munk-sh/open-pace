@@ -1,0 +1,32 @@
+# repro-1 执行时间: 2026-11-18T16:07:51Z
+# 输入: 注入时钟推进 5.0s，零条定位采样（RunMetricsEngine.ingest 从未调用）
+# 说明: 在 /tmp 副本内给测试加 1 行 print 读取真实读数（仓内零改动）
+[0/1] Planning build
+Building for debugging...
+[0/6] Write sources
+[1/6] Write swift-version--58304C5D6DBC2206.txt
+[3/7] Compiling PurePaceRunCoreTests RunArchiveStoreTests.swift
+[4/7] Compiling PurePaceRunCoreTests RunClockDecouplingTests.swift
+[5/7] Emitting module PurePaceRunCoreTests
+[6/9] Emitting module PurePaceRunCorePackageTests
+[7/9] Compiling PurePaceRunCorePackageTests runner.swift
+[7/9] Write Objects.LinkFileList
+[8/9] Linking PurePaceRunCorePackageTests
+Build complete! (2.25s)
+Test Suite 'Selected tests' started at 2026-11-19 00:07:54.959.
+Test Suite 'PurePaceRunCorePackageTests.xctest' started at 2026-11-19 00:07:54.960.
+Test Suite 'RunClockDecouplingTests' started at 2026-11-19 00:07:54.960.
+Test Case '-[PurePaceRunCoreTests.RunClockDecouplingTests testElapsedTicksWithClockAndZeroLocationSamples]' started.
+Test Case '-[PurePaceRunCoreTests.RunClockDecouplingTests testElapsedTicksWithClockAndZeroLocationSamples]' passed (0.002 seconds).
+Test Suite 'RunClockDecouplingTests' passed at 2026-11-19 00:07:54.962.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'PurePaceRunCorePackageTests.xctest' passed at 2026-11-19 00:07:54.962.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 00:07:54.962.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+REPRO-1 callbacks=0 elapsed=5.0 distance=0.0
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+EXIT:0

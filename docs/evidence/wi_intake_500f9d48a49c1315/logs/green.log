@@ -1,0 +1,18 @@
+# 未变异（绿）: W1 新增 5 条断言同批执行
+# 被测用例: PurePaceTests/RunPermissionAndDiagnosticsTests（5 条用例）
+# 变异内容: 无（副本源码与仓内逐字一致）
+# 执行位置: /tmp/pp-w1-500f9d48a49c1315/repo（仓库只读副本，.git/.munk/.build 不入副本）
+# 命令: xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination 'platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD' -derivedDataPath $D/dd -only-testing:PurePaceTests/RunPermissionAndDiagnosticsTests-test-timeouts-enabled YES -default-test-execution-time-allowance 300 CODE_SIGNING_ALLOWED=NO
+# 说明: 原始 xcodebuild 输出按「Test Case / error: / Executed / TEST …」行裁剪，OUTPUT trimmed; 末尾 EXIT 为 xcodebuild 退出码
+# 执行时间(设备本地，取自原始输出): 2026-11-19 00:02:49.992
+
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testDiagnosticsSnapshotIsSelfConsistentAndSingleSourced]' passed (0.005 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLastSampleTimeNeverRegresses]' passed (0.003 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationSearchStateTimesOutWithAttributableReason]' passed (0.000 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback]' passed (0.001 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testTimeoutRetryRestartsLocationWithoutResettingSession]' passed (0.002 seconds).
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.010 (0.012) seconds
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.010 (0.012) seconds
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.010 (0.013) seconds
+** TEST SUCCEEDED **
+EXIT:0

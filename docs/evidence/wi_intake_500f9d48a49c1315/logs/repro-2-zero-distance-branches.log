@@ -1,0 +1,18 @@
+# 复现 2：距离恒 0 的三条机器侧分支（精度过滤 / 降级上限 / 搜索超时归因）
+# 输入: 65m 与 250m fix（t=0 注入，t=15s 窗口到点）；RunLocationSearchState 纯函数输入见 REPRO-2D/E/F 行
+# 说明: /tmp 副本内临时新增 testReproZeroDistanceBranches 打印真实读数（仓内零改动、不入仓）；原始输出裁剪同上
+# 执行时间(设备本地，取自原始输出): 2026-11-19 00:08:09.916
+
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testReproZeroDistanceBranches]' started.
+REPRO-2A acc=65 t=0 raw=1 filtered=1 samples=0 lastAccepted=nil
+REPRO-2B acc=65 t=15 raw=1 filtered=1 samples=1 lastAccepted=Optional(65.0)
+REPRO-2C acc=250 t=15 raw=1 filtered=1 samples=0 lastAccepted=nil
+REPRO-2D auth=denied services=on raw=0 filtered=0 state=timedOut(PurePace.RunLocationSearchFailureReason.unauthorized)
+REPRO-2E auth=always services=off raw=0 filtered=0 state=timedOut(PurePace.RunLocationSearchFailureReason.servicesDisabled)
+REPRO-2F auth=always services=on raw=3 filtered=3 state=timedOut(PurePace.RunLocationSearchFailureReason.accuracyFiltered)
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testReproZeroDistanceBranches]' passed (0.004 seconds).
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.006) seconds
+** TEST SUCCEEDED **
+EXIT:0

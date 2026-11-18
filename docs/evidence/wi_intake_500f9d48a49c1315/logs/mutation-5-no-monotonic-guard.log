@@ -1,0 +1,15 @@
+# 变异 5：删掉归档样本单调守卫，旧时间戳样本被接受
+# 被测用例: PurePaceTests/RunPermissionAndDiagnosticsTests/testLastSampleTimeNeverRegresses
+# 变异内容: ios/RunCore/Sources/PurePaceRunCore/RunSessionOrchestrator.swift isArchiveAcceptable(): `return sample.timestamp > last` 改成 `return true`
+# 执行位置: /tmp/pp-w1-500f9d48a49c1315/repo（仓库只读副本，.git/.munk/.build 不入副本）
+# 命令: xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination 'platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD' -derivedDataPath $D/dd -only-testing:PurePaceTests/RunPermissionAndDiagnosticsTests/testLastSampleTimeNeverRegresses -test-timeouts-enabled YES -default-test-execution-time-allowance 300 CODE_SIGNING_ALLOWED=NO
+# 说明: 原始 xcodebuild 输出按「Test Case / error: / Executed / TEST …」行裁剪，OUTPUT trimmed; 末尾 EXIT 为 xcodebuild 退出码
+# 执行时间(设备本地，取自原始输出): 2026-11-19 00:06:45.869
+
+/tmp/pp-w1-500f9d48a49c1315/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:585: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLastSampleTimeNeverRegresses] : XCTAssertEqual failed: ("Optional(2023-11-14 22:13:23 +0000)") is not equal to ("Optional(2023-11-14 22:13:25 +0000)") - 时间戳不前进的样本不得回退最近样本时间
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLastSampleTimeNeverRegresses]' failed (0.106 seconds).
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.106 (0.107) seconds
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.106 (0.107) seconds
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.106 (0.108) seconds
+** TEST FAILED **
+EXIT:65
