@@ -52,4 +52,21 @@ final class TabBarVisibilityPolicyTests: XCTestCase {
         XCTAssertEqual(evaluation.expectedCount, 1)
         XCTAssertEqual(evaluation.problems, ["Tab 栏数量 0 ≠ 期望 1"])
     }
+
+    // MARK: - ac-rerun-tabs
+
+    /// 回起跑路由：只有结束态需要收口回 `ready`；运行 / 暂停中不得被路由动作打断。
+    func testOnlyFinishedSessionResetsOnRunTabEntry() {
+        XCTAssertTrue(
+            TabBarVisibilityPolicy.resetsToReadyOnRunTabEntry(state: .finished),
+            "结束态（保存成功总结）点跑步 tab / 回起跑入口必须先收口回 ready"
+        )
+        // 造错必红反例：若把运行 / 暂停 / 未开始也判为需要重置，会打断进行中的会话。
+        for state in [RunSessionState.ready, .running, .paused] {
+            XCTAssertFalse(
+                TabBarVisibilityPolicy.resetsToReadyOnRunTabEntry(state: state),
+                "\(state) 不得被回起跑路由重置"
+            )
+        }
+    }
 }

@@ -52,7 +52,21 @@ struct HistoryView: View {
                 // 详情按 id 懒解码完整 samples（列表只持摘要）；注入取证路径直接给已解码记录。
                 if let record = injectedRecords?.first(where: { $0.id == recordID })
                     ?? (try? archiveStore.record(withID: recordID)) {
-                    RunDetailView(record: record, exporter: exporter)
+                    RunDetailView(record: record, exporter: exporter) {
+                        state.popToRoot()
+                        onRunAgain()
+                    }
+                }
+            }
+            // 历史列表回起跑入口：与空态 CTA / 详情页共用 `onRunAgain` 同一条路由。
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.historyBackToRun) {
+                        state.popToRoot()
+                        onRunAgain()
+                    }
+                    .accessibilityIdentifier("history.rerun")
+                    .accessibilityLabel(Text(L10n.historyBackToRun))
                 }
             }
         }

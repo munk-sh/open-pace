@@ -27,9 +27,9 @@ final class DynamicTypeLayoutTests: XCTestCase {
         height: DesignTokens.Spacing.xs
     )
 
-    /// 主操作文案取最长的一条（「查看历史」，与 Localizable.xcstrings 的
-    /// `run.action.viewHistory` 同源）；首屏「开始」必然更窄，故按最宽文案判定。
-    private static let longestPrimaryActionCopy = "查看历史"
+    /// 主操作文案取最长的一条（保存态「再跑一次」，「查看历史」同为 4 字，与 Localizable.xcstrings
+    /// 的 `run.action.rerun` / `run.action.viewHistory` 同源）；首屏「开始」必然更窄，故按最宽文案判定。
+    private static let longestPrimaryActionCopy = "再跑一次"
 
     private static let ax5Traits = UITraitCollection(
         preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge

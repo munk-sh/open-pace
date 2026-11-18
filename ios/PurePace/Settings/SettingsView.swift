@@ -8,6 +8,8 @@ struct SettingsView: View {
     @ObservedObject var consent: TrajectoryConsentStore
     /// 诊断数据只读跑步会话的单一快照（版本/构建 sha/授权/采样/回调计数）。
     @ObservedObject var runModel: RunSessionViewModel
+    /// 回起跑入口：与历史列表 / 详情共用 ContentView 的同一条路由。
+    var onRunAgain: () -> Void = {}
     @State private var didCopyDiagnostics = false
 
     var body: some View {
@@ -49,6 +51,15 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(DesignTokens.Colors.background)
             .navigationTitle(L10n.settingsNavigationTitle)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.settingsBackToRun) {
+                        onRunAgain()
+                    }
+                    .accessibilityIdentifier("settings.rerun")
+                    .accessibilityLabel(Text(L10n.settingsBackToRun))
+                }
+            }
         }
         .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.settings")

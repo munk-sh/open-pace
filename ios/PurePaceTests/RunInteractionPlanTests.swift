@@ -82,7 +82,7 @@ final class RunInteractionPlanTests: XCTestCase {
             DisplayState(
                 name: "finished saved",
                 plan: makePlan(state: .finished, didSave: true, reduceMotion: reduceMotion),
-                expectedPrimary: .viewHistory
+                expectedPrimary: .runAgain
             )
         ]
     }
@@ -112,11 +112,40 @@ final class RunInteractionPlanTests: XCTestCase {
         XCTAssertEqual(plan.items, [.init(action: .cancelCountdown, emphasis: .primary)])
     }
 
+    // MARK: - ac-rerun-primary
+
+    /// 保存成功页：唯一填充主操作是「再跑一次」，「查看历史」降为无填充文字次操作。
+    /// 层级差异用 `emphasis` / `style` / `fillsWithTint` 断言，不只靠文案。
+    func testSavedStateRerunIsPrimaryAndViewHistoryIsTextSecondary() {
+        let plan = makePlan(state: .finished, didSave: true)
+        XCTAssertEqual(plan.items.map(\.action), [.runAgain, .viewHistory], "主操作必须是再跑一次")
+
+        let rerun = plan.items[0]
+        XCTAssertEqual(rerun.emphasis, .primary)
+        XCTAssertEqual(rerun.style, .primaryAccent)
+        XCTAssertTrue(rerun.fillsWithTint, "再跑一次是保存成功页唯一填充主操作")
+        XCTAssertEqual(rerun.tint, .accent, "填充主操作的 tint 由 accent 派生（保存态由 View 的 success 覆盖）")
+
+        let viewHistory = plan.items[1]
+        XCTAssertEqual(viewHistory.emphasis, .text)
+        XCTAssertEqual(viewHistory.style, .textSecondary)
+        XCTAssertFalse(viewHistory.fillsWithTint, "查看历史不得有填充底")
+        XCTAssertEqual(viewHistory.tint, .secondary, "文字次操作只取中性色")
+        XCTAssertEqual(plan.items.filter(\.fillsWithTint).count, 1, "同屏只能有一个填充控件")
+
+        // 造错必红反例：旧口径把「查看历史」当唯一 primary 且无再跑入口，必须被判红。
+        XCTAssertNotEqual(plan.items.first?.action, .viewHistory)
+        let legacyPlanItems = [RunInteractionPlan.Item(action: .viewHistory, emphasis: .primary)]
+        XCTAssertNotEqual(legacyPlanItems.map(\.action), plan.items.map(\.action))
+        XCTAssertNil(legacyPlanItems.first { $0.action == .runAgain }, "旧口径缺少再跑入口")
+    }
+
     // MARK: - ac-plan-no-dead-end
 
     func testEveryDisplayStateHasAnExitAction() {
         let exitActions: Set<RunInteractionPlan.Action> = [
-            .start, .cancelCountdown, .pause, .resume, .finish, .save, .discardRequest, .discard, .viewHistory
+            .start, .cancelCountdown, .pause, .resume, .finish, .save, .discardRequest, .discard,
+            .runAgain, .viewHistory
         ]
         for reduceMotion in [false, true] {
             for state in displayStates(reduceMotion: reduceMotion) {
