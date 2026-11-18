@@ -1,0 +1,16 @@
+# 变异 1：删掉降级窗口到点的主动结算（恢复旧「静默丢弃」）
+# 被测用例: PurePaceTests/RunPermissionAndDiagnosticsTests/testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback
+# 变异内容: ios/PurePace/Location/RunLocationSource.swift flushPendingFallbackIfDue(): 把 `pendingFallbackPayload = nil; accept(pending)` 改成只清空不 accept
+# 执行位置: /tmp/pp-w1-500f9d48a49c1315/repo（仓库只读副本，.git/.munk/.build 不入副本）
+# 命令: xcodebuild test -project ios/PurePace.xcodeproj -scheme PurePace -destination 'platform=iOS Simulator,id=B3F00298-E08A-41E0-876E-6E8A75C730FD' -derivedDataPath $D/dd -only-testing:PurePaceTests/RunPermissionAndDiagnosticsTests/testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback -test-timeouts-enabled YES -default-test-execution-time-allowance 300 CODE_SIGNING_ALLOWED=NO
+# 说明: 原始 xcodebuild 输出按「Test Case / error: / Executed / TEST …」行裁剪，OUTPUT trimmed; 末尾 EXIT 为 xcodebuild 退出码
+# 执行时间(设备本地，取自原始输出): 2026-11-19 00:04:42.751
+
+/tmp/pp-w1-500f9d48a49c1315/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:426: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback] : XCTAssertEqual failed: ("0") is not equal to ("1") - 窗口到点必须主动接受最佳 fix，不等第二个回调
+/tmp/pp-w1-500f9d48a49c1315/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:427: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(65.0)") - 降级数必须如实标记真实精度
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback]' failed (0.138 seconds).
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.138 (0.139) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.138 (0.139) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.138 (0.140) seconds
+** TEST FAILED **
+EXIT:65
