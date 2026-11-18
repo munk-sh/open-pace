@@ -71,7 +71,7 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           set -euo pipefail
-          SHA="$(git -C \"${SRCROOT}/..\" rev-parse HEAD 2>/dev/null | cut -c1-8 || true)"
+          SHA="$(git -C "${SRCROOT}/.." rev-parse HEAD 2>/dev/null | cut -c1-8 || true)"
           PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
           if [ -n "${SHA}" ] && [ -f "${PLIST}" ]; then
             /usr/libexec/PlistBuddy -c "Delete :PurePaceBuildSHA" "${PLIST}" >/dev/null 2>&1 || true
