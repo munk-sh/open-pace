@@ -592,7 +592,7 @@ validate_design_tokens() {
   for semantic_token in \
     'static let screenTop: CGFloat = lg' \
     'static let cardGap: CGFloat = md' \
-    'static let sectionGap: CGFloat = sm'; do
+    'static let sectionGap: CGFloat = lg'; do
     grep -Fq "$semantic_token" "$token_file" \
       || problems="$problems 缺少语义间距 token '$semantic_token';"
   done
@@ -1428,7 +1428,7 @@ run_self_test() {
   cp ios/PurePace/Privacy/PrivacyPolicyView.swift "$design_root/ios/PurePace/Privacy/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 62 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 63 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_b1_bad="$tmp_dir/design-b1-regression"
@@ -1548,7 +1548,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 63 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 64 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"

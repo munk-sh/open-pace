@@ -1,0 +1,6 @@
+# 改后（commit a8c61f9，同一断言 testEvidenceAx5Layout，同一阈值 window±1，未放宽）
+AX5-FIT screen=01-run-not-started window=(0.0, 0.0, 393.0, 852.0) primary=run.start primaryFrame=(16.0, 713.0, 361.0, 44.0) elements=19 outOfBounds=0 overlaps=0
+AX5-FIT screen=03-run-finished window=(0.0, 0.0, 393.0, 852.0) primary=run.save primaryFrame=(16.0, 762.0, 295.0, 44.0) elements=17 outOfBounds=0 overlaps=0
+AX5-FIT screen=05-history-detail window=(0.0, 0.0, 393.0, 852.0) primary=runDetail.export primaryFrame=(16.0, 713.0, 361.0, 44.0) elements=28 outOfBounds=0 overlaps=0
+AX5-FIT screen=06-settings window=(0.0, 0.0, 393.0, 852.0) primary=settings.announcementToggle primaryFrame=(0.0, 218.66666666666666, 393.0, 101.66666666666666) elements=35 outOfBounds=0 overlaps=0
+Test Case '-[PurePaceUITests.EvidenceCaptureUITests testEvidenceAx5Layout]' passed (95.993 seconds).

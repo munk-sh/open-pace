@@ -61,7 +61,7 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - ac-typography-role-ladder: `roleLadder` 按字号非递减覆盖 7 角色（label == unit == 11 < caption 13 < body 15 < title 20 < primaryValue 36 < display 64），非相邻重复只允许 label/unit；`numericRoleNames` 恰为 `[primaryValue, display]` 且仅这两角色标记等宽数字；`roleProblems` 对长度 / 顺序 / 乱标记 fail-closed，移出数值角色或给 `caption` 打等宽标记必须判红。
 - ac-motion-tokens-and-degrade: `Motion.durationShort == 0.2`、`durationState == 0.32`（`TimeInterval` 秒，注释毫秒）、`0 < durationShort < durationState <= 0.4`、`reducedMotionDuration == 0`；纯函数 `Motion.duration(_:reduceMotion:)` 在 `true` 返回 0、`false` 返回原值；改 0.25、state < short、`true` 时返回非零三类反例判红。
 - ac-no-animation-wiring: 本轮 `ios/PurePace/**` 除 `DesignTokens.swift` 外 `Motion.` 引用为 0，`.animation(` / `withAnimation(` / `UIAccessibility.isReduceMotionEnabled` 新增为 0（动画接线留给后续波次）。
-- ac-semantic-spacing: `Spacing` 新增指标组内 / 指标组之间 / 卡片内边距三个 `CGFloat` 语义项，取值只落在 `{4, 8, 12, 16, 24, 32}`；`screenTop == 24` / `cardGap == 16` / `sectionGap == 12` 与严格递增 6 档 `Spacing.scale` 保持；新增项改成 20（档位外）必须判红。
+- ac-semantic-spacing-floor: `Spacing` 语义项取值只落 `{4, 8, 12, 16, 24, 32}`；`screenTop == 24` / `cardGap == 16` / `sectionGap == 24`（= `lg`，发布线分组间距）/ `cardPadding == 16` 与严格递增 6 档 `Spacing.scale` 保持；`ScreenSpacingPolicy` 以卡片间距 ≥16 / 分组间距 ≥24 / 卡片内边距 ≥16 判红，12/12/12 逐条红，档位外取值（20）与 `sectionGap` 退回 12 均判红。
 - ac-existing-tiers-frozen: `Radius.scale == [10, 14, 20]`、`Icon.scale == [16, 20, 24]`、`Stroke.hairline == 1`、`minTapTarget == 44`、`Appearance.supportsDarkMode == true` 逐值锁定；不新增圆角 / 图标 / 描边档；33 项冻结 identifier 零改名零删除（只增不改见 ac-a11y-identifier-append-only）。
 - ac-run-three-states-five-layers: 三态固定 ready / running+paused / finished && didSave，每态自上而下五层：hero 距离（唯一 `display`，等宽）→ 用时/当前配速（`primaryValue`）→ 平均配速/分段（`caption`）→ 提示（caption + 小面积弱底，saved 仍渲染 `run.saved` 胶囊）→ 主操作（`safeAreaInset(edge: .bottom)`，每态恰一个填充主操作）；指标块三行 `metricLabel` → 等宽数值 → `metricUnit`，无单位项不渲染空行；`monospacedDigit()` ≥ 3、零 `.shadow(` / 零渐变 / 零嵌套双描边，hero 底色只取 `surface` / `surfaceMuted`；保留 `ViewThatFits` → `ScrollView` 退路与等权 `Spacer(minLength:)`，不引入固定高度 / `lineLimit(1)` / `fixedSize`。
 - ac-run-unit-split-a11y: 数值 / 单位拆分只在 `RunFormatting` **新增**纯函数（`distanceValueText` / `distanceUnitText` / `paceValueText` / `paceUnit` / `paceUnitText`），既有 `distanceText` / `paceText` / `elapsedText` / `splitCountText` 签名与输出不变；单位行 `accessibilityHidden`，可及 label 用显式合并串复原（`0.00 km` / `00:00` / 空配速 `--`），既有 UI 断言字符串不改。
@@ -73,10 +73,10 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 - ac-run-l10n-and-literals-frozen: 视图只经 `L10n` 键出文案（`RunView` 仍 ≥ 4 个互异 `label: L10n.*`，含 `runActionStart / Pause / Resume / Finish`）；受管面零字面色值、零散字体修饰符、零动效时长与零样式字面量（`spacing: 0` 写 `.zero`，`padding` / `minHeight` / `spacing` 只取 `DesignTokens.*`）；新增确认层文案只增 `xcstrings` 键。`track` 与定位 / GPX 契约零改动。
 - ac-surface-history-detail: 历史列表与跑次详情统一使用 `Colors.surface` 卡片面、`Radius.card` 圆角、`Spacing.*` 内边距、`Colors.separator` 分隔，不保留 `.listStyle(.grouped)` / `.listStyle(.insetGrouped)` 的系统默认 grouped 观感；静态断言要求两个视图都引用 surface/radius/separator，移除 surface 引用的反例必须判红。
 - ac-run-state-visuals: 记录中 / 暂停 / 未开始 / 结束待保存 hero 主值色均取 `primary`（浅色 accent 只作填充、暂停不切 `warning`），saved 取 `success`；hero 主值色唯一真源是 `RunInteractionPlan.heroTint`（视图零 `switch` 取色），主操作 identifier、按钮文案与行为不变；静态断言锁定 `case .running, .paused: return .primary` 与 `valueTint: color(for: plan.heroTint)`，把暂停改回 warning 或 hero 回退 accent 的反例必须判红。
-- ac-a11y-identifier-append-only: app 内既有 33 项可及 identifier 逐项固定（覆盖 `history.*` / `run.*` / `runDetail.*` / `settings.announcementToggle` / `tab.*`，正本为 `scripts/check-ios-shell.sh`），不改名、不删除；新增只允许「非空 + 全局唯一 + 带非空可读 label + 计数单调」，当前去重计数 42（冻结 33 之外为倒计时取消 / 保存 / 丢弃族与地图 / 分段标识）；重命名 `run.start`、删除任一冻结项或新增空 label / 重复 id 的反例必须判红。
+- ac-a11y-identifier-append-only: app 内既有 33 项可及 identifier 逐项固定（覆盖 `history.*` / `run.*` / `runDetail.*` / `settings.announcementToggle` / `tab.*`，正本为 `scripts/check-ios-shell.sh`），不改名、不删除；新增只允许「非空 + 全局唯一 + 带非空可读 label + 计数单调」，当前去重计数 63（冻结 33 之外为倒计时取消 / 保存 / 丢弃族、地图 / 分段标识、设置高级组与复制导出）；重命名 `run.start`、删除任一冻结项或新增空 label / 重复 id 的反例必须判红。
 - ac-dark-mode-real: `Appearance.supportsDarkMode == true`；全部语义色带 dark 值；暗色下正文/小字对比度 ≥4.5:1、大数字 ≥3:1；真实 dark appearance 模拟器运行（`xcrun simctl ui <udid> appearance dark`）产出 `docs/screenshots/run-running-dark.png`，不得手绘或旧图改色；若暗色确不可用，digest 必须如实写 `pending` 并给出 token 计划。
 - ac-screenshots-scope: 截图与可及树只在留档轮次重出；C 项取证轮次未重出时如实写 `pending: 待人现场`，不得用旧图冒充本轮。
-- ac-gates-green: `.munk/code-gates.json` 的 22 门全部退出 0；不新增 gate id；`lint-ios-shell` 与 `--self-test` 全过（含本轮与令牌门禁项正负反例）；`test-ios --unit-only` 执行到布局阈值与 plan 断言；`build-ios` 真实构建成功。
+- ac-gates-green: `.munk/code-gates.json` 的 23 门全部退出 0；不新增 gate id；`lint-ios-shell` 与 `--self-test` 全过（含本轮与令牌门禁项正负反例）；`test-ios --unit-only` 执行到布局阈值与 plan 断言；`build-ios` 真实构建成功。
 - ac-diff-scope-bounded: 样式轮次的代码 diff 仅含 DesignTokens、ContrastPolicy（及可选 DesignComponents）、四个视图 + ContentView 的样式、`scripts/check-ios-shell.sh`、PurePaceTests 断言、`docs/screenshots/*`、`docs/evidence/a11y/*`；状态机、定位、音频、GPX、CI、Android、`project.yml`、页面/路由零改动（后续轮的 `project.yml` UITests sources 与本地化键增补属独立批准范围）。
 - ac-digest-receipt: digest.md 三样回执齐全：①新截图路径 + sha256；②新增/扩展断言名 + 关键日志（含反例能红的那一行）；③diff 范围清单；另含设备/OS/Xcode、暗色生成命令、light/dark 对比度数值与 pending 项。
 
@@ -106,7 +106,7 @@ PurePace iOS 三屏（Run / History / Settings）视觉层级、文案与布局�
 
 ## 最近交付证明
 
-- workItemId: wi_intake_677e501cd4f74e4f（2026-11-12，pass）
-- 交付：V1.2 B1 结束待保存态按定稿重排——地图 hero 恒 360（实测 361.0 ≥ 屏高 40%）、距离常显在地图上（仍 `run.distance`）、指标行承载时长 + 平均配速、分段常显（空态 `run.finished.splitsEmpty`）、inline 权限胶囊从整行两行改单行 248.0×23.67、底部主操作条 68；C2 确认层改 `dangerFilled` 唯一填充 + 无填充 `text` 次操作，`onGeometryChange` 实测高度 detent；hero 主值色四态恒 `primary`（浅色 accent 仅作填充）。细则与判据见域 `ios-finished-summary`。
-- 判定与证据：`check-ios-shell` 33 项 / `--self-test` 100 项 0 失败；`test-ios` 265 + 173 例 0 失败；`code_gates` 22 门 attempt 001 全绿；36 hex 与对比度阈值、42 项 identifier 计数零改动；B1/C2 证据四图来自本项构建树（`96b7d01` / tree `c06abaf`）。
-- 偏离与边界：patch 落地后补了 inline 胶囊单行化与 C2 取数闭环（`app.sheets` 在 iOS 18.6 不匹配 detent sheet，改由标题 `frame.minY − Spacing.xs` 推导）；未跑 `ios.yml` 权威腿、未出 14 张复评截图（写项③）；真机项 `pending: 待人现场`。
+- workItemId: wi_intake_666b18afcb30a3fc（2026-11-19，pass）
+- 交付：三屏发布线——`Spacing.sectionGap` 由 `sm` 12 改 `lg` 24，新增 `ScreenSpacingPolicy`（卡片间距 ≥16 / 分组间距 ≥24 / 卡片内边距 ≥16 逐条判红）；设置「高级」组（`DisclosureGroup` 默认折叠）把 06-settings AX5 越界 8.67pt 清零，历史列表 / 详情每组补组标题 + 一句说明、卡内边距 16。屏幕细则见 `ios-settings-visual` / `ios-history-visual`。
+- 判定与证据：`code_gates` 23 门 attempt 001 全绿；`check-ios-shell --self-test` 102 项、`DesignTokensTests` 33 例 0 失败；36 hex 与对比度阈值零改动，identifier 63（只增 `settings.advanced`）；深浅 18 图 + AX5 改前/改后原文同 commit 落 `docs/evidence/wi_intake_666b18afcb30a3fc/`。
+- 偏离与边界：`Run/**` 与跑步四态零改动；未跑 CI 全量 UI 腿，真机观感 `pending: 待人现场`。

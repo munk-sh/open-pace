@@ -92,6 +92,9 @@ enum L10n {
     static var historyRunAgain: LocalizedStringKey { LocalizedStringKey("history.empty.action") }
     /// 历史列表回起跑入口（与空态 CTA 共用同一句文案，独立 identifier 供连续旅程驱动）。
     static var historyBackToRun: LocalizedStringKey { LocalizedStringKey("history.empty.action") }
+    /// 列表分组标题与一句说明（每组一个标题 + 一句说明）。
+    static var historySectionRuns: LocalizedStringKey { LocalizedStringKey("history.section.runs") }
+    static var historyFooterRuns: LocalizedStringKey { LocalizedStringKey("history.footer.runs") }
 
     // MARK: - 跑次详情
 
@@ -102,6 +105,15 @@ enum L10n {
     static var runDetailFieldActiveDuration: LocalizedStringKey { LocalizedStringKey("runDetail.field.activeDuration") }
     static var runDetailFieldAveragePace: LocalizedStringKey { LocalizedStringKey("runDetail.field.averagePace") }
     static var runDetailSplitsEmpty: LocalizedStringKey { LocalizedStringKey("runDetail.splits.empty") }
+    /// 详情五个分组的标题与一句说明（元信息 / hero 距离 / 指标网格 / 轨迹 / 分段）。
+    static var runDetailSectionMeta: LocalizedStringKey { LocalizedStringKey("runDetail.section.meta") }
+    static var runDetailFooterMeta: LocalizedStringKey { LocalizedStringKey("runDetail.footer.meta") }
+    static var runDetailSectionHero: LocalizedStringKey { LocalizedStringKey("runDetail.section.hero") }
+    static var runDetailFooterHero: LocalizedStringKey { LocalizedStringKey("runDetail.footer.hero") }
+    static var runDetailSectionMetrics: LocalizedStringKey { LocalizedStringKey("runDetail.section.metrics") }
+    static var runDetailFooterMetrics: LocalizedStringKey { LocalizedStringKey("runDetail.footer.metrics") }
+    static var runDetailFooterMap: LocalizedStringKey { LocalizedStringKey("runDetail.footer.map") }
+    static var runDetailFooterSplits: LocalizedStringKey { LocalizedStringKey("runDetail.footer.splits") }
     static var runDetailExportButton: LocalizedStringKey { LocalizedStringKey("runDetail.export.button") }
     static var runDetailExportSection: LocalizedStringKey { LocalizedStringKey("runDetail.export.section") }
     static var runDetailExportFooter: LocalizedStringKey { LocalizedStringKey("runDetail.export.footer") }
@@ -123,6 +135,9 @@ enum L10n {
     static var settingsSectionAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.section.announcement") }
     static var settingsFooterAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.footer.announcement") }
     static var settingsSectionDiagnostics: LocalizedStringKey { LocalizedStringKey("settings.section.diagnostics") }
+    /// 「高级」分组标题与组尾说明（诊断区默认折叠，展开后可复制整份快照）。
+    static var settingsSectionAdvanced: LocalizedStringKey { LocalizedStringKey("settings.section.advanced") }
+    static var settingsFooterAdvanced: LocalizedStringKey { LocalizedStringKey("settings.footer.advanced") }
     static var settingsDiagnosticsCopy: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.copy") }
     static var settingsDiagnosticsCopied: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.copied") }
     static var settingsDiagnosticsVersion: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.version") }

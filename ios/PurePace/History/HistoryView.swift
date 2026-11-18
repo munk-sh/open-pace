@@ -25,24 +25,40 @@ struct HistoryView: View {
                     emptyState
                 } else {
                     List {
-                        ForEach(state.summaries, id: \.id) { summary in
-                            NavigationLink(value: summary.id) {
-                                row(for: summary)
-                            }
-                            .accessibilityIdentifier("history.row")
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(
-                                    top: DesignTokens.Spacing.xs,
-                                    leading: DesignTokens.Spacing.md,
-                                    bottom: DesignTokens.Spacing.xs,
-                                    trailing: DesignTokens.Spacing.md
+                        Section {
+                            ForEach(state.summaries, id: \.id) { summary in
+                                NavigationLink(value: summary.id) {
+                                    row(for: summary)
+                                }
+                                .accessibilityIdentifier("history.row")
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(
+                                    EdgeInsets(
+                                        top: DesignTokens.Spacing.xs,
+                                        leading: DesignTokens.Spacing.md,
+                                        bottom: DesignTokens.Spacing.xs,
+                                        trailing: DesignTokens.Spacing.md
+                                    )
                                 )
-                            )
-                            .listRowBackground(DesignTokens.Colors.background)
+                                .listRowBackground(DesignTokens.Colors.background)
+                            }
+                        } header: {
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                                Text(L10n.historySectionRuns)
+                                    .font(DesignTokens.Typography.sectionHeader)
+                                    .foregroundStyle(DesignTokens.Colors.secondary)
+                                    .textCase(nil)
+                                Text(L10n.historyFooterRuns)
+                                    .font(DesignTokens.Typography.caption)
+                                    .foregroundStyle(DesignTokens.Colors.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .textCase(nil)
+                            }
+                            .padding(.bottom, DesignTokens.Spacing.xs)
                         }
                     }
                     .listStyle(.plain)
+                    .listSectionSpacing(DesignTokens.Spacing.sectionGap)
                     .scrollContentBackground(.hidden)
                     .background(DesignTokens.Colors.background)
                 }
@@ -165,7 +181,7 @@ struct HistoryView: View {
                 metricColumn(content.paceText, label: L10n.runMetricAverage)
             }
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(DesignTokens.Spacing.cardPadding)
         .frame(
             maxWidth: .infinity,
             minHeight: DesignTokens.minTapTarget,
