@@ -1,0 +1,38 @@
+# mutant(b) 断开 locationManagerDidFail -> lastLocationErrorCode 转发
+# base commit 90bb205723fe95070b62ddfa3777a4cb80d0b05f
+# utc 2026-11-18T14:13:32Z
+--- /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_a443ff461a4b5787/ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:09:25
++++ ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:13:32
+@@ -355,7 +355,8 @@
+ 
+     /// 系统定位失败：记录原始错误码供 readiness 呈现，不静默丢弃。
+     func locationManagerDidFail(code: Int) {
+-        lastLocationErrorCode = code
++        // MUTATION(b): didFailWithError -> lastLocationErrorCode 转发被断开
++        _ = code
+     }
+ }
+ 
+Test Suite 'Selected tests' started at 2026-11-18 22:13:36.828.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-18 22:13:36.828.
+Test Suite 'RunPermissionAndDiagnosticsTests' started at 2026-11-18 22:13:36.828.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' started.
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:281: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(0)") - 最近一次系统定位失败必须被记录，不得静默丢弃
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:286: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("ready") is not equal to ("unavailable") - 定位失败必须置不可用态
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:289: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("nil") is not equal to ("Optional("run.status.locationUnavailable")") - 必须复用既有定位不可用文案键
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:290: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("nil") is not equal to ("Optional("定位暂不可用，请重试")")
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:291: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertFalse failed - 不可用态必须有可见文案，不能只有内部状态
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:292: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(PurePace.RunLocationReadiness.NextAction.retry)") - 不可用态的唯一出口是既有 retry
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:298: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(PurePace.RunInteractionPlan.Notice.locationUnavailable)") - 不可用态必须在跑步页渲染定位提示行
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:308: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertNotEqual failed: ("ready") is equal to ("ready")
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' failed (0.112 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' started.
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:331: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady] : XCTAssertEqual failed: ("ready") is not equal to ("unavailable")
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' failed (0.003 seconds).
+Test Suite 'RunPermissionAndDiagnosticsTests' failed at 2026-11-18 22:13:36.944.
+	 Executed 2 tests, with 9 failures (0 unexpected) in 0.115 (0.116) seconds
+Test Suite 'PurePaceTests.xctest' failed at 2026-11-18 22:13:36.944.
+	 Executed 2 tests, with 9 failures (0 unexpected) in 0.115 (0.116) seconds
+Test Suite 'Selected tests' failed at 2026-11-18 22:13:36.944.
+	 Executed 2 tests, with 9 failures (0 unexpected) in 0.115 (0.117) seconds
+** TEST FAILED **

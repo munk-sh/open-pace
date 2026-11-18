@@ -1,0 +1,31 @@
+# mutant(c) start() 恢复时不再清空 lastLocationErrorCode
+# base commit 90bb205723fe95070b62ddfa3777a4cb80d0b05f
+# utc 2026-11-18T14:14:16Z
+--- /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_a443ff461a4b5787/ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:09:25
++++ ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:14:16
+@@ -218,7 +218,7 @@
+             endUpdating()
+             return
+         }
+-        lastLocationErrorCode = nil
++        // MUTATION(c): 恢复（start）时不再清空旧错误码
+         let status = manager.authorizationStatus
+         apply(status)
+         switch status {
+Test Suite 'Selected tests' started at 2026-11-18 22:14:21.670.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-18 22:14:21.671.
+Test Suite 'RunPermissionAndDiagnosticsTests' started at 2026-11-18 22:14:21.671.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' passed (0.004 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' started.
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:346: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady] : XCTAssertNil failed: "0" - 恢复成功后必须清掉旧错误，避免残留不可用态
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:347: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady] : XCTAssertEqual failed: ("unavailable") is not equal to ("ready")
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:348: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady] : XCTAssertNil failed: "定位暂不可用，请重试" - 恢复就绪后不得再显示不可用文案
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' failed (0.103 seconds).
+Test Suite 'RunPermissionAndDiagnosticsTests' failed at 2026-11-18 22:14:21.779.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 0.107 (0.108) seconds
+Test Suite 'PurePaceTests.xctest' failed at 2026-11-18 22:14:21.779.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 0.107 (0.108) seconds
+Test Suite 'Selected tests' failed at 2026-11-18 22:14:21.779.
+	 Executed 2 tests, with 3 failures (0 unexpected) in 0.107 (0.109) seconds
+** TEST FAILED **

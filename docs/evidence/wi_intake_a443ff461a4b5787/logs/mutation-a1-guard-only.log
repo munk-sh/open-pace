@@ -1,0 +1,32 @@
+# mutant(a) 去掉 start() 的 servicesEnabled 前置检查
+# base commit 90bb205723fe95070b62ddfa3777a4cb80d0b05f
+# utc 2026-11-18T14:12:25Z
+# mutation diff:
+--- /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_a443ff461a4b5787/ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:09:25
++++ ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:12:19
+@@ -214,10 +214,7 @@
+         // 前置检查：系统定位服务被关闭时不得启动更新，也不得把「无数据」当正常态。
+         let servicesEnabled = manager.locationServicesEnabled
+         locationServicesEnabled = servicesEnabled
+-        guard servicesEnabled else {
+-            endUpdating()
+-            return
+-        }
++        // MUTATION(a): servicesEnabled 前置检查被移除
+         lastLocationErrorCode = nil
+         let status = manager.authorizationStatus
+         apply(status)
+Test Suite 'Selected tests' started at 2026-11-18 22:12:30.324.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-18 22:12:30.325.
+Test Suite 'RunPermissionAndDiagnosticsTests' started at 2026-11-18 22:12:30.325.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' passed (0.004 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' passed (0.001 seconds).
+Test Suite 'RunPermissionAndDiagnosticsTests' passed at 2026-11-18 22:12:30.331.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'PurePaceTests.xctest' passed at 2026-11-18 22:12:30.332.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.007) seconds
+Test Suite 'Selected tests' passed at 2026-11-18 22:12:30.332.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.008) seconds
+** TEST SUCCEEDED **

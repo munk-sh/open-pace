@@ -1,0 +1,17 @@
+# base commit 90bb205723fe95070b62ddfa3777a4cb80d0b05f (未变异 / green)
+# utc 2026-11-18T14:11:49Z
+90bb205723fe95070b62ddfa3777a4cb80d0b05f
+Test Suite 'Selected tests' started at 2026-11-18 22:12:09.521.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-18 22:12:09.522.
+Test Suite 'RunPermissionAndDiagnosticsTests' started at 2026-11-18 22:12:09.522.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' passed (0.004 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' passed (0.001 seconds).
+Test Suite 'RunPermissionAndDiagnosticsTests' passed at 2026-11-18 22:12:09.528.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'PurePaceTests.xctest' passed at 2026-11-18 22:12:09.528.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'Selected tests' passed at 2026-11-18 22:12:09.528.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.005 (0.007) seconds
+** TEST SUCCEEDED **

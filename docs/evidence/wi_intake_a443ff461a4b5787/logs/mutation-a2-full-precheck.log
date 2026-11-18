@@ -1,0 +1,36 @@
+# mutant(a2) 整段去掉 start() 的 servicesEnabled 前置检查（读取+回写+guard）
+# base commit 90bb205723fe95070b62ddfa3777a4cb80d0b05f
+# utc 2026-11-18T14:12:50Z
+--- /Users/zhutao/Library/Application Support/Munk-AI/munk-auto/worktrees/codebase_19e8ad47434ff059/wi_intake_a443ff461a4b5787/ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:09:25
++++ ios/PurePace/Location/RunLocationSource.swift	2026-11-18 22:12:50
+@@ -211,13 +211,7 @@
+     }
+ 
+     func start() {
+-        // 前置检查：系统定位服务被关闭时不得启动更新，也不得把「无数据」当正常态。
+-        let servicesEnabled = manager.locationServicesEnabled
+-        locationServicesEnabled = servicesEnabled
+-        guard servicesEnabled else {
+-            endUpdating()
+-            return
+-        }
++        // MUTATION(a2): 整段 servicesEnabled 前置检查（读取/回写/guard）被移除
+         lastLocationErrorCode = nil
+         let status = manager.authorizationStatus
+         apply(status)
+Test Suite 'Selected tests' started at 2026-11-18 22:12:55.084.
+Test Suite 'PurePaceTests.xctest' started at 2026-11-18 22:12:55.085.
+Test Suite 'RunPermissionAndDiagnosticsTests' started at 2026-11-18 22:12:55.085.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' started.
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:320: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertFalse failed
+/tmp/pp-mut-a443ff461a4b5787/repo/ios/PurePaceTests/RunPermissionAndDiagnosticsTests.swift:321: error: -[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy] : XCTAssertEqual failed: ("ready") is not equal to ("unavailable") - 服务关闭必须置不可用态
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testLocationFailureAndServicesOffSetUnavailableAndExposeCopy]' failed (0.306 seconds).
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' started.
+Test Case '-[PurePaceTests.RunPermissionAndDiagnosticsTests testRecoveryAfterLocationFailureReturnsReady]' passed (0.002 seconds).
+Test Suite 'RunPermissionAndDiagnosticsTests' failed at 2026-11-18 22:12:55.394.
+	 Executed 2 tests, with 2 failures (0 unexpected) in 0.308 (0.309) seconds
+Test Suite 'PurePaceTests.xctest' failed at 2026-11-18 22:12:55.394.
+	 Executed 2 tests, with 2 failures (0 unexpected) in 0.308 (0.309) seconds
+Test Suite 'Selected tests' failed at 2026-11-18 22:12:55.394.
+	 Executed 2 tests, with 2 failures (0 unexpected) in 0.308 (0.310) seconds
+** TEST FAILED **
