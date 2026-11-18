@@ -7,6 +7,7 @@ import PurePaceRunCore
 /// - 授权 / 精度：来自系统授权探针。
 /// - 采样数 / 最近样本时间：来自编排器的归档采样序列（与结束页同口径）。
 /// - raw / 精度过滤丢弃：来自定位源计数器；50m 阈值室内可能全部滤掉，必须可归因。
+/// - 定位服务 / 最近错误：来自定位源 `start()` 前置检查与 `didFailWithError` 转发。
 struct RunDiagnostics: Equatable, Sendable {
     let version: String
     let buildSHA: String
@@ -17,6 +18,8 @@ struct RunDiagnostics: Equatable, Sendable {
     let allowsBackgroundLocationUpdates: Bool
     let rawCallbackCount: Int
     let filteredCallbackCount: Int
+    let locationServicesEnabled: Bool
+    let lastError: RunLocationErrorInfo?
 
     init(
         bundleInfo: BundleInfoProviding,
@@ -26,7 +29,9 @@ struct RunDiagnostics: Equatable, Sendable {
         lastSampleAt: Date?,
         allowsBackgroundLocationUpdates: Bool,
         rawCallbackCount: Int,
-        filteredCallbackCount: Int
+        filteredCallbackCount: Int,
+        locationServicesEnabled: Bool = true,
+        lastError: RunLocationErrorInfo? = nil
     ) {
         let info = bundleInfo.infoDictionary
         let shortVersion = info["CFBundleShortVersionString"] as? String ?? "-"
@@ -42,6 +47,8 @@ struct RunDiagnostics: Equatable, Sendable {
         self.allowsBackgroundLocationUpdates = allowsBackgroundLocationUpdates
         self.rawCallbackCount = rawCallbackCount
         self.filteredCallbackCount = filteredCallbackCount
+        self.locationServicesEnabled = locationServicesEnabled
+        self.lastError = lastError
     }
 
     /// 一键复制/导出的纯文本（中文标签与可见文案语义一致，不含命令）。
@@ -51,11 +58,13 @@ struct RunDiagnostics: Equatable, Sendable {
             "\(L10n.settingsDiagnosticsBuildText): \(buildSHA)",
             "\(L10n.settingsDiagnosticsAuthorizationText): \(authorization.diagnosticText)",
             "\(L10n.settingsDiagnosticsAccuracyText): \(accuracy.diagnosticText)",
+            "\(L10n.settingsDiagnosticsServicesText): \(locationServicesEnabled ? "开启" : "关闭")",
             "\(L10n.settingsDiagnosticsSamplesText): \(sampleCount)",
             "\(L10n.settingsDiagnosticsLastSampleText): \(Self.timeText(lastSampleAt))",
             "\(L10n.settingsDiagnosticsBackgroundText): \(allowsBackgroundLocationUpdates ? "是" : "否")",
             "\(L10n.settingsDiagnosticsRawCallbacksText): \(rawCallbackCount)",
             "\(L10n.settingsDiagnosticsDroppedCallbacksText): \(filteredCallbackCount)",
+            "\(L10n.settingsDiagnosticsLastErrorText): \(lastError?.diagnosticText ?? "无")",
         ].joined(separator: "\n")
     }
 

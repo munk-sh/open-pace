@@ -27,6 +27,8 @@ final class RunPermissionAndDiagnosticsTests: XCTestCase {
         var rawCallbackCount = 0
         var filteredCallbackCount = 0
         var lastAcceptedAccuracyMeters: Double?
+        var locationServicesEnabled = true
+        var lastLocationError: RunLocationErrorInfo?
 
         init(authorization: RunLocationAuthorization) {
             self.authorization = authorization
@@ -388,5 +390,213 @@ final class RunPermissionAndDiagnosticsTests: XCTestCase {
             filteredCallbackCount: 0
         )
         XCTAssertTrue(missingSHA.text.contains("未注入"), "缺构建 sha 必须显式写未注入，不得伪装")
+    }
+
+    // MARK: - ac-loc-searching / ac-loc-timeout / ac-loc-degrade
+
+    /// ac-loc-degrade：唯一一条 >50m fix 在 15s 窗口到点后必须被接受，
+    /// 不再依赖「必须再来一个回调」才结算（旧静默丢弃路径必红）。
+    func testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback() {
+        var now: TimeInterval = 1_000
+        let manager = StubManager()
+        manager.authorizationStatus = .authorizedWhenInUse
+        let source = RunLocationSource(manager: manager, uptime: { now })
+        let recorder = SampleRecorder()
+        source.delegate = recorder
+        source.start()
+
+        let payload = LocationPayload(
+            latitude: 37.3349,
+            longitude: -122.0090,
+            altitude: nil,
+            timestamp: startDate,
+            horizontalAccuracy: 65
+        )
+        source.locationManagerDidUpdate(payloads: [payload])
+        XCTAssertTrue(recorder.samples.isEmpty, "窗口内不得接受 65m fix")
+        XCTAssertEqual(source.filteredCallbackCount, 1)
+
+        // 反例：只走到窗口前一刻仍是空，证明「到点主动结算」才是判绿点。
+        now += RunLocationSource.accuracyFallbackWindowSeconds - 0.1
+        source.flushPendingFallbackIfDue()
+        XCTAssertTrue(recorder.samples.isEmpty, "反例：窗口未到点前接受即破坏现有护栏")
+
+        now += 0.1
+        source.flushPendingFallbackIfDue()
+        XCTAssertEqual(recorder.samples.count, 1, "窗口到点必须主动接受最佳 fix，不等第二个回调")
+        XCTAssertEqual(source.lastAcceptedAccuracyMeters, 65, "降级数必须如实标记真实精度")
+    }
+
+    /// ac-loc-searching / ac-loc-timeout：四类原因优先级与 30s 边界（纯函数断言）。
+    func testLocationSearchStateTimesOutWithAttributableReason() {
+        func resolve(
+            elapsed: TimeInterval,
+            authorization: RunLocationAuthorization = .authorizedAlways,
+            services: Bool = true,
+            raw: Int = 0,
+            filtered: Int = 0
+        ) -> RunLocationSearchState {
+            RunLocationSearchState.resolve(
+                isRunning: true,
+                hasLocationData: false,
+                elapsedSinceRecording: elapsed,
+                authorization: authorization,
+                servicesEnabled: services,
+                rawCallbackCount: raw,
+                filteredCallbackCount: filtered
+            )
+        }
+
+        XCTAssertEqual(resolve(elapsed: 29.9), .searching, "30s 前必须显示搜索中，不提前报错")
+        XCTAssertEqual(resolve(elapsed: 30), .timedOut(.noCallbacks))
+        XCTAssertEqual(
+            resolve(elapsed: 30, authorization: .denied),
+            .timedOut(.unauthorized),
+            "未授权优先于其它原因"
+        )
+        XCTAssertEqual(
+            resolve(elapsed: 30, services: false),
+            .timedOut(.servicesDisabled),
+            "系统定位服务关闭必须单独归因"
+        )
+        XCTAssertEqual(
+            resolve(elapsed: 30, raw: 5, filtered: 5),
+            .timedOut(.accuracyFiltered),
+            "回调全被精度过滤必须可归因"
+        )
+        XCTAssertEqual(
+            RunLocationSearchState.resolve(
+                isRunning: false,
+                hasLocationData: false,
+                elapsedSinceRecording: 60,
+                authorization: .authorizedAlways,
+                servicesEnabled: true,
+                rawCallbackCount: 0,
+                filteredCallbackCount: 0
+            ),
+            .idle,
+            "非记录态不得显示搜索/超时"
+        )
+    }
+
+    /// ac-loc-timeout：点重试只重启定位会话，计时与已累计数据不变。
+    func testTimeoutRetryRestartsLocationWithoutResettingSession() {
+        let stores = makeStores()
+        defer { try? FileManager.default.removeItem(at: stores.root) }
+        let source = SpyLocationSource(authorization: .authorizedWhenInUse)
+        let probe = StubProbe(status: .authorizedWhenInUse)
+        var date = startDate
+        let clock = TestRunClockSource()
+        clock.advance(to: startDate)
+        let viewModel = RunSessionViewModel(
+            checkpointStore: stores.checkpoint,
+            archiveStore: stores.archive,
+            locationSource: source,
+            announcements: SilentSpeaker(),
+            authorizationProbe: probe,
+            countdownDuration: 0,
+            now: { date },
+            timeSource: clock,
+            notificationCenter: NotificationCenter()
+        )
+
+        viewModel.start()
+        XCTAssertEqual(viewModel.state, .running)
+        date = startDate.addingTimeInterval(31)
+        clock.advance(by: 31)
+        viewModel.tick()
+        XCTAssertEqual(viewModel.locationSearchState, .timedOut(.noCallbacks))
+        XCTAssertEqual(
+            viewModel.locationSearchMessage,
+            L10n.runLocationSearchNoCallbacks,
+            "超时必须有可读原因，不能空白"
+        )
+
+        let metricsBefore = viewModel.metrics
+        let startsBefore = source.startCount
+        viewModel.retryLocation()
+
+        XCTAssertEqual(source.startCount, startsBefore + 1, "重试必须重启定位源")
+        XCTAssertEqual(viewModel.metrics, metricsBefore, "重试不得重置计时/距离")
+        XCTAssertEqual(viewModel.state, .running, "重试不得结束会话")
+    }
+
+    /// ac-loc-diagnostics / ac-loc-nostale：诊断字段同源、自洽，最近错误只在本会话出现。
+    func testDiagnosticsSnapshotIsSelfConsistentAndSingleSourced() {
+        let stores = makeStores()
+        defer { try? FileManager.default.removeItem(at: stores.root) }
+        let chain = makeLocationChain(stores: stores)
+
+        XCTAssertNil(chain.viewModel.diagnosticsSnapshot().lastError, "无错误时最近错误必须为空")
+
+        chain.source.locationManagerDidUpdate(payloads: [
+            LocationPayload(
+                latitude: 37.3349,
+                longitude: -122.0090,
+                altitude: nil,
+                timestamp: startDate,
+                horizontalAccuracy: 65
+            ),
+        ])
+        chain.manager.fail(.network)
+        let diagnostics = chain.viewModel.diagnosticsSnapshot()
+
+        XCTAssertEqual(diagnostics.rawCallbackCount, chain.source.rawCallbackCount)
+        XCTAssertEqual(diagnostics.filteredCallbackCount, chain.source.filteredCallbackCount)
+        XCTAssertEqual(diagnostics.lastError?.domain, "kCLErrorDomain")
+        XCTAssertEqual(diagnostics.lastError?.code, CLError.Code.network.rawValue)
+        XCTAssertTrue(diagnostics.text.contains("网络不可用"), "最近错误必须带可读描述")
+        XCTAssertTrue(diagnostics.text.contains("原始回调: 1"))
+        XCTAssertTrue(diagnostics.text.contains("精度过滤丢弃: 1"))
+        XCTAssertGreaterThanOrEqual(
+            diagnostics.rawCallbackCount,
+            diagnostics.filteredCallbackCount,
+            "自洽：raw 回调数不得小于精度丢弃数"
+        )
+        XCTAssertLessThanOrEqual(
+            diagnostics.filteredCallbackCount + diagnostics.sampleCount,
+            diagnostics.rawCallbackCount,
+            "自洽：丢弃 + 入库不得超过 raw 回调"
+        )
+        XCTAssertTrue(diagnostics.text.contains("定位服务: 开启"))
+
+        chain.viewModel.retryLocation()
+        XCTAssertNil(chain.viewModel.diagnosticsSnapshot().lastError, "重启会话成功后旧错误必须清空")
+    }
+
+    /// ac-loc-nostale：最近样本时间随入库样本推进，乱序样本不回退。
+    func testLastSampleTimeNeverRegresses() {
+        let stores = makeStores()
+        defer { try? FileManager.default.removeItem(at: stores.root) }
+        let source = SpyLocationSource(authorization: .authorizedWhenInUse)
+        let probe = StubProbe(status: .authorizedWhenInUse)
+        let viewModel = makeViewModel(stores: stores, source: source, probe: probe)
+        viewModel.start()
+        viewModel.advanceCountdown()
+
+        viewModel.ingest(runSample(offset: 5))
+        XCTAssertEqual(
+            viewModel.diagnosticsSnapshot().lastSampleAt,
+            startDate.addingTimeInterval(5)
+        )
+
+        // 反例输入：较旧时间戳必须被单调守卫丢弃，最近样本时间不得倒退。
+        viewModel.ingest(runSample(offset: 3))
+        XCTAssertEqual(
+            viewModel.diagnosticsSnapshot().lastSampleAt,
+            startDate.addingTimeInterval(5),
+            "时间戳不前进的样本不得回退最近样本时间"
+        )
+    }
+
+    private func runSample(offset: TimeInterval) -> RunSample {
+        RunSample(
+            latitude: 37.3349 + offset * 0.00009,
+            longitude: -122.0090,
+            altitude: nil,
+            timestamp: startDate.addingTimeInterval(offset),
+            heartRate: nil,
+            cadence: nil
+        )!
     }
 }

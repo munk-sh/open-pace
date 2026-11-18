@@ -41,6 +41,11 @@ final class RunTestLocationSource: RunLocationProviding {
     private var isRunning = false
     private var timer: Timer?
 
+    /// 仅 DEBUG UI 用例：`-uiTestLocationSilent` 模拟「零回调」会话（不产出任何 fix）。
+    private let isSilent: Bool
+    /// 仅 DEBUG UI 用例：`-uiTestLocationDegraded` 如实上报降级精度，驱动「精度降级」提示。
+    private let degradedAccuracyMeters: Double?
+
     init(arguments: [String] = CommandLine.arguments) {
         let fast = arguments.contains("-uiTestLocationFast")
         stepPerTick = fast ? Self.fastStepPerTick : Self.defaultStepPerTick
@@ -49,6 +54,10 @@ final class RunTestLocationSource: RunLocationProviding {
             .value(after: "-uiTestLocationTargetMeters", arguments: arguments)
             .flatMap(Double.init)
             .flatMap { $0 > 0 ? $0 : nil }
+        isSilent = arguments.contains("-uiTestLocationSilent")
+        degradedAccuracyMeters = arguments.contains("-uiTestLocationDegraded")
+            ? RunLocationSource.accuracyThresholdMeters + 15
+            : nil
     }
 
     /// 目标距离模式下第 `tick` 个样本的累计位移（米）：到达目标后恒为目标值，
@@ -72,8 +81,16 @@ final class RunTestLocationSource: RunLocationProviding {
     var allowsBackgroundLocationUpdates: Bool { false }
     var pausesLocationUpdatesAutomatically: Bool { false }
 
+    /// 场景化夹具：降级模式如实回报 >50m 精度，默认 `nil` 即未获取。
+    var lastAcceptedAccuracyMeters: Double? { degradedAccuracyMeters }
+
     func start() {
         delegate?.locationSource(self, didChangeAuthorization: authorization)
+        if isSilent {
+            // 零回调场景：授权照常上报，但不产出任何 sample，供搜索/超时断言使用。
+            isRunning = true
+            return
+        }
         if isRunning {
             // 目标模式的重入：`onAppear` 先起一次源（此时还没进入记录态，样本会被引擎丢弃），
             // `beginRecording` 再起一次才是记录起点；这里重新锚定，让距离从记录起点算起。

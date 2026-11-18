@@ -145,6 +145,7 @@ struct RunInteractionPlan: Equatable {
         hasDecisionError: Bool = false,
         readiness: RunLocationReadiness = .ready,
         hasBackgroundDegradation: Bool = false,
+        isLocationSearchTimedOut: Bool = false,
         metrics: Metrics,
         reduceMotion: Bool = false,
         consentGranted: Bool = true
@@ -176,7 +177,8 @@ struct RunInteractionPlan: Equatable {
             state: state,
             isCountingDown: isCountingDown,
             didSave: didSave,
-            readiness: readiness
+            readiness: readiness,
+            isLocationSearchTimedOut: isLocationSearchTimedOut
         )
         self.transitionDuration = DesignTokens.Motion.duration(
             DesignTokens.Motion.durationState,
@@ -197,6 +199,7 @@ struct RunInteractionPlan: Equatable {
             hasDecisionError: viewModel.decisionErrorMessage != nil,
             readiness: viewModel.locationReadiness,
             hasBackgroundDegradation: viewModel.authorization.backgroundDegradationHint != nil,
+            isLocationSearchTimedOut: viewModel.locationSearchState.isTimedOut,
             metrics: Metrics(
                 distance: RunFormatting.distanceValueText(viewModel.metrics.distance),
                 elapsed: viewModel.elapsedText,
@@ -305,8 +308,13 @@ struct RunInteractionPlan: Equatable {
         state: RunSessionState,
         isCountingDown: Bool,
         didSave: Bool,
-        readiness: RunLocationReadiness
+        readiness: RunLocationReadiness,
+        isLocationSearchTimedOut: Bool
     ) -> Recovery? {
+        // 记录态搜索超时：只给「重试定位」，不打断计时也不清空已累计数据。
+        if state == .running, isLocationSearchTimedOut {
+            return .retryLocation
+        }
         guard state == .ready, !isCountingDown, !didSave else {
             return nil
         }

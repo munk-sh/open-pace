@@ -978,7 +978,7 @@ EOF
 
   # 新增项以「必需新增 + 计数下限」表达，禁止下次退回「完全等值」。
   local required_new_ids required_new_count min_identifier_count
-  required_new_ids="run.cancelCountdown run.discard run.save run.consentRequired settings.consentGate settings.consentAgree settings.consentDecline settings.privacyPolicy settings.consentRevoke settings.privacyPolicyBody"
+  required_new_ids="run.cancelCountdown run.discard run.save run.consentRequired settings.consentGate settings.consentAgree settings.consentDecline settings.privacyPolicy settings.consentRevoke settings.privacyPolicyBody run.locationSearchTimeout run.retryLocation"
   required_new_count="$(printf '%s\n' $required_new_ids | wc -l | tr -d ' ')"
   min_identifier_count=$(( frozen_count + required_new_count ))
 
@@ -1428,7 +1428,7 @@ run_self_test() {
   cp ios/PurePace/Privacy/PrivacyPolicyView.swift "$design_root/ios/PurePace/Privacy/"
   cp ios/PurePace/ContentView.swift "$design_root/ios/PurePace/"
   check_ok "设计 token 正例" "$(validate_design_tokens "$design_root")"
-  check_count "冻结基线 identifier 计数" 56 "$(count_identifiers "$design_root")"
+  check_count "冻结基线 identifier 计数" 58 "$(count_identifiers "$design_root")"
   check_count "发布路径 demo/示例入口为 0" 0 "$(demo_entry_count "$design_root")"
 
   local design_b1_bad="$tmp_dir/design-b1-regression"
@@ -1548,7 +1548,7 @@ run_self_test() {
   printf '\nprivate let extraEntry = Button("扩展") {}\n  .accessibilityIdentifier("run.extra")\n  .accessibilityLabel(Text(L10n.runStartLabel))\n' \
     >> "$design_bad/ios/PurePace/Run/RunView.swift"
   check_ok "identifier 新增放行正例" "$(validate_design_tokens "$design_bad")"
-  check_count "identifier 新增计数递增" 57 "$(count_identifiers "$design_bad")"
+  check_count "identifier 新增计数递增" 59 "$(count_identifiers "$design_bad")"
 
   design_bad="$tmp_dir/design-extra-id-unlabeled"
   cp -R "$design_root" "$design_bad"
@@ -2229,9 +2229,10 @@ PY
       || out="$out RunFlowUITests 缺少全链路导出用例 testStartFinishExportGPXArtifact;"
     test_count="$(grep -cE '^[[:space:]]*func test[A-Za-z0-9_]*\(' "$ui" || true)"
     assert_count="$(grep -c -- 'XCTAssert' "$ui" || true)"
-    # 5 条既有用例 + 1 条 canonical 内容（0 分段 / 400m）保存态用例 + 1 条同意门三态 = 7；
-    # 新增用例属于本项范围（轨迹数据单独同意门），计数同步后 drop_ui_case 自检仍判红。
-    [ "$test_count" -eq 7 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 7）;"
+    # 7 条既有用例（5 条主线 + 1 条 canonical 内容保存态 + 1 条同意门三态）
+    # + 1 条定位搜索超时/重试 + 1 条精度降级可见 = 9；
+    # 计数同步后 drop_ui_case 自检仍判红（删任一条即 != 9）。
+    [ "$test_count" -eq 9 ] || out="$out RunFlowUITests 用例数 ${test_count}（期望恰 9）;"
     [ "$assert_count" -ge 112 ] || out="$out RunFlowUITests XCTAssert ${assert_count} 次（期望 ≥112）;"
   fi
   if [ ! -f "$run_source" ]; then

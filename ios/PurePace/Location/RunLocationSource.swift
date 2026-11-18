@@ -2,6 +2,44 @@ import CoreLocation
 import Foundation
 import PurePaceRunCore
 
+/// 最近一次系统定位错误的最小可归因快照（`CLError` domain / code / 中文描述）。
+///
+/// 只由 `RunLocationSource.locationManagerDidFail(code:)` 写入，诊断区与 readiness
+/// 共用同一条错误记录，不另建第二套错误账本。
+struct RunLocationErrorInfo: Equatable, Sendable {
+    let domain: String
+    let code: Int
+    let description: String
+
+    init(code: Int, domain: String = CLError.errorDomain) {
+        self.domain = domain
+        self.code = code
+        self.description = Self.describe(code)
+    }
+
+    /// 诊断纯文本口径：`kCLErrorDomain / 1 / 定位权限被拒绝`。
+    var diagnosticText: String {
+        "\(domain) / \(code) / \(description)"
+    }
+
+    private static func describe(_ code: Int) -> String {
+        switch CLError.Code(rawValue: code) {
+        case .locationUnknown:
+            return "定位暂时不可用"
+        case .denied:
+            return "定位权限被拒绝"
+        case .network:
+            return "网络不可用"
+        case .headingFailure:
+            return "方向不可用"
+        case .rangingUnavailable:
+            return "测距不可用"
+        default:
+            return "定位错误"
+        }
+    }
+}
+
 /// 定位授权状态的可观测快照（与 `CLAuthorizationStatus` 一一对应）。
 enum RunLocationAuthorization: String, Sendable {
     case notDetermined
@@ -81,6 +119,10 @@ protocol RunLocationProviding: AnyObject {
     var locationServicesEnabled: Bool { get }
     /// 最近一次系统定位错误码（`CLError.rawValue`）；nil 表示无错误。
     var lastLocationErrorCode: Int? { get }
+    /// 最近一次系统定位错误（domain / code / 描述）；与 `lastLocationErrorCode` 同一来源。
+    var lastLocationError: RunLocationErrorInfo? { get }
+    /// 重启定位会话：只 stop → start 数据源，不触碰会话计时与已累计样本。
+    func restart()
 }
 
 extension RunLocationProviding {
@@ -92,6 +134,11 @@ extension RunLocationProviding {
     var lastAcceptedAccuracyMeters: Double? { nil }
     var locationServicesEnabled: Bool { true }
     var lastLocationErrorCode: Int? { nil }
+    var lastLocationError: RunLocationErrorInfo? { nil }
+    func restart() {
+        stop()
+        start()
+    }
 }
 
 @MainActor
@@ -160,6 +207,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     private var isUpdating = false
     private var updatingStartedAt: TimeInterval?
     private var pendingFallbackPayload: LocationPayload?
+    private var fallbackTimer: Timer?
     private var didRequestAlwaysAuthorization = false
     private var didRequestWhenInUseAuthorization = false
 #if targetEnvironment(simulator)
@@ -201,6 +249,8 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     private(set) var locationServicesEnabled = true
     /// 最近一次系统定位错误码（`CLError.rawValue`）；成功后在下一次 `start()` 清空。
     private(set) var lastLocationErrorCode: Int?
+    /// 最近一次系统定位错误（domain / code / 描述）；与错误码同一次回调写入。
+    private(set) var lastLocationError: RunLocationErrorInfo?
 
     var allowsBackgroundLocationUpdates: Bool {
         manager.allowsBackgroundLocationUpdates
@@ -219,6 +269,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
             return
         }
         lastLocationErrorCode = nil
+        lastLocationError = nil
         let status = manager.authorizationStatus
         apply(status)
         switch status {
@@ -270,6 +321,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
         isUpdating = true
         updatingStartedAt = uptime()
         pendingFallbackPayload = nil
+        cancelFallbackTimer()
         manager.pausesLocationUpdatesAutomatically = false
         manager.allowsBackgroundLocationUpdates = true
         manager.startUpdatingLocation()
@@ -279,6 +331,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
         isUpdating = false
         updatingStartedAt = nil
         pendingFallbackPayload = nil
+        cancelFallbackTimer()
         manager.allowsBackgroundLocationUpdates = false
         // 停止时把自动暂停开关一并复位，避免残留脏值影响下一次开始的策略快照。
         manager.pausesLocationUpdatesAutomatically = false
@@ -295,6 +348,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
             }
             if payload.horizontalAccuracy <= RunLocationSource.accuracyThresholdMeters {
                 pendingFallbackPayload = nil
+                cancelFallbackTimer()
                 accept(payload)
                 continue
             }
@@ -303,6 +357,7 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
             diagnostics.filtered(accuracy: payload.horizontalAccuracy)
 #endif
             // 记下窗口内「最佳可得」fix；窗口到点才接受，且不得宽于 200m 上限。
+            // 删掉「等下一个回调才结算」的静默丢弃路径：窗口到点由定时器主动结算。
             if let pending = pendingFallbackPayload {
                 if payload.horizontalAccuracy < pending.horizontalAccuracy {
                     pendingFallbackPayload = payload
@@ -310,14 +365,47 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
             } else {
                 pendingFallbackPayload = payload
             }
-            guard let pending = pendingFallbackPayload,
-                  let startedAt = updatingStartedAt,
-                  uptime() - startedAt >= RunLocationSource.accuracyFallbackWindowSeconds,
-                  pending.horizontalAccuracy <= RunLocationSource.accuracyFallbackCeilingMeters
-            else { continue }
-            pendingFallbackPayload = nil
-            accept(pending)
+            scheduleFallbackFlushIfNeeded()
+            flushPendingFallbackIfDue()
         }
+    }
+
+    /// 降级窗口到点结算：没有后续回调时也必须接受窗口内最佳 fix（>50m 不静默丢弃）。
+    func flushPendingFallbackIfDue() {
+        cancelFallbackTimer()
+        guard isUpdating,
+              let pending = pendingFallbackPayload,
+              let startedAt = updatingStartedAt
+        else { return }
+        let elapsed = uptime() - startedAt
+        guard elapsed >= RunLocationSource.accuracyFallbackWindowSeconds else {
+            scheduleFallbackFlushIfNeeded()
+            return
+        }
+        guard pending.horizontalAccuracy <= RunLocationSource.accuracyFallbackCeilingMeters else {
+            return
+        }
+        pendingFallbackPayload = nil
+        accept(pending)
+    }
+
+    /// 只在有 pending fix 且窗口尚未到点时挂一次定时器；窗口到点主动结算。
+    private func scheduleFallbackFlushIfNeeded() {
+        guard fallbackTimer == nil,
+              let startedAt = updatingStartedAt
+        else { return }
+        let remaining = RunLocationSource.accuracyFallbackWindowSeconds - (uptime() - startedAt)
+        guard remaining > 0 else { return }
+        fallbackTimer = Timer.scheduledTimer(withTimeInterval: remaining, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.flushPendingFallbackIfDue()
+            }
+        }
+    }
+
+    private func cancelFallbackTimer() {
+        fallbackTimer?.invalidate()
+        fallbackTimer = nil
     }
 
     /// 造样本并下发给 delegate；同时记录该 fix 的精度，供「明确精度状态」展示。
@@ -353,9 +441,10 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
         deliver(payloads)
     }
 
-    /// 系统定位失败：记录原始错误码供 readiness 呈现，不静默丢弃。
+    /// 系统定位失败：记录原始错误码与可读错误供 readiness / 诊断区呈现，不静默丢弃。
     func locationManagerDidFail(code: Int) {
         lastLocationErrorCode = code
+        lastLocationError = RunLocationErrorInfo(code: code)
     }
 }
 
