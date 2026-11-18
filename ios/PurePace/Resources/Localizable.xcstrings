@@ -201,6 +201,16 @@
         }
       }
     },
+        "run.action.rerun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再跑一次"
+          }
+        }
+      }
+    },
     "run.action.resume" : {
       "localizations" : {
         "zh-Hans" : {
@@ -287,6 +297,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂停记录跑次"
+          }
+        }
+      }
+    },
+        "run.a11y.rerun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存后再跑一次"
           }
         }
       }
@@ -461,6 +481,16 @@
         }
       }
     },
+        "runDetail.action.rerun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去跑一次"
+          }
+        }
+      }
+    },
     "runDetail.export.button" : {
       "localizations" : {
         "zh-Hans" : {
@@ -607,6 +637,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无分段"
+          }
+        }
+      }
+    },
+        "settings.action.rerun" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去跑一次"
           }
         }
       }

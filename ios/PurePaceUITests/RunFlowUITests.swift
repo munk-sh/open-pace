@@ -683,13 +683,14 @@ final class RunFlowUITests: XCTestCase {
         saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
         assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态")
-        let viewHistory = app.buttons["run.viewHistory"]
-        XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
+        let rerun = app.buttons["run.rerun"]
+        XCTAssertTrue(rerun.waitForExistence(timeout: 10), "保存态缺少再跑一次主操作")
+        XCTAssertTrue(app.buttons["run.viewHistory"].exists, "保存态缺少查看历史次操作")
         assertVisibleCopyZhHans(app, screen: "跑步页（保存态）")
-        assertPrimaryActionAnchored(app, button: viewHistory, state: "保存态")
+        assertPrimaryActionAnchored(app, button: rerun, state: "保存态")
         assertFinishedSplitRows(app, expected: 1, state: "保存态")
         assertFinishedMapFloor(app, state: "保存态")
-        assertRunMetricsBalanced(app, primaryAction: viewHistory, state: "保存态")
+        assertRunMetricsBalanced(app, primaryAction: rerun, state: "保存态")
 
         // 5) 历史列表与详情：日期必须 zh-Hans。
         tabBar.buttons["历史"].tap()
@@ -721,9 +722,10 @@ final class RunFlowUITests: XCTestCase {
         attachScreenshot(app, name: "settings")
         attachAccessibilityTree(app, name: "05-settings")
 
-        // 7) 回到跑步页取完整 Tab 树（与设置页树区分）。
+        // 7) 回到跑步页：点「跑步」tab 已把结束态收口回 ready 起跑入口，不再停在保存总结。
         tabBar.buttons["跑步"].tap()
-        assertTabBarVisibility(app, state: .finished, didSave: true, screen: "回到跑步页")
+        XCTAssertTrue(app.buttons["run.start"].waitForExistence(timeout: 10), "回跑步页后未回到起跑入口")
+        assertTabBarVisibility(app, state: .ready, didSave: false, screen: "回到跑步页")
         XCTAssertTrue(tabBar.buttons["设置"].waitForExistence(timeout: 10), "缺少设置 Tab")
         attachAccessibilityTree(app, name: "06-tabs")
     }
@@ -756,11 +758,139 @@ final class RunFlowUITests: XCTestCase {
         saveFinishedRun(app)
         XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "结束后缺少保存反馈")
         assertTabBarVisibility(app, state: .finished, didSave: true, screen: "保存态（无分段）")
-        let viewHistory = app.buttons["run.viewHistory"]
-        XCTAssertTrue(viewHistory.waitForExistence(timeout: 10), "保存态缺少主操作按钮")
+        let rerun = app.buttons["run.rerun"]
+        XCTAssertTrue(rerun.waitForExistence(timeout: 10), "保存态缺少再跑一次主操作")
         assertFinishedSplitRows(app, expected: 0, state: "保存态（无分段）")
         assertFinishedMapFloor(app, state: "保存态（无分段）")
-        assertRunMetricsBalanced(app, primaryAction: viewHistory, state: "保存态（无分段）")
+        assertRunMetricsBalanced(app, primaryAction: rerun, state: "保存态（无分段）")
+    }
+
+    // MARK: - ac-rerun-primary / ac-rerun-ready / ac-rerun-tabs
+
+    /// 保存成功页主操作「再跑一次」：存在、是比文字次操作更宽的填充主操作，点按后回到 ready。
+    func testSavedStateRerunPrimaryReturnsToReady() {
+        let app = launchRerunApp()
+        saveDeterministicRun(app)
+
+        let rerun = app.buttons["run.rerun"]
+        let viewHistory = app.buttons["run.viewHistory"]
+        XCTAssertTrue(rerun.waitForExistence(timeout: 10), "保存成功页缺少再跑一次主操作")
+        XCTAssertTrue(viewHistory.exists, "保存成功页缺少查看历史次操作")
+        XCTAssertGreaterThan(
+            rerun.frame.width,
+            viewHistory.frame.width,
+            "再跑一次必须是填充主操作（宽于无填充文字次操作），不能两枚等权并排"
+        )
+        assertPrimaryActionAnchored(app, button: rerun, state: "保存态")
+        attachAccessibilityTree(app, name: "07-rerun-primary")
+
+        rerun.tap()
+        assertReadyEntry(app, screen: "保存后再跑")
+
+        // ac-rerun-ready：回到 ready 后能立即开始新一次记录（不是只停在空壳 ready 页）。
+        app.buttons["run.start"].tap()
+        XCTAssertTrue(
+            app.buttons["run.pause"].waitForExistence(timeout: 15),
+            "再跑一次后无法立即开始记录"
+        )
+    }
+
+    /// 历史列表回起跑入口 → ready。
+    func testHistoryListRerunEntryReturnsToReady() {
+        let app = launchRerunApp()
+        saveDeterministicRun(app)
+
+        let tabBar = app.tabBars.firstMatch
+        tabBar.buttons["历史"].tap()
+        let entry = app.buttons["history.rerun"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15), "历史列表缺少回起跑入口")
+        entry.tap()
+        assertReadyEntry(app, screen: "历史列表回起跑")
+    }
+
+    /// 历史详情回起跑入口 → ready。
+    func testRunDetailRerunEntryReturnsToReady() {
+        let app = launchRerunApp()
+        saveDeterministicRun(app)
+
+        app.tabBars.firstMatch.buttons["历史"].tap()
+        let rows = app.descendants(matching: .any).matching(identifier: "history.row")
+        XCTAssertTrue(waitUntil(timeout: 15) { rows.count >= 1 }, "历史列表未出现本次记录")
+        rows.firstMatch.tap()
+        XCTAssertTrue(app.buttons["runDetail.export"].waitForExistence(timeout: 10), "跑次详情未打开")
+
+        let entry = app.buttons["runDetail.rerun"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10), "跑次详情缺少回起跑入口")
+        entry.tap()
+        assertReadyEntry(app, screen: "历史详情回起跑")
+    }
+
+    /// 设置页回起跑入口 → ready。
+    func testSettingsRerunEntryReturnsToReady() {
+        let app = launchRerunApp()
+        saveDeterministicRun(app)
+
+        app.tabBars.firstMatch.buttons["设置"].tap()
+        XCTAssertTrue(
+            app.switches["settings.announcementToggle"].waitForExistence(timeout: 10),
+            "设置页未打开"
+        )
+        let entry = app.buttons["settings.rerun"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10), "设置页缺少回起跑入口")
+        entry.tap()
+        assertReadyEntry(app, screen: "设置回起跑")
+    }
+
+    /// 回起跑用例统一启动参数：确定性定位源 + 清空归档 + 锁 0.4km 距离（0 分段，最快完成）。
+    private func launchRerunApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestLocation",
+            "-uiTestResetArchive",
+            "-uiTestConsentGranted",
+            "-uiTestLocationTargetMeters",
+            "400"
+        ]
+        app.launch()
+        allowLocationIfNeeded()
+        XCTAssertTrue(app.buttons["run.start"].waitForExistence(timeout: 30), "缺少开始按钮")
+        return app
+    }
+
+    /// 一次确定性跑次：开始 → 结束 → 保存，停在保存成功页。
+    private func saveDeterministicRun(_ app: XCUIApplication) {
+        let start = app.buttons["run.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15), "缺少开始按钮")
+        let finish = app.buttons["run.finish"]
+        // 状态判据（AGENTS「测试稳定性约定」）：tap 被吞 / 授权弹窗出现 / 页面未就绪时
+        // 按状态重试 ≤2 次，单次 timeout 与断言强度不变，不用固定 sleep。
+        var attempt = 0
+        while !finish.exists && attempt < 3 {
+            if start.exists && start.isHittable {
+                start.tap()
+            }
+            _ = dismissLocationAlertsIfPresent()
+            _ = finish.waitForExistence(timeout: attempt == 0 ? 10 : 5)
+            attempt += 1
+        }
+        XCTAssertTrue(finish.exists, "缺少结束按钮")
+        finish.tap()
+        saveFinishedRun(app)
+        XCTAssertTrue(app.staticTexts["run.saved"].waitForExistence(timeout: 15), "缺少保存反馈")
+    }
+
+    /// 回起跑后必须到达 ready：起跑按钮可见，计时 / 距离清零，且不残留保存态主操作。
+    private func assertReadyEntry(_ app: XCUIApplication, screen: String) {
+        XCTAssertTrue(
+            app.buttons["run.start"].waitForExistence(timeout: 15),
+            "\(screen) 后未回到 ready 起跑入口"
+        )
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { app.staticTexts["run.distance"].label == "0.00 km" },
+            "\(screen) 后距离未清零：\(app.staticTexts["run.distance"].label)"
+        )
+        XCTAssertEqual(app.staticTexts["run.elapsed"].label, "00:00", "\(screen) 后计时未清零")
+        XCTAssertFalse(app.buttons["run.rerun"].exists, "\(screen) 后不得残留保存态主操作")
     }
 
     // MARK: - 授权与等待

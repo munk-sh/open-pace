@@ -19,6 +19,7 @@ struct RunInteractionPlan: Equatable {
         case discardRequest
         case discard
         case cancel
+        case runAgain
         case viewHistory
     }
 
@@ -68,9 +69,9 @@ struct RunInteractionPlan: Equatable {
         }
 
         /// 记录态主操作族（开始 / 暂停 / 继续 / 结束 / 保存）统一 `accent`；
-        /// 已保存总结的「查看历史」沿用成功色；确认层丢弃只取 `danger`。
+        /// 已保存总结的「查看历史」是无填充文字次操作，只取中性 `secondary`；
+        /// 确认层丢弃只取 `danger`。
         var tint: Tint {
-            if action == .viewHistory { return .success }
             switch style {
             case .primaryAccent, .accentOutline: return .accent
             case .neutralOutline, .textSecondary: return .secondary
@@ -235,7 +236,12 @@ struct RunInteractionPlan: Equatable {
             ]
         case .finished:
             return didSave
-                ? [Item(action: .viewHistory, emphasis: .primary)]
+                ? [
+                    // 保存成功页只有一个填充主操作：「再跑一次」回 ready；
+                    // 「查看历史」降为无填充文字次操作，二者不同形状并列。
+                    Item(action: .runAgain, emphasis: .primary),
+                    Item(action: .viewHistory, emphasis: .text)
+                ]
                 : [
                     Item(action: .save, emphasis: .primary),
                     Item(action: .discardRequest, emphasis: .text)

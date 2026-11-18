@@ -106,6 +106,18 @@ struct ContentView: View {
         )
     }
 
+    /// 三处「回起跑」入口共用的唯一路由：先收口结束态，再切到跑步 Tab。
+    private func showRunEntry() {
+        resetFinishedSessionIfNeeded()
+        selection = .run
+    }
+
+    /// 结束态（保存成功总结）收口回 `ready`：判定只读状态，运行 / 暂停中绝不打断。
+    private func resetFinishedSessionIfNeeded() {
+        guard TabBarVisibilityPolicy.resetsToReadyOnRunTabEntry(state: runModel.state) else { return }
+        runModel.runAgain()
+    }
+
     var body: some View {
         TabView(selection: $selection) {
             RunView(
@@ -123,7 +135,7 @@ struct ContentView: View {
                 archiveStore: archiveStore,
                 exporter: exporter,
                 refreshToken: runModel.savedCount,
-                onRunAgain: { selection = .run },
+                onRunAgain: showRunEntry,
                 injectedRecords: demoRecords,
                 autoOpenFirstDetail: autoOpenDetail
             )
@@ -133,7 +145,12 @@ struct ContentView: View {
             }
             .tag(Tab.history)
 
-            SettingsView(store: settings, consent: consent, runModel: runModel)
+            SettingsView(
+                store: settings,
+                consent: consent,
+                runModel: runModel,
+                onRunAgain: showRunEntry
+            )
                 .tabItem {
                     Label(L10n.tabSettings, systemImage: "gearshape")
                         .accessibilityIdentifier("tab.settings")
@@ -143,6 +160,11 @@ struct ContentView: View {
         .tint(DesignTokens.Colors.primary)
         .onChange(of: settings.isEnabled) { _, enabled in
             runModel.setAnnouncementsEnabled(enabled)
+        }
+        // 任一入口回起跑：点「跑步」tab 时若停在结束态，先收口回 ready 再展示起跑入口。
+        .onChange(of: selection) { _, tab in
+            guard tab == .run else { return }
+            resetFinishedSessionIfNeeded()
         }
         .fullScreenCover(isPresented: $showsConsentGate) {
             PrivacyConsentGateView(

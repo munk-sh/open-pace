@@ -698,6 +698,12 @@ struct RunView: View {
                 showsDiscardConfirmation = false
             }
             .accessibilityIdentifier("run.discardCancel")
+        case .runAgain:
+            // 保存成功页唯一填充主操作：直接收口回 ready，可立即开始新一次记录。
+            styledControl(item, title: L10n.runActionRerun, label: L10n.runRerunLabel) {
+                viewModel.runAgain()
+            }
+            .accessibilityIdentifier("run.rerun")
         case .viewHistory:
             styledControl(item, title: L10n.runActionViewHistory, label: L10n.runViewHistoryLabel) {
                 onShowHistory()

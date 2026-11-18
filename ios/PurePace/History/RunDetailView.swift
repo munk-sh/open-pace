@@ -9,6 +9,8 @@ import SwiftUI
 struct RunDetailView: View {
     let record: RunRecord
     let exporter: RunGPXExporter
+    /// 回起跑入口：复用历史页传入的同一条路由（不新建第二套导航）。
+    var onRunAgain: () -> Void = {}
 
     @State private var exportState = RunExportState()
 
@@ -30,6 +32,15 @@ struct RunDetailView: View {
         .background(DesignTokens.Colors.background)
         .navigationTitle(L10n.runDetailNavigationTitle)
         .accessibilityIdentifier("runDetail.root")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(L10n.runDetailBackToRun) {
+                    onRunAgain()
+                }
+                .accessibilityIdentifier("runDetail.rerun")
+                .accessibilityLabel(Text(L10n.runDetailBackToRun))
+            }
+        }
         // 主操作固定底部控制区：安全区上方、TabBar 之上，与跑步页同一锚点与视觉口径。
         // 导出不在 `List` 内，惰性列表 realize 与滚动位置都不再影响其可见性。
         .safeAreaInset(edge: .bottom) {
