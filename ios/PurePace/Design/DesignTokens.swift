@@ -283,8 +283,8 @@ enum DesignTokens {
         static let screenTop: CGFloat = lg
         /// hero 面板与次级指标卡片的层间距，同时用作内容区左右内边距（= md 16）。
         static let cardGap: CGFloat = md
-        /// 指标卡片 / 提示片 / 底部主操作之间的层间距（= sm 12）。
-        static let sectionGap: CGFloat = sm
+        /// 分组之间的层间距（发布线：卡片组之间 ≥24，故取 lg）。
+        static let sectionGap: CGFloat = lg
         /// 指标三行（标签 / 数值 / 单位）组内间距（= xs 8）。
         static let metricGroupSpacing: CGFloat = xs
         /// 相邻指标组之间的间距（= md 16）。
@@ -355,4 +355,43 @@ enum DesignTokens {
 
     /// Apple HIG 最小可点击高度；所有交互控件不得低于此值。
     static let minTapTarget: CGFloat = 44
+}
+
+/// 三屏（设置 / 历史列表 / 历史详情）间距与数值排版下限的纯判定。
+/// 下限不写死数字：全部引用既有令牌，令牌档位变化时判定自动跟随。
+enum ScreenSpacingPolicy {
+    /// 卡片之间（行与行、卡与卡）的最小间距（发布线下限 16 = md）。
+    static let minimumCardGap: CGFloat = DesignTokens.Spacing.md
+    /// 分组之间的最小间距。
+    static let minimumSectionGap: CGFloat = DesignTokens.Spacing.lg
+    /// 卡片内容的最小内边距（发布线下限 16 = md）。
+    static let minimumCardPadding: CGFloat = DesignTokens.Spacing.md
+
+    /// 逐条判红：任何一项低于下限都返回可读问题串；合规返回空数组。
+    static func problems(
+        cardGap: CGFloat,
+        sectionGap: CGFloat,
+        cardPadding: CGFloat
+    ) -> [String] {
+        var problems: [String] = []
+        if cardGap < minimumCardGap {
+            problems.append("卡片间距 \(cardGap) < \(minimumCardGap)")
+        }
+        if sectionGap < minimumSectionGap {
+            problems.append("分组间距 \(sectionGap) < \(minimumSectionGap)")
+        }
+        if cardPadding < minimumCardPadding {
+            problems.append("卡片内边距 \(cardPadding) < \(minimumCardPadding)")
+        }
+        return problems
+    }
+
+    /// 令牌现状自判；空数组即发布线达标。
+    static var tokenProblems: [String] {
+        problems(
+            cardGap: DesignTokens.Spacing.cardGap,
+            sectionGap: DesignTokens.Spacing.sectionGap,
+            cardPadding: DesignTokens.Spacing.cardPadding
+        )
+    }
 }

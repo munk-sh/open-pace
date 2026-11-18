@@ -1120,6 +1120,126 @@
           }
         }
       }
+    },
+    "history.section.runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近跑次"
+          }
+        }
+      }
+    },
+    "history.footer.runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按结束时间倒序排列，点开任意一行查看本次跑次的完整明细。"
+          }
+        }
+      }
+    },
+    "runDetail.section.meta" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次概览"
+          }
+        }
+      }
+    },
+    "runDetail.footer.meta" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始与结束时间、采样条数取自本次跑次的归档快照。"
+          }
+        }
+      }
+    },
+    "runDetail.section.hero" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距离"
+          }
+        }
+      }
+    },
+    "runDetail.footer.hero" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次跑次的总里程，单位与列表行一致。"
+          }
+        }
+      }
+    },
+    "runDetail.section.metrics" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指标"
+          }
+        }
+      }
+    },
+    "runDetail.footer.metrics" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用时与平均配速按停止前的有效采样计算。"
+          }
+        }
+      }
+    },
+    "runDetail.footer.map" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轨迹预览取自本次跑次记录的定位采样点。"
+          }
+        }
+      }
+    },
+    "runDetail.footer.splits" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每公里一段，逐段列出该段配速。"
+          }
+        }
+      }
+    },
+    "settings.section.advanced" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级"
+          }
+        }
+      }
+    },
+    "settings.footer.advanced" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "诊断信息默认收起，展开后可复制完整快照用于问题反馈。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

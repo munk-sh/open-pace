@@ -267,8 +267,36 @@ final class DesignTokensTests: XCTestCase {
 
         XCTAssertEqual(DesignTokens.Spacing.screenTop, 24)
         XCTAssertEqual(DesignTokens.Spacing.cardGap, 16)
-        XCTAssertEqual(DesignTokens.Spacing.sectionGap, 12)
+        XCTAssertEqual(DesignTokens.Spacing.sectionGap, 24)
         XCTAssertEqual(DesignTokens.Spacing.scale, [4, 8, 12, 16, 24, 32])
+    }
+
+    // MARK: - ac-spacing（三屏发布线间距下限）
+
+    func testScreenSpacingPolicyAcceptsReleaseLineTokens() {
+        XCTAssertEqual(ScreenSpacingPolicy.tokenProblems, [])
+        XCTAssertEqual(ScreenSpacingPolicy.problems(cardGap: 16, sectionGap: 24, cardPadding: 16), [])
+        XCTAssertEqual(ScreenSpacingPolicy.problems(cardGap: 40, sectionGap: 48, cardPadding: 32), [])
+    }
+
+    func testScreenSpacingPolicyRejectsBelowFloorValues() {
+        // 反例：基线 sectionGap=12 / 历史行内边距 12 / 卡片间距 12 都必须逐条判红。
+        XCTAssertEqual(
+            ScreenSpacingPolicy.problems(cardGap: 12, sectionGap: 12, cardPadding: 12).count,
+            3
+        )
+        XCTAssertEqual(
+            ScreenSpacingPolicy.problems(cardGap: 16, sectionGap: 12, cardPadding: 16),
+            ["分组间距 12.0 < 24.0"]
+        )
+        XCTAssertEqual(
+            ScreenSpacingPolicy.problems(cardGap: 8, sectionGap: 24, cardPadding: 16),
+            ["卡片间距 8.0 < 16.0"]
+        )
+        XCTAssertEqual(
+            ScreenSpacingPolicy.problems(cardGap: 16, sectionGap: 24, cardPadding: 8),
+            ["卡片内边距 8.0 < 16.0"]
+        )
     }
 
     // MARK: - ac-existing-tiers-frozen

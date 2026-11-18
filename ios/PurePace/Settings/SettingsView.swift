@@ -11,6 +11,8 @@ struct SettingsView: View {
     /// 回起跑入口：与历史列表 / 详情共用 ContentView 的同一条路由。
     var onRunAgain: () -> Void = {}
     @State private var didCopyDiagnostics = false
+    /// 「高级」组默认折叠：诊断区展开前不占首屏高度（AX5 首屏零越界）。
+    @State private var isAdvancedExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -26,9 +28,10 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    diagnosticsRow
+                    advancedRow
+                    advancedFooterRow
                 } header: {
-                    Text(L10n.settingsSectionDiagnostics)
+                    Text(L10n.settingsSectionAdvanced)
                         .font(DesignTokens.Typography.sectionHeader)
                         .foregroundStyle(DesignTokens.Colors.secondary)
                         .textCase(nil)
@@ -48,6 +51,7 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.plain)
+            .listSectionSpacing(DesignTokens.Spacing.sectionGap)
             .scrollContentBackground(.hidden)
             .background(DesignTokens.Colors.background)
             .navigationTitle(L10n.settingsNavigationTitle)
@@ -63,6 +67,50 @@ struct SettingsView: View {
         }
         .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.settings")
+    }
+
+    /// 「高级」组唯一行：默认折叠，展开后才渲染诊断卡与复制按钮（折叠态不进 AX5 首屏）。
+    private var advancedRow: some View {
+        DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+            diagnosticsRow
+        } label: {
+            Text(L10n.settingsSectionDiagnostics)
+                .font(DesignTokens.Typography.body)
+                .foregroundStyle(DesignTokens.Colors.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: DesignTokens.minTapTarget)
+                .accessibilityIdentifier("settings.advanced")
+                .accessibilityLabel(Text(L10n.settingsSectionDiagnostics))
+        }
+        .tint(DesignTokens.Colors.secondary)
+        .listRowSeparator(.hidden)
+        .listRowBackground(DesignTokens.Colors.background)
+        .listRowInsets(
+            EdgeInsets(
+                top: DesignTokens.Spacing.xs,
+                leading: DesignTokens.Spacing.md,
+                bottom: DesignTokens.Spacing.xs,
+                trailing: DesignTokens.Spacing.md
+            )
+        )
+    }
+
+    /// 「高级」组组尾说明：与播报组同口径落在页面底色上，不借用系统组底。
+    private var advancedFooterRow: some View {
+        Text(L10n.settingsFooterAdvanced)
+            .font(DesignTokens.Typography.caption)
+            .foregroundStyle(DesignTokens.Colors.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .listRowSeparator(.hidden)
+            .listRowBackground(DesignTokens.Colors.background)
+            .listRowInsets(
+                EdgeInsets(
+                    top: DesignTokens.Spacing.xs,
+                    leading: DesignTokens.Spacing.md,
+                    bottom: DesignTokens.Spacing.xs,
+                    trailing: DesignTokens.Spacing.md
+                )
+            )
     }
 
     /// 诊断行：单快照文本 + 一键复制；沿用既有卡片行样式，不新增令牌。

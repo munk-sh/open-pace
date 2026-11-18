@@ -71,6 +71,8 @@ struct RunDetailView: View {
                 )
                 .accessibilityLabel(Text(L10n.runMetricPoints))
             }
+        } header: {
+            sectionHeader(L10n.runDetailSectionMeta, description: L10n.runDetailFooterMeta)
         }
     }
 
@@ -90,6 +92,8 @@ struct RunDetailView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        } header: {
+            sectionHeader(L10n.runDetailSectionHero, description: L10n.runDetailFooterHero)
         }
     }
 
@@ -110,6 +114,8 @@ struct RunDetailView: View {
                     )
                 }
             }
+        } header: {
+            sectionHeader(L10n.runDetailSectionMetrics, description: L10n.runDetailFooterMetrics)
         }
     }
 
@@ -125,10 +131,7 @@ struct RunDetailView: View {
                 .frame(height: 200)
             }
         } header: {
-            Text(L10n.runMapPreviewLabel)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-                .textCase(nil)
+            sectionHeader(L10n.runMapPreviewLabel, description: L10n.runDetailFooterMap)
         }
     }
 
@@ -148,11 +151,11 @@ struct RunDetailView: View {
                 }
             }
         } header: {
-            Text(content.splitsSummaryText)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Colors.secondary)
-                .textCase(nil)
-                .accessibilityIdentifier("runDetail.splits")
+            sectionHeader(
+                LocalizedStringKey(content.splitsSummaryText),
+                description: L10n.runDetailFooterSplits
+            )
+            .accessibilityIdentifier("runDetail.splits")
         }
     }
 
@@ -221,11 +224,30 @@ struct RunDetailView: View {
 
     /// 一张 `surface` 卡片：`Radius.card` 圆角、`Spacing.*` 内边距、`separator` 描边。
     /// 块间垂直间距交给 `.listSectionSpacing`，卡片自身不再叠加行内上下留白。
+    /// 分组标题 + 一句说明：每组一个标题、一句说明，统一 token 化字色与字号。
+    private func sectionHeader(
+        _ title: LocalizedStringKey,
+        description: LocalizedStringKey
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+            Text(title)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .textCase(nil)
+            Text(description)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textCase(nil)
+        }
+        .padding(.bottom, DesignTokens.Spacing.xs)
+    }
+
     private func cardRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.metricGroupSpacing) {
             content()
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(DesignTokens.Spacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             DesignTokens.Colors.surface,
