@@ -295,6 +295,83 @@ final class RunSessionContractTests: XCTestCase {
         XCTAssertEqual(viewModel.metrics.completedKilometers, 0)
     }
 
+    // MARK: - ac-rerun-state / ac-rerun-nostale
+
+    /// 保存成功后「再跑一次」：收敛回 ready 且计时 / 距离 / 采样点清零，已归档文件保留。
+    func testRunAgainFromSavedReturnsToReadyWithZeroMetrics() throws {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let clock = Clock(date: startDate)
+        let viewModel = makeViewModel(stores: stores, clock: clock, countdownDuration: 0)
+
+        viewModel.start()
+        for sample in samples(count: 3) {
+            viewModel.ingest(sample)
+        }
+        clock.date = startDate.addingTimeInterval(10)
+        viewModel.finish()
+        viewModel.saveFinished()
+
+        XCTAssertTrue(viewModel.didSave)
+        XCTAssertEqual(try stores.archive.list().count, 1)
+        XCTAssertEqual(viewModel.savedCount, 1)
+        let savedMetrics = viewModel.metrics
+        XCTAssertFalse(viewModel.acceptedSamples.isEmpty)
+        // 造错必红反例：保存后度量与采样非零，若「再跑」不清零，下面归零断言必须判红。
+        XCTAssertNotEqual(savedMetrics, .initial)
+
+        viewModel.runAgain()
+
+        XCTAssertEqual(viewModel.state, .ready, "保存后再跑必须收敛回 ready")
+        XCTAssertEqual(viewModel.metrics, .initial, "计时 / 距离必须清零")
+        XCTAssertTrue(viewModel.acceptedSamples.isEmpty, "采样点必须清零")
+        XCTAssertEqual(viewModel.runSampleCount, 0)
+        XCTAssertEqual(viewModel.duplicateSampleCount, 0)
+        XCTAssertFalse(viewModel.didSave)
+        XCTAssertNil(viewModel.decisionErrorMessage)
+        XCTAssertEqual(try stores.archive.list().count, 1, "再跑不得删除已归档文件")
+        XCTAssertEqual(viewModel.savedCount, 1, "保存计数不得回退（历史页刷新令牌单调）")
+    }
+
+    /// 保存后再跑的新会话不继承上一次数据：采样 / 距离从 0 重新累计。
+    func testRunAgainNewRunDoesNotInheritPreviousRun() throws {
+        let stores = makeStores()
+        defer { removeStores(stores) }
+        let clock = Clock(date: startDate)
+        let viewModel = makeViewModel(stores: stores, clock: clock, countdownDuration: 0)
+
+        viewModel.start()
+        for sample in samples(count: 3) {
+            viewModel.ingest(sample)
+        }
+        clock.date = startDate.addingTimeInterval(10)
+        viewModel.finish()
+        viewModel.saveFinished()
+        let previousSampleCount = viewModel.acceptedSamples.count
+        let previousDistance = viewModel.metrics.distance.meters
+        XCTAssertEqual(previousSampleCount, 3)
+        XCTAssertGreaterThan(previousDistance, 0)
+
+        viewModel.runAgain()
+        clock.date = startDate.addingTimeInterval(20)
+        viewModel.start()
+        XCTAssertEqual(viewModel.state, .running)
+
+        viewModel.ingest(sample(index: 1, secondsAfterStart: 21))
+        // 反例：若残留上一次采样，计数会 > 1；距离也会直接带上旧累计。
+        XCTAssertEqual(viewModel.acceptedSamples.count, 1, "新跑首条采样后不得继承旧采样")
+        XCTAssertEqual(viewModel.metrics.distance.meters, 0)
+        XCTAssertEqual(viewModel.metrics.completedKilometers, 0)
+
+        viewModel.ingest(sample(index: 2, secondsAfterStart: 22))
+        XCTAssertEqual(viewModel.acceptedSamples.count, 2)
+        XCTAssertLessThan(
+            viewModel.metrics.distance.meters,
+            previousDistance,
+            "新跑距离只由新采样累计，不带上一次的累计值"
+        )
+    }
+
     // MARK: - ac-save-once
 
     func testSaveArchivesExactlyOnce() throws {

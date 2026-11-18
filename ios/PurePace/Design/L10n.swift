@@ -32,6 +32,7 @@ enum L10n {
     static var runActionRetryLocation: LocalizedStringKey { LocalizedStringKey("run.action.retryLocation") }
     static var runForegroundOnlyHint: LocalizedStringKey { LocalizedStringKey("run.status.foregroundOnly") }
     static var runActionViewHistory: LocalizedStringKey { LocalizedStringKey("run.action.viewHistory") }
+    static var runActionRerun: LocalizedStringKey { LocalizedStringKey("run.action.rerun") }
     static var runStartLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.startRecording") }
     static var runPauseLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.pauseRecording") }
     static var runResumeLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.resumeRecording") }
@@ -44,6 +45,7 @@ enum L10n {
     static var runDiscardConfirmConfirm: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.confirm") }
     static var runDiscardConfirmCancel: LocalizedStringKey { LocalizedStringKey("run.discardConfirm.cancel") }
     static var runViewHistoryLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.viewHistory") }
+    static var runRerunLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.rerun") }
 
     // MARK: - 轨迹地图
 
@@ -88,6 +90,8 @@ enum L10n {
     static var historyEmptyTitle: LocalizedStringKey { LocalizedStringKey("history.empty.title") }
     static var historyEmptyBody: LocalizedStringKey { LocalizedStringKey("history.empty.body") }
     static var historyRunAgain: LocalizedStringKey { LocalizedStringKey("history.empty.action") }
+    /// 历史列表回起跑入口（与空态 CTA 共用同一句文案，独立 identifier 供连续旅程驱动）。
+    static var historyBackToRun: LocalizedStringKey { LocalizedStringKey("history.empty.action") }
 
     // MARK: - 跑次详情
 
@@ -108,6 +112,8 @@ enum L10n {
     static var runDetailExportEmptyLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.emptyLabel") }
     static var runDetailExportLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.label") }
     static var runDetailShareLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.shareLabel") }
+    /// 跑次详情回起跑入口。
+    static var runDetailBackToRun: LocalizedStringKey { LocalizedStringKey("runDetail.action.rerun") }
 
     // MARK: - 设置页
 
@@ -128,6 +134,8 @@ enum L10n {
     static var settingsDiagnosticsBackground: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.background") }
     static var settingsDiagnosticsRawCallbacks: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.rawCallbacks") }
     static var settingsDiagnosticsDroppedCallbacks: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.droppedCallbacks") }
+    /// 设置页回起跑入口。
+    static var settingsBackToRun: LocalizedStringKey { LocalizedStringKey("settings.action.rerun") }
     static var settingsDiagnosticsServices: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.services") }
     static var settingsDiagnosticsLastError: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.lastError") }
 

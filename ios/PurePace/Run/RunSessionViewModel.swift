@@ -300,6 +300,19 @@ final class RunSessionViewModel: ObservableObject {
 
     /// 丢弃结束快照：不写归档，重建为可立刻再跑的 `ready`。
     func discardFinished() {
+        resetFinishedSession()
+    }
+
+    /// 保存成功页的「再跑一次」：已归档文件保留不动，仅清空当前会话草稿并回到 `ready`。
+    ///
+    /// 与 `discardFinished()` 共用同一条收口路径，保证保存后再跑 / 丢弃后都收敛回 `ready`：
+    /// 计时 / 距离 / 采样点全部归零，不残留 `finished` / `saving` 或旧会话数据。
+    func runAgain() {
+        resetFinishedSession()
+    }
+
+    /// 结束态唯一收口：重建编排器为全新 `ready`（归档文件由 `RunArchiveStore` 独立持有）。
+    private func resetFinishedSession() {
         guard state == .finished else { return }
         do {
             try orchestrator.discard()

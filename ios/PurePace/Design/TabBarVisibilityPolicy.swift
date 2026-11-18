@@ -24,6 +24,14 @@ enum TabBarVisibilityPolicy {
         hidesTabBar(state: state, didSave: didSave) ? 0 : 1
     }
 
+    /// 点「跑步」tab / 各页「回起跑」入口时是否先把结束态收口回 `ready`。
+    ///
+    /// 只有 `finished` 需要收口（Tab 栏此时本就可见，属保存成功总结页）；
+    /// `running` / `paused` 的 Tab 栏收起，绝不因路由动作打断正在进行的会话。
+    static func resetsToReadyOnRunTabEntry(state: RunSessionState) -> Bool {
+        state == .finished
+    }
+
     struct Evaluation: Equatable {
         let expectedCount: Int
         let observedCount: Int

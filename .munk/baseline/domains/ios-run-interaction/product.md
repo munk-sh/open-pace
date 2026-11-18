@@ -13,12 +13,14 @@
 - `ios/PurePaceTests/TabBarVisibilityPolicyTests.swift`（新增）：L1 单测，覆盖 running/paused 与 `finished && !didSave` 隐藏、`ready` 与已保存恢复，含 2 个判红反例。
 - `ios/PurePaceUITests/RunFlowUITests.swift`：各态实测 `tabBars.count` 与「跑步/历史/设置」三按钮存在性并打印 `ac-tabbar-hidden`；记录态 Tab 收起时主操作锚定改用「窗口底边扣除 Home Indicator 安全区」等价锚点；降级提示 frame 断言（`hint.minY > run.distance.maxY`）。
 - `ios/project.yml`：`TabBarVisibilityPolicy.swift` 列入 `PurePaceUITests` sources，并为 UITests 显式声明 `PurePaceRunCore` 包依赖；工程仍由 XcodeGen 重新生成。
+- 保存后立即可再跑：`RunInteractionPlan` 新增 `Action.runAgain`，`finished && didSave` 的 `items` 由单一 `viewHistory(primary)` 改为 `runAgain(primary)` + `viewHistory(text)`；`RunSessionViewModel.runAgain()` 与 `discardFinished()` 共用私有收口 `resetFinishedSession()`（重建编排器为全新 `ready`，归档文件不动、`savedCount` 不回退），视图只调 VM 不自行重置。
+- 任一入口回起跑：`TabBarVisibilityPolicy.resetsToReadyOnRunTabEntry(state:)` 是唯一判定（只有 `finished` 收口，`running` / `paused` 绝不打断）；`ContentView.showRunEntry()` 为三处入口共用的唯一路由（历史列表 `history.rerun`、跑次详情 `runDetail.rerun`、设置 `settings.rerun`，以及空态 CTA），并保留点「跑步」tab 时经 `onChange(of: selection)` 收口结束态。
 
 ## 验收
 
-- ac-plan-single-primary: 对 6 个展示状态（ready 空闲 / ready 倒计时 / running / paused / finished 待决策 / finished 已保存）断言 `items` 恰含 1 个 `primary`；映射为 ready 空闲=start、倒计时=cancelCountdown、running=pause、paused=resume、待决策=save、已保存=viewHistory（反例：倒计时主操作判为 secondary 必须判红）。
+- ac-plan-single-primary: 对 6 个展示状态（ready 空闲 / ready 倒计时 / running / paused / finished 待决策 / finished 已保存）断言 `items` 恰含 1 个 `primary`；映射为 ready 空闲=start、倒计时=cancelCountdown、running=pause、paused=resume、待决策=save、已保存=runAgain（反例：倒计时主操作判为 secondary 必须判红）。
 - ac-plan-no-dead-end: 每个状态 `items` 非空且至少含一个离开该态的动作（start/cancelCountdown/pause/resume/finish/save/discard/viewHistory）；不存在「只有提示没有动作」的状态（反例判红）。
-- ac-plan-primary-family-accent: 记录态主操作族 `start` / `pause` / `resume` / `finish` / `save` 经 `Item.tint` 解析出的 tint 均为 `accent`（`primary` 与 `accent` 两档 emphasis 同源到 `Tint.accent`）；任一解析为 `warning` / `secondary` / `primary` 中性色即判红。`items` 保持「每展示态恰一个填充主操作」不变量（ready 空闲=start、倒计时=cancelCountdown、running=pause、paused=resume、待保存=save、已保存=viewHistory）。
+- ac-plan-primary-family-accent: 记录态主操作族 `start` / `pause` / `resume` / `finish` / `save` 经 `Item.tint` 解析出的 tint 均为 `accent`（`primary` 与 `accent` 两档 emphasis 同源到 `Tint.accent`）；任一解析为 `warning` / `secondary` / `primary` 中性色即判红。`items` 保持「每展示态恰一个填充主操作」不变量（ready 空闲=start、倒计时=cancelCountdown、running=pause、paused=resume、待保存=save、已保存=runAgain）。
 - ac-plan-finish-accent: `running` / `paused` 的 `finish` 不再属于 `secondary`，emphasis 归入主操作 accent 族且不与同态唯一 `primary` 同档；L1 断言 `finish` 的 accent 解析结果，旧口径（`finish == .secondary` 或 warning）反例必须判红。
 - ac-plan-discard-confirm-only: 待保存态 `items` 只含 `save`(primary) + `discardRequest`(text)，破坏性 `discard` 不出现在 `items`；`discardConfirmation` 仅在 `finished && !didSave` 非 nil，载荷为 `cancel`(text / `Style.textSecondary`，不填充) + `discard`(danger / `Style.dangerFilled`，`fillsWithTint == true`)，`danger` 解析为 `Tint.danger` 且非 accent 填充；其余态 `discardConfirmation == nil`（反例：待保存态直接塞 `discard` 进 `items` 判红）。
 - ac-plan-hero-tint-single-source: `heroTint` 为 hero 主值色唯一真源（running/paused/ready/finished=primary、saved=success，永不 warning；浅色 accent 只作填充，不作数字 / 正文前景）；`RunView` 只消费 `valueTint: color(for: plan.heroTint)`，视图内零 `switch` 取色；把 paused 改回 warning 或 hero 回退 accent 的反例必须判红。
@@ -27,8 +29,8 @@
 - ac-notice-priority: 同屏只出一条提示，优先级固定 记录错误 > 决策失败 > 定位状态（拒绝/不可用/等待授权）> 后台降级；`decisionErrorMessage != nil` 时 `notice == decisionFailed`，且 items 仍为 save+discard、指标文本非空（失败不吞已完成数据）。
 - ac-recovery-two-actions: `denied` → `recovery == openSettings` 且 `notice == locationDenied`；`restricted` → `recovery == retryLocation` 且 `notice == locationUnavailable`；两者互不相等；`authorizedWhenInUse`/`authorizedAlways` → `recovery == nil`；recovery 仅在 `state == ready` 且非倒计时且非已保存时出现，running/paused/finished 恒为 nil。
 - ac-motion-token-reduce-motion: `transitionDuration` 在 reduceMotion == true 时恒为 `DesignTokens.Motion.reducedMotionDuration`（0），false 时等于 `DesignTokens.Motion.durationState`；plan 内无任何时长数字字面量（反例：硬编码 0.32 判红）。
-- ac-identifiers-append-only: 既有 33 项可及 identifier 逐项不变（不改名 / 不删除）；倒计时取消、结束保存、结束丢弃、丢弃入口、确认层取消分别带 `run.cancelCountdown` / `run.save` / `run.discard` / `run.discardRequest` / `run.discardCancel` 且 `accessibilityLabel` 为非空 `L10n` 键；仓库 identifier 总数单调不减（当前 42：冻结 33 + 地图/分段 5 + 主操作 4）；其余控件（去设置 / 重试）只带 `L10n` 可读 label。
-- ac-gates-green: `.munk/code-gates.json` 全部 22 门退 0，`lint-ios-shell`（含 `--self-test` ≥84 项）、`test-ios --unit-only`（≥199 例）、`test-ios-run-core`（≥152 例）无退化；新增用例纯增量，无 sleep / 真实时钟 / 网络 / 模拟器。
+- ac-identifiers-append-only: 既有 33 项可及 identifier 逐项不变（不改名 / 不删除）；倒计时取消、结束保存、结束丢弃、丢弃入口、确认层取消分别带 `run.cancelCountdown` / `run.save` / `run.discard` / `run.discardRequest` / `run.discardCancel` 且 `accessibilityLabel` 为非空 `L10n` 键；仓库 identifier 总数单调不减（当前 60：冻结 33 + 地图/分段 5 + 主操作 4 + 回起跑 4）；其余控件（去设置 / 重试）只带 `L10n` 可读 label。
+- ac-gates-green: `.munk/code-gates.json` 全部 23 门退 0，`lint-ios-shell`（含 `--self-test` ≥84 项）、`test-ios --unit-only`（≥199 例）、`test-ios-run-core`（≥152 例）无退化；新增用例纯增量，无 sleep / 真实时钟 / 网络 / 模拟器。
 - ac-l10n-and-tokens-only: 受管 UI 面（含 plan 文件与确认层）零字面色值、零散字体修饰符、零动效时长字面量；确认层四键（标题 / 说明 / 确认 / 取消）只落在 `Localizable.xcstrings`（`sourceLanguage=zh-Hans` 单语）与 `L10n` 入口，视图零裸英文字面量；其余文案仍全部来自既有 `L10n`。
 - ac-tabbar-hidden-recording: 记录态（`running` 与 `paused` 均实测）`XCUIApplication().tabBars.count == 0`，且「跑步 / 历史 / 设置」三个 Tab 按钮均不可见、不可点；`run.pause` / `run.resume` 仍可点，距离与用时继续增长。
 - ac-tabbar-hidden-finished-pending: 结束待保存态（`finished && !didSave`）`tabBars.count == 0` 且无 Tab 按钮，`run.save` 与 `run.discardRequest` 均可达；`run.discard` 此刻在屏上不存在。
@@ -49,25 +51,33 @@
 - ac-balance-audit-counts-map-card: 保存态居中审计把 `run.mapPreview` 当可见内容块纳入采样（不再只采 staticTexts），96pt 地图不被计成「最大单一垂直空洞」；单测 `testSavedStateWithMapCardPasses` 用同构保存态帧（含地图卡）固定该口径，反例 `testSavedStateWithoutMapCardFailsLargestGap`（去掉地图卡帧 → largestGap=120 > 80）必须判红；阈值 80 / 16 不变。
 - ac-saved-content-canonical: 保存态 UI 用例的分段行数只由 `-uiTestLocationTargetMeters` 参数决定（0 行 = 400m、1 行 = 1200m，行数 = floor(累计距离/1000)），不随 runner 墙钟 1Hz tick 数漂移；`testSavedStateWithoutSplitsKeepsMapFloorAndBalance` 覆盖 0 行分支，反例 `testUnpinnedWallClockTicksChangeSplitRowsCounterexample` 证明不冻结距离时行数会变。
 - ac-paused-tabbar-count-expected: 暂停态 `tabBars.count == 0`（曾实测 1 ≠ 0，修后 0），与 `TabBarVisibilityPolicy.expectedTabBarCount` 逐态一致（记录 / 暂停 / 待保存 0；`ready` / 已保存 1）；断言不放宽为 `>= 0`、不跳过，反例只喂不同输入。
+- ac-rerun-primary: 保存成功页（`finished && didSave`）`items` 恰为 `runAgain`(primary) + `viewHistory`(text)；层级差异由 `emphasis` / `style` / `fillsWithTint` 断言而非文案——`runAgain` 为 `primaryAccent` 且 `fillsWithTint == true`（同屏唯一填充控件），`viewHistory` 为 `textSecondary` 且不填充、tint 取中性 `secondary`（不再沿用 `success`）；反例：旧口径「`viewHistory` 为唯一 primary 且无再跑入口」必须判红。
+- ac-rerun-ready: 点 `run.rerun` 后到达 `ready` 并可直接开始新一次记录（UI 断言：`run.start` 存在 → 点击 → `run.pause` 出现），不是只停在空壳 ready 页。
+- ac-rerun-tabs: 历史列表 `history.rerun`、跑次详情 `runDetail.rerun`、设置 `settings.rerun` 三处各有一条回起跑入口，点按后均到达 `ready`（三个用例各一条），且与空态 CTA 共用 `ContentView.showRunEntry()` 同一条路由（不新建第二套导航栈）；详情页入口先 `popToRoot` 再切跑步 Tab。
+- ac-rerun-state: 保存后再跑与丢弃后都收敛回 `ready`——`state == .ready`、`metrics == .initial`、`acceptedSamples` 空、`runSampleCount` / `duplicateSampleCount` 归零、`didSave == false`、`decisionErrorMessage == nil`，归档文件仍在（`archive.list().count` 不减）、`savedCount` 单调不回退；由 `RunSessionViewModel.runAgain()` 与 `discardFinished()` 共用 `resetFinishedSession()` 单条收口路径保证，反例（保存后度量非零仍归零断言）必须判红。
+- ac-rerun-nostale: 再跑后的新会话不继承上一次数据——新跑首条采样后 `acceptedSamples.count == 1`、距离从 0 重新累计且小于上一次总距离；反例：若残留旧采样则计数 > 1 / 距离直接带上旧累计，断言必须判红。
+- ac-rerun-redcounter: 每条新增断言同 commit 附造错必红证据（`testSavedStateRerunIsPrimaryAndViewHistoryIsTextSecondary` / `testOnlyFinishedSessionResetsOnRunTabEntry` / `testRunAgainFromSavedReturnsToReadyWithZeroMetrics` / `testRunAgainNewRunDoesNotInheritPreviousRun` 的反例段）；`TabBarVisibilityPolicyTests` 另覆盖 `resetsToReadyOnRunTabEntry`：仅 `finished` 为 true，`ready` / `running` / `paused` 必须为 false（否则会打断进行中会话）。
 
 ## 非目标
 
 - 不改 `RunCore` 任何契约：`RunSessionState` 仍 4 态、`RunSessionMachine` 迁移仍 5 条、`RunStartCountdown` / `RunSessionOrchestrator` / 归档 / checkpoint / GPX / `RunRecord` 零改动。
-- 不改 `L10n.swift` 与 `Localizable.xcstrings`（零新增键、零改文案）；不改 `DesignTokens.swift` / `ContrastPolicy.swift` 取值。
-- 不改 `scripts/**`、`.munk/code-gates.json`、`ios/project.yml`、CI、`android/`、`shared/`、`VERSION`。
-- 不改 History / Settings 页面与文案；不新增 Tab、屏、路由或 App 级状态。
-- 不改 `RunFlowUITests` / 既有 UI 用例断言；不重做 Run 三态五层视觉与指标三行结构（仅补倒计时主操作填充与动效接线）。
+- 不改既有文案键取值；`Localizable.xcstrings` 新增仅 `run.action.rerun` / `run.a11y.rerun` / `runDetail.action.rerun` / `settings.action.rerun` 四键（历史列表入口复用既有 `history.empty.action`，`L10n` 另出 `historyBackToRun` 入口别名）；不改 `DesignTokens.swift` / `ContrastPolicy.swift` 取值。
+- 不改 `scripts/**` 逻辑与阈值、`.munk/code-gates.json`、`ios/project.yml`、CI、`android/`、`shared/`、`VERSION`；`scripts/check-ios-shell.sh` 仅同步自检计数（identifier 56→60、`RunFlowUITests` 用例 7→11），断言强度不变。
+- 不做历史 / 设置 / 详情三屏视觉改造；仅在标题栏新增回起跑入口，不新增 Tab、屏、第二套导航栈或 App 级状态。
+- 不重做 Run 三态五层视觉与指标三行结构；`RunFlowUITests` 只做增量——4 条回起跑用例 + 保存态主操作改指 `run.rerun`，既有断言不放宽、不跳过、不删。
 - 不做截图归档、不做真机或模拟器观感验收：可达可退由 L1 钉住，屏幕观感 `pending: 待人现场`。
 - 不动任何颜色 / 字号 / 间距 token 取值（三套色板待人拍板）；Tab 收起与提示降级只复用既有 `Typography.caption` / `Colors.secondary`，零 token 改动。
 - 不改错误类提示（`recordingError` / `decisionFailed`）与定位拒绝 / 不可用提示的渲染位置与样式，只调 `.backgroundDegraded`；`notice` 优先级语义不变。
-- 不改 `RunSessionState` / `RunSessionMachine` / `RunSessionViewModel` / `RunLocationSource` / 音频 / 持久化 / 归档 / GPX 契约。
-- 不改历史页、设置页、详情页视觉，不做地图 / `TrackMapView` / 结束总结 / 分段明细；不新增 Tab、屏或路由。
-- 不新增、不改名、不删除任何 `accessibilityIdentifier`，不新增本地化键，不做任何分发动作。
+- 不改 `RunSessionState` / `RunSessionMachine` / `RunLocationSource` / 音频 / 持久化 / 归档 / GPX 契约；`RunSessionViewModel` 只新增 `runAgain()` 并复用既有 `orchestrator.discard()` 收口，归档 / checkpoint / GPX 写入路径不变。
+- 不做任意页面的大规模视觉重做（历史 / 设置 / 详情仅加标题栏入口）；不新增 Tab、屏或第二套路由。
+- `accessibilityIdentifier` 只增不改：不删除、不改名既有 56 项，仅新增 `run.rerun` / `history.rerun` / `runDetail.rerun` / `settings.rerun`；不做任何分发动作。
 
 ## 实现约束
 
 - identifier 冲突裁决（已解除）：本域落地时 PRD 写「只增不改」而门禁是 33 项等值、且禁改脚本，故当时收窄为**集合 33 项完全不变**；门禁随后改为「冻结 33 项只增不改 + 必需新增 + 计数下限」，本域三主操作 identifier 现由门禁必需清单钉住，旧裁决作废。
 - `RunView` 门禁锚点原文保留（本轮再改口径：hero 恒 primary）：`case .running, .paused: return .primary` / `case .ready, .finished: return .primary` / `if didSave { return .success }` 在 `RunInteractionPlan.heroTint`，`valueTint: color(for: plan.heroTint)` 在 `RunView`；`RunView` 内不再出现 `case .paused: return DesignTokens.Colors.warning`；继续使用 `DesignTokens.minTapTarget` 与底部 `safeAreaInset`；等宽数字处数不少于 3；`run.backgroundDegraded` 标识与 DEBUG `run.telemetry` 覆盖层行为不变。
+- 回起跑单一收口：视图层只调 `viewModel.runAgain()`（或 `ContentView.showRunEntry()`），不得在 View 里各写重置逻辑；`resetFinishedSession()` 带 `guard state == .finished`，因此 `ready` / `running` / `paused` 下重复点击是 no-op，绝不清空进行中会话。判定口径只读 `state`，不重新 `launch`、不重走 `onAppear`。
+- 保存成功页「一屏一个主操作」：`runAgain` 是唯一填充控件，`viewHistory` 必须是无填充 `text` 次操作（宽度小于主操作，UI 以 frame 宽度断言）；禁止两枚等权描边按钮并排。
 - 倒计时仍由视图 `.task(id: viewModel.isCountingDown)` 驱动 `advanceCountdown()`，不引入真实计时器；倒计时态与 start 共用同一锚点与高度，使每态恰一个填充主操作。
 - 动效只允许 `withAnimation` / `.animation(_:value:)` 配 `DesignTokens.Motion.duration(...)`；`reduceMotion` 由 SwiftUI 环境取，不用 `UIAccessibility` 单例；时长归零即无动画，不做额外补偿。
 - `Run/` 目录被门禁按目录纳入受管面：plan 文件内不得出现字面色值 / 字体修饰符 / 时长数字 / 裸英文文案。
@@ -80,7 +90,7 @@
 
 ## 最近交付证明
 
-- workItemId: wi_intake_10c7544ba84ffde4（2026-11-13，pass）
-- 交付：`RunView.balancedMetrics` 容器补一档 `.padding(.top, DesignTokens.Spacing.xs)`（8pt）——把顶部固定 chrome 补齐到与指标卡下（`cardPadding 16 + 4`）、底部尾隙合计（20）等权的 20pt，运行中与暂停态四判据重新判绿，未开始态复用同一容器不回归，结束态预算不变；`LocalizationPolicyTests` 新增 `testFourStatesShiftedUpBy24Fails`（四态合成帧整体上移 24pt 必红，problems 覆盖底部留白 / 最大空洞 / 上下差之一）。
-- 判定与证据：改前红原始事实保留在 PRD（CI run `43234566773`，head `a677e17`，`RunFlowUITests.swift:890`，top=73.42 / bottom=81.33 / largest=81.5）；`code_gates` 22 门 attempt 001 全绿（`lint-ios-shell` / `build-ios` / `test-ios` / `test-ios-core` 等）；`RunLayoutBalancePolicy` 80/80/80/16 阈值与 `evaluate` 采样口径零改动，`RunFinishedSummaryLayoutPolicy` 691/360/68/32 未动，`ios.yml` 与 `.munk/code-gates.json` 零 diff。
-- 偏离与边界：只修布局、不重做视觉；不动 `docs/screenshots` / `docs/evidence`；`ios.yml` 权威腿结论与真机观感 `pending: 待人现场`。
+- workItemId: wi_intake_7928d50f49f855d6（2026-11-18，pass）
+- 交付：保存成功页主操作改「再跑一次」（`Action.runAgain` 为唯一填充 primary，「查看历史」降为 `text` 次操作且 tint 由 `success` 改为中性 `secondary`）；`RunSessionViewModel.runAgain()` 与 `discardFinished()` 共用 `resetFinishedSession()` 收口回 `ready` 并清零计时 / 距离 / 采样，归档与 `savedCount` 不动；历史列表 / 跑次详情 / 设置三处加回起跑入口，共用 `ContentView.showRunEntry()` 一条路由，点「跑步」tab 亦经 `TabBarVisibilityPolicy.resetsToReadyOnRunTabEntry` 收口结束态（运行 / 暂停绝不打断）。
+- 判定与证据：`RunInteractionPlanTests`（主操作层级 / 填充唯一 / 旧口径反例）、`RunSessionContractTests`（再跑归零 + 新跑不继承旧采样）、`TabBarVisibilityPolicyTests`（仅 `finished` 重置，`ready`/`running`/`paused` 反例）三处 L1 钉住；`RunFlowUITests` 4 条回起跑用例按状态判据重试（无固定 sleep），保存态主操作改指 `run.rerun`；`check-ios-shell.sh` 自检计数同步（identifier 60、UI 用例 11）。
+- 偏离与边界：`L10n` 新增 4 键（PRD 原写「文案走 String Catalog」已允许，未新建键族）；历史列表入口复用 `history.empty.action` 文案但独立 identifier；三屏只加标题栏入口、不做视觉改造；真机与观感验收 `pending: 待人现场`。
