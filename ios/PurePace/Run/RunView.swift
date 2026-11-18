@@ -489,8 +489,11 @@ struct RunView: View {
                     .monospacedDigit()
             }
 
-            // 记录态首条 fix 未到：沿用既有 inline 胶囊形态提示「等待定位」，不阻断计时。
-            if viewModel.isWaitingForLocation {
+            // 记录态零可用 fix：30s 内「正在搜索定位」，到点给可归因原因 + 重试入口（plan.recovery）。
+            switch viewModel.locationSearchState {
+            case .idle:
+                EmptyView()
+            case .searching:
                 hint(
                     L10n.runWaitingLocation,
                     tint: color(for: .warning),
@@ -498,6 +501,15 @@ struct RunView: View {
                 )
                 .accessibilityIdentifier("run.waitingLocation")
                 .accessibilityLabel(Text(L10n.runWaitingLocation))
+            case .timedOut:
+                hint(
+                    viewModel.locationSearchMessage ?? L10n.runWaitingLocation,
+                    tint: color(for: .warning),
+                    soft: DesignTokens.Colors.warningSoft
+                )
+                .accessibilityIdentifier("run.locationSearchTimeout")
+                .accessibilityLabel(Text(L10n.runLocationSearchTimeout))
+                .accessibilityValue(Text(viewModel.locationSearchMessage ?? ""))
             }
 
             if viewModel.isAccuracyDegraded {
@@ -597,6 +609,8 @@ struct RunView: View {
                     .foregroundStyle(DesignTokens.Colors.primary)
                     .frame(minHeight: DesignTokens.minTapTarget)
             }
+            .accessibilityIdentifier("run.retryLocation")
+            .accessibilityLabel(Text(L10n.runActionRetryLocation))
         }
     }
 

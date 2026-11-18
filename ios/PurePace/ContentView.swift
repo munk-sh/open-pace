@@ -39,6 +39,7 @@ struct ContentView: View {
         var initialTab = Tab.run
         var demoRecords: [RunRecord]?
         var autoOpenDetail = false
+        var locationSearchTimeout = RunLocationSearchState.timeoutSeconds
         let locationSource: RunLocationProviding
         let telemetryDebugEnabled: Bool
 #if DEBUG
@@ -60,6 +61,13 @@ struct ContentView: View {
             RunLaunchArguments.screenshotOpenRunDetailFlag,
             arguments: CommandLine.arguments
         )
+        // 仅 DEBUG UI 用例：缩短搜索超时窗口做确定性断言；生产恒为 30s。
+        if let raw = RunLaunchArguments.value(
+            after: "-uiTestLocationSearchTimeout",
+            arguments: CommandLine.arguments
+        ), let seconds = TimeInterval(raw), seconds > 0 {
+            locationSearchTimeout = seconds
+        }
         // 仅 DEBUG 且显式传 `-uiTestLocation` 时使用确定性测试定位源；
         // 其余分支（含 Release）统一经选择器，默认落真实 `RunLocationSource`。
         if CommandLine.arguments.contains("-uiTestLocation") {
@@ -91,7 +99,8 @@ struct ContentView: View {
                 telemetryDebugEnabled: telemetryDebugEnabled,
                 autoStartRecording: RunLaunchArguments.autoStartRecordingEnabled(
                     arguments: CommandLine.arguments
-                )
+                ),
+                locationSearchTimeout: locationSearchTimeout
             )
         )
     }

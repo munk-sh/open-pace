@@ -44,6 +44,8 @@ final class RunSessionViewModel: ObservableObject {
     private let autoStartRecording: Bool
     /// 开始前倒计时总时长；测试注入 0 以跳过真实等待（生产恒用 RunCore 常量）。
     private let countdownDuration: TimeInterval
+    /// 记录态「零可用 fix」搜索窗口；生产恒为 30s，测试可注入更短窗口做确定性断言。
+    private let locationSearchTimeout: TimeInterval
     private let now: () -> Date
     private let timeSource: RunTimeSource
     /// 会话计时唯一时间源：注入后编排器/引擎共用，App 层不另建计时。
@@ -56,6 +58,8 @@ final class RunSessionViewModel: ObservableObject {
     private(set) var runSampleCount = 0
     private var didAutoStart = false
     private var countdown: RunStartCountdown?
+    /// 进入记录态的注入时刻；搜索超时窗口的唯一起点，不另建计时真源。
+    private var recordingStartedAt: Date?
     /// 系统权限请求恰一次标记：WhenInUse 在「开始」触发，Always 在跑步进行中升级。
     private var didRequestWhenInUseAuthorization = false
     private var didRequestAlwaysAuthorization = false
@@ -72,6 +76,7 @@ final class RunSessionViewModel: ObservableObject {
         telemetryDebugEnabled: Bool = false,
         autoStartRecording: Bool = false,
         countdownDuration: TimeInterval = RunStartCountdown.defaultDuration,
+        locationSearchTimeout: TimeInterval = RunLocationSearchState.timeoutSeconds,
         lifecycleRecorder: RunLifecycleTelemetryRecording? = nil,
         bundleInfo: BundleInfoProviding? = nil,
         now: @escaping () -> Date = { Date() },
@@ -110,6 +115,7 @@ final class RunSessionViewModel: ObservableObject {
         self.bundleInfo = bundleInfo ?? SystemBundleInfoProvider()
         self.autoStartRecording = autoStartRecording
         self.countdownDuration = countdownDuration
+        self.locationSearchTimeout = locationSearchTimeout
         self.now = now
         self.timeSource = timeSource
         self.didRestoreFromCheckpoint = restoringCheckpoint != nil
@@ -253,6 +259,10 @@ final class RunSessionViewModel: ObservableObject {
 
     func resume() {
         guard state == .paused else { return }
+        if recordingStartedAt == nil {
+            // 恢复态/异常路径没有记录起点时，以本次恢复时刻作为搜索窗口起点。
+            recordingStartedAt = now()
+        }
         perform { try orchestrator.resume(at: now()) }
     }
 
@@ -298,6 +308,7 @@ final class RunSessionViewModel: ObservableObject {
             errorMessage = nil
             runSampleCount = 0
             duplicateSampleCount = 0
+            recordingStartedAt = nil
             apply(state: orchestrator.state, metrics: orchestrator.metrics)
         } catch {
             errorMessage = Self.describe(error)
@@ -312,6 +323,7 @@ final class RunSessionViewModel: ObservableObject {
         countdownRemaining = 0
         runSampleCount = 0
         duplicateSampleCount = 0
+        recordingStartedAt = date
         perform { try orchestrator.start(at: date) }
         locationSource.start()
         // 已拿到 WhenInUse 才允许升级 Always（Apple 规则），每个会话只请求一次。
@@ -387,7 +399,8 @@ final class RunSessionViewModel: ObservableObject {
         URL(string: UIApplication.openSettingsURLString)
     }
 
-    /// 诊断区唯一快照：版本/构建 sha、授权/精度、采样数、最近样本、后台开关、raw/dropped。
+    /// 诊断区唯一快照：版本/构建 sha、授权/精度、采样数、最近样本、后台开关、raw/dropped、
+    /// 定位服务开关与最近错误——全部读既有单一来源，不建第二套账本。
     func diagnosticsSnapshot() -> RunDiagnostics {
         RunDiagnostics(
             bundleInfo: bundleInfo,
@@ -397,7 +410,9 @@ final class RunSessionViewModel: ObservableObject {
             lastSampleAt: orchestrator.acceptedSamples.last?.timestamp,
             allowsBackgroundLocationUpdates: locationSource.allowsBackgroundLocationUpdates,
             rawCallbackCount: locationSource.rawCallbackCount,
-            filteredCallbackCount: locationSource.filteredCallbackCount
+            filteredCallbackCount: locationSource.filteredCallbackCount,
+            locationServicesEnabled: locationSource.locationServicesEnabled,
+            lastError: locationSource.lastLocationError
         )
     }
 
@@ -420,10 +435,11 @@ final class RunSessionViewModel: ObservableObject {
         locationSource.requestAlwaysAuthorization()
     }
 
-    /// 仅「不可用」态可重试：重新拉起定位源，授权转好即恢复就绪。
+    /// 仅「不可用」态或记录态搜索超时可重试：只重启定位会话，
+    /// 不重置计时、不清空已累计距离与样本。
     func retryLocation() {
-        guard locationReadiness.nextAction == .retry else { return }
-        locationSource.start()
+        guard locationReadiness.nextAction == .retry || locationSearchState.isTimedOut else { return }
+        locationSource.restart()
     }
 
     // MARK: - 展示
@@ -454,9 +470,39 @@ final class RunSessionViewModel: ObservableObject {
         return accuracy > RunLocationSource.accuracyThresholdMeters
     }
 
-    /// 记录态但首条 fix 尚未到达：界面显示「等待定位」，计时照常前进。
-    var isWaitingForLocation: Bool {
-        state == .running && !orchestrator.hasLocationData
+    /// 记录态「零可用 fix」的三态：搜索中 / 30s 超时原因 / 已有 fix。
+    ///
+    /// 全部输入来自既有来源（会话状态、编排器采样、定位源计数器、授权、服务开关），
+    /// 不新增 raw 计数或计时真源。
+    var locationSearchState: RunLocationSearchState {
+        let elapsed: TimeInterval
+        if let recordingStartedAt {
+            elapsed = max(0, now().timeIntervalSince(recordingStartedAt))
+        } else {
+            elapsed = 0
+        }
+        return RunLocationSearchState.resolve(
+            isRunning: state == .running,
+            hasLocationData: orchestrator.hasLocationData,
+            elapsedSinceRecording: elapsed,
+            authorization: authorization,
+            servicesEnabled: locationSource.locationServicesEnabled,
+            rawCallbackCount: locationSource.rawCallbackCount,
+            filteredCallbackCount: locationSource.filteredCallbackCount,
+            timeout: locationSearchTimeout
+        )
+    }
+
+    /// 搜索中 / 超时原因的可读文案；`nil` 表示已有 fix 或不在记录态。
+    var locationSearchMessage: String? {
+        switch locationSearchState {
+        case .idle:
+            return nil
+        case .searching:
+            return L10n.runWaitingLocation
+        case .timedOut(let reason):
+            return reason.message
+        }
     }
 
     var distanceText: String {

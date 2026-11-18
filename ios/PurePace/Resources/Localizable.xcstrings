@@ -216,7 +216,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "重试"
+            "value" : "重试定位"
           }
         }
       }
@@ -846,7 +846,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "等待定位"
+            "value" : "正在搜索定位"
           }
         }
       }
@@ -1001,12 +1001,82 @@
         }
       }
     },
+    "settings.diagnostics.services" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位服务"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.lastError" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近错误"
+          }
+        }
+      }
+    },
     "run.location.degradedAccuracy" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "定位精度较低，距离可能有偏差"
+          }
+        }
+      }
+    },
+    "run.location.search.timeout" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位搜索超时"
+          }
+        }
+      }
+    },
+    "run.location.search.unauthorized" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未获得定位权限，请到系统设置中允许定位"
+          }
+        }
+      }
+    },
+    "run.location.search.servicesDisabled" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统定位服务已关闭，请先开启定位服务"
+          }
+        }
+      }
+    },
+    "run.location.search.accuracyFiltered" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持续只收到低精度定位，请到开阔处重试"
+          }
+        }
+      }
+    },
+    "run.location.search.noCallbacks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长时间未收到定位回调，请到开阔处重试"
           }
         }
       }
