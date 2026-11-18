@@ -7,32 +7,38 @@ final class HarnessLocationCoreTests: XCTestCase {
     // MARK: - ac-corelocation-filter-pure
 
     func testAccuracyFilterAndFirstPointAnchorArePureLogic() throws {
-        var core = HarnessCore(mode: .corelocation, checkpointStore: nil, appendsCheckpoints: false)
+        // 注入确定性时钟并与样本时间对齐：活跃时长按会话时间（锚点起）计算，不按回调次数。
+        let clock = TestRunClockSource()
+        var core = HarnessCore(
+            mode: .corelocation,
+            checkpointStore: nil,
+            appendsCheckpoints: false,
+            timeSource: clock
+        )
         let base: TimeInterval = 1_700_000_000
 
+        func ingest(latitude: Double, accuracy: Double, secondsAfterBase: TimeInterval) throws {
+            clock.advance(to: Date(timeIntervalSince1970: base + secondsAfterBase))
+            core.ingestLocation(
+                try XCTUnwrap(
+                    HarnessTestSupport.sample(
+                        latitude: latitude,
+                        longitude: 121.0,
+                        timestamp: base + secondsAfterBase
+                    )
+                ),
+                horizontalAccuracy: accuracy
+            )
+        }
+
         // 无效精度（负值）与超阈值（> 50 m）都被拒绝。
-        core.ingestLocation(
-            try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0, longitude: 121.0, timestamp: base)),
-            horizontalAccuracy: -1
-        )
-        core.ingestLocation(
-            try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.00001, longitude: 121.0, timestamp: base + 1)),
-            horizontalAccuracy: 60
-        )
+        try ingest(latitude: 31.0, accuracy: -1, secondsAfterBase: 0)
+        try ingest(latitude: 31.00001, accuracy: 60, secondsAfterBase: 1)
         // 首个通过精度过滤的样本只作锚点。
-        core.ingestLocation(
-            try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0, longitude: 121.0, timestamp: base + 2)),
-            horizontalAccuracy: 10
-        )
+        try ingest(latitude: 31.0, accuracy: 10, secondsAfterBase: 2)
         // 后续样本正常累计。
-        core.ingestLocation(
-            try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0001, longitude: 121.0, timestamp: base + 3)),
-            horizontalAccuracy: 10
-        )
-        core.ingestLocation(
-            try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0002, longitude: 121.0, timestamp: base + 4)),
-            horizontalAccuracy: 10
-        )
+        try ingest(latitude: 31.0001, accuracy: 10, secondsAfterBase: 3)
+        try ingest(latitude: 31.0002, accuracy: 10, secondsAfterBase: 4)
 
         let status = core.status(now: Date(timeIntervalSince1970: base + 5))
         XCTAssertEqual(status.sampleCounts.received, 5)

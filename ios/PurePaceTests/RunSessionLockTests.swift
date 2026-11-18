@@ -40,9 +40,15 @@ final class RunSessionLockTests: XCTestCase {
     }
 
     private final class Clock {
-        var date: Date
+        var date: Date {
+            didSet { runClock.advance(to: date) }
+        }
+        /// 与 `date` 同步推进的单调测试时钟：活跃时长只由它结算，不依赖真实墙钟。
+        let runClock = TestRunClockSource()
+
         init(date: Date) {
             self.date = date
+            runClock.advance(to: date)
         }
     }
 
@@ -85,6 +91,7 @@ final class RunSessionLockTests: XCTestCase {
             locationSource: source,
             countdownDuration: 0,
             now: { clock.date },
+            timeSource: clock.runClock,
             notificationCenter: center
         )
         return System(stores: stores, source: source, clock: clock, center: center, viewModel: viewModel)
@@ -102,6 +109,8 @@ final class RunSessionLockTests: XCTestCase {
     }
 
     private func feed(_ sample: RunSample, from system: System) {
+        // 样本时间与会话时钟对齐：活跃时长跟会话时间走，重复/重叠样本不额外推进。
+        system.clock.runClock.advance(to: sample.timestamp)
         system.source.delegate?.locationSource(system.source, didProduce: sample)
     }
 
@@ -231,15 +240,16 @@ final class RunSessionLockTests: XCTestCase {
         postLock(system, locked: false)
 
         XCTAssertEqual(system.viewModel.state, lockedState)
-        XCTAssertEqual(system.viewModel.metrics, lockedMetrics)
+        XCTAssertEqual(system.viewModel.metrics, lockedMetrics, "解锁事件本身不得改动度量")
         XCTAssertEqual(try lineCount(system.stores), linesBeforeUnlock, "解锁事件本身不得增加 checkpoint 行")
 
+        // 样本时间戳（t0+7）早于注入时钟（t0+9）：读数必须取时钟的 3 s 增量，而不是样本间隔或 tUnlock。
         feed(makeSample(index: 7), from: system)
         XCTAssertEqual(
             system.viewModel.metrics.elapsed,
-            lockedMetrics.elapsed + Self.fixtureSampleInterval,
+            lockedMetrics.elapsed + 3,
             accuracy: 1e-9,
-            "解锁后按样本时间戳继续累加，不得按 tUnlock 重算"
+            "解锁后的时间增量只来自注入时钟，不按 tUnlock 或样本间隔重算"
         )
         XCTAssertGreaterThan(system.viewModel.metrics.distance.meters, lockedMetrics.distance.meters)
     }
@@ -264,11 +274,12 @@ final class RunSessionLockTests: XCTestCase {
 
         XCTAssertNotEqual(system.viewModel.metrics.elapsed, 0, "解锁后计时不得归零")
         XCTAssertGreaterThan(system.viewModel.metrics.elapsed, lockedElapsed, "解锁后计时不得重算变小")
+        // 样本时间戳是 t0+7，但注入时钟已走到 t0+20：增量只认时钟（+14 s），与 tUnlock 的墙钟值无关。
         XCTAssertEqual(
             system.viewModel.metrics.elapsed,
-            lockedElapsed + Self.fixtureSampleInterval,
+            lockedElapsed + 14,
             accuracy: 1e-9,
-            "解锁后的时间增量只取样本间隔，与 tUnlock 无关"
+            "解锁后的时间增量只来自注入时钟，与 tUnlock 的墙钟值无关"
         )
     }
 

@@ -6,11 +6,14 @@ private func requireOrchestratorSendable<T: Sendable>(_: T.Type) {}
 
 final class RunSessionOrchestratorTests: XCTestCase {
     private var root: URL!
+    /// 注入编排器的确定性单调时钟：活跃时长只由用例显式推进。
+    private var clock: TestRunClock!
 
     override func setUp() {
         super.setUp()
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("RunSessionOrchestratorTests-\(UUID().uuidString)", isDirectory: true)
+        clock = TestRunClock()
     }
 
     override func tearDown() {
@@ -18,6 +21,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
         root = nil
+        clock = nil
         super.tearDown()
     }
 
@@ -35,7 +39,8 @@ final class RunSessionOrchestratorTests: XCTestCase {
         RunSessionOrchestrator(
             checkpointStore: RunCheckpointStore(fileURL: checkpointURL),
             archiveStore: RunArchiveStore(directoryURL: archiveDirectoryURL),
-            announcementsEnabled: announcementsEnabled
+            announcementsEnabled: announcementsEnabled,
+            timeSource: clock
         )
     }
 
@@ -105,14 +110,18 @@ final class RunSessionOrchestratorTests: XCTestCase {
         let second = sample(latitude: 0.001, at: 1020, altitude: 11, heartRate: 121, cadence: 81)
         let third = sample(latitude: 0.002, at: 1030, altitude: 12, heartRate: 122, cadence: 82)
 
+        // 时钟按样本时间戳同步推进（start@1000 → 第三条 @1030 = 30 秒活跃时长）。
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(first)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(second)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(third)
 
         let expected = GeoDistance.meters(latitude1: 0, longitude1: 0, latitude2: 0.001, longitude2: 0)
             + GeoDistance.meters(latitude1: 0.001, longitude1: 0, latitude2: 0.002, longitude2: 0)
         XCTAssertEqual(orchestrator.metrics.distance.meters, expected, accuracy: 1e-6)
-        XCTAssertEqual(orchestrator.metrics.elapsed, 20, accuracy: 1e-9)
+        XCTAssertEqual(orchestrator.metrics.elapsed, 30, accuracy: 1e-9)
         XCTAssertEqual(orchestrator.acceptedSamples, [first, second, third])
     }
 
@@ -123,9 +132,12 @@ final class RunSessionOrchestratorTests: XCTestCase {
         try orchestrator.start(at: date(1000))
         let first = sample(latitude: 0, at: 1010)
         let second = sample(latitude: 0.001, at: 1020)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(first)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(second)
         let snapshot = orchestrator.metrics
+        XCTAssertEqual(snapshot.elapsed, 20, accuracy: 1e-9)
 
         let paused = try orchestrator.pause(at: date(1030))
         XCTAssertEqual(paused.state, .paused)
@@ -135,6 +147,8 @@ final class RunSessionOrchestratorTests: XCTestCase {
         XCTAssertNil(paused.metrics.currentPace)
         XCTAssertTrue(paused.announcements.isEmpty)
 
+        // 暂停区间时钟继续走：度量必须冻结。
+        clock.advance(by: 30)
         let duringPause = try orchestrator.ingest(sample(latitude: 40, at: 1040))
         XCTAssertTrue(duringPause.announcements.isEmpty)
         XCTAssertEqual(duringPause.metrics.distance.meters, snapshot.distance.meters, accuracy: 0)
@@ -156,12 +170,18 @@ final class RunSessionOrchestratorTests: XCTestCase {
     func testResumeRebuildsAnchorThenContinuesAndAnnouncesSplit() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0.0001, at: 1020))
         _ = try orchestrator.pause(at: date(1030))
         let beforeResume = orchestrator.metrics
+        XCTAssertEqual(beforeResume.elapsed, 20, accuracy: 1e-9)
 
+        // 暂停 70 秒（时钟推进但不计活跃时长），恢复后首个样本只重建锚点。
+        clock.advance(by: 70)
         _ = try orchestrator.resume(at: date(1100))
+        clock.advance(by: 10)
         let anchorUpdate = try orchestrator.ingest(sample(latitude: 0.5, at: 1110))
         XCTAssertEqual(anchorUpdate.metrics.distance.meters, beforeResume.distance.meters, accuracy: 0)
         XCTAssertEqual(
@@ -175,6 +195,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
         var timestamp = 1120.0
         for _ in 0..<6 {
             latitude += 0.002
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: latitude, at: timestamp))
             announcements.append(contentsOf: update.announcements)
             timestamp += 10
@@ -190,7 +211,9 @@ final class RunSessionOrchestratorTests: XCTestCase {
     func testFinishArchivesExactlyOnce() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0.001, at: 1020))
 
         let first = try XCTUnwrap(try orchestrator.finish(at: date(1030)))
@@ -215,10 +238,14 @@ final class RunSessionOrchestratorTests: XCTestCase {
         let first = sample(latitude: 0, at: 1010, altitude: 5, heartRate: 130, cadence: 85)
         let second = sample(latitude: 0.001, at: 1020, altitude: 6, heartRate: 131, cadence: 86)
         let third = sample(latitude: 0.002, at: 1030, altitude: 7, heartRate: 132, cadence: 87)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(first)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(second)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(third)
         let metrics = orchestrator.metrics
+        XCTAssertEqual(metrics.elapsed, 30, accuracy: 1e-9)
 
         let record = try XCTUnwrap(try orchestrator.finish(at: endedAt))
 
@@ -236,6 +263,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
     func testFinishClearsCheckpointButKeepsArchive() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         let beforeFinish = try RunCheckpointStore(fileURL: checkpointURL).loadAll()
         XCTAssertFalse(beforeFinish.isEmpty)
@@ -253,10 +281,14 @@ final class RunSessionOrchestratorTests: XCTestCase {
         try orchestrator.start(at: date(1000))
         let first = sample(latitude: 0, at: 1010)
         let second = sample(latitude: 0.001, at: 1020)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(first)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(second)
         let snapshot = orchestrator.metrics
+        XCTAssertEqual(snapshot.elapsed, 20, accuracy: 1e-9)
 
+        // 等时/倒退样本被丢弃时不推进时钟，度量必须逐项不变。
         let equalTimed = try orchestrator.ingest(sample(latitude: 0.002, at: 1020))
         XCTAssertEqual(equalTimed.metrics.distance.meters, snapshot.distance.meters, accuracy: 0)
         XCTAssertEqual(equalTimed.metrics.elapsed, snapshot.elapsed, accuracy: 0)
@@ -282,6 +314,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
         XCTAssertEqual(archiveJSONFileCount(), 0)
 
         try orchestrator.start(at: date(1010))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1020))
         let record = try XCTUnwrap(try orchestrator.finish(at: date(1030)))
         let metricsAfterFinish = orchestrator.metrics
@@ -304,6 +337,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
         var first: [AnnouncementCommand] = []
         var timestamp = 1010.0
         for step in 1...7 {
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: 0.002 * Double(step), at: timestamp))
             first.append(contentsOf: update.announcements)
             timestamp += 10
@@ -313,6 +347,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
         orchestrator.setAnnouncementsEnabled(false)
         var suppressed: [AnnouncementCommand] = []
         for step in 8...11 {
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: 0.002 * Double(step), at: timestamp))
             suppressed.append(contentsOf: update.announcements)
             timestamp += 10
@@ -321,12 +356,14 @@ final class RunSessionOrchestratorTests: XCTestCase {
         XCTAssertEqual(orchestrator.metrics.completedKilometers, 2)
 
         orchestrator.setAnnouncementsEnabled(true)
+        clock.advance(by: 10)
         let stillSilent = try orchestrator.ingest(sample(latitude: 0.002 * 12, at: timestamp))
         timestamp += 10
         XCTAssertTrue(stillSilent.announcements.isEmpty)
 
         var third: [AnnouncementCommand] = []
         for step in 13...16 {
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: 0.002 * Double(step), at: timestamp))
             third.append(contentsOf: update.announcements)
             timestamp += 10
@@ -343,6 +380,7 @@ final class RunSessionOrchestratorTests: XCTestCase {
         var suppressed: [AnnouncementCommand] = []
         var timestamp = 1010.0
         for step in 1...6 {
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: 0.002 * Double(step), at: timestamp))
             suppressed.append(contentsOf: update.announcements)
             timestamp += 10
@@ -351,11 +389,13 @@ final class RunSessionOrchestratorTests: XCTestCase {
         XCTAssertEqual(orchestrator.metrics.completedKilometers, 1)
 
         orchestrator.setAnnouncementsEnabled(true)
+        clock.advance(by: 10)
         let catchUp = try orchestrator.ingest(sample(latitude: 0.002 * 7, at: 1100))
         XCTAssertTrue(catchUp.announcements.isEmpty)
 
         var announced: [AnnouncementCommand] = []
         for step in 8...10 {
+            clock.advance(by: 10)
             let update = try orchestrator.ingest(sample(latitude: 0.002 * Double(step), at: 1100 + 10 * Double(step)))
             announced.append(contentsOf: update.announcements)
         }

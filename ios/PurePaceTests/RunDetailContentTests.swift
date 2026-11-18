@@ -8,7 +8,8 @@ final class RunDetailContentTests: XCTestCase {
     private func makeRecord(
         distanceMeters: Double,
         activeDuration: TimeInterval,
-        splits: [RunSplit]
+        splits: [RunSplit],
+        samples: [RunSample] = []
     ) -> RunRecord {
         RunRecord(
             startedAt: start,
@@ -16,7 +17,18 @@ final class RunDetailContentTests: XCTestCase {
             distance: RunDistance(meters: distanceMeters)!,
             activeDuration: activeDuration,
             splits: splits,
-            samples: []
+            samples: samples
+        )!
+    }
+
+    private func sample(offset: TimeInterval) -> RunSample {
+        RunSample(
+            latitude: 31.2304 + offset * 0.0001,
+            longitude: 121.4737 + offset * 0.0001,
+            altitude: nil,
+            timestamp: start.addingTimeInterval(offset),
+            heartRate: nil,
+            cadence: nil
         )!
     }
 
@@ -25,11 +37,13 @@ final class RunDetailContentTests: XCTestCase {
     }
 
     func testMapsRecordFieldsWithoutRecompute() {
+        // 空 samples 记录：距离位给明确「未获取到定位」的空语义，不显示 0.00 假装有轨迹。
         let record = makeRecord(distanceMeters: 1000, activeDuration: 300, splits: [])
         let content = RunDetailContent(record: record)
 
-        XCTAssertEqual(content.distanceText, RunFormatting.distanceText(record.distance))
-        XCTAssertEqual(content.distanceText, "1.00 km")
+        XCTAssertFalse(record.hasLocationData)
+        XCTAssertEqual(content.distanceText, L10n.runDistanceUnavailable)
+        XCTAssertEqual(content.distanceText, "未获取到定位，距离为空")
         XCTAssertEqual(content.activeDurationText, RunFormatting.elapsedText(record.activeDuration))
         XCTAssertEqual(content.activeDurationText, "05:00")
         XCTAssertEqual(
@@ -68,10 +82,19 @@ final class RunDetailContentTests: XCTestCase {
     }
 
     func testHistoryRowSharesDetailTextsAndDatePrefix() {
-        let record = makeRecord(distanceMeters: 5120, activeDuration: 1860, splits: [])
+        // 有定位采样的记录：距离位仍是精确里程文案，历史行与详情页共用同一组数值。
+        let record = makeRecord(
+            distanceMeters: 5120,
+            activeDuration: 1860,
+            splits: [],
+            samples: [sample(offset: 0), sample(offset: 1)]
+        )
         let row = HistoryRowContent(record: record)
         let detail = RunDetailContent(record: record)
 
+        XCTAssertTrue(record.hasLocationData)
+        XCTAssertEqual(detail.distanceText, RunFormatting.distanceText(record.distance))
+        XCTAssertEqual(detail.distanceText, "5.12 km")
         XCTAssertEqual(row.distanceText, detail.distanceText)
         XCTAssertEqual(row.durationText, detail.activeDurationText)
         XCTAssertEqual(row.paceText, detail.averagePaceText)

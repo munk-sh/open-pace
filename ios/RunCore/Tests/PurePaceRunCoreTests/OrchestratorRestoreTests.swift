@@ -7,6 +7,8 @@ import XCTest
 /// 已播报序号不重复播报、坏尾回退上一有效行、中间损坏抛错、派生 `startedAt`。
 final class OrchestratorRestoreTests: XCTestCase {
     private var directory: URL!
+    /// 注入编排器的确定性单调时钟：恢复失算的活跃时长只由用例显式推进。
+    private var clock: TestRunClock!
 
     private let base: TimeInterval = 1_700_000_000
     private let baseLatitude = 31.2304
@@ -18,6 +20,7 @@ final class OrchestratorRestoreTests: XCTestCase {
         super.setUp()
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        clock = TestRunClock()
     }
 
     override func tearDown() {
@@ -25,6 +28,7 @@ final class OrchestratorRestoreTests: XCTestCase {
             try? FileManager.default.removeItem(at: directory)
         }
         directory = nil
+        clock = nil
         super.tearDown()
     }
 
@@ -109,7 +113,8 @@ final class OrchestratorRestoreTests: XCTestCase {
         RunSessionOrchestrator(
             restoring: checkpoint,
             checkpointStore: RunCheckpointStore(fileURL: fileURL),
-            archiveStore: RunArchiveStore(directoryURL: archiveURL)
+            archiveStore: RunArchiveStore(directoryURL: archiveURL),
+            timeSource: clock
         )
     }
 
@@ -157,6 +162,8 @@ final class OrchestratorRestoreTests: XCTestCase {
         let restoredDistance = orchestrator.metrics.distance
 
         try orchestrator.resume(at: anchorDate)
+        // 锚点@+0 → 样本@+2：时钟推进 2 秒，恢复后的计时必须连续累加。
+        clock.advance(by: 2)
         _ = try orchestrator.ingest(makeSample(offset: 2))
 
         XCTAssertNotEqual(orchestrator.metrics.elapsed, 0, "恢复后计时不得归零")
@@ -164,6 +171,7 @@ final class OrchestratorRestoreTests: XCTestCase {
         XCTAssertEqual(orchestrator.metrics.elapsed, restoredElapsed + 2, accuracy: 1e-6)
         XCTAssertEqual(orchestrator.metrics.distance, restoredDistance, "首个恢复样本只重建位置锚点")
 
+        clock.advance(by: 1)
         _ = try orchestrator.ingest(makeSample(offset: 3))
         XCTAssertGreaterThan(orchestrator.metrics.distance.meters, restoredDistance.meters)
     }
@@ -194,6 +202,7 @@ final class OrchestratorRestoreTests: XCTestCase {
 
         var announced: [Int] = []
         for offset in 1...25 {
+            clock.advance(by: 1)
             let update = try orchestrator.ingest(makeSample(offset: offset))
             announced.append(contentsOf: update.announcements.map(\.splitIndex))
         }
@@ -241,8 +250,12 @@ final class OrchestratorRestoreTests: XCTestCase {
     func testRestoredFinishUsesDerivedStartedAt() throws {
         var orchestrator = makeOrchestrator(restoring: makeCheckpoint())
         try orchestrator.resume(at: anchorDate)
+        // 恢复起点@+0，三条样本分别@+2/+3/+4：时钟同步推进，活跃时长 900 + 4。
+        clock.advance(by: 2)
         _ = try orchestrator.ingest(makeSample(offset: 2))
+        clock.advance(by: 1)
         _ = try orchestrator.ingest(makeSample(offset: 3))
+        clock.advance(by: 1)
         _ = try orchestrator.ingest(makeSample(offset: 4))
 
         let finishDate = Date(timeIntervalSince1970: anchorTimestamp + 4)

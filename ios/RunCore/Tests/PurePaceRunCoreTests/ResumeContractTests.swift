@@ -319,14 +319,17 @@ final class ResumeContractTests: XCTestCase {
                 splits: [makeSplit(1, duration: 350), makeSplit(2, duration: 360)],
                 lastSample: RunSampleAnchor(sample: stream[0])
             )
-            var engine = RunMetricsEngine(restoring: checkpoint)
+            let clock = TestRunClock()
+            var engine = RunMetricsEngine(restoring: checkpoint, clock: clock)
             let before = engine.metrics
 
             _ = engine.ingest(stream[1])
             XCTAssertEqual(engine.metrics, before, "恢复为暂停态时 ingest 不得累计")
 
             engine.resume(at: Date(timeIntervalSince1970: 900))
+            clock.advance(by: 1)
             _ = engine.ingest(stream[1])
+            clock.advance(by: 1)
             _ = engine.ingest(stream[2])
 
             XCTAssertGreaterThan(engine.metrics.distance.meters, 2500)
@@ -348,13 +351,16 @@ final class ResumeContractTests: XCTestCase {
             lastSample: RunSampleAnchor(sample: stream[0])
         )
 
-        var engine = RunMetricsEngine(restoring: checkpoint)
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(restoring: checkpoint, clock: clock)
         engine.resume(at: Date(timeIntervalSince1970: 900))
 
         var fed: [RunSample] = []
         var created: [RunSplit] = []
         for sample in stream.dropFirst() {
             fed.append(sample)
+            // 1 Hz 流：分段耗时同样只来自注入时钟。
+            clock.advance(by: 1)
             let update = engine.ingest(sample)
             created.append(contentsOf: update.newlyCompletedSplits)
             if !created.isEmpty { break }
@@ -415,13 +421,16 @@ final class ResumeContractTests: XCTestCase {
             splits: [makeSplit(1, duration: 350), makeSplit(2, duration: 360)],
             lastSample: RunSampleAnchor(sample: anchorSample)
         )
-        var engine = RunMetricsEngine(restoring: checkpoint)
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(restoring: checkpoint, clock: clock)
         engine.resume(at: anchorSample.timestamp)
 
         let afterResume = engine.metrics
         _ = engine.ingest(anchorSample)
         XCTAssertEqual(engine.metrics, afterResume, "等时样本必须整条丢弃")
 
+        // 锚点@900 → 后续样本@905：时钟推进 5 秒，样本坐标不变则只加时长。
+        clock.advance(by: 5)
         _ = engine.ingest(laterSamePlace)
         XCTAssertEqual(engine.metrics.distance.meters, afterResume.distance.meters, accuracy: 1e-9)
         XCTAssertEqual(engine.metrics.elapsed, afterResume.elapsed + 5, accuracy: 1e-9)
@@ -441,7 +450,8 @@ final class ResumeContractTests: XCTestCase {
             lastSample: nil
         )
 
-        var engine = RunMetricsEngine(restoring: checkpoint)
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(restoring: checkpoint, clock: clock)
         engine.resume(at: Date(timeIntervalSince1970: 0))
 
         let first = engine.ingest(stream[0])
@@ -449,6 +459,8 @@ final class ResumeContractTests: XCTestCase {
         XCTAssertEqual(first.metrics.elapsed, 900, accuracy: 1e-9)
         XCTAssertTrue(first.newlyCompletedSplits.isEmpty)
 
+        // 首样本@0 只建锚点；次样本@1 时时钟推进 1 秒。
+        clock.advance(by: 1)
         let second = engine.ingest(stream[1])
         XCTAssertGreaterThan(second.metrics.distance.meters, 2500)
         XCTAssertEqual(second.metrics.elapsed, 901, accuracy: 1e-9)
@@ -464,7 +476,7 @@ final class ResumeContractTests: XCTestCase {
             splits: [makeSplit(1, duration: 350), makeSplit(2, duration: 360)],
             lastSample: makeAnchor()
         )
-        var engine = RunMetricsEngine(restoring: checkpoint)
+        var engine = RunMetricsEngine(restoring: checkpoint, clock: TestRunClock())
         let before = engine.metrics
 
         _ = engine.ingest(makeResumeStream(sampleCount: 1, startTimestamp: 900)[0])

@@ -810,6 +810,206 @@
           }
         }
       }
+    },
+    "run.metric.samples" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采样点数"
+          }
+        }
+      }
+    },
+    "run.metric.points" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采样点数"
+          }
+        }
+      }
+    },
+    "run.distance.unavailable" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未获取到定位，距离为空"
+          }
+        }
+      }
+    },
+    "run.waiting.location" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待定位"
+          }
+        }
+      }
+    },
+    "runDetail.export.emptySamples" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次没有定位采样，无法导出轨迹"
+          }
+        }
+      }
+    },
+    "runDetail.export.emptyLabel" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次没有定位采样，无法导出轨迹"
+          }
+        }
+      }
+    },
+    "run.status.foregroundOnly" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅前台记录：未获得「始终允许」定位"
+          }
+        }
+      }
+    },
+    "settings.section.diagnostics" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "诊断"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.copy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制诊断信息"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.copied" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已复制"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.build" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.authorization" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位授权"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.accuracy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精度授权"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.samples" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已采样本"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.lastSample" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近样本"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.background" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "后台定位"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.rawCallbacks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始回调"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.droppedCallbacks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精度过滤丢弃"
+          }
+        }
+      }
+    },
+    "run.location.degradedAccuracy" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位精度较低，距离可能有偏差"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

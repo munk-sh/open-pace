@@ -24,7 +24,9 @@ final class RunSampleDedupTests: XCTestCase {
     // MARK: - 正例：等时/倒退样本 +1 且度量逐项不变
 
     func testDuplicateAndBackwardSamplesAreDroppedAndCounted() {
-        var engine = RunMetricsEngine()
+        // 时钟冻结：快照差异只可能来自采样（时长不会被墙钟偷偷推进）。
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
         engine.start(at: Date(timeIntervalSince1970: base))
         for offset in 1...5 {
             _ = engine.ingest(makeSample(offset: offset))
@@ -44,7 +46,8 @@ final class RunSampleDedupTests: XCTestCase {
     // MARK: - 反例护栏：严格递增流计数恒 0
 
     func testStrictlyIncreasingStreamStaysAtZeroCounterexample() {
-        var engine = RunMetricsEngine()
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
         engine.start(at: Date(timeIntervalSince1970: base))
         var accepted = 0
         // 首条样本只建立锚点（距离/时长保持 0），从第二条起每条都应推进度量。
@@ -63,7 +66,9 @@ final class RunSampleDedupTests: XCTestCase {
     // MARK: - 暂停态 drop 不计数
 
     func testPausedDropDoesNotCount() {
-        var engine = RunMetricsEngine()
+        // 时钟冻结在暂停点：冻结值必须逐项不变。
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
         engine.start(at: Date(timeIntervalSince1970: base))
         _ = engine.ingest(makeSample(offset: 1))
         _ = engine.ingest(makeSample(offset: 2))

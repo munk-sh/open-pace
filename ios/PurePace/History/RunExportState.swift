@@ -7,6 +7,8 @@ struct RunExportState: Equatable {
     enum Phase: Equatable {
         case idle
         case exported(URL)
+        /// 空 samples：明确给出「无轨迹可导出」，不产生任何文件。
+        case emptySamples
         case failed
     }
 
@@ -25,6 +27,8 @@ struct RunExportState: Equatable {
                 return
             }
             phase = .exported(url)
+        } catch RunArchiveError.emptySamples {
+            phase = .emptySamples
         } catch {
             phase = .failed
         }

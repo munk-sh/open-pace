@@ -39,9 +39,15 @@ final class RunSessionContractTests: XCTestCase {
     }
 
     private final class Clock {
-        var date: Date
+        var date: Date {
+            didSet { runClock.advance(to: date) }
+        }
+        /// 与 `date` 同步推进的单调测试时钟：活跃时长只由它结算，不依赖真实墙钟。
+        let runClock = TestRunClockSource()
+
         init(date: Date) {
             self.date = date
+            runClock.advance(to: date)
         }
     }
 
@@ -197,17 +203,22 @@ final class RunSessionContractTests: XCTestCase {
         for sample in samples(count: 2) {
             viewModel.ingest(sample)
         }
-        let metricsAtFinish = viewModel.metrics
+        let metricsBeforeFinish = viewModel.metrics
         let acceptedAtFinish = viewModel.acceptedSamples
         XCTAssertGreaterThan(try checkpointCount(stores), 0)
 
         clock.date = startDate.addingTimeInterval(10)
         viewModel.finish()
+        let metricsAtFinish = viewModel.metrics
 
         XCTAssertEqual(viewModel.state, .finished)
         XCTAssertFalse(viewModel.didSave, "结束不得直接落盘")
         XCTAssertNil(viewModel.decisionErrorMessage)
-        XCTAssertEqual(viewModel.metrics, metricsAtFinish, "结束快照与结束时刻度量逐项一致")
+        // 结束快照与结束时刻读数逐项一致：距离/分段不因结束改变，活跃时长由注入时钟结算。
+        XCTAssertEqual(metricsAtFinish.distance, metricsBeforeFinish.distance)
+        XCTAssertEqual(metricsAtFinish.splits, metricsBeforeFinish.splits)
+        XCTAssertEqual(metricsAtFinish.elapsed, 10, accuracy: 1e-9, "结束时刻活跃时长来自注入时钟")
+        XCTAssertEqual(viewModel.metrics, metricsAtFinish, "结束后读数不得继续漂移")
         XCTAssertEqual(viewModel.acceptedSamples, acceptedAtFinish)
         XCTAssertEqual(try stores.archive.list().count, 0)
         XCTAssertEqual(try checkpointCount(stores), 0, "结束后清 checkpoint 且不再追加")
@@ -529,6 +540,7 @@ final class RunSessionContractTests: XCTestCase {
             announcements: SilentSpeaker(),
             countdownDuration: countdownDuration,
             now: { clock.date },
+            timeSource: clock.runClock,
             notificationCenter: NotificationCenter()
         )
     }

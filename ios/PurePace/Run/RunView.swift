@@ -16,6 +16,8 @@ struct RunView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 动态字号档：结束态总结（地图预览 + 分段明细）据此压缩垂直预算，保证 AX5 不溢屏。
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 回前台复检授权（从系统设置返回后刷新 denied/restricted 与 WhenInUse 降级提示）。
+    @Environment(\.scenePhase) private var scenePhase
     /// 丢弃确认层开合：结束待保存屏的破坏性动作必须先经过这里。
     @State private var showsDiscardConfirmation = false
     /// C2 sheet 的内容实测高度：由内容驱动 detent，不落 `.medium` 固定档。
@@ -103,6 +105,10 @@ struct RunView: View {
                     }
             }
             .onAppear { viewModel.onAppear() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                viewModel.refreshAuthorization()
+            }
             // 倒计时只按注入时钟判定到点：未到点仅刷新剩余读数，不产生任何记录。
             .task(id: viewModel.isCountingDown) {
                 while !Task.isCancelled {
@@ -111,6 +117,17 @@ struct RunView: View {
                     try? await Task.sleep(for: .milliseconds(100))
                     if Task.isCancelled { return }
                     await MainActor.run { viewModel.advanceCountdown() }
+                }
+            }
+            // 运行态 1s 刷新：只重读单调时钟驱动的时长；无定位回调也照常走表。
+            .task(id: viewModel.state) {
+                guard viewModel.state == .running else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    if Task.isCancelled { return }
+                    let stillRunning = await MainActor.run { viewModel.state == .running }
+                    guard stillRunning else { return }
+                    await MainActor.run { viewModel.tick() }
                 }
             }
         }
@@ -283,15 +300,24 @@ struct RunView: View {
                 singlePointIdentifier: "run.mapEmpty.single"
             )
             HStack(spacing: DesignTokens.Spacing.xxs) {
-                Text(RunFormatting.distanceValueText(viewModel.metrics.distance))
-                    .font(DesignTokens.Typography.title)
-                    .foregroundStyle(DesignTokens.Colors.primary)
-                    .monospacedDigit()
-                    .accessibilityIdentifier("run.distance")
-                    .accessibilityLabel(Text(viewModel.distanceText))
-                Text(RunFormatting.distanceUnitText)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Colors.secondary)
+                if viewModel.hasLocationData {
+                    Text(RunFormatting.distanceValueText(viewModel.metrics.distance))
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(DesignTokens.Colors.primary)
+                        .monospacedDigit()
+                        .accessibilityIdentifier("run.distance")
+                        .accessibilityLabel(Text(viewModel.distanceText))
+                    Text(RunFormatting.distanceUnitText)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondary)
+                } else {
+                    // 空 samples 的距离语义：不显示 0.00 假装有轨迹。
+                    Text(L10n.runDistanceUnavailable)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondary)
+                        .accessibilityIdentifier("run.distance")
+                        .accessibilityLabel(Text(L10n.runDistanceUnavailable))
+                }
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)
             .padding(.vertical, DesignTokens.Spacing.xs)
@@ -332,6 +358,17 @@ struct RunView: View {
                 accessibilityText: viewModel.averagePaceText
             )
             .monospacedDigit()
+            metricBlock(
+                label: L10n.runMetricSamples,
+                value: String(viewModel.sampleCount),
+                unit: nil,
+                valueFont: DesignTokens.Typography.primaryValue,
+                valueTint: DesignTokens.Colors.secondary,
+                identifier: "run.sampleCount",
+                accessibilityText: String(viewModel.sampleCount)
+            )
+            .monospacedDigit()
+            .accessibilityLabel(Text(L10n.runMetricPoints))
         }
         .padding(RunFinishedSummaryLayoutPolicy.metricCardPadding(compresses: compresses))
         .background(
@@ -452,6 +489,27 @@ struct RunView: View {
                     .monospacedDigit()
             }
 
+            // 记录态首条 fix 未到：沿用既有 inline 胶囊形态提示「等待定位」，不阻断计时。
+            if viewModel.isWaitingForLocation {
+                hint(
+                    L10n.runWaitingLocation,
+                    tint: color(for: .warning),
+                    soft: DesignTokens.Colors.warningSoft
+                )
+                .accessibilityIdentifier("run.waitingLocation")
+                .accessibilityLabel(Text(L10n.runWaitingLocation))
+            }
+
+            if viewModel.isAccuracyDegraded {
+                hint(
+                    L10n.runDegradedAccuracy,
+                    tint: color(for: .warning),
+                    soft: DesignTokens.Colors.warningSoft
+                )
+                .accessibilityIdentifier("run.degradedAccuracy")
+                .accessibilityLabel(Text(L10n.runDegradedAccuracy))
+            }
+
             if let notice = plan.notice {
                 noticeRow(notice)
             }
@@ -502,7 +560,7 @@ struct RunView: View {
                 HStack(spacing: DesignTokens.Spacing.xxs) {
                     Image(systemName: "location.slash")
                         .font(DesignTokens.Typography.caption)
-                    Text(L10n.backgroundDegradedHintShort)
+                    Text(L10n.runForegroundOnlyHint)
                         .font(DesignTokens.Typography.caption)
                         .fixedSize(horizontal: true, vertical: false)
                 }

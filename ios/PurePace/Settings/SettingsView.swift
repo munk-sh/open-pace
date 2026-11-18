@@ -6,6 +6,9 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: AnnouncementSettingsStore
     @ObservedObject var consent: TrajectoryConsentStore
+    /// 诊断数据只读跑步会话的单一快照（版本/构建 sha/授权/采样/回调计数）。
+    @ObservedObject var runModel: RunSessionViewModel
+    @State private var didCopyDiagnostics = false
 
     var body: some View {
         NavigationStack {
@@ -15,6 +18,15 @@ struct SettingsView: View {
                     announcementFooterRow
                 } header: {
                     Text(L10n.settingsSectionAnnouncement)
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .foregroundStyle(DesignTokens.Colors.secondary)
+                        .textCase(nil)
+                }
+
+                Section {
+                    diagnosticsRow
+                } header: {
+                    Text(L10n.settingsSectionDiagnostics)
                         .font(DesignTokens.Typography.sectionHeader)
                         .foregroundStyle(DesignTokens.Colors.secondary)
                         .textCase(nil)
@@ -40,6 +52,50 @@ struct SettingsView: View {
         }
         .tint(DesignTokens.Colors.primary)
         .accessibilityIdentifier("tab.settings")
+    }
+
+    /// 诊断行：单快照文本 + 一键复制；沿用既有卡片行样式，不新增令牌。
+    private var diagnosticsRow: some View {
+        let diagnostics = runModel.diagnosticsSnapshot()
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(verbatim: diagnostics.text)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.diagnostics")
+                .accessibilityLabel(Text(L10n.settingsSectionDiagnostics))
+            Button {
+                UIPasteboard.general.string = diagnostics.text
+                didCopyDiagnostics = true
+            } label: {
+                Text(didCopyDiagnostics ? L10n.settingsDiagnosticsCopied : L10n.settingsDiagnosticsCopy)
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(DesignTokens.Colors.primary)
+                    .frame(minHeight: DesignTokens.minTapTarget)
+            }
+            .accessibilityIdentifier("settings.diagnostics.copy")
+            .accessibilityLabel(Text(L10n.settingsDiagnosticsCopy))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            DesignTokens.Colors.surface,
+            in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
+                .stroke(DesignTokens.Colors.separator, lineWidth: DesignTokens.Stroke.hairline)
+        }
+        .listRowSeparator(.hidden)
+        .listRowBackground(DesignTokens.Colors.background)
+        .listRowInsets(
+            EdgeInsets(
+                top: DesignTokens.Spacing.xs,
+                leading: DesignTokens.Spacing.md,
+                bottom: DesignTokens.Spacing.xs,
+                trailing: DesignTokens.Spacing.md
+            )
+        )
     }
 
     /// 组内唯一行：标题（body / primary）+ 一句说明（caption / secondary），尾部为既有播报开关。

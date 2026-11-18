@@ -14,14 +14,19 @@ struct RunDetailContent: Equatable {
     let endedAtText: String
     let distanceText: String
     let activeDurationText: String
+    let sampleCountText: String
     let averagePaceText: String
     let splits: [SplitRow]
 
     init(record: RunRecord) {
         startedAtText = RunFormatting.dateTimeText(record.startedAt)
         endedAtText = RunFormatting.dateTimeText(record.endedAt)
-        distanceText = RunFormatting.distanceText(record.distance)
+        // 无任何定位采样时距离位写明确空语义，不显示 0.00 假装有轨迹。
+        distanceText = record.hasLocationData
+            ? RunFormatting.distanceText(record.distance)
+            : L10n.runDistanceUnavailable
         activeDurationText = RunFormatting.elapsedText(record.activeDuration)
+        sampleCountText = String(record.sampleCount)
         averagePaceText = RunFormatting.paceText(
             RunPace(distance: record.distance, duration: record.activeDuration)
         )

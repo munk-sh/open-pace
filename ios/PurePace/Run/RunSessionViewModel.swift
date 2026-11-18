@@ -45,6 +45,8 @@ final class RunSessionViewModel: ObservableObject {
     /// 开始前倒计时总时长；测试注入 0 以跳过真实等待（生产恒用 RunCore 常量）。
     private let countdownDuration: TimeInterval
     private let now: () -> Date
+    private let timeSource: RunTimeSource
+    /// 会话计时唯一时间源：注入后编排器/引擎共用，App 层不另建计时。
     /// 锁屏区间观察者；非可选 `let`，生命周期跟随 ViewModel。
     private let lockObservation: RunProtectedDataObservation
 
@@ -54,6 +56,9 @@ final class RunSessionViewModel: ObservableObject {
     private(set) var runSampleCount = 0
     private var didAutoStart = false
     private var countdown: RunStartCountdown?
+    /// 系统权限请求恰一次标记：WhenInUse 在「开始」触发，Always 在跑步进行中升级。
+    private var didRequestWhenInUseAuthorization = false
+    private var didRequestAlwaysAuthorization = false
 
     init(
         checkpointStore: RunCheckpointStore,
@@ -70,6 +75,7 @@ final class RunSessionViewModel: ObservableObject {
         lifecycleRecorder: RunLifecycleTelemetryRecording? = nil,
         bundleInfo: BundleInfoProviding? = nil,
         now: @escaping () -> Date = { Date() },
+        timeSource: RunTimeSource = SystemMonotonicTimeSource(),
         restoringCheckpoint: RunCheckpoint? = nil,
         notificationCenter: NotificationCenter = .default
     ) {
@@ -78,12 +84,14 @@ final class RunSessionViewModel: ObservableObject {
                 restoring: $0,
                 checkpointStore: checkpointStore,
                 archiveStore: archiveStore,
-                announcementsEnabled: announcementsEnabled
+                announcementsEnabled: announcementsEnabled,
+                timeSource: timeSource
             )
         } ?? RunSessionOrchestrator(
             checkpointStore: checkpointStore,
             archiveStore: archiveStore,
-            announcementsEnabled: announcementsEnabled
+            announcementsEnabled: announcementsEnabled,
+            timeSource: timeSource
         )
         let recorder = announcementRecorder ?? AnnouncementTelemetryRecorder()
         self.orchestrator = orchestrator
@@ -103,6 +111,7 @@ final class RunSessionViewModel: ObservableObject {
         self.autoStartRecording = autoStartRecording
         self.countdownDuration = countdownDuration
         self.now = now
+        self.timeSource = timeSource
         self.didRestoreFromCheckpoint = restoringCheckpoint != nil
         self.duplicateSampleCount = orchestrator.duplicateSampleCount
         let reference = WeakViewModelReference()
@@ -132,7 +141,8 @@ final class RunSessionViewModel: ObservableObject {
         announcements: AnnouncementSpeaking? = nil,
         announcementsEnabled: Bool = true,
         notificationCenter: NotificationCenter = .default,
-        now: @escaping () -> Date = { Date() }
+        now: @escaping () -> Date = { Date() },
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
     ) throws -> RunSessionViewModel {
         let checkpoint = try checkpointStore.loadLatest()
         return RunSessionViewModel(
@@ -142,6 +152,7 @@ final class RunSessionViewModel: ObservableObject {
             announcements: announcements,
             announcementsEnabled: announcementsEnabled,
             now: now,
+            timeSource: timeSource,
             restoringCheckpoint: checkpoint,
             notificationCenter: notificationCenter
         )
@@ -169,6 +180,21 @@ final class RunSessionViewModel: ObservableObject {
     /// 注入零时长倒计时同样立即越过，供确定性单测使用。
     func start() {
         guard state == .ready, countdown == nil else { return }
+        // 授权真值以系统探针为准（回前台/设置页返回可能已变化）。
+        let current = authorizationProbe.authorizationStatus
+        if current != authorization {
+            authorization = current
+        }
+        // denied / restricted 不得进入记录态：文案 + 「去系统设置」由 `RunLocationReadiness` 提供。
+        guard authorization.isAuthorized || authorization == .notDetermined else {
+            locationSource.start()
+            return
+        }
+        // notDetermined 时点「开始」必须真实拉起系统弹窗；App 内告知同意不替代系统请求。
+        if authorization == .notDetermined, !didRequestWhenInUseAuthorization {
+            didRequestWhenInUseAuthorization = true
+            locationSource.requestWhenInUseAuthorization()
+        }
         runSampleCount = 0
         duplicateSampleCount = 0
         didSave = false
@@ -210,6 +236,14 @@ final class RunSessionViewModel: ObservableObject {
             return
         }
         beginRecording(at: date)
+    }
+
+    /// 运行态每秒刷新：只重读时钟驱动的 `metrics`，不摄入样本、不改状态、不写 checkpoint。
+    ///
+    /// App 层没有第二套计时真源——读数仍来自 `RunSessionOrchestrator.metrics`。
+    func tick() {
+        guard state == .running else { return }
+        apply(orchestrator.tick(at: now()))
     }
 
     func pause() {
@@ -280,6 +314,8 @@ final class RunSessionViewModel: ObservableObject {
         duplicateSampleCount = 0
         perform { try orchestrator.start(at: date) }
         locationSource.start()
+        // 已拿到 WhenInUse 才允许升级 Always（Apple 规则），每个会话只请求一次。
+        requestAlwaysAuthorizationIfNeeded()
         // 抓「跑步进行态」的后台开关快照：真实源反映 manager，测试源如实为 false。
         backgroundSnapshot = (
             allows: locationSource.allowsBackgroundLocationUpdates,
@@ -346,6 +382,39 @@ final class RunSessionViewModel: ObservableObject {
         URL(string: UIApplication.openSettingsURLString)
     }
 
+    /// 诊断区唯一快照：版本/构建 sha、授权/精度、采样数、最近样本、后台开关、raw/dropped。
+    func diagnosticsSnapshot() -> RunDiagnostics {
+        RunDiagnostics(
+            bundleInfo: bundleInfo,
+            authorization: authorization,
+            accuracy: authorizationProbe.accuracyAuthorization,
+            sampleCount: orchestrator.sampleCount,
+            lastSampleAt: orchestrator.acceptedSamples.last?.timestamp,
+            allowsBackgroundLocationUpdates: locationSource.allowsBackgroundLocationUpdates,
+            rawCallbackCount: locationSource.rawCallbackCount,
+            filteredCallbackCount: locationSource.filteredCallbackCount
+        )
+    }
+
+    /// 回前台自动复检授权：刷新探针状态并重新应用定位源，不重置会话计时。
+    func refreshAuthorization() {
+        let current = authorizationProbe.authorizationStatus
+        if current != authorization {
+            authorization = current
+        }
+        locationSource.start()
+    }
+
+    /// 跑步进行中且已 WhenInUse 时升级 Always；每个会话恰一次。
+    private func requestAlwaysAuthorizationIfNeeded() {
+        guard state == .running,
+              authorization == .authorizedWhenInUse,
+              !didRequestAlwaysAuthorization
+        else { return }
+        didRequestAlwaysAuthorization = true
+        locationSource.requestAlwaysAuthorization()
+    }
+
     /// 仅「不可用」态可重试：重新拉起定位源，授权转好即恢复就绪。
     func retryLocation() {
         guard locationReadiness.nextAction == .retry else { return }
@@ -362,6 +431,27 @@ final class RunSessionViewModel: ObservableObject {
     /// 本跑次已进入归档序列的采样（倒计时/结束后恒为空）。
     var acceptedSamples: [RunSample] {
         orchestrator.acceptedSamples
+    }
+
+    /// 本次会话已接受的定位采样条数（结束页 / 详情页「采样点数」口径）。
+    var sampleCount: Int {
+        orchestrator.sampleCount
+    }
+
+    /// 是否至少拿到过一条定位采样；false 时距离位必须显示「未获取到定位」。
+    var hasLocationData: Bool {
+        orchestrator.hasLocationData
+    }
+
+    /// 降级接受的低精度 fix（>50m）：界面给明确「精度较低」状态，不伪装成精确轨迹。
+    var isAccuracyDegraded: Bool {
+        guard let accuracy = locationSource.lastAcceptedAccuracyMeters else { return false }
+        return accuracy > RunLocationSource.accuracyThresholdMeters
+    }
+
+    /// 记录态但首条 fix 尚未到达：界面显示「等待定位」，计时照常前进。
+    var isWaitingForLocation: Bool {
+        state == .running && !orchestrator.hasLocationData
     }
 
     var distanceText: String {
@@ -495,6 +585,10 @@ extension RunSessionViewModel: RunLocationSourceDelegate {
 
     func locationSource(_ source: RunLocationProviding, didChangeAuthorization authorization: RunLocationAuthorization) {
         self.authorization = authorization
+        // 记录态下授权落到 WhenInUse：立即升级请求 Always，未拿到则 UI 保持「仅前台记录」提示。
+        if state == .running {
+            requestAlwaysAuthorizationIfNeeded()
+        }
     }
 }
 

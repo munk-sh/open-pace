@@ -52,6 +52,13 @@ struct RunDetailView: View {
                     content.endedAtText,
                     identifier: "runDetail.endedAt"
                 )
+                divider
+                metaField(
+                    L10n.runMetricSamples,
+                    content.sampleCountText,
+                    identifier: "runDetail.sampleCount"
+                )
+                .accessibilityLabel(Text(L10n.runMetricPoints))
             }
         }
     }
@@ -177,6 +184,12 @@ struct RunDetailView: View {
                 }
                 .accessibilityIdentifier("runDetail.share")
                 .accessibilityLabel(Text(L10n.runDetailShareLabel))
+            case .emptySamples:
+                Text(L10n.runDetailExportEmptySamples)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Colors.secondary)
+                    .accessibilityIdentifier("runDetail.exportEmpty")
+                    .accessibilityLabel(Text(L10n.runDetailExportEmptyLabel))
             case .failed:
                 Text(L10n.runDetailExportFailed)
                     .font(DesignTokens.Typography.caption)
