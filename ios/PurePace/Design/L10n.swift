@@ -136,6 +136,8 @@ enum L10n {
     static var settingsDiagnosticsDroppedCallbacks: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.droppedCallbacks") }
     /// 设置页回起跑入口。
     static var settingsBackToRun: LocalizedStringKey { LocalizedStringKey("settings.action.rerun") }
+    static var settingsDiagnosticsServices: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.services") }
+    static var settingsDiagnosticsLastError: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.lastError") }
 
     // 诊断纯文本（复制/导出）用 String 变体，避免 LocalizedStringKey 被插入字符串。
     static var settingsDiagnosticsVersionText: String { String(localized: "settings.diagnostics.version") }
@@ -147,6 +149,8 @@ enum L10n {
     static var settingsDiagnosticsBackgroundText: String { String(localized: "settings.diagnostics.background") }
     static var settingsDiagnosticsRawCallbacksText: String { String(localized: "settings.diagnostics.rawCallbacks") }
     static var settingsDiagnosticsDroppedCallbacksText: String { String(localized: "settings.diagnostics.droppedCallbacks") }
+    static var settingsDiagnosticsServicesText: String { String(localized: "settings.diagnostics.services") }
+    static var settingsDiagnosticsLastErrorText: String { String(localized: "settings.diagnostics.lastError") }
 
     // MARK: - 隐私与同意
 
@@ -175,6 +179,31 @@ enum L10n {
     /// 降级接受低精度 fix 时的明确精度提示。
     static var runDegradedAccuracy: String {
         String(localized: "run.location.degradedAccuracy")
+    }
+
+    /// 记录态搜索超时的标题（详情在 `RunLocationSearchFailureReason.message`）。
+    static var runLocationSearchTimeout: LocalizedStringKey {
+        LocalizedStringKey("run.location.search.timeout")
+    }
+
+    /// 搜索超时原因：未授权。
+    static var runLocationSearchUnauthorized: String {
+        String(localized: "run.location.search.unauthorized")
+    }
+
+    /// 搜索超时原因：系统定位服务关闭。
+    static var runLocationSearchServicesDisabled: String {
+        String(localized: "run.location.search.servicesDisabled")
+    }
+
+    /// 搜索超时原因：回调全部被精度过滤。
+    static var runLocationSearchAccuracyFiltered: String {
+        String(localized: "run.location.search.accuracyFiltered")
+    }
+
+    /// 搜索超时原因：零回调。
+    static var runLocationSearchNoCallbacks: String {
+        String(localized: "run.location.search.noCallbacks")
     }
 
     /// 未同意时记录入口被禁用的原因文案（拼接进 `String?` 的纯文本）。

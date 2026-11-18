@@ -895,6 +895,60 @@ final class RunFlowUITests: XCTestCase {
 
     // MARK: - 授权与等待
 
+    /// ac-loc-searching / ac-loc-timeout：零回调会话先显示「正在搜索定位」，超时窗口到点
+    /// 显示可归因原因与「重试定位」；重试只重启定位，不清零计时。
+    func testLocationSearchTimesOutWithReasonAndRetryKeepsTimer() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestLocation",
+            "-uiTestLocationSilent",
+            // 12s：既短到测试可控，又长于 XCUITest 首帧查询延迟，保证「搜索中」可被观测到。
+            "-uiTestLocationSearchTimeout", "12",
+            "-autoStartRecording",
+            "-uiTestResetArchive",
+            "-uiTestConsentGranted",
+        ]
+        app.launch()
+        allowLocationIfNeeded()
+
+        let searching = app.staticTexts["run.waitingLocation"]
+        XCTAssertTrue(searching.waitForExistence(timeout: 15), "零回调时先显示搜索中，不得空白")
+        let elapsed = app.staticTexts["run.elapsed"]
+        XCTAssertTrue(elapsed.exists, "搜索中计时区必须照常显示")
+        XCTAssertNotEqual(elapsed.label, "00:00", "搜索中计时必须继续前进")
+
+        let timeout = app.staticTexts["run.locationSearchTimeout"]
+        XCTAssertTrue(timeout.waitForExistence(timeout: 15), "超时窗口到点必须给出原因")
+        XCTAssertFalse((timeout.value as? String ?? "").isEmpty, "超时必须附可读原因")
+
+        let retry = app.buttons["run.retryLocation"]
+        XCTAssertTrue(retry.exists, "超时必须出现重试定位按钮")
+        retry.tap()
+
+        XCTAssertTrue(waitUntil(timeout: 5) { elapsed.exists }, "重试后计时区不得消失")
+        XCTAssertNotEqual(elapsed.label, "00:00", "重试不得清零已走计时")
+    }
+
+    /// ac-loc-degrade：>50m fix 走既有降级窗口后必须显示「精度降级」，距离照常累计。
+    func testDegradedAccuracyIsVisibleForImpreciseFixes() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestLocation",
+            "-uiTestLocationDegraded",
+            "-autoStartRecording",
+            "-uiTestResetArchive",
+            "-uiTestConsentGranted",
+        ]
+        app.launch()
+        allowLocationIfNeeded()
+
+        XCTAssertTrue(
+            app.staticTexts["run.degradedAccuracy"].waitForExistence(timeout: 15),
+            "降级精度必须显式提示，不得静默"
+        )
+        XCTAssertTrue(app.staticTexts["run.distance"].exists, "降级时距离区仍须常显")
+    }
+
     /// 把当前可及树中的全部非空 label 喂给与单测相同的 zh-Hans 白名单判定。
     /// SF Symbol 名称（系统图标标识）与 DEBUG 门控的 `run.telemetry` 诊断摘要不是用户可见文案，先滤除。
     /// MapKit 自己的注记（`VKPointFeature` / "Section N" 等系统地名、分区名）也不是 App 文案：
