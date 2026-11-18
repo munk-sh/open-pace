@@ -126,7 +126,7 @@
 ## 最近交付证明
 
 - 最近一次：`wi_intake_9681718e12c7b31c` — 定位搜索三态可归因：`RunLocationSearchState`（30s 窗口 + 四类原因）与 `RunView` 搜索中 / 超时原因 + `run.retryLocation` 出口；`retryLocation()` 改为只 `restart()` 定位会话，计时与已累计样本不动；   `RunLocationSource` 删除「等下一个回调才结算」的静默丢弃路径，改由一次性 `fallbackTimer` 到点结算；诊断快照补 `locationServicesEnabled` 与最近错误 domain / code / 中文描述，仍单一来源。L1 侧新增 `testSingleImpreciseFixAcceptedAtWindowWithoutAnotherCallback`、`testLocationSearchStateTimesOutWithAttributableReason`、`testTimeoutRetryRestartsLocationWithoutResettingSession`、`testDiagnosticsSnapshotIsSelfConsistentAndSingleSourced`、`testLastSampleTimeNeverRegresses`，模拟器 UI 新增超时/重试与降级可见两条。
-- 记账与未闭合：三态根因结论与真机三态读数只在回执内（`pending: 待人现场`，未落仓内 docs）；新增断言的「必红」目前以同测试内反例输入路径表达，未另附 `/tmp` 变异日志；`RunLocationSearchState.resolve` 仍先判授权再判服务，`denied + 服务关闭` 归 `unauthorized`。
+- 最近一次（文档项）：`wi_intake_500f9d48a49c1315` — 距离恒 0 四分支归因（零回调 / 精度过滤丢弃 / 降级窗口吞掉 / 静置同坐标）+ 三态读数签名 + 读屏协议 + W1 五条断言的 `/tmp` 变异红证（`mutation-1..5` 退出码 65，未变异对照 `Executed 5 tests, with 0 failures`）；docs-only，`ios/**` 与 `scripts/**` 零 diff，契约见同域 `three-state-readings.md`。
+- 记账与未闭合：`RunLocationSearchState.resolve` 仍先判授权再判服务，`denied + 服务关闭` 归 `unauthorized`；真机三态 × ≥30s 读数与真机定位授权/锁屏/后台采样恒为 `pending: 待人现场`。
 - 前置同域交付：`wi_intake_a443ff461a4b5787` 定位失败链路变异红证；`wi_intake_695f725dbf554509` 定位失败链路落地（`didFailWithError` → `lastLocationErrorCode`、`start()` 服务关闭前置检查、`RunLocationReadiness.resolve` 并入 `.unavailable`）；`wi_intake_fe5ab0a5c47745ac` 核心闭环真机零可用修复。
-- 边界：真机定位授权/锁屏/后台采样与室内精度表现仍为 `pending: 待人现场`；Android 只保证同一主链路不回退，未做对等功能面。
-- 边界：真机定位授权/锁屏/后台采样与室内精度表现仍为 `pending: 待人现场`；Android 只保证同一主链路不回退，未做对等功能面。
+- 边界：Android 只保证同一主链路不回退，未做对等功能面。
