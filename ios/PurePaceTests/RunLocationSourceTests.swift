@@ -297,9 +297,13 @@ final class RunLocationSourceTests: XCTestCase {
         }
 
         // 第一段：跑到第 8 个样本后落盘 checkpoint（复用既有持久化契约）。
-        var first = RunMetricsEngine()
+        // 每个引擎各注入一个确定性时钟并在每条样本前对齐到样本时间：
+        // 活跃时长可复现，重叠投递与否的度量才能逐项比较。
+        let firstClock = TestRunClockSource(base)
+        var first = RunMetricsEngine(clock: firstClock)
         first.start(at: Date(timeIntervalSince1970: base))
         for sample in samples.prefix(8) {
+            firstClock.advance(to: sample.timestamp)
             _ = first.ingest(sample)
         }
         let checkpoint = try XCTUnwrap(
@@ -314,19 +318,24 @@ final class RunLocationSourceTests: XCTestCase {
         )
 
         // 恢复基准：只投递唯一的新样本。
-        var clean = RunMetricsEngine(restoring: checkpoint)
+        let cleanClock = TestRunClockSource(samples[7].timestamp.timeIntervalSince1970)
+        var clean = RunMetricsEngine(restoring: checkpoint, clock: cleanClock)
         clean.resume(at: samples[7].timestamp)
         for sample in samples.dropFirst(8) {
+            cleanClock.advance(to: sample.timestamp)
             _ = clean.ingest(sample)
         }
 
         // 锁屏/后台挂起恢复：先重复投递重叠时间窗，再继续剩余样本。
-        var replayed = RunMetricsEngine(restoring: checkpoint)
+        let replayedClock = TestRunClockSource(samples[7].timestamp.timeIntervalSince1970)
+        var replayed = RunMetricsEngine(restoring: checkpoint, clock: replayedClock)
         replayed.resume(at: samples[7].timestamp)
         for sample in samples[5...9] {
+            replayedClock.advance(to: sample.timestamp)
             _ = replayed.ingest(sample)
         }
         for sample in samples.dropFirst(10) {
+            replayedClock.advance(to: sample.timestamp)
             _ = replayed.ingest(sample)
         }
 

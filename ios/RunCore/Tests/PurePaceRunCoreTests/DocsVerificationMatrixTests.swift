@@ -32,8 +32,10 @@ final class DocsVerificationMatrixTests: XCTestCase {
     private static let privacySeams = ["隐私政策正文真源", "轨迹数据单独同意门"]
     /// 本项（wi_intake_76bad02157bcbbfa）新增的 2 条接缝：Android 敏感信息同意门 + 仓外可安装产物。
     private static let androidSeams = ["轨迹敏感信息单独同意门", "可安装 APK 产物与获取路径"]
+    /// 本项（wi_intake_fe5ab0a5c47745ac）新增的 3 条接缝：计时真源 / 授权与诊断 / 空样本结束导出。
+    private static let coreLoopSeams = ["单调时钟计时真源", "定位授权链路与诊断", "空样本结束与导出"]
     private static let seams = baseSeams + workItemSeams + trackSeams + ax5Seams + uiLegSeams
-        + stabilitySeams + coverageSeams + privacySeams + androidSeams
+        + stabilitySeams + coverageSeams + privacySeams + androidSeams + coreLoopSeams
     private static let workItemId = "wi_intake_e7e73d829e61fa7a"
     private static let trackWorkItemId = "wi_intake_7b9d19bc1e3be0ee"
     private static let ax5WorkItemId = "wi_intake_17fe09b83e2a3df0"
@@ -42,6 +44,7 @@ final class DocsVerificationMatrixTests: XCTestCase {
     private static let coverageWorkItemId = "wi_intake_6bb510b0c105d362"
     private static let privacyWorkItemId = "wi_intake_4fbbc7fe48870717"
     private static let androidWorkItemId = "wi_intake_76bad02157bcbbfa"
+    private static let coreLoopWorkItemId = "wi_intake_fe5ab0a5c47745ac"
 
     private enum MatrixError: Error, CustomStringConvertible {
         case repoRootNotFound(start: String)
@@ -187,6 +190,13 @@ final class DocsVerificationMatrixTests: XCTestCase {
             XCTAssertNotNil(row, "缺少接缝：\(seam)")
             XCTAssertTrue(row?.contains("本项实测") ?? false, "\(seam) 现状必须写明本项实测口径")
             XCTAssertTrue(row?.contains(Self.androidWorkItemId) ?? false, "\(seam) 必须归属 \(Self.androidWorkItemId)")
+        }
+
+        for seam in Self.coreLoopSeams {
+            let row = dataRows.first { $0.contains(seam) }
+            XCTAssertNotNil(row, "缺少接缝：\(seam)")
+            XCTAssertTrue(row?.contains("本项实测") ?? false, "\(seam) 现状必须写明本项实测口径")
+            XCTAssertTrue(row?.contains(Self.coreLoopWorkItemId) ?? false, "\(seam) 必须归属 \(Self.coreLoopWorkItemId)")
         }
     }
 

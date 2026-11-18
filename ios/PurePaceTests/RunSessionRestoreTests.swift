@@ -37,10 +37,22 @@ final class RunSessionRestoreTests: XCTestCase {
     }
 
     private final class Clock {
-        var date: Date
+        var date: Date {
+            didSet { runClock.advance(to: date) }
+        }
+        /// 与 `date` 同步推进的单调测试时钟：活跃时长只由它结算，不依赖真实墙钟。
+        let runClock = TestRunClockSource()
+
         init(date: Date) {
             self.date = date
+            runClock.advance(to: date)
         }
+    }
+
+    private struct Process {
+        let viewModel: RunSessionViewModel
+        let source: FakeLocationSource
+        let clock: Clock
     }
 
     private struct Stores {
@@ -79,8 +91,10 @@ final class RunSessionRestoreTests: XCTestCase {
         )!
     }
 
-    private func feed(_ sample: RunSample, from source: FakeLocationSource) {
-        source.delegate?.locationSource(source, didProduce: sample)
+    private func feed(_ sample: RunSample, in process: Process) {
+        // 样本时间与会话时钟对齐：活跃时长跟会话时间走，与样本条数无关。
+        process.clock.runClock.advance(to: sample.timestamp)
+        process.source.delegate?.locationSource(process.source, didProduce: sample)
     }
 
     /// 旧进程：跑到 ≥2 个完整分段并落盘 checkpoint；返回后丢弃全部内存实例。
@@ -94,11 +108,13 @@ final class RunSessionRestoreTests: XCTestCase {
             locationSource: source,
             countdownDuration: 0,
             now: { clock.date },
+            timeSource: clock.runClock,
             notificationCenter: NotificationCenter()
         )
+        let process = Process(viewModel: viewModel, source: source, clock: clock)
         viewModel.start()
         for index in 1...70 {
-            feed(makeSample(index: index), from: source)
+            feed(makeSample(index: index), in: process)
         }
         return viewModel
     }
@@ -107,7 +123,7 @@ final class RunSessionRestoreTests: XCTestCase {
     private func restore(
         stores: Stores,
         now: Date
-    ) throws -> (viewModel: RunSessionViewModel, source: FakeLocationSource) {
+    ) throws -> Process {
         let freshStore = RunCheckpointStore(fileURL: stores.checkpoint.fileURL)
         let freshArchive = RunArchiveStore(directoryURL: stores.archive.directoryURL)
         let source = FakeLocationSource()
@@ -117,9 +133,10 @@ final class RunSessionRestoreTests: XCTestCase {
             archiveStore: freshArchive,
             locationSource: source,
             notificationCenter: NotificationCenter(),
-            now: { clock.date }
+            now: { clock.date },
+            timeSource: clock.runClock
         )
-        return (viewModel, source)
+        return Process(viewModel: viewModel, source: source, clock: clock)
     }
 
     private func makeDistance(_ meters: Double) -> RunDistance {
@@ -179,17 +196,17 @@ final class RunSessionRestoreTests: XCTestCase {
         restored.resume()
 
         // 锚点同时间戳样本被拒：度量不变、去重计数 +1。
-        feed(makeSample(index: 70), from: restoredProcess.source)
+        feed(makeSample(index: 70), in: restoredProcess)
         XCTAssertEqual(restored.metrics, restoredMetrics)
         XCTAssertEqual(restored.duplicateSampleCount, 1)
 
         // 第一条晚于锚点的样本只重建位置锚点，不因坐标跳变累计距离。
-        feed(makeSample(index: 71), from: restoredProcess.source)
+        feed(makeSample(index: 71), in: restoredProcess)
         XCTAssertEqual(restored.metrics.distance, restoredMetrics.distance)
         XCTAssertEqual(restored.metrics.elapsed, restoredMetrics.elapsed + 1, accuracy: 1e-9)
 
         // 第二条晚于锚点的样本恢复距离累计，计时从恢复值继续。
-        feed(makeSample(index: 72), from: restoredProcess.source)
+        feed(makeSample(index: 72), in: restoredProcess)
         XCTAssertGreaterThan(restored.metrics.distance.meters, restoredMetrics.distance.meters)
         XCTAssertEqual(restored.metrics.elapsed, restoredMetrics.elapsed + 2, accuracy: 1e-9)
         XCTAssertEqual(restored.state, .running)
@@ -279,8 +296,8 @@ final class RunSessionRestoreTests: XCTestCase {
         let restoredProcess = try restore(stores: stores, now: anchor.timestamp)
         let restored = restoredProcess.viewModel
         restored.resume()
-        feed(makeSample(index: 71), from: restoredProcess.source)
-        feed(makeSample(index: 72), from: restoredProcess.source)
+        feed(makeSample(index: 71), in: restoredProcess)
+        feed(makeSample(index: 72), in: restoredProcess)
         restored.finish()
         restored.saveFinished()
 

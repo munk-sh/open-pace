@@ -101,8 +101,8 @@ final class RunExportStateTests: XCTestCase {
         XCTAssertThrowsError(try exporter.export(record))
         state.export(record, using: exporter)
 
-        XCTAssertEqual(state.phase, .failed)
-        XCTAssertTrue(gpxFiles().isEmpty, "失败导出不得新增 .gpx 文件")
+        XCTAssertEqual(state.phase, .emptySamples, "空 samples 必须落到明确的「无轨迹可导出」相位")
+        XCTAssertTrue(gpxFiles().isEmpty, "无轨迹导出不得新增 .gpx 文件")
     }
 
     func testExportDirectoryFollowsInjectedDocumentsDirectory() throws {

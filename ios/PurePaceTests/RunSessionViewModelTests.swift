@@ -47,19 +47,23 @@ final class RunSessionViewModelTests: XCTestCase {
         let stores = makeStores()
         defer { removeStores(stores) }
         let clock = Clock(date: startDate)
-        let viewModel = makeViewModel(stores: stores, clock: clock)
+        // VM 与编排器共用同一注入时钟：同一输入下活跃时长逐项可复现。
+        let timeSource = TestRunClockSource(startDate.timeIntervalSince1970)
+        let viewModel = makeViewModel(stores: stores, clock: clock, timeSource: timeSource)
 
         let expectedStores = makeStores(suffix: "expected")
         defer { removeStores(expectedStores) }
         var expected = RunSessionOrchestrator(
             checkpointStore: expectedStores.checkpoint,
-            archiveStore: expectedStores.archive
+            archiveStore: expectedStores.archive,
+            timeSource: timeSource
         )
 
         viewModel.start()
         try expected.start(at: startDate)
 
         for (offset, sample) in samples().enumerated() {
+            timeSource.advance(to: sample.timestamp)
             viewModel.ingest(sample)
             _ = try expected.ingest(sample)
             XCTAssertEqual(viewModel.metrics, expected.metrics, "第 \(offset + 1) 条采样后的度量不一致")
@@ -410,7 +414,8 @@ final class RunSessionViewModelTests: XCTestCase {
         announcements: AnnouncementSpeaking = AnnouncementSpy(),
         announcementsEnabled: Bool = true,
         source: FakeLocationSource = FakeLocationSource(),
-        autoStartRecording: Bool = false
+        autoStartRecording: Bool = false,
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
     ) -> RunSessionViewModel {
         RunSessionViewModel(
             checkpointStore: stores.checkpoint,
@@ -420,7 +425,8 @@ final class RunSessionViewModelTests: XCTestCase {
             announcementsEnabled: announcementsEnabled,
             autoStartRecording: autoStartRecording,
             countdownDuration: 0,
-            now: { clock.date }
+            now: { clock.date },
+            timeSource: timeSource
         )
     }
 

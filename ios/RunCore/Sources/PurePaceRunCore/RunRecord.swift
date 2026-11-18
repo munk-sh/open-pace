@@ -15,6 +15,12 @@ public struct RunRecord: Equatable, Sendable, Codable {
     /// 全量采样点，按时间戳非递减顺序保存；导出直接复用，不做降采样。
     public let samples: [RunSample]
 
+    /// 采样点数（结束页「采样点数」与详情页展示的唯一口径）。
+    public var sampleCount: Int { samples.count }
+
+    /// 是否至少拿到过一条定位采样；false 时距离语义为「未获取到定位」。
+    public var hasLocationData: Bool { !samples.isEmpty }
+
     /// 构造跑次记录；任一约束不满足返回 `nil`。
     public init?(
         formatVersion: Int = RunRecord.currentFormatVersion,

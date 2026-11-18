@@ -94,7 +94,10 @@ final class RunMetricsEngineTests: XCTestCase {
         let stream = makeSyntheticStream(paceSecondsPerKilometer: 300, sampleCount: 4)
         XCTAssertEqual(stream.count, 4)
 
-        var engine = RunMetricsEngine()
+        // 计时真源是注入时钟：样本只负责距离，活跃时长靠时钟推进。
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
+        engine.start(at: stream[0].timestamp)
         let update = engine.ingest(stream[0])
 
         XCTAssertEqual(update.metrics.distance.meters, 0)
@@ -105,6 +108,7 @@ final class RunMetricsEngineTests: XCTestCase {
         XCTAssertEqual(update.metrics.completedKilometers, 0)
         XCTAssertTrue(update.newlyCompletedSplits.isEmpty)
 
+        clock.advance(by: 1)
         let second = engine.ingest(stream[1])
         XCTAssertGreaterThan(second.metrics.distance.meters, 0)
         XCTAssertEqual(second.metrics.elapsed, 1.0, accuracy: 1e-9)
@@ -143,8 +147,14 @@ final class RunMetricsEngineTests: XCTestCase {
             }
             let activeElapsed = last.timestamp.timeIntervalSince(first.timestamp)
 
-            var engine = RunMetricsEngine()
-            for sample in stream {
+            // 1 Hz 流：每条样本前把注入时钟推进 1 秒，活跃时长与真实跑进同步。
+            let clock = TestRunClock()
+            var engine = RunMetricsEngine(clock: clock)
+            engine.start(at: first.timestamp)
+            for (index, sample) in stream.enumerated() {
+                if index > 0 {
+                    clock.advance(by: 1)
+                }
                 _ = engine.ingest(sample)
             }
 
@@ -163,10 +173,16 @@ final class RunMetricsEngineTests: XCTestCase {
     func testCurrentPaceWarmUpIsNilThenWithinTwoSecondsPerKilometer() {
         for pace in [300.0, 420.0] {
             let stream = makeSyntheticStream(paceSecondsPerKilometer: pace, sampleCount: 400)
-            var engine = RunMetricsEngine()
+            // 滑动窗口按注入时钟的活跃秒数裁剪，1 Hz 样本前推进 1 秒。
+            let clock = TestRunClock()
+            var engine = RunMetricsEngine(clock: clock)
+            engine.start(at: stream[0].timestamp)
 
             var measuredCount = 0
             for (index, sample) in stream.enumerated() {
+                if index > 0 {
+                    clock.advance(by: 1)
+                }
                 let update = engine.ingest(sample)
                 let current = update.metrics.currentPace
                 if index <= 2 {
@@ -189,13 +205,19 @@ final class RunMetricsEngineTests: XCTestCase {
         for pace in [300.0, 420.0] {
             let stream = makeSyntheticStream(paceSecondsPerKilometer: pace, sampleCount: 1000)
             let reference = referenceCumulative(stream)
-            var engine = RunMetricsEngine()
+            // 分段耗时来自注入时钟（不是采样时间戳）：1 Hz 样本前推进 1 秒。
+            let clock = TestRunClock()
+            var engine = RunMetricsEngine(clock: clock)
+            engine.start(at: stream[0].timestamp)
 
             var emissionIndex: [Int: Int] = [:]
             var emittedSplits = 0
             var seen: [RunSplit] = []
 
             for (index, sample) in stream.enumerated() {
+                if index > 0 {
+                    clock.advance(by: 1)
+                }
                 let update = engine.ingest(sample)
                 if !update.newlyCompletedSplits.isEmpty {
                     emittedSplits += 1
@@ -245,7 +267,10 @@ final class RunMetricsEngineTests: XCTestCase {
         let stream = makeSyntheticStream(paceSecondsPerKilometer: 300, sampleCount: 8)
         guard let base = stream.first else { return XCTFail("合成流不应为空") }
 
-        var engine = RunMetricsEngine()
+        // 重复点不推进距离，但真实时间照样走：时钟每条样本前推进 1 秒。
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
+        engine.start(at: base.timestamp)
         _ = engine.ingest(base)
 
         for index in 1...5 {
@@ -259,6 +284,7 @@ final class RunMetricsEngineTests: XCTestCase {
             ) else {
                 return XCTFail("重复点应合法")
             }
+            clock.advance(by: 1)
             let update = engine.ingest(duplicate)
             XCTAssertEqual(update.metrics.distance.meters, 0, accuracy: 1e-12)
             XCTAssertTrue(update.metrics.splits.isEmpty)
@@ -271,8 +297,13 @@ final class RunMetricsEngineTests: XCTestCase {
 
     func testTimeRegressionSamplesAreDiscardedEntirely() {
         let stream = makeSyntheticStream(paceSecondsPerKilometer: 300, sampleCount: 10)
-        var engine = RunMetricsEngine()
-        for sample in stream[0...4] {
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
+        engine.start(at: stream[0].timestamp)
+        for (index, sample) in stream[0...4].enumerated() {
+            if index > 0 {
+                clock.advance(by: 1)
+            }
             _ = engine.ingest(sample)
         }
         let snapshot = engine.metrics
@@ -303,9 +334,14 @@ final class RunMetricsEngineTests: XCTestCase {
 
     func testPauseFreezesElapsedAndExcludesDistance() {
         let stream = makeSyntheticStream(paceSecondsPerKilometer: 300, sampleCount: 40)
-        var engine = RunMetricsEngine()
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
+        engine.start(at: stream[0].timestamp)
 
-        for sample in stream[0...3] {
+        for (index, sample) in stream[0...3].enumerated() {
+            if index > 0 {
+                clock.advance(by: 1)
+            }
             _ = engine.ingest(sample)
         }
         let beforePause = engine.metrics
@@ -313,6 +349,8 @@ final class RunMetricsEngineTests: XCTestCase {
         XCTAssertGreaterThan(beforePause.distance.meters, 0)
 
         engine.pause(at: Date(timeIntervalSince1970: 3.5))
+        // 暂停后再推进 10 秒：冻结值必须原地不动（暂停区间由引擎扣除）。
+        clock.advance(by: 10)
         let paused = engine.metrics
         XCTAssertNil(paused.currentPace)
         XCTAssertEqual(paused.elapsed, beforePause.elapsed, accuracy: 1e-9)
@@ -331,11 +369,13 @@ final class RunMetricsEngineTests: XCTestCase {
         XCTAssertEqual(resumed.elapsed, beforePause.elapsed, accuracy: 1e-9)
 
         // 恢复后的首个样本重建位置锚点：跨越暂停空档不产生位移。
+        clock.advance(by: 0.5)
         let anchorUpdate = engine.ingest(stream[9])
         XCTAssertEqual(anchorUpdate.metrics.distance, beforePause.distance)
         XCTAssertEqual(anchorUpdate.metrics.elapsed, beforePause.elapsed + 0.5, accuracy: 1e-9)
 
         // 之后的样本恢复累计距离。
+        clock.advance(by: 1.0)
         let movingUpdate = engine.ingest(stream[10])
         XCTAssertGreaterThan(movingUpdate.metrics.distance.meters, beforePause.distance.meters)
         XCTAssertEqual(movingUpdate.metrics.elapsed, beforePause.elapsed + 1.5, accuracy: 1e-9)
@@ -351,18 +391,23 @@ final class RunMetricsEngineTests: XCTestCase {
         )
         XCTAssertEqual(stream.count, 4)
 
-        // 未 start 直接 ingest：正常工作。
-        var implicit = RunMetricsEngine()
+        // 未 start 直接 ingest：正常工作（没有 start 就没有计时起点，活跃时长保持 0）。
+        let implicitClock = TestRunClock()
+        var implicit = RunMetricsEngine(clock: implicitClock)
         let first = implicit.ingest(stream[0])
         XCTAssertEqual(first.metrics.elapsed, 0)
         XCTAssertEqual(first.metrics.distance.meters, 0)
+        implicitClock.advance(by: 1)
         XCTAssertTrue(implicit.ingest(stream[1]).metrics.distance.meters > 0)
+        XCTAssertEqual(implicit.metrics.elapsed, 0)
 
         // 重复 start/暂停/恢复/结束 + 早于账本的锚点时间。
-        var engine = RunMetricsEngine()
+        let clock = TestRunClock()
+        var engine = RunMetricsEngine(clock: clock)
         engine.start(at: Date(timeIntervalSince1970: 1_000))
         engine.start(at: Date(timeIntervalSince1970: 2_000))
         _ = engine.ingest(stream[0])
+        clock.advance(by: 1)
         _ = engine.ingest(stream[1])
         XCTAssertEqual(engine.metrics.elapsed, 1.0, accuracy: 1e-9)
 
@@ -373,6 +418,7 @@ final class RunMetricsEngineTests: XCTestCase {
         engine.resume(at: Date(timeIntervalSince1970: 600))
         engine.resume(at: Date(timeIntervalSince1970: 700))
 
+        clock.advance(by: 1)
         _ = engine.ingest(stream[2])
         XCTAssertEqual(engine.metrics.elapsed, 2.0, accuracy: 1e-9)
 

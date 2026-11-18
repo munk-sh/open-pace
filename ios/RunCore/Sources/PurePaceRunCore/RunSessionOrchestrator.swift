@@ -35,6 +35,7 @@ public struct RunSessionOrchestrator: Sendable {
     private var machine: RunSessionMachine
     private var engine: RunMetricsEngine
     private var scheduler: AnnouncementScheduler
+    private let timeSource: RunTimeSource
     private let checkpointStore: RunCheckpointStore
     private let archiveStore: RunArchiveStore
     private var archivedSamples: [RunSample]
@@ -48,13 +49,15 @@ public struct RunSessionOrchestrator: Sendable {
     public init(
         checkpointStore: RunCheckpointStore,
         archiveStore: RunArchiveStore,
-        announcementsEnabled: Bool = true
+        announcementsEnabled: Bool = true,
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
     ) {
         self.state = .ready
         self.announcementsEnabled = announcementsEnabled
         self.machine = RunSessionMachine()
-        self.engine = RunMetricsEngine()
+        self.engine = RunMetricsEngine(clock: timeSource)
         self.scheduler = AnnouncementScheduler()
+        self.timeSource = timeSource
         self.checkpointStore = checkpointStore
         self.archiveStore = archiveStore
         self.archivedSamples = []
@@ -74,14 +77,16 @@ public struct RunSessionOrchestrator: Sendable {
         restoring checkpoint: RunCheckpoint,
         checkpointStore: RunCheckpointStore,
         archiveStore: RunArchiveStore,
-        announcementsEnabled: Bool = true
+        announcementsEnabled: Bool = true,
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
     ) {
         let machine = RunSessionMachine(restoring: checkpoint)
         self.state = machine.state
         self.announcementsEnabled = announcementsEnabled
         self.machine = machine
-        self.engine = RunMetricsEngine(restoring: checkpoint)
+        self.engine = RunMetricsEngine(restoring: checkpoint, clock: timeSource)
         self.scheduler = AnnouncementScheduler(announcedSplitIndex: checkpoint.announcedSplitIndex ?? 0)
+        self.timeSource = timeSource
         self.checkpointStore = checkpointStore
         self.archiveStore = archiveStore
         self.archivedSamples = []
@@ -121,6 +126,16 @@ public struct RunSessionOrchestrator: Sendable {
     /// 运行期已接受的采样序列，按时间严格递增；结束归档与 GPX 导出共用这一批数据。
     public var acceptedSamples: [RunSample] {
         archivedSamples
+    }
+
+    /// 本次会话已接受的定位采样条数（结束页「采样点数」的唯一口径）。
+    public var sampleCount: Int {
+        archivedSamples.count
+    }
+
+    /// 是否至少拿到过一条定位采样；false 时距离位必须显示「未获取到定位」。
+    public var hasLocationData: Bool {
+        !archivedSamples.isEmpty
     }
 
     // MARK: - 会话动作
@@ -166,6 +181,14 @@ public struct RunSessionOrchestrator: Sendable {
         )
         try appendCheckpoint(recordedAt: date)
         return snapshot(announcements: exposed(commands))
+    }
+
+    /// 空跑时钟推进：只把「时钟驱动的活跃时长」刷成新快照，不改状态、不写 checkpoint。
+    ///
+    /// App 层每秒调用一次即可让读数前进；计时真源仍只在 `RunMetricsEngine`。
+    @discardableResult
+    public mutating func tick(at date: Date) -> RunSessionUpdate {
+        snapshot(announcements: [])
     }
 
     /// 结束会话并归档一次（既有语义，幂等）：无待决策快照时自动补一次 `prepareFinish`。
@@ -234,7 +257,7 @@ public struct RunSessionOrchestrator: Sendable {
             throw RunCoreError.invalidStateTransition(from: state, to: .ready)
         }
         machine = RunSessionMachine()
-        engine = RunMetricsEngine()
+        engine = RunMetricsEngine(clock: timeSource)
         scheduler = AnnouncementScheduler()
         archivedSamples = []
         startedAt = nil

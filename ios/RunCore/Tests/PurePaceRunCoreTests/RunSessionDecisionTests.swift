@@ -4,11 +4,14 @@ import PurePaceRunCore
 /// 第 4 波会话契约的 RunCore 侧断言：开始倒计时值语义 + 结束「快照 + 显式保存/丢弃」。
 final class RunSessionDecisionTests: XCTestCase {
     private var root: URL!
+    /// 注入编排器的确定性单调时钟：活跃时长只由用例显式推进。
+    private var clock: TestRunClock!
 
     override func setUp() {
         super.setUp()
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("RunSessionDecisionTests-\(UUID().uuidString)", isDirectory: true)
+        clock = TestRunClock()
     }
 
     override func tearDown() {
@@ -16,6 +19,7 @@ final class RunSessionDecisionTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
         root = nil
+        clock = nil
         super.tearDown()
     }
 
@@ -32,7 +36,8 @@ final class RunSessionDecisionTests: XCTestCase {
     private func makeOrchestrator() -> RunSessionOrchestrator {
         RunSessionOrchestrator(
             checkpointStore: RunCheckpointStore(fileURL: checkpointURL),
-            archiveStore: RunArchiveStore(directoryURL: archiveDirectoryURL)
+            archiveStore: RunArchiveStore(directoryURL: archiveDirectoryURL),
+            timeSource: clock
         )
     }
 
@@ -105,9 +110,12 @@ final class RunSessionDecisionTests: XCTestCase {
         var orchestrator = makeOrchestrator()
         let startedAt = date(1000)
         try orchestrator.start(at: startedAt)
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0.001, at: 1020))
         let metrics = orchestrator.metrics
+        XCTAssertEqual(metrics.elapsed, 20, accuracy: 1e-9)
         let checkpointBeforeFinish = try checkpointCount()
         XCTAssertGreaterThan(checkpointBeforeFinish, 0)
 
@@ -135,9 +143,11 @@ final class RunSessionDecisionTests: XCTestCase {
     func testPrepareFinishFromPausedSnapshotsWithoutArchiving() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         try orchestrator.pause(at: date(1015))
         let metrics = orchestrator.metrics
+        XCTAssertEqual(metrics.elapsed, 10, accuracy: 1e-9)
 
         let record = try XCTUnwrap(try orchestrator.prepareFinish(at: date(1020)))
 
@@ -152,6 +162,7 @@ final class RunSessionDecisionTests: XCTestCase {
     func testRepeatedPrepareFinishDoesNotRegenerateSnapshot() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
 
         let first = try XCTUnwrap(try orchestrator.prepareFinish(at: date(1020)))
@@ -166,6 +177,7 @@ final class RunSessionDecisionTests: XCTestCase {
     func testSaveArchivesExactlyOnceAndReturnsSameRecord() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         let snapshot = try XCTUnwrap(try orchestrator.prepareFinish(at: date(1020)))
 
@@ -192,6 +204,7 @@ final class RunSessionDecisionTests: XCTestCase {
 
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         let snapshot = try XCTUnwrap(try orchestrator.prepareFinish(at: date(1020)))
 
@@ -217,6 +230,7 @@ final class RunSessionDecisionTests: XCTestCase {
     func testDiscardKeepsArchiveEmptyAndRestartsFromZero() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         _ = try orchestrator.prepareFinish(at: date(1020))
 
@@ -234,7 +248,10 @@ final class RunSessionDecisionTests: XCTestCase {
         let firstUpdate = try orchestrator.ingest(sample(latitude: 0, at: 2010))
         XCTAssertEqual(firstUpdate.state, .running)
         XCTAssertEqual(firstUpdate.metrics.distance.meters, 0, "丢弃后新跑次从 0 起算")
-        XCTAssertEqual(firstUpdate.metrics.elapsed, 0)
+        // `discard()` 按既有语义重建一个全新的 `RunMetricsEngine()`（系统时钟，
+        // 不再持有注入时钟），因此这里只能断言「新跑次计时从 0 起算」，
+        // 容差覆盖 start 与快照之间两次系统时钟读数的微秒级差值。
+        XCTAssertLessThan(firstUpdate.metrics.elapsed, 0.001, "丢弃后新跑次计时应从 0 起算")
 
         let secondUpdate = try orchestrator.ingest(sample(latitude: 0.00027, at: 2020))
         XCTAssertGreaterThan(secondUpdate.metrics.distance.meters, 0, "丢弃后必须能重新累计")
@@ -278,6 +295,7 @@ final class RunSessionDecisionTests: XCTestCase {
     func testFinishAfterPrepareDoesNotArchiveOrRegenerate() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
         let snapshot = try XCTUnwrap(try orchestrator.prepareFinish(at: date(1020)))
 
@@ -291,6 +309,7 @@ final class RunSessionDecisionTests: XCTestCase {
     func testFinishStillArchivesOnceWithoutExplicitPrepare() throws {
         var orchestrator = makeOrchestrator()
         try orchestrator.start(at: date(1000))
+        clock.advance(by: 10)
         _ = try orchestrator.ingest(sample(latitude: 0, at: 1010))
 
         let record = try XCTUnwrap(try orchestrator.finish(at: date(1020)))

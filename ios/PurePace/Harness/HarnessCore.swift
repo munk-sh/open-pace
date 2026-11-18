@@ -41,19 +41,28 @@ struct HarnessCore {
     private var hasLocationAnchor = false
     private var lastEventAt: Date?
 
-    init(mode: HarnessMode, checkpointStore: RunCheckpointStore?, appendsCheckpoints: Bool) {
+    init(
+        mode: HarnessMode,
+        checkpointStore: RunCheckpointStore?,
+        appendsCheckpoints: Bool,
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
+    ) {
         self.mode = mode
         self.resumed = false
         self.restored = nil
         self.checkpointStore = checkpointStore
         self.appendsCheckpoints = appendsCheckpoints
-        self.engine = RunMetricsEngine()
+        self.engine = RunMetricsEngine(clock: timeSource)
         self.machine = RunSessionMachine()
         self.scheduler = AnnouncementScheduler()
     }
 
     /// resume 模式：仅从真实 checkpoint 恢复，不接新采样、不追加新 checkpoint。
-    init(resuming checkpoint: RunCheckpoint, checkpointPath: String) {
+    init(
+        resuming checkpoint: RunCheckpoint,
+        checkpointPath: String,
+        timeSource: RunTimeSource = SystemMonotonicTimeSource()
+    ) {
         self.mode = .resume
         self.resumed = true
         let announcedSplitIndex = checkpoint.announcedSplitIndex ?? checkpoint.splits.count
@@ -66,7 +75,7 @@ struct HarnessCore {
         )
         self.checkpointStore = nil
         self.appendsCheckpoints = false
-        self.engine = RunMetricsEngine(restoring: checkpoint)
+        self.engine = RunMetricsEngine(restoring: checkpoint, clock: timeSource)
         self.machine = RunSessionMachine(restoring: checkpoint)
         self.scheduler = AnnouncementScheduler(announcedSplitIndex: announcedSplitIndex)
         self.lastEventAt = checkpoint.recordedAt

@@ -14,15 +14,14 @@ final class HarnessDirectRunTests: XCTestCase {
         let streamURL = try makeStream(points: points, in: directory, name: "stream.jsonl")
         let statusURL = directory.appendingPathComponent("status.json")
         let checkpointURL = directory.appendingPathComponent("checkpoint.jsonl")
-        let configuration = HarnessConfiguration(
-            mode: .direct,
+
+        // 计时真源是单调时钟：注入测试时钟并与流事件时间对齐，断言「活跃时长跟真实会话时间走」。
+        let status = try runDirectStream(
+            streamURL: streamURL,
             statusURL: statusURL,
             checkpointURL: checkpointURL,
-            streamURL: streamURL,
-            maxDurationSeconds: nil
+            clock: TestRunClockSource()
         )
-
-        let status = HarnessRunner(configuration: configuration).run()
 
         XCTAssertEqual(status.state, "finished")
         XCTAssertEqual(status.mode, "direct")
@@ -38,7 +37,10 @@ final class HarnessDirectRunTests: XCTestCase {
             accuracy: totalReferenceMeters * HarnessThresholdValues.distanceRelativeErrorMax
         )
 
-        let referenceElapsed = points[points.count - 1].timestamp.timeIntervalSince(points[0].timestamp)
+        // 会话时间 = start 行到 finish 行的跨度（makeStream 在首尾样本外各留 1 s）。
+        let sessionStart = points[0].timestamp.addingTimeInterval(-1)
+        let sessionEnd = points[points.count - 1].timestamp.addingTimeInterval(1)
+        let referenceElapsed = sessionEnd.timeIntervalSince(sessionStart)
         XCTAssertEqual(status.actual.elapsedSeconds, referenceElapsed, accuracy: 0.001)
         let referenceAveragePace = referenceElapsed / (totalReferenceMeters / 1000.0)
         XCTAssertEqual(
@@ -96,14 +98,12 @@ final class HarnessDirectRunTests: XCTestCase {
         XCTAssertEqual(status.announcements.filter { $0.trigger == "finished" }.count, 1)
 
         // 同一输入重复运行（除时间戳外）结果一致。
-        let secondConfiguration = HarnessConfiguration(
-            mode: .direct,
+        let second = try runDirectStream(
+            streamURL: streamURL,
             statusURL: directory.appendingPathComponent("status-second.json"),
             checkpointURL: directory.appendingPathComponent("checkpoint-second.jsonl"),
-            streamURL: streamURL,
-            maxDurationSeconds: nil
+            clock: TestRunClockSource()
         )
-        let second = HarnessRunner(configuration: secondConfiguration).run()
         XCTAssertEqual(second.actual, status.actual)
         XCTAssertEqual(second.rawSamples, status.rawSamples)
         XCTAssertEqual(second.sampleCounts, status.sampleCounts)
@@ -116,12 +116,23 @@ final class HarnessDirectRunTests: XCTestCase {
     // MARK: - ac-direct-stream-order
 
     func testPausedIntervalFreezesMetricsAndAnnouncementQueue() throws {
-        var core = HarnessCore(mode: .direct, checkpointStore: nil, appendsCheckpoints: false)
+        // 注入时钟并与事件时间对齐：活跃时长跟会话时间走，暂停区间封存后不再前进。
+        let clock = TestRunClockSource()
+        var core = HarnessCore(
+            mode: .direct,
+            checkpointStore: nil,
+            appendsCheckpoints: false,
+            timeSource: clock
+        )
         let base: TimeInterval = 1_700_000_000
+        clock.advance(to: Date(timeIntervalSince1970: base))
         core.start(at: Date(timeIntervalSince1970: base))
+        clock.advance(to: Date(timeIntervalSince1970: base + 1))
         core.ingest(try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0, longitude: 121.0, timestamp: base + 1)))
+        clock.advance(to: Date(timeIntervalSince1970: base + 2))
         core.ingest(try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0001, longitude: 121.0, timestamp: base + 2)))
 
+        clock.advance(to: Date(timeIntervalSince1970: base + 3))
         core.pause(at: Date(timeIntervalSince1970: base + 3))
         let pausedSnapshot = core.metrics
         let announcementsAtPause = core.announcements.count
@@ -132,8 +143,11 @@ final class HarnessDirectRunTests: XCTestCase {
         XCTAssertEqual(core.metrics, pausedSnapshot, "暂停区间距离/耗时必须冻结")
         XCTAssertEqual(core.announcements.count, announcementsAtPause, "暂停区间播报队列不得增长")
 
+        clock.advance(to: Date(timeIntervalSince1970: base + 6))
         core.resume(at: Date(timeIntervalSince1970: base + 6))
+        clock.advance(to: Date(timeIntervalSince1970: base + 7))
         core.ingest(try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0201, longitude: 121.0, timestamp: base + 7)))
+        clock.advance(to: Date(timeIntervalSince1970: base + 8))
         core.ingest(try XCTUnwrap(HarnessTestSupport.sample(latitude: 31.0202, longitude: 121.0, timestamp: base + 8)))
 
         // 跨暂停的空档（约 1.2 km）不计入距离，只累计恢复后的锚点位移。
@@ -142,7 +156,8 @@ final class HarnessDirectRunTests: XCTestCase {
             latitude2: 31.0001, longitude2: 121.0
         )
         XCTAssertEqual(core.metrics.distance.meters, stepMeters * 2, accuracy: 0.5)
-        XCTAssertEqual(core.metrics.elapsed, 3, accuracy: 0.001)
+        // 活跃时长 = 暂停前的 3 s（t0→t0+3）+ 恢复后的 2 s（t0+6→t0+8）；暂停空档 3 s 被显式扣除。
+        XCTAssertEqual(core.metrics.elapsed, 5, accuracy: 0.001)
         XCTAssertTrue(core.announcements.isEmpty)
     }
 
@@ -268,9 +283,17 @@ final class HarnessDirectRunTests: XCTestCase {
         defer { HarnessTestSupport.removeTemporaryDirectory(directory) }
         let checkpointURL = directory.appendingPathComponent("checkpoint.jsonl")
         let store = RunCheckpointStore(fileURL: checkpointURL)
-        var core = HarnessCore(mode: .direct, checkpointStore: store, appendsCheckpoints: true)
+        // 注入确定性时钟并与事件时间对齐：分段耗时不再取决于真实墙钟。
+        let clock = TestRunClockSource()
+        var core = HarnessCore(
+            mode: .direct,
+            checkpointStore: store,
+            appendsCheckpoints: true,
+            timeSource: clock
+        )
         let base: TimeInterval = 1_700_000_000
 
+        clock.advance(to: Date(timeIntervalSince1970: base))
         core.start(at: Date(timeIntervalSince1970: base))
         XCTAssertEqual(try store.loadAll().count, 1, "每次状态迁移都要落一行")
 
@@ -284,17 +307,24 @@ final class HarnessDirectRunTests: XCTestCase {
             )
         }
 
+        func ingest(step: Int) throws {
+            let sample = try sample(step: step)
+            clock.advance(to: sample.timestamp)
+            core.ingest(sample)
+        }
+
         for step in 0...8 {
-            core.ingest(try sample(step: step))
+            try ingest(step: step)
         }
         XCTAssertEqual(try store.loadAll().count, 1, "未到 10 个被接受采样且未完成分段前不落盘")
 
-        core.ingest(try sample(step: 9))
+        try ingest(step: 9)
         XCTAssertEqual(try store.loadAll().count, 2, "第 10 个被接受采样触发一次 checkpoint")
 
-        core.ingest(try sample(step: 10))
+        try ingest(step: 10)
         XCTAssertEqual(try store.loadAll().count, 3, "新增已完成分段再落一行")
 
+        clock.advance(to: Date(timeIntervalSince1970: base + 200))
         core.pause(at: Date(timeIntervalSince1970: base + 200))
         XCTAssertEqual(try store.loadAll().count, 4)
 
@@ -308,6 +338,55 @@ final class HarnessDirectRunTests: XCTestCase {
             try XCTUnwrap(latest.announcedSplitIndex),
             core.announcements.map(\.splitIndex).max() ?? 0
         )
+    }
+
+    /// direct 流回放的确定性驱动：与 `HarnessRunner` 的 direct 分支同序（解析 → 应用 → 落 status），
+    /// 差异只在注入 `TestRunClockSource` 并在每条事件前把时钟对齐到事件时间。
+    ///
+    /// 生产 runner 没有时钟注入缝，但计时真源已改为单调时钟；用例必须提供确定性时钟，
+    /// 才能同时断言「活跃时长跟会话时间走」与「同一输入两次运行度量逐项一致」。
+    private func runDirectStream(
+        streamURL: URL,
+        statusURL: URL,
+        checkpointURL: URL,
+        clock: TestRunClockSource
+    ) throws -> HarnessStatus {
+        var core = HarnessCore(
+            mode: .direct,
+            checkpointStore: RunCheckpointStore(fileURL: checkpointURL),
+            appendsCheckpoints: true,
+            timeSource: clock
+        )
+        let contents = try String(contentsOf: streamURL, encoding: .utf8)
+        var lineNumber = 0
+        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+            lineNumber += 1
+            if core.isFinished { break }
+            guard let event = try HarnessStreamParser.parse(
+                line: String(rawLine),
+                lineNumber: lineNumber
+            ) else { continue }
+            switch event {
+            case let .start(date):
+                clock.advance(to: date)
+                core.start(at: date)
+            case let .pause(date):
+                clock.advance(to: date)
+                core.pause(at: date)
+            case let .resume(date):
+                clock.advance(to: date)
+                core.resume(at: date)
+            case let .finish(date):
+                clock.advance(to: date)
+                core.finish(at: date)
+            case let .sample(sample):
+                clock.advance(to: sample.sample.timestamp)
+                core.ingest(sample.sample, accuracyMeters: sample.accuracyMeters)
+            }
+        }
+        let status = core.status()
+        try HarnessStatusWriter.write(status, to: statusURL)
+        return status
     }
 
     private func makeStream(

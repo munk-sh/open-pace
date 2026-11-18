@@ -67,6 +67,25 @@ protocol RunLocationProviding: AnyObject {
     var pausesLocationUpdatesAutomatically: Bool { get }
     func start()
     func stop()
+    /// 系统 WhenInUse 权限请求（notDetermined 时由「开始」显式触发，不得被 App 内告知同意短路）。
+    func requestWhenInUseAuthorization()
+    /// 系统 Always 升级请求（必须先有 WhenInUse 且在跑步进行中）。
+    func requestAlwaysAuthorization()
+    /// 系统原始定位回调条数（含随后被精度过滤丢弃的）。
+    var rawCallbackCount: Int { get }
+    /// 因精度超过阈值被整条丢弃的回调条数。
+    var filteredCallbackCount: Int { get }
+    /// 最近一条被接受 fix 的水平精度（米）；nil 表示尚未拿到 fix。
+    var lastAcceptedAccuracyMeters: Double? { get }
+}
+
+extension RunLocationProviding {
+    /// 测试桩/确定性源默认无系统弹窗，显式空实现避免每个 fake 重复样板。
+    func requestWhenInUseAuthorization() {}
+    func requestAlwaysAuthorization() {}
+    var rawCallbackCount: Int { 0 }
+    var filteredCallbackCount: Int { 0 }
+    var lastAcceptedAccuracyMeters: Double? { nil }
 }
 
 @MainActor
@@ -106,15 +125,28 @@ protocol RunLocationManagerHandler: AnyObject {
 /// 不在代码层伪造坐标或承诺未经真机验收的后台行为。
 @MainActor
 final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
-    /// 与阶段 2 Harness 一致的精度过滤阈值（米）。
+    /// 正常接受阈值（米）：`kCLLocationAccuracyBest` 在开阔路面的典型误差上界。
     static let accuracyThresholdMeters: Double = 50.0
+    /// 有界降级窗口（秒）：自 `startUpdatingLocation` 起一直无 ≤50m fix 时，
+    /// 窗口末接受「当前可得的最佳 fix」并标记其 accuracy。
+    ///
+    /// 推导（先定后测，禁止红了再调）：室内/高楼遮挡常见 65–120m；15s 足以覆盖
+    /// 「开始后走出电梯/门口」的短暂遮挡，又不会让用户长时间面对 0 距离。
+    static let accuracyFallbackWindowSeconds: TimeInterval = 15.0
+    /// 降级可接受的精度上限（米）：超过 200m 已到蜂窝/基站级粗定位，接受它会伪造轨迹，宁可继续等。
+    static let accuracyFallbackCeilingMeters: Double = 200.0
 
     weak var delegate: RunLocationSourceDelegate?
     private(set) var authorization: RunLocationAuthorization = .notDetermined
 
     private let manager: RunLocationManaging
+    /// 单调读数注入点（默认系统时钟），只用于降级窗口判定，不参与会话计时。
+    private let uptime: () -> TimeInterval
     private var isUpdating = false
+    private var updatingStartedAt: TimeInterval?
+    private var pendingFallbackPayload: LocationPayload?
     private var didRequestAlwaysAuthorization = false
+    private var didRequestWhenInUseAuthorization = false
 #if targetEnvironment(simulator)
     /// 仅模拟器（CI/本机测试）启用的定位链路诊断，不改授权与采样策略。
     private let diagnostics = RunLocationDiagnostics()
@@ -124,9 +156,13 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
         self.init(manager: SystemLocationManager())
     }
 
-    /// 测试可注入 `RunLocationManaging` 桩。
-    init(manager: RunLocationManaging) {
+    /// 测试可注入 `RunLocationManaging` 桩与单调读数。
+    init(
+        manager: RunLocationManaging,
+        uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.manager = manager
+        self.uptime = uptime
         manager.handler = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = kCLDistanceFilterNone
@@ -141,6 +177,12 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
 
     var sampleSource: RunSampleSource { .device }
 
+    /// 原始回调 / 被精度过滤丢弃的条数：诊断区可归因「室内全滤掉」。
+    private(set) var rawCallbackCount = 0
+    private(set) var filteredCallbackCount = 0
+    /// 最近一条被接受 fix 的水平精度（米）；nil 表示尚未拿到任何 fix。
+    private(set) var lastAcceptedAccuracyMeters: Double?
+
     var allowsBackgroundLocationUpdates: Bool {
         manager.allowsBackgroundLocationUpdates
     }
@@ -154,17 +196,28 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
         apply(status)
         switch status {
         case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            requestWhenInUseAuthorization()
         case .authorizedWhenInUse:
-            // 已 WhenInUse 时升级到 Always；每个数据源实例只发起一次升级请求。
-            guard !didRequestAlwaysAuthorization else { return }
-            didRequestAlwaysAuthorization = true
-            manager.requestAlwaysAuthorization()
+            requestAlwaysAuthorization()
         case .restricted, .denied, .authorizedAlways:
             break
         @unknown default:
             break
         }
+    }
+
+    /// 每个数据源实例只发起一次系统 WhenInUse 请求（避免 onAppear 与「开始」双触发）。
+    func requestWhenInUseAuthorization() {
+        guard !didRequestWhenInUseAuthorization else { return }
+        didRequestWhenInUseAuthorization = true
+        manager.requestWhenInUseAuthorization()
+    }
+
+    /// 每个数据源实例只发起一次系统 Always 升级请求。
+    func requestAlwaysAuthorization() {
+        guard !didRequestAlwaysAuthorization else { return }
+        didRequestAlwaysAuthorization = true
+        manager.requestAlwaysAuthorization()
     }
 
     func stop() {
@@ -188,6 +241,8 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
     private func beginUpdating() {
         guard !isUpdating else { return }
         isUpdating = true
+        updatingStartedAt = uptime()
+        pendingFallbackPayload = nil
         manager.pausesLocationUpdatesAutomatically = false
         manager.allowsBackgroundLocationUpdates = true
         manager.startUpdatingLocation()
@@ -195,6 +250,8 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
 
     private func endUpdating() {
         isUpdating = false
+        updatingStartedAt = nil
+        pendingFallbackPayload = nil
         manager.allowsBackgroundLocationUpdates = false
         // 停止时把自动暂停开关一并复位，避免残留脏值影响下一次开始的策略快照。
         manager.pausesLocationUpdatesAutomatically = false
@@ -203,34 +260,60 @@ final class RunLocationSource: RunLocationProviding, RunLocationManagerHandler {
 
     private func deliver(_ payloads: [LocationPayload]) {
         guard isUpdating else { return }
+        rawCallbackCount += payloads.count
         for payload in payloads {
-            guard payload.horizontalAccuracy >= 0,
-                  payload.horizontalAccuracy <= RunLocationSource.accuracyThresholdMeters
-            else {
-#if targetEnvironment(simulator)
-                diagnostics.filtered(accuracy: payload.horizontalAccuracy)
-#endif
+            guard payload.horizontalAccuracy >= 0 else {
+                filteredCallbackCount += 1
                 continue
             }
-            guard let sample = RunSample(
-                latitude: payload.latitude,
-                longitude: payload.longitude,
-                altitude: payload.altitude,
-                timestamp: payload.timestamp,
-                heartRate: nil,
-                cadence: nil
-            ) else {
+            if payload.horizontalAccuracy <= RunLocationSource.accuracyThresholdMeters {
+                pendingFallbackPayload = nil
+                accept(payload)
                 continue
             }
+            filteredCallbackCount += 1
 #if targetEnvironment(simulator)
-            diagnostics.sample(
-                latitude: payload.latitude,
-                longitude: payload.longitude,
-                accuracy: payload.horizontalAccuracy
-            )
+            diagnostics.filtered(accuracy: payload.horizontalAccuracy)
 #endif
-            delegate?.locationSource(self, didProduce: sample)
+            // 记下窗口内「最佳可得」fix；窗口到点才接受，且不得宽于 200m 上限。
+            if let pending = pendingFallbackPayload {
+                if payload.horizontalAccuracy < pending.horizontalAccuracy {
+                    pendingFallbackPayload = payload
+                }
+            } else {
+                pendingFallbackPayload = payload
+            }
+            guard let pending = pendingFallbackPayload,
+                  let startedAt = updatingStartedAt,
+                  uptime() - startedAt >= RunLocationSource.accuracyFallbackWindowSeconds,
+                  pending.horizontalAccuracy <= RunLocationSource.accuracyFallbackCeilingMeters
+            else { continue }
+            pendingFallbackPayload = nil
+            accept(pending)
         }
+    }
+
+    /// 造样本并下发给 delegate；同时记录该 fix 的精度，供「明确精度状态」展示。
+    private func accept(_ payload: LocationPayload) {
+        guard let sample = RunSample(
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            altitude: payload.altitude,
+            timestamp: payload.timestamp,
+            heartRate: nil,
+            cadence: nil
+        ) else {
+            return
+        }
+        lastAcceptedAccuracyMeters = payload.horizontalAccuracy
+#if targetEnvironment(simulator)
+        diagnostics.sample(
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            accuracy: payload.horizontalAccuracy
+        )
+#endif
+        delegate?.locationSource(self, didProduce: sample)
     }
 
     // MARK: - RunLocationManagerHandler

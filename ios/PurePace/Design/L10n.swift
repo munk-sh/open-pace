@@ -18,6 +18,8 @@ enum L10n {
     static var runMetricCurrent: LocalizedStringKey { LocalizedStringKey("run.metric.current") }
     static var runMetricAverage: LocalizedStringKey { LocalizedStringKey("run.metric.average") }
     static var runMetricSplits: LocalizedStringKey { LocalizedStringKey("run.metric.splits") }
+    static var runMetricSamples: LocalizedStringKey { LocalizedStringKey("run.metric.samples") }
+    static var runMetricPoints: LocalizedStringKey { LocalizedStringKey("run.metric.points") }
     static var runStatusSaved: LocalizedStringKey { LocalizedStringKey("run.status.saved") }
     static var runActionStart: LocalizedStringKey { LocalizedStringKey("run.action.start") }
     static var runActionPause: LocalizedStringKey { LocalizedStringKey("run.action.pause") }
@@ -28,6 +30,7 @@ enum L10n {
     static var runActionDiscard: LocalizedStringKey { LocalizedStringKey("run.action.discard") }
     static var runActionOpenSettings: LocalizedStringKey { LocalizedStringKey("run.action.openSettings") }
     static var runActionRetryLocation: LocalizedStringKey { LocalizedStringKey("run.action.retryLocation") }
+    static var runForegroundOnlyHint: LocalizedStringKey { LocalizedStringKey("run.status.foregroundOnly") }
     static var runActionViewHistory: LocalizedStringKey { LocalizedStringKey("run.action.viewHistory") }
     static var runStartLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.startRecording") }
     static var runPauseLabel: LocalizedStringKey { LocalizedStringKey("run.a11y.pauseRecording") }
@@ -101,6 +104,8 @@ enum L10n {
     static var runDetailExported: LocalizedStringKey { LocalizedStringKey("runDetail.export.exported") }
     static var runDetailShare: LocalizedStringKey { LocalizedStringKey("runDetail.export.share") }
     static var runDetailExportFailed: LocalizedStringKey { LocalizedStringKey("runDetail.export.failed") }
+    static var runDetailExportEmptySamples: LocalizedStringKey { LocalizedStringKey("runDetail.export.emptySamples") }
+    static var runDetailExportEmptyLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.emptyLabel") }
     static var runDetailExportLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.label") }
     static var runDetailShareLabel: LocalizedStringKey { LocalizedStringKey("runDetail.export.shareLabel") }
 
@@ -111,6 +116,29 @@ enum L10n {
     static var settingsAnnouncementBody: LocalizedStringKey { LocalizedStringKey("settings.announcement.body") }
     static var settingsSectionAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.section.announcement") }
     static var settingsFooterAnnouncement: LocalizedStringKey { LocalizedStringKey("settings.footer.announcement") }
+    static var settingsSectionDiagnostics: LocalizedStringKey { LocalizedStringKey("settings.section.diagnostics") }
+    static var settingsDiagnosticsCopy: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.copy") }
+    static var settingsDiagnosticsCopied: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.copied") }
+    static var settingsDiagnosticsVersion: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.version") }
+    static var settingsDiagnosticsBuild: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.build") }
+    static var settingsDiagnosticsAuthorization: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.authorization") }
+    static var settingsDiagnosticsAccuracy: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.accuracy") }
+    static var settingsDiagnosticsSamples: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.samples") }
+    static var settingsDiagnosticsLastSample: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.lastSample") }
+    static var settingsDiagnosticsBackground: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.background") }
+    static var settingsDiagnosticsRawCallbacks: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.rawCallbacks") }
+    static var settingsDiagnosticsDroppedCallbacks: LocalizedStringKey { LocalizedStringKey("settings.diagnostics.droppedCallbacks") }
+
+    // 诊断纯文本（复制/导出）用 String 变体，避免 LocalizedStringKey 被插入字符串。
+    static var settingsDiagnosticsVersionText: String { String(localized: "settings.diagnostics.version") }
+    static var settingsDiagnosticsBuildText: String { String(localized: "settings.diagnostics.build") }
+    static var settingsDiagnosticsAuthorizationText: String { String(localized: "settings.diagnostics.authorization") }
+    static var settingsDiagnosticsAccuracyText: String { String(localized: "settings.diagnostics.accuracy") }
+    static var settingsDiagnosticsSamplesText: String { String(localized: "settings.diagnostics.samples") }
+    static var settingsDiagnosticsLastSampleText: String { String(localized: "settings.diagnostics.lastSample") }
+    static var settingsDiagnosticsBackgroundText: String { String(localized: "settings.diagnostics.background") }
+    static var settingsDiagnosticsRawCallbacksText: String { String(localized: "settings.diagnostics.rawCallbacks") }
+    static var settingsDiagnosticsDroppedCallbacksText: String { String(localized: "settings.diagnostics.droppedCallbacks") }
 
     // MARK: - 隐私与同意
 
@@ -125,6 +153,21 @@ enum L10n {
     static var settingsConsentRevoke: LocalizedStringKey { LocalizedStringKey("settings.consent.revoke") }
     static var privacyPolicyNavigationTitle: LocalizedStringKey { LocalizedStringKey("privacyPolicy.navigation.title") }
     static var privacyPolicyUnavailable: LocalizedStringKey { LocalizedStringKey("privacyPolicy.unavailable") }
+
+    /// 无任何定位采样时的距离位文案（拼接进 `String` 的纯文本）。
+    static var runDistanceUnavailable: String {
+        String(localized: "run.distance.unavailable")
+    }
+
+    /// 记录态首条 fix 未到时的内联提示。
+    static var runWaitingLocation: String {
+        String(localized: "run.waiting.location")
+    }
+
+    /// 降级接受低精度 fix 时的明确精度提示。
+    static var runDegradedAccuracy: String {
+        String(localized: "run.location.degradedAccuracy")
+    }
 
     /// 未同意时记录入口被禁用的原因文案（拼接进 `String?` 的纯文本）。
     static var runConsentRequired: String {

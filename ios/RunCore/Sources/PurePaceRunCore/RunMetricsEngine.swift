@@ -1,9 +1,11 @@
 import Foundation
 
-/// 坐标/时间流驱动的计时、距离、配速与公里分段账本。
+/// 距离/配速/分段账本；活跃时长由单调时钟驱动，与采样回调解耦。
 ///
-/// 对外唯一数据入口是 `ingest(_:)`；`start` / `pause` / `resume` / `finish`
-/// 只调整时间锚点与记录状态，幂等且不做状态机合法性辩论。
+/// 计时真源是注入的 `RunTimeSource`（生产默认系统单调时钟）：`start`/`resume`
+/// 记下时钟读数，`pause`/`finish` 结算并封存，`metrics.elapsed` 在运行态实时读时钟。
+/// `ingest(_:)` 只负责距离/配速/分段，**绝不**再用采样时间戳累加时长——真机上
+/// 室内/无定位时零条 fix 也必须照常走表，结束后仍给出时长。
 /// 全部状态为值类型，无锁、无 actor、无全局可变状态。
 public struct RunMetricsEngine: Sendable {
     /// 整公里分段长度（米）。
@@ -21,6 +23,7 @@ public struct RunMetricsEngine: Sendable {
         let longitude: Double
     }
 
+    private let clock: RunTimeSource
     private var isStarted = false
     private var isPaused = false
     private var isFinished = false
@@ -29,7 +32,10 @@ public struct RunMetricsEngine: Sendable {
     private var lastTimestamp: Date?
     private var lastLatitude: Double?
     private var lastLongitude: Double?
+    /// 已结算的活跃秒数（只由 pause/finish 写入）。
     private var activeElapsed: TimeInterval = 0
+    /// 运行态起点（单调时钟读数）；nil 表示当前不在计时。
+    private var runningSince: TimeInterval?
     private var accumulatedMeters: Double = 0
     private var lastSplitElapsed: TimeInterval = 0
     private var completedSplits: [RunSplit] = []
@@ -41,13 +47,19 @@ public struct RunMetricsEngine: Sendable {
     /// 直接返回不计入，避免被误读成「所有被丢样本计数」。恢复态同样从 0 起算。
     public private(set) var duplicateSampleCount: Int = 0
 
-    public init() {}
+    public init(clock: RunTimeSource = SystemMonotonicTimeSource()) {
+        self.clock = clock
+    }
 
     /// 由 checkpoint 恢复累计账本、已完成分段与时间/位置锚点。
     ///
     /// 与 `RunSessionMachine(restoring:)` 一致：`running`/`paused` 一律恢复为暂停态，
     /// 必须显式 `resume(at:)` 才能继续累计；`finished` 恢复为已结束；`ready` 恢复为未开始。
-    public init(restoring checkpoint: RunCheckpoint) {
+    public init(
+        restoring checkpoint: RunCheckpoint,
+        clock: RunTimeSource = SystemMonotonicTimeSource()
+    ) {
+        self.clock = clock
         accumulatedMeters = checkpoint.completedDistance.meters
         activeElapsed = checkpoint.elapsed
         completedSplits = checkpoint.splits
@@ -92,7 +104,7 @@ public struct RunMetricsEngine: Sendable {
     public var metrics: RunMetrics {
         RunMetrics(
             distance: distanceValue,
-            elapsed: activeElapsed,
+            elapsed: liveActiveElapsed,
             averagePace: averagePaceValue,
             currentPace: currentPaceValue,
             splits: completedSplits,
@@ -105,12 +117,15 @@ public struct RunMetricsEngine: Sendable {
     public mutating func start(at date: Date) {
         guard !isFinished, !isStarted else { return }
         isStarted = true
+        runningSince = clock.uptime
         advanceAnchor(to: date)
     }
 
     public mutating func pause(at date: Date) {
         guard isStarted, !isFinished, !isPaused else { return }
+        settleElapsed()
         isPaused = true
+        runningSince = nil
         needsPositionAnchor = true
         windowEntries.removeAll()
         advanceAnchor(to: date)
@@ -119,6 +134,7 @@ public struct RunMetricsEngine: Sendable {
     public mutating func resume(at date: Date) {
         guard isStarted, !isFinished, isPaused else { return }
         isPaused = false
+        runningSince = clock.uptime
         needsPositionAnchor = true
         windowEntries.removeAll()
         advanceAnchor(to: date)
@@ -126,6 +142,8 @@ public struct RunMetricsEngine: Sendable {
 
     public mutating func finish(at date: Date) {
         guard !isFinished else { return }
+        settleElapsed()
+        runningSince = nil
         isFinished = true
         advanceAnchor(to: date)
     }
@@ -156,9 +174,7 @@ public struct RunMetricsEngine: Sendable {
             return update(newlyCompletedSplits: [])
         }
 
-        if let lastTimestamp {
-            activeElapsed += sample.timestamp.timeIntervalSince(lastTimestamp)
-        }
+        // 采样时间戳只做去重/位置锚点，绝不推进时长（计时真源是单调时钟）。
         lastTimestamp = sample.timestamp
 
         // 暂停/恢复后的首个样本只重建位置锚点，不跨越空档累计位移。
@@ -183,7 +199,7 @@ public struct RunMetricsEngine: Sendable {
 
         windowEntries.append(
             WindowEntry(
-                elapsed: activeElapsed,
+                elapsed: liveActiveElapsed,
                 latitude: sample.latitude,
                 longitude: sample.longitude
             )
@@ -203,7 +219,7 @@ public struct RunMetricsEngine: Sendable {
     private mutating func resetWindow(at sample: RunSample) {
         windowEntries = [
             WindowEntry(
-                elapsed: activeElapsed,
+                elapsed: liveActiveElapsed,
                 latitude: sample.latitude,
                 longitude: sample.longitude
             )
@@ -223,12 +239,12 @@ public struct RunMetricsEngine: Sendable {
         var created: [RunSplit] = []
         while accumulatedMeters >= Double(completedSplits.count + 1) * Self.splitDistanceMeters {
             let index = completedSplits.count + 1
-            let duration = activeElapsed - lastSplitElapsed
+            let duration = liveActiveElapsed - lastSplitElapsed
             guard let splitDistance = RunDistance(meters: Self.splitDistanceMeters),
                   let split = RunSplit(index: index, distance: splitDistance, duration: duration)
             else { return created }
             completedSplits.append(split)
-            lastSplitElapsed = activeElapsed
+            lastSplitElapsed = liveActiveElapsed
             created.append(split)
         }
         return created
@@ -239,8 +255,8 @@ public struct RunMetricsEngine: Sendable {
     }
 
     private var averagePaceValue: RunPace? {
-        guard accumulatedMeters > 0, activeElapsed > 0 else { return nil }
-        return RunPace(secondsPerKilometer: activeElapsed / (accumulatedMeters / 1000.0))
+        guard accumulatedMeters > 0, liveActiveElapsed > 0 else { return nil }
+        return RunPace(secondsPerKilometer: liveActiveElapsed / (accumulatedMeters / 1000.0))
     }
 
     private var currentPaceValue: RunPace? {
@@ -268,5 +284,22 @@ public struct RunMetricsEngine: Sendable {
 
     private func update(newlyCompletedSplits: [RunSplit]) -> RunMetricsUpdate {
         RunMetricsUpdate(metrics: metrics, newlyCompletedSplits: newlyCompletedSplits)
+    }
+
+    /// 运行态实时活跃时长：已结算账本 + 当前运行段时钟差；暂停/结束/未开始即已结算值。
+    private var liveActiveElapsed: TimeInterval {
+        guard let runningSince else { return activeElapsed }
+        // 时钟被注入方回拨时倒扣为 0，绝不让读数回退。
+        return activeElapsed + max(0, clock.uptime - runningSince)
+    }
+
+    /// 把当前运行段的时钟差封存进账本，并把起点挪到当前读数（重复调用不重复累加）。
+    private mutating func settleElapsed() {
+        guard let runningSince else { return }
+        let now = clock.uptime
+        if now > runningSince {
+            activeElapsed += now - runningSince
+        }
+        self.runningSince = now
     }
 }

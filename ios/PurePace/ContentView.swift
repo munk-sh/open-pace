@@ -133,7 +133,7 @@ struct ContentView: View {
             }
             .tag(Tab.history)
 
-            SettingsView(store: settings, consent: consent)
+            SettingsView(store: settings, consent: consent, runModel: runModel)
                 .tabItem {
                     Label(L10n.tabSettings, systemImage: "gearshape")
                         .accessibilityIdentifier("tab.settings")
