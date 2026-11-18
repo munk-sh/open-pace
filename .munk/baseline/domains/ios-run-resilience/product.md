@@ -69,8 +69,8 @@
 - ac-permission-request-always: 取得 WhenInUse 且跑步进行中调用 `requestAlwaysAuthorization()` 恰 1 次；未拿到 Always 时 UI 写明「仅前台记录」；`UIBackgroundModes` 含 `location` 与 `allowsBackgroundLocationUpdates=true` 二者缺一即判红。
 - ac-permission-denied-blocks-recording: `denied` / `restricted` 不进入记录态，给原因文案 + 「去系统设置」按钮（`UIApplication.openSettingsURLString`），回前台（`scenePhase == .active`）自动复检授权并刷新状态。
 - ac-location-fallback: 自 `startUpdatingLocation` 起 15s 内无 ≤50m fix 时，接受窗口内「最佳可得」且 ≤200m 的 fix 并标记其 accuracy（`lastAcceptedAccuracyMeters`）；超过 200m 或窗口未到一律继续等待——护栏不得放宽到接受任意精度。
-- ac-location-error: 系统定位失败（`didFailWithError`，覆盖 `.denied` 与 `.locationUnknown`）必须落进状态而不静默：注入失败后 `RunLocationProviding.lastLocationErrorCode` 等于 `CLError` 原始码、`locationReadiness == .unavailable`（文案键 `run.status.locationUnavailable`、`nextAction == .retry`、跑步页 `notice == .locationUnavailable`），计时不回退；重新 `start()` 成功必须清空旧错误码并回到 `.ready`（`testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady`）；反例 = 把同一次失败当作无错误（等价断开转发），同一判据退回 `.ready` 故原断言必红。
-- ac-services-disabled: `locationServicesEnabled == false` 时 `start()` 不得调用 `startUpdatingLocation`（计数不变），且 `locationReadiness == .unavailable`、呈现 zh-Hans「定位暂不可用」文案与既有 retry 出口（复用 `run.status.locationUnavailable`，不新增文案键）；反例 = 去掉该前置检查后同一计数断言必红。
+- ac-location-error: 系统定位失败（`didFailWithError`，覆盖 `.denied` 与 `.locationUnknown`）必须落进状态而不静默：注入失败后 `RunLocationProviding.lastLocationErrorCode` 等于 `CLError` 原始码、`locationReadiness == .unavailable`（文案键 `run.status.locationUnavailable`、`nextAction == .retry`、跑步页 `notice == .locationUnavailable`），计时不回退；重新 `start()` 成功必须清空旧错误码并回到 `.ready`（`testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady`）；反例已实测判红：断开 `locationManagerDidFail` → `lastLocationErrorCode` 转发后从 `:281` 起共 9 处断言红，`start()` 恢复时不清旧错误码后 `:346/:347/:348` 红（证据 `docs/evidence/wi_intake_a443ff461a4b5787/logs/mutation-b.log` / `mutation-c.log`）。
+- ac-services-disabled: `locationServicesEnabled == false` 时 `start()` 不得调用 `startUpdatingLocation`（计数不变），且 `locationReadiness == .unavailable`、呈现 zh-Hans「定位暂不可用」文案与既有 retry 出口（复用 `run.status.locationUnavailable`，不新增文案键）；反例已实测判红：删整段前置检查（读取 + 回写 + guard）后 `:320/:321` 红；**只删 `guard` 而保留回写时仍 `0 failures`**（`beginUpdating()` 自带 `!isUpdating` 幂等，首轮 `start()` 已置真，故 `:315-319` 调用计数断言不能单独判红），真实判红点是状态/文案断言，不得声称计数断言可单独判红。
 - ac-diagnostics: 设置页诊断区只读单一 `RunDiagnostics` 快照：版本 + 构建期写入的 sha 前 8 位（缺失显式写「未注入」）+ `CLAuthorizationStatus` + `accuracyAuthorization` + 已采样本数 + 最近样本时间 + `allowsBackgroundLocationUpdates` + raw 回调数与精度过滤丢弃数；一键复制文本，中文标签与可见文案语义一致。
 - ac-waiting-location-hint: 记录态首条 fix 未到时显示「等待定位」inline 提示（沿用既有胶囊形态、零新令牌），降级精度时另给「精度降级」提示，二者都不阻断计时。
 
@@ -85,6 +85,13 @@
 - ac-copy-single-source: 新增用户可见文案（等待定位 / 精度降级 / 距离未获取 / 采样点数 / 详情空样本导出 / 诊断标签）全部经 `L10n` 落 `Resources/Localizable.xcstrings`，零裸中英文混排；`DesignTokens` 色板、字号、间距零新增。
 - ac-no-device-claims: 不新增真机流程、XCUITest 设备用例或设备脚本；digest、矩阵表与代码注释不得出现「真机已验证」类结论，真机项保持 `pending: 待人现场`。
 
+### G. 定位失败断言的变异红证（证据项口径）
+
+- ac-mutation-red: 三种变异各自使 `testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady` 红，日志含失败断言原文与 `XCTAssert` 位置——(a) 删整段 `servicesEnabled` 前置检查 → `:320/:321`；(b) 断开 `locationManagerDidFail` → `lastLocationErrorCode` 转发 → `:281` 起 9 处；(c) `start()` 恢复时不清旧错误码 → `:346/:347/:348`；同一 commit 未变异时两用例 `Executed 2 tests, with 0 failures`（`** TEST SUCCEEDED **`）。变异只在仓库外 `/tmp` 副本内做。
+- ac-mutation-boundary-honest: 断言敏感度边界如实记录，不把「计划中的判红」写成实测——只删 `guard servicesEnabled` 保留回写时判绿（`beginUpdating()` 的 `!isUpdating` 幂等），该点在矩阵与证据 README「发现」节同口径出现。
+- ac-matrix-row: 矩阵「定位失败与服务关闭的两条断言红证」行恰 1 行、6 列非空，归属项为本 WI，证据路径逐条指向仓内真实文件（`docs/evidence/{wi}/logs/*.log`）；原「定位授权链路与诊断」行保留并追加这两条断言名，不再以 pending/缺口充当结论。
+- ac-no-prod-change: 相对基线 commit `90bb205` 的改动只含 `docs/`（矩阵 + 证据）与 `.munk/`（change pack），`ios/**`、`VERSION`、CI 工作流、`shared/` 零改动；HEAD 未变，`git status` 仅新增证据目录与 change pack。
+
 ## 非目标
 
 - 不改设计 token / 版式 / 截图；用户可见文案只经 `L10n` 增量新增，不改既有键名与语义。
@@ -94,6 +101,7 @@
 - 不改 GPX 编码、文件名规则、音频播报与状态迁移表；锁屏不得引入「自动 pause」「自动 resume」「补样本回放」。
 - 不新增诊断展示页、遥测上传或第二个计时真源；诊断数据只读既有单一来源。
 - 不做性能优化、后台续跑调度（`BGTaskScheduler`）；不维护第二张矩阵表；不推 tag、不建 Release、不动 `VERSION`。
+- 不改 `RunLocationReadiness.resolve` 判定顺序：`denied + 定位服务关闭` 仍压成 `.unavailable` + `retry`（丢 `permissionDenied` 与「去系统设置」出口），属已记账的已知局限，另项再议。
 
 ## 实现约束
 
@@ -111,6 +119,6 @@
 
 ## 最近交付证明
 
-- 最近一次：`wi_intake_695f725dbf554509` — 补齐定位失败链路：`CLLocationManagerDelegate.didFailWithError` → `RunLocationManagerHandler.locationManagerDidFail(code:)` → `lastLocationErrorCode` 真实落地（此前基线宣称已有、代码实际缺失，本项已对齐）；`CLLocationManager.locationServicesEnabled()` 纳入 `start()` 前置检查（关闭时不启动更新），两者经 `RunLocationReadiness.resolve(authorization:servicesEnabled:lastErrorCode:)` 并入既有 `.unavailable`，复用 `run.status.locationUnavailable` 文案与 retry 出口，零新增文案键 / identifier；断言见 `RunPermissionAndDiagnosticsTests` 的 `testLocationFailureAndServicesOffSetUnavailableAndExposeCopy` / `testRecoveryAfterLocationFailureReturnsReady`（各带不改生产代码的反例）。有意未做（PRD 偏离）：`RunDiagnostics` 未新增「最近定位错误」字段（ac-diagnostics-error 未落），`docs/verification-matrix.md` 的「定位授权链路与诊断」行未回填失败/服务关闭口径。
-- 前置同域交付：`wi_intake_fe5ab0a5c47745ac` 核心闭环真机零可用修复（注入单调时钟与定位解耦、15s/200m 有界降级、两段式系统授权、设置页诊断快照、空样本结束文案与 GPX `.emptySamples`）。
+- 最近一次：`wi_intake_a443ff461a4b5787`（证据项，产品代码零改动）— 为 `wi_intake_695f725dbf554509` 引入的两条定位失败断言补齐「变异必红」证据：`/tmp` 副本内三变异分别判红（删整段 `servicesEnabled` 前置检查 → `:320/:321`；断开 `locationManagerDidFail` 转发 → `:281` 起 9 处；恢复不清旧错误码 → `:346/:347/:348`），未变异同 commit `Executed 2 tests, with 0 failures`；矩阵补「定位失败与服务关闭的两条断言红证」行并把两条断言名并入「定位授权链路与诊断」行，回填了上一项未做的矩阵缺口。附带两条记账：只删 `guard` 保留回写时判绿（`beginUpdating` 幂等，计数断言不敏感，真实判红点是 `:320/:321` 状态/文案断言）；`resolve` 先判服务/错误再判授权使 `denied + 服务关闭` 丢失「去系统设置」出口，本项不修。
+- 前置同域交付：`wi_intake_695f725dbf554509` 定位失败链路落地（`didFailWithError` → `lastLocationErrorCode`、`start()` 服务关闭前置检查、`RunLocationReadiness.resolve` 并入 `.unavailable`）；`wi_intake_fe5ab0a5c47745ac` 核心闭环真机零可用修复。
 - 边界：真机定位授权/锁屏/后台采样与室内精度表现仍为 `pending: 待人现场`；Android 只保证同一主链路不回退，未做对等功能面。
